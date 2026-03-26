@@ -8,6 +8,7 @@ export async function POST(req: Request) {
 
     const name = String(body?.name || "").trim();
     const email = String(body?.email || "").trim().toLowerCase();
+    const telefono = String(body?.telefono || "").trim();
     const message = String(body?.message || "").trim();
     const lang = String(body?.lang || "es").trim();
 
@@ -49,18 +50,52 @@ export async function POST(req: Request) {
         : "Nuevo mensaje desde borikipr.com";
 
     const text = [
+      "Nuevo lead desde borikipr.com",
+      "",
       `Nombre: ${name}`,
       `Email: ${email}`,
+      `Teléfono: ${telefono || "No provisto"}`,
       "",
       "Mensaje:",
       message,
     ].join("\n");
+
+    const html = `
+      <div style="font-family: Arial, Helvetica, sans-serif; color: #111; line-height: 1.6; padding: 24px;">
+        <div style="max-width: 640px; margin: 0 auto; border: 1px solid #e8e8e8; border-radius: 18px; overflow: hidden;">
+          <div style="background: #0d1b2a; padding: 20px 24px;">
+            <h2 style="margin: 0; color: #d4af37; font-size: 22px;">
+              Erickson Real Estate
+            </h2>
+            <p style="margin: 6px 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">
+              Nuevo mensaje desde borikipr.com
+            </p>
+          </div>
+
+          <div style="padding: 24px;">
+            <p style="margin: 0 0 12px;"><strong>Nombre:</strong> ${escapeHtml(name)}</p>
+            <p style="margin: 0 0 12px;"><strong>Email:</strong> ${escapeHtml(email)}</p>
+            <p style="margin: 0 0 20px;"><strong>Teléfono:</strong> ${escapeHtml(
+              telefono || "No provisto"
+            )}</p>
+
+            <div style="border-top: 1px solid #ececec; padding-top: 20px;">
+              <p style="margin: 0 0 10px; font-weight: 700;">Mensaje:</p>
+              <p style="margin: 0; color: #4d4d4d; white-space: pre-line;">${escapeHtml(
+                message
+              )}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
 
     const { data, error } = await resend.emails.send({
       from: `Ivonne Erickson <${fromEmail}>`,
       to: [toEmail],
       subject,
       text,
+      html,
       replyTo: email,
     });
 
@@ -82,4 +117,13 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
