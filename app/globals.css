@@ -1,0 +1,209 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+
+  --color-navy: #11518b;
+  --color-navy-dark: #0d406d;
+  --color-gold: #d4af37;
+  --color-black: #000000;
+  --color-white: #ffffff;
+  --color-gray-light: #f8f8f8;
+  --color-gray-border: #e8e8e8;
+  --color-gray-text: #4d4d4d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-mono: monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(212, 175, 55, 0.22);
+  color: #000000;
+}
+
+img {
+  display: block;
+}
+
+a,
+button,
+input,
+textarea,
+select {
+  transition:
+    color 0.22s ease,
+    background-color 0.22s ease,
+    border-color 0.22s ease,
+    opacity 0.22s ease,
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+button,
+select {
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+textarea {
+  resize: vertical;
+}
+
+*:focus-visible {
+  outline: 2px solid rgba(17, 81, 139, 0.28);
+  outline-offset: 2px;
+}
+
+.section-shell {
+  @apply mx-auto max-w-7xl px-6 lg:px-8;
+}
+
+.surface-card {
+  @apply rounded-[2rem] border border-[#e8e8e8] bg-white shadow-sm;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+}
+
+.surface-muted {
+  @apply rounded-[2rem] border border-[#e8e8e8] bg-[#fafafa] shadow-sm;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+}
+
+.card-hover {
+  @apply transition;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.08);
+}
+
+.eyebrow {
+  @apply text-sm font-semibold uppercase tracking-[0.25em] text-[#d4af37];
+}
+
+.heading-display {
+  @apply text-4xl font-bold leading-tight text-[#000000] md:text-6xl;
+}
+
+.heading-section {
+  @apply text-4xl font-bold leading-tight text-[#000000] md:text-5xl;
+}
+
+.body-lg {
+  @apply text-lg leading-relaxed text-[#4d4d4d];
+}
+
+.body-base {
+  @apply leading-relaxed text-[#4d4d4d];
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-full bg-[#11518b] px-6 py-3.5 text-sm font-semibold text-white;
+  box-shadow: 0 10px 24px rgba(17, 81, 139, 0.18);
+}
+
+.btn-primary:hover {
+  background: #0d406d;
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(17, 81, 139, 0.24);
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center rounded-full border border-[#11518b] bg-white px-6 py-3.5 text-sm font-semibold text-[#11518b];
+}
+
+.btn-secondary:hover {
+  background: #11518b;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.btn-gold {
+  @apply inline-flex items-center justify-center rounded-full bg-[#d4af37] px-6 py-3.5 text-sm font-semibold text-black;
+  box-shadow: 0 10px 24px rgba(212, 175, 55, 0.18);
+}
+
+.btn-gold:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(212, 175, 55, 0.24);
+}
+
+.input-premium {
+  @apply w-full rounded-2xl border border-[#d9d9d9] bg-white px-4 py-3.5 text-[#4d4d4d] outline-none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.input-premium:hover {
+  border-color: #c8c8c8;
+}
+
+.input-premium:focus {
+  border-color: #11518b;
+  box-shadow:
+    0 0 0 4px rgba(17, 81, 139, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.badge-gold {
+  @apply rounded-full bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#11518b];
+}
+
+.shadow-soft {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.shadow-luxury {
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.08);
+}
+
+.divider-soft {
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+@media (max-width: 640px) {
+  .section-shell {
+    @apply px-5;
+  }
+
+  .surface-card,
+  .surface-muted {
+    border-radius: 1.5rem;
+  }
+
+  .heading-display {
+    @apply text-4xl;
+  }
+
+  .heading-section {
+    @apply text-3xl;
+  }
+
+  .body-lg {
+    @apply text-base;
+  }
+}
