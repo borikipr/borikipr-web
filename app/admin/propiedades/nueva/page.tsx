@@ -1,0 +1,335 @@
+"use client";
+
+import Link from "next/link";
+import { useActionState, useMemo, useState } from "react";
+import { municipiosPR } from "@/data/municipios";
+import { createPropiedadAction, type CreatePropiedadState } from "../actions";
+import ImagenesUploader from "../ImagenesUploader";
+
+const initialState: CreatePropiedadState = {
+  error: "",
+};
+
+export default function NuevaPropiedadPage() {
+  const [state, formAction, pending] = useActionState(
+    createPropiedadAction,
+    initialState
+  );
+  const [imagenesValue, setImagenesValue] = useState("");
+
+  const imagenesPreview = useMemo(
+    () =>
+      imagenesValue
+        .split(",")
+        .map((img) => img.trim())
+        .filter(Boolean),
+    [imagenesValue]
+  );
+
+  const handleUploaded = (urls: string[]) => {
+    setImagenesValue((prev) => {
+      const current = prev
+        .split(",")
+        .map((img) => img.trim())
+        .filter(Boolean);
+
+      const merged = [...current, ...urls];
+      return merged.join(", ");
+    });
+  };
+
+  return (
+    <main className="min-h-screen bg-[#f8f8f8] px-6 py-10">
+      <div className="section-shell">
+        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="eyebrow">Admin · Nueva propiedad</p>
+            <h1 className="mt-3 text-3xl font-bold text-[#000000]">
+              Crear propiedad
+            </h1>
+            <p className="body-base mt-3">
+              Añade un nuevo listado al website.
+            </p>
+          </div>
+
+          <Link href="/admin/propiedades" className="btn-secondary">
+            Volver a propiedades
+          </Link>
+        </div>
+
+        <div className="space-y-6">
+          <ImagenesUploader onUploaded={handleUploaded} />
+
+          <div className="surface-card p-8 md:p-10">
+            <form action={formAction} className="space-y-8">
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label htmlFor="slug" className="text-sm font-medium text-[#000000]">
+                    Slug
+                  </label>
+                  <input
+                    id="slug"
+                    name="slug"
+                    type="text"
+                    placeholder="casa-moderna-guaynabo"
+                    className="input-premium"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="titulo" className="text-sm font-medium text-[#000000]">
+                    Título
+                  </label>
+                  <input
+                    id="titulo"
+                    name="titulo"
+                    type="text"
+                    placeholder="Residencia moderna con piscina"
+                    className="input-premium"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="descripcion" className="text-sm font-medium text-[#000000]">
+                  Descripción
+                </label>
+                <textarea
+                  id="descripcion"
+                  name="descripcion"
+                  rows={6}
+                  placeholder="Describe la propiedad con claridad y enfoque comercial..."
+                  className="input-premium"
+                  required
+                />
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+                <div className="space-y-2">
+                  <label htmlFor="municipio" className="text-sm font-medium text-[#000000]">
+                    Municipio
+                  </label>
+                  <select
+                    id="municipio"
+                    name="municipio"
+                    className="input-premium"
+                    required
+                  >
+                    <option value="">Selecciona municipio</option>
+                    {municipiosPR.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="precio" className="text-sm font-medium text-[#000000]">
+                    Precio
+                  </label>
+                  <input
+                    id="precio"
+                    name="precio"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="350000"
+                    className="input-premium"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="tipo_negocio" className="text-sm font-medium text-[#000000]">
+                    Tipo de negocio
+                  </label>
+                  <select
+                    id="tipo_negocio"
+                    name="tipo_negocio"
+                    className="input-premium"
+                    required
+                  >
+                    <option value="">Selecciona</option>
+                    <option value="venta">Venta</option>
+                    <option value="renta">Renta</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="tipo_propiedad" className="text-sm font-medium text-[#000000]">
+                    Tipo de propiedad
+                  </label>
+                  <select
+                    id="tipo_propiedad"
+                    name="tipo_propiedad"
+                    className="input-premium"
+                    required
+                  >
+                    <option value="">Selecciona</option>
+                    <option value="Casa">Casa</option>
+                    <option value="Apartamento">Apartamento</option>
+                    <option value="Condominio">Condominio</option>
+                    <option value="Terreno">Terreno</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
+                <div className="space-y-2">
+                  <label htmlFor="habitaciones" className="text-sm font-medium text-[#000000]">
+                    Habitaciones
+                  </label>
+                  <input
+                    id="habitaciones"
+                    name="habitaciones"
+                    type="number"
+                    min="0"
+                    defaultValue="0"
+                    className="input-premium"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="banos" className="text-sm font-medium text-[#000000]">
+                    Baños
+                  </label>
+                  <input
+                    id="banos"
+                    name="banos"
+                    type="number"
+                    min="0"
+                    defaultValue="0"
+                    className="input-premium"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="estacionamientos"
+                    className="text-sm font-medium text-[#000000]"
+                  >
+                    Estacionamientos
+                  </label>
+                  <input
+                    id="estacionamientos"
+                    name="estacionamientos"
+                    type="number"
+                    min="0"
+                    defaultValue="0"
+                    className="input-premium"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="metros_cuadrados"
+                    className="text-sm font-medium text-[#000000]"
+                  >
+                    Metros cuadrados
+                  </label>
+                  <input
+                    id="metros_cuadrados"
+                    name="metros_cuadrados"
+                    type="number"
+                    min="0"
+                    defaultValue="0"
+                    className="input-premium"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="estado" className="text-sm font-medium text-[#000000]">
+                    Estado
+                  </label>
+                  <select
+                    id="estado"
+                    name="estado"
+                    className="input-premium"
+                    required
+                  >
+                    <option value="disponible">Disponible</option>
+                    <option value="bajo_contrato">Bajo contrato</option>
+                    <option value="vendida">Vendida</option>
+                    <option value="rentada">Rentada</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label htmlFor="imagenes" className="text-sm font-medium text-[#000000]">
+                  Imágenes
+                </label>
+                <textarea
+                  id="imagenes"
+                  name="imagenes"
+                  rows={4}
+                  value={imagenesValue}
+                  onChange={(e) => setImagenesValue(e.target.value)}
+                  placeholder="Las URLs se llenarán automáticamente al subir imágenes"
+                  className="input-premium"
+                />
+                <p className="text-sm text-[#4d4d4d]">
+                  Puedes subir imágenes arriba o pegar URLs manualmente si quieres.
+                </p>
+              </div>
+
+              {imagenesPreview.length > 0 && (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {imagenesPreview.map((url) => (
+                    <div
+                      key={url}
+                      className="overflow-hidden rounded-2xl border border-[#e8e8e8] bg-white"
+                    >
+                      <img
+                        src={url}
+                        alt="Preview"
+                        className="h-40 w-full object-cover"
+                      />
+                      <div className="p-3">
+                        <p className="break-all text-xs text-[#4d4d4d]">{url}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center gap-3">
+                <input
+                  id="destacado"
+                  name="destacado"
+                  type="checkbox"
+                  className="h-4 w-4"
+                />
+                <label
+                  htmlFor="destacado"
+                  className="text-sm font-medium text-[#000000]"
+                >
+                  Marcar como destacado
+                </label>
+              </div>
+
+              {state.error && <p className="text-sm text-red-600">{state.error}</p>}
+
+              <div className="flex flex-wrap gap-4">
+                <button
+                  type="submit"
+                  disabled={pending}
+                  className="btn-primary disabled:opacity-60"
+                >
+                  {pending ? "Guardando..." : "Crear propiedad"}
+                </button>
+
+                <Link href="/admin/propiedades" className="btn-secondary">
+                  Cancelar
+                </Link>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
