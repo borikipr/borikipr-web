@@ -31,6 +31,42 @@ export type AdminPropiedadDetalle = {
   imagenes: string[];
 };
 
+export type AdminDashboardStats = {
+  total: number;
+  disponibles: number;
+  bajoContrato: number;
+  cerradas: number;
+  destacadas: number;
+};
+
+export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
+  const rows = await sql<{
+    total: number;
+    disponibles: number;
+    bajo_contrato: number;
+    cerradas: number;
+    destacadas: number;
+  }[]>`
+    SELECT
+      COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE estado = 'disponible')::int AS disponibles,
+      COUNT(*) FILTER (WHERE estado = 'bajo_contrato')::int AS bajo_contrato,
+      COUNT(*) FILTER (WHERE estado IN ('vendida', 'rentada'))::int AS cerradas,
+      COUNT(*) FILTER (WHERE destacado = true)::int AS destacadas
+    FROM propiedades
+  `;
+
+  const row = rows[0];
+
+  return {
+    total: row?.total ?? 0,
+    disponibles: row?.disponibles ?? 0,
+    bajoContrato: row?.bajo_contrato ?? 0,
+    cerradas: row?.cerradas ?? 0,
+    destacadas: row?.destacadas ?? 0,
+  };
+}
+
 export async function getAdminPropiedades() {
   const rows = await sql<AdminPropiedadRow[]>`
     SELECT

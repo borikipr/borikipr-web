@@ -3,11 +3,29 @@ import { redirect } from "next/navigation";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import { getAdminPropiedades } from "@/lib/admin/queries";
 import PropiedadRowActions from "./PropiedadRowActions";
+import StatusBadge from "@/components/admin/StatusBadge";
+import AdminAlert from "@/components/admin/AdminAlert";
 
 function formatoPrecio(precio: number, tipo: "venta" | "renta") {
   return tipo === "renta"
     ? `$${precio.toLocaleString("en-US")}/mes`
     : `$${precio.toLocaleString("en-US")}`;
+}
+
+function estadoVariant(
+  estado: "disponible" | "bajo_contrato" | "vendida" | "rentada"
+) {
+  switch (estado) {
+    case "disponible":
+      return "blue";
+    case "bajo_contrato":
+      return "gold";
+    case "vendida":
+    case "rentada":
+      return "gray";
+    default:
+      return "outline";
+  }
 }
 
 function estadoLabel(
@@ -27,26 +45,10 @@ function estadoLabel(
   }
 }
 
-function estadoClasses(
-  estado: "disponible" | "bajo_contrato" | "vendida" | "rentada"
-) {
-  switch (estado) {
-    case "disponible":
-      return "bg-[#11518b] text-white";
-    case "bajo_contrato":
-      return "bg-[#d4af37] text-black";
-    case "vendida":
-    case "rentada":
-      return "bg-[#4d4d4d] text-white";
-    default:
-      return "bg-[#cccccc] text-black";
-  }
-}
-
 export default async function AdminPropiedadesPage({
   searchParams,
 }: {
-  searchParams: { ok?: string; id?: string };
+  searchParams: Promise<{ ok?: string; id?: string }>;
 }) {
   const user = await getAdminSessionUser();
 
@@ -55,38 +57,42 @@ export default async function AdminPropiedadesPage({
   }
 
   const propiedades = await getAdminPropiedades();
+  const params = await searchParams;
 
   return (
-    <main className="min-h-screen bg-[#f8f8f8] px-6 py-10">
-      <div className="section-shell">
-        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="eyebrow">Admin · Propiedades</p>
-            <h1 className="mt-3 text-3xl font-bold text-[#000000]">
-              Listado de propiedades
-            </h1>
-            <p className="body-base mt-3">
-              Administra los listados disponibles en el website.
-            </p>
-          </div>
+    <main className="px-6 py-10">
+      <div className="section-shell space-y-6">
+        <div className="surface-card p-8 md:p-10">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="eyebrow">Admin · Propiedades</p>
+              <h1 className="mt-3 text-3xl font-bold text-[#000000]">
+                Listado de propiedades
+              </h1>
+              <p className="body-base mt-3">
+                Administra los listados disponibles en el website.
+              </p>
+            </div>
 
-          <div className="flex flex-wrap gap-3">
-            <Link href="/admin" className="btn-secondary">
-              Volver al panel
-            </Link>
+            <div className="flex flex-wrap gap-3">
+              <Link href="/admin" className="btn-secondary">
+                Volver al panel
+              </Link>
 
-            <Link href="/admin/propiedades/nueva" className="btn-primary">
-              Nueva propiedad
-            </Link>
+              <Link href="/admin/propiedades/nueva" className="btn-primary">
+                Nueva propiedad
+              </Link>
+            </div>
           </div>
         </div>
-        {searchParams.ok && (
-  <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 px-5 py-4 text-sm text-green-800">
-    {searchParams.ok === "created" && "Propiedad creada correctamente."}
-    {searchParams.ok === "updated" && "Cambios guardados correctamente."}
-    {searchParams.ok === "deleted" && "Propiedad eliminada correctamente."}
-  </div>
-)}
+
+        {params.ok && (
+          <AdminAlert variant="success">
+            {params.ok === "created" && "Propiedad creada correctamente."}
+            {params.ok === "updated" && "Cambios guardados correctamente."}
+            {params.ok === "deleted" && "Propiedad eliminada correctamente."}
+          </AdminAlert>
+        )}
 
         <div className="surface-card overflow-hidden">
           {propiedades.length === 0 ? (
@@ -121,13 +127,13 @@ export default async function AdminPropiedadesPage({
                 <tbody>
                   {propiedades.map((item) => (
                     <tr
-  key={item.id}
-  className={`border-t border-[#ececec] align-top transition-all duration-700 ${
-    searchParams.id === item.id
-      ? "bg-green-50 ring-2 ring-green-300"
-      : "bg-white"
-  }`}
->
+                      key={item.id}
+                      className={`border-t border-[#ececec] align-top transition-all duration-700 ${
+                        params.id === item.id
+                          ? "bg-green-50 ring-2 ring-green-300"
+                          : "bg-white"
+                      }`}
+                    >
                       <td className="px-6 py-5">
                         <div>
                           <p className="font-semibold text-[#000000]">
@@ -148,26 +154,28 @@ export default async function AdminPropiedadesPage({
                       </td>
 
                       <td className="px-6 py-5 text-sm text-[#4d4d4d]">
-                        <div>
-                          <p>{item.tipo_negocio === "venta" ? "Venta" : "Renta"}</p>
-                          <p className="mt-1 text-xs text-[#7a7a7a]">
+                        <div className="space-y-2">
+                          <div>
+                            {item.tipo_negocio === "venta" ? "Venta" : "Renta"}
+                          </div>
+                          <StatusBadge variant="outline">
                             {item.tipo_propiedad}
-                          </p>
+                          </StatusBadge>
                         </div>
                       </td>
 
                       <td className="px-6 py-5">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.15em] ${estadoClasses(
-                            item.estado
-                          )}`}
-                        >
+                        <StatusBadge variant={estadoVariant(item.estado)}>
                           {estadoLabel(item.estado)}
-                        </span>
+                        </StatusBadge>
                       </td>
 
                       <td className="px-6 py-5 text-sm text-[#4d4d4d]">
-                        {item.destacado ? "Sí" : "No"}
+                        {item.destacado ? (
+                          <StatusBadge variant="green">Destacado</StatusBadge>
+                        ) : (
+                          <StatusBadge variant="outline">Normal</StatusBadge>
+                        )}
                       </td>
 
                       <td className="px-6 py-5">
