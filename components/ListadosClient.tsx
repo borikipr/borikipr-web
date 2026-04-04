@@ -14,7 +14,12 @@ import {
 } from "@/lib/propiedades";
 
 type TipoNegocio = "venta" | "renta";
-type TipoPropiedad = "Casa" | "Apartamento" | "Condominio" | "Terreno";
+type TipoPropiedad =
+  | "Casa"
+  | "Apartamento"
+  | "Condominio"
+  | "Terreno"
+  | "Comercial";
 type EstadoPropiedad =
   | "disponible"
   | "bajo_contrato"
@@ -58,6 +63,7 @@ type PropiedadUI = {
 };
 
 type InitialFilters = {
+  q: string;
   tipoNegocio: "" | TipoNegocio;
   municipio: string;
   tipoPropiedad: "" | TipoPropiedad;
@@ -68,6 +74,7 @@ type InitialFilters = {
 
 type ActiveChip = {
   key:
+    | "q"
     | "tipoNegocio"
     | "municipio"
     | "tipoPropiedad"
@@ -103,6 +110,7 @@ export default function ListadosClient({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  const [q, setQ] = useState(initialFilters.q);
   const [tipoNegocio, setTipoNegocio] = useState<"" | TipoNegocio>(
     initialFilters.tipoNegocio
   );
@@ -116,6 +124,7 @@ export default function ListadosClient({
   const [shareMessage, setShareMessage] = useState("");
 
   const limpiarFiltros = () => {
+    setQ("");
     setTipoNegocio("");
     setMunicipio("");
     setTipoPropiedad("");
@@ -126,6 +135,9 @@ export default function ListadosClient({
 
   const quitarFiltro = (key: ActiveChip["key"]) => {
     switch (key) {
+      case "q":
+        setQ("");
+        break;
       case "tipoNegocio":
         setTipoNegocio("");
         break;
@@ -149,6 +161,12 @@ export default function ListadosClient({
 
   useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
+
+    if (q.trim()) {
+      params.set("q", q.trim());
+    } else {
+      params.delete("q");
+    }
 
     if (tipoNegocio) {
       params.set("tipoNegocio", tipoNegocio);
@@ -196,6 +214,7 @@ export default function ListadosClient({
       router.replace(nextUrl, { scroll: false });
     }
   }, [
+    q,
     tipoNegocio,
     municipio,
     tipoPropiedad,
@@ -230,13 +249,17 @@ export default function ListadosClient({
         metrosCuadrados: p.metros_cuadrados,
         estado: p.estado,
         destacado: p.destacado,
-        imagenes: Array.isArray(p.imagenes) ? p.imagenes : [],
+        imagenes:
+          Array.isArray(p.imagenes) && p.imagenes.length > 0
+            ? p.imagenes
+            : ["/placeholder.jpg"],
       })),
     [propiedades]
   );
 
   const propiedadesFiltradas = useMemo(() => {
     return filtrarPropiedades(propiedadesNormalizadas, {
+      q,
       tipoNegocio,
       municipio,
       tipoPropiedad,
@@ -246,6 +269,7 @@ export default function ListadosClient({
     });
   }, [
     propiedadesNormalizadas,
+    q,
     tipoNegocio,
     municipio,
     tipoPropiedad,
@@ -256,6 +280,13 @@ export default function ListadosClient({
 
   const activeChips = useMemo<ActiveChip[]>(() => {
     const chips: ActiveChip[] = [];
+
+    if (q.trim()) {
+      chips.push({
+        key: "q",
+        label: `Buscar: ${q.trim()}`,
+      });
+    }
 
     if (tipoNegocio) {
       chips.push({
@@ -300,7 +331,7 @@ export default function ListadosClient({
     }
 
     return chips;
-  }, [tipoNegocio, municipio, tipoPropiedad, precioMin, precioMax, orden]);
+  }, [q, tipoNegocio, municipio, tipoPropiedad, precioMin, precioMax, orden]);
 
   const shareUrl = useMemo(() => {
     const query = searchParams.toString();
@@ -333,6 +364,19 @@ export default function ListadosClient({
           </div>
 
           <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[#000000]">
+                Buscar
+              </label>
+              <input
+                type="text"
+                placeholder="Ej. Guaynabo, piscina, moderna..."
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                className="input-premium"
+              />
+            </div>
+
             <div>
               <label className="mb-2 block text-sm font-medium text-[#000000]">
                 Venta o renta
@@ -384,6 +428,7 @@ export default function ListadosClient({
                 <option value="Apartamento">Apartamento</option>
                 <option value="Condominio">Condominio</option>
                 <option value="Terreno">Terreno</option>
+                <option value="Comercial">Comercial</option>
               </select>
             </div>
 
@@ -496,19 +541,17 @@ export default function ListadosClient({
           {propiedadesFiltradas.length === 0 ? (
             <div className="rounded-3xl border border-[#e8e8e8] bg-gradient-to-br from-white to-[#f8f8f8] p-10 text-center shadow-sm md:p-16">
               <h2 className="text-3xl font-semibold text-[#000000]">
-                Próximamente nuevas propiedades disponibles
+                No encontramos propiedades con esos filtros
               </h2>
 
               <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-[#4d4d4d]">
-                Estamos preparando oportunidades exclusivas en distintas zonas de
-                Puerto Rico. Si estás buscando comprar o rentar, agenda una
-                consulta personalizada y recibe opciones alineadas con tus
-                criterios.
+                Ajusta la búsqueda o contáctanos para ayudarte a encontrar una
+                opción alineada con lo que estás buscando en Puerto Rico.
               </p>
 
               <div className="mt-10 flex flex-wrap justify-center gap-4">
                 <Link href="/contact" className="btn-primary px-8 py-3">
-                  Agendar consulta
+                  Solicitar orientación
                 </Link>
 
                 <a
@@ -581,13 +624,30 @@ export default function ListadosClient({
                       )}
                     </div>
 
-                    <div className="mt-6">
+                    <div className="mt-6 flex flex-col gap-3">
                       <Link
                         href={`/listados/${propiedad.slug}`}
                         className="inline-flex items-center justify-center rounded-full border border-[#11518b] px-5 py-2.5 text-sm font-semibold text-[#11518b] transition-all duration-300 hover:bg-[#11518b] hover:text-white"
                       >
                         Ver detalles
                       </Link>
+
+                      <a
+                        href={`https://wa.me/17876774900?text=${encodeURIComponent(
+                          `Hola, me interesa esta propiedad:
+
+${propiedad.titulo}
+${propiedad.municipio}, Puerto Rico
+Precio: ${formatoPrecio(propiedad.precio, propiedad.tipoNegocio)}
+
+https://borikipr.com/listados/${propiedad.slug}`
+                        )}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center rounded-full bg-[#d4af37] px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+                      >
+                        Consultar por WhatsApp
+                      </a>
                     </div>
                   </div>
                 </article>

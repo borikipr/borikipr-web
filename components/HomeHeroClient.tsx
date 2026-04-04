@@ -140,6 +140,7 @@ export default function HomeHeroClient({
                 <option value="Apartamento">Apartamento</option>
                 <option value="Condominio">Condominio</option>
                 <option value="Terreno">Terreno</option>
+                <option value="Comercial">Comercial</option>
               </select>
 
               <button

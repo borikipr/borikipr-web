@@ -1,4 +1,9 @@
-import { EstadoPropiedad, Propiedad, TipoNegocio, TipoPropiedad } from "@/data/listados";
+import {
+  EstadoPropiedad,
+  Propiedad,
+  TipoNegocio,
+  TipoPropiedad,
+} from "@/data/listados";
 
 export type Orden =
   | ""
@@ -8,6 +13,7 @@ export type Orden =
   | "municipio-desc";
 
 export type FiltrosPropiedades = {
+  q: string;
   tipoNegocio: "" | TipoNegocio;
   municipio: string;
   tipoPropiedad: "" | TipoPropiedad;
@@ -55,7 +61,16 @@ export function filtrarPropiedades(
   propiedades: Propiedad[],
   filtros: FiltrosPropiedades
 ) {
+  const textoBusqueda = filtros.q.trim().toLowerCase();
+
   const filtradas = propiedades.filter((propiedad) => {
+    const coincideTexto = textoBusqueda
+      ? propiedad.titulo.toLowerCase().includes(textoBusqueda) ||
+        propiedad.descripcion.toLowerCase().includes(textoBusqueda) ||
+        propiedad.municipio.toLowerCase().includes(textoBusqueda) ||
+        propiedad.tipoPropiedad.toLowerCase().includes(textoBusqueda)
+      : true;
+
     const coincideNegocio = filtros.tipoNegocio
       ? propiedad.tipoNegocio === filtros.tipoNegocio
       : true;
@@ -77,6 +92,7 @@ export function filtrarPropiedades(
       : true;
 
     return (
+      coincideTexto &&
       coincideNegocio &&
       coincideMunicipio &&
       coincideTipo &&

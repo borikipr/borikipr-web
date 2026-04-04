@@ -3,7 +3,12 @@ import ListadosClient from "@/components/ListadosClient";
 import { getPropiedades } from "@/lib/queries/propiedades";
 
 type TipoNegocio = "venta" | "renta";
-type TipoPropiedad = "Casa" | "Apartamento" | "Condominio" | "Terreno";
+type TipoPropiedad =
+  | "Casa"
+  | "Apartamento"
+  | "Condominio"
+  | "Terreno"
+  | "Comercial";
 type EstadoPropiedad =
   | "disponible"
   | "bajo_contrato"
@@ -28,14 +33,15 @@ type PropiedadDB = {
   imagenes: string[];
 };
 
-type SearchParams = Promise<{
+type SearchParams = {
   municipio?: string;
   tipoNegocio?: string;
   tipoPropiedad?: string;
   precioMin?: string;
   precioMax?: string;
   orden?: string;
-}>;
+  q?: string;
+};
 
 export default async function ListadosPage({
   searchParams,
@@ -43,7 +49,6 @@ export default async function ListadosPage({
   searchParams: SearchParams;
 }) {
   const rows = (await getPropiedades()) as unknown as PropiedadDB[];
-  const params = await searchParams;
 
   const propiedades = rows.map((p) => ({
     id: p.id,
@@ -60,7 +65,10 @@ export default async function ListadosPage({
     metros_cuadrados: p.metros_cuadrados,
     estado: p.estado,
     destacado: p.destacado,
-    imagenes: Array.isArray(p.imagenes) ? p.imagenes : [],
+    imagenes:
+      Array.isArray(p.imagenes) && p.imagenes.length > 0
+        ? p.imagenes
+        : ["/placeholder.jpg"],
   }));
 
   return (
@@ -86,26 +94,29 @@ export default async function ListadosPage({
         <ListadosClient
           propiedades={propiedades}
           initialFilters={{
-            municipio: params.municipio ?? "",
+            q: searchParams.q ?? "",
+            municipio: searchParams.municipio ?? "",
             tipoNegocio:
-              params.tipoNegocio === "venta" || params.tipoNegocio === "renta"
-                ? params.tipoNegocio
+              searchParams.tipoNegocio === "venta" ||
+              searchParams.tipoNegocio === "renta"
+                ? searchParams.tipoNegocio
                 : "",
             tipoPropiedad:
-              params.tipoPropiedad === "Casa" ||
-              params.tipoPropiedad === "Apartamento" ||
-              params.tipoPropiedad === "Condominio" ||
-              params.tipoPropiedad === "Terreno"
-                ? params.tipoPropiedad
+              searchParams.tipoPropiedad === "Casa" ||
+              searchParams.tipoPropiedad === "Apartamento" ||
+              searchParams.tipoPropiedad === "Condominio" ||
+              searchParams.tipoPropiedad === "Terreno" ||
+              searchParams.tipoPropiedad === "Comercial"
+                ? searchParams.tipoPropiedad
                 : "",
-            precioMin: params.precioMin ?? "",
-            precioMax: params.precioMax ?? "",
+            precioMin: searchParams.precioMin ?? "",
+            precioMax: searchParams.precioMax ?? "",
             orden:
-              params.orden === "precio-asc" ||
-              params.orden === "precio-desc" ||
-              params.orden === "municipio-asc" ||
-              params.orden === "municipio-desc"
-                ? params.orden
+              searchParams.orden === "precio-asc" ||
+              searchParams.orden === "precio-desc" ||
+              searchParams.orden === "municipio-asc" ||
+              searchParams.orden === "municipio-desc"
+                ? searchParams.orden
                 : "",
           }}
         />

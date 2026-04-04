@@ -15,7 +15,7 @@ type EditarPropiedadFormProps = {
     municipio: string;
     precio: string | number;
     tipo_negocio: "venta" | "renta";
-    tipo_propiedad: "Casa" | "Apartamento" | "Condominio" | "Terreno";
+    tipo_propiedad: "Casa" | "Apartamento" | "Condominio" | "Terreno" | "Comercial";
     habitaciones: number;
     banos: number;
     estacionamientos: number;
@@ -186,6 +186,7 @@ export default function EditarPropiedadForm({
                 <option value="Apartamento">Apartamento</option>
                 <option value="Condominio">Condominio</option>
                 <option value="Terreno">Terreno</option>
+                <option value="Comercial">Comercial</option>
               </select>
             </div>
           </div>

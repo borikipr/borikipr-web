@@ -7,7 +7,7 @@ import EditarPropiedadForm from "./EditarPropiedadForm";
 export default async function EditarPropiedadPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
   const user = await getAdminSessionUser();
 
@@ -15,7 +15,7 @@ export default async function EditarPropiedadPage({
     redirect("/admin/login");
   }
 
-  const { id } = await params;
+  const { id } = params;
   const propiedad = await getAdminPropiedadById(id);
 
   if (!propiedad) {

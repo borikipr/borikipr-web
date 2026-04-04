@@ -1,15 +1,18 @@
 import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import * as bcrypt from "bcryptjs";
+import { sql } from "@/lib/db";
 
 export const SESSION_COOKIE = "boriki_admin_session";
 
 type AdminUser = {
   username: string;
-  password: string;
+  password_hash: string;
+  activo: boolean;
 };
 
 function getSessionSecret() {
-  const secret = process.env.SESSION_SECRET;
+  const secret = process.env.SESSION_SECRET?.trim();
 
   if (!secret) {
     throw new Error("SESSION_SECRET no está configurado.");
@@ -18,28 +21,10 @@ function getSessionSecret() {
   return secret;
 }
 
-function getAdminUsers(): AdminUser[] {
-  const users: AdminUser[] = [];
-
-  const user1 = process.env.ADMIN_USER_1?.trim();
-  const pass1 = process.env.ADMIN_PASS_1?.trim();
-
-  const user2 = process.env.ADMIN_USER_2?.trim();
-  const pass2 = process.env.ADMIN_PASS_2?.trim();
-
-  if (user1 && pass1) {
-    users.push({ username: user1, password: pass1 });
-  }
-
-  if (user2 && pass2) {
-    users.push({ username: user2, password: pass2 });
-  }
-
-  return users;
-}
-
 function signValue(value: string) {
-  return createHmac("sha256", getSessionSecret()).update(value).digest("hex");
+  return createHmac("sha256", getSessionSecret())
+    .update(value)
+    .digest("hex");
 }
 
 function buildSessionValue(username: string) {
@@ -47,11 +32,36 @@ function buildSessionValue(username: string) {
   return `${username}.${signature}`;
 }
 
-export function verifyAdminSessionValue(sessionValue: string | undefined | null) {
+async function getAdminUsers() {
+  const users = await sql<AdminUser[]>`
+    SELECT username, password_hash, activo
+    FROM admin_users
+    WHERE activo = true
+  `;
+
+  return users;
+}
+
+export async function authenticateAdmin(username: string, password: string) {
+  const cleanUsername = username.trim();
+  const cleanPassword = password.trim();
+
+  const users = await getAdminUsers();
+  const user = users.find((u) => u.username === cleanUsername);
+
+  if (!user) return null;
+
+  const matches = await bcrypt.compare(cleanPassword, user.password_hash);
+
+  return matches ? user.username : null;
+}
+
+export async function verifyAdminSessionValue(
+  sessionValue: string | undefined | null
+) {
   if (!sessionValue) return null;
 
   const lastDot = sessionValue.lastIndexOf(".");
-
   if (lastDot === -1) return null;
 
   const username = sessionValue.slice(0, lastDot);
@@ -64,37 +74,14 @@ export function verifyAdminSessionValue(sessionValue: string | undefined | null)
   const signatureBuffer = Buffer.from(signature);
   const expectedBuffer = Buffer.from(expectedSignature);
 
-  if (signatureBuffer.length !== expectedBuffer.length) {
-    return null;
-  }
+  if (signatureBuffer.length !== expectedBuffer.length) return null;
 
-  if (!timingSafeEqual(signatureBuffer, expectedBuffer)) {
-    return null;
-  }
+  if (!timingSafeEqual(signatureBuffer, expectedBuffer)) return null;
 
-  const userExists = getAdminUsers().some((user) => user.username === username);
+  const users = await getAdminUsers();
+  const userExists = users.some((u) => u.username === username);
 
-  if (!userExists) {
-    return null;
-  }
-
-  return username;
-}
-
-export async function authenticateAdmin(username: string, password: string) {
-  const cleanUsername = username.trim();
-  const cleanPassword = password.trim();
-
-  const match = getAdminUsers().find(
-    (user) =>
-      user.username === cleanUsername && user.password === cleanPassword
-  );
-
-  if (!match) {
-    return null;
-  }
-
-  return match.username;
+  return userExists ? username : null;
 }
 
 export async function createAdminSession(username: string) {

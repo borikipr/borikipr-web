@@ -64,7 +64,10 @@ export default function NuevaPropiedadPage() {
             <form action={formAction} className="space-y-8">
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label htmlFor="slug" className="text-sm font-medium text-[#000000]">
+                  <label
+                    htmlFor="slug"
+                    className="text-sm font-medium text-[#000000]"
+                  >
                     Slug
                   </label>
                   <input
@@ -78,7 +81,10 @@ export default function NuevaPropiedadPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="titulo" className="text-sm font-medium text-[#000000]">
+                  <label
+                    htmlFor="titulo"
+                    className="text-sm font-medium text-[#000000]"
+                  >
                     Título
                   </label>
                   <input
@@ -93,7 +99,10 @@ export default function NuevaPropiedadPage() {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="descripcion" className="text-sm font-medium text-[#000000]">
+                <label
+                  htmlFor="descripcion"
+                  className="text-sm font-medium text-[#000000]"
+                >
                   Descripción
                 </label>
                 <textarea
@@ -108,7 +117,10 @@ export default function NuevaPropiedadPage() {
 
               <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
                 <div className="space-y-2">
-                  <label htmlFor="municipio" className="text-sm font-medium text-[#000000]">
+                  <label
+                    htmlFor="municipio"
+                    className="text-sm font-medium text-[#000000]"
+                  >
                     Municipio
                   </label>
                   <select
@@ -127,7 +139,10 @@ export default function NuevaPropiedadPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="precio" className="text-sm font-medium text-[#000000]">
+                  <label
+                    htmlFor="precio"
+                    className="text-sm font-medium text-[#000000]"
+                  >
                     Precio
                   </label>
                   <input
@@ -143,7 +158,10 @@ export default function NuevaPropiedadPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="tipo_negocio" className="text-sm font-medium text-[#000000]">
+                  <label
+                    htmlFor="tipo_negocio"
+                    className="text-sm font-medium text-[#000000]"
+                  >
                     Tipo de negocio
                   </label>
                   <select
@@ -159,7 +177,10 @@ export default function NuevaPropiedadPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="tipo_propiedad" className="text-sm font-medium text-[#000000]">
+                  <label
+                    htmlFor="tipo_propiedad"
+                    className="text-sm font-medium text-[#000000]"
+                  >
                     Tipo de propiedad
                   </label>
                   <select
@@ -173,13 +194,17 @@ export default function NuevaPropiedadPage() {
                     <option value="Apartamento">Apartamento</option>
                     <option value="Condominio">Condominio</option>
                     <option value="Terreno">Terreno</option>
+                    <option value="Comercial">Comercial</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
                 <div className="space-y-2">
-                  <label htmlFor="habitaciones" className="text-sm font-medium text-[#000000]">
+                  <label
+                    htmlFor="habitaciones"
+                    className="text-sm font-medium text-[#000000]"
+                  >
                     Habitaciones
                   </label>
                   <input
@@ -193,7 +218,10 @@ export default function NuevaPropiedadPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="banos" className="text-sm font-medium text-[#000000]">
+                  <label
+                    htmlFor="banos"
+                    className="text-sm font-medium text-[#000000]"
+                  >
                     Baños
                   </label>
                   <input
@@ -241,7 +269,10 @@ export default function NuevaPropiedadPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="estado" className="text-sm font-medium text-[#000000]">
+                  <label
+                    htmlFor="estado"
+                    className="text-sm font-medium text-[#000000]"
+                  >
                     Estado
                   </label>
                   <select
@@ -259,7 +290,10 @@ export default function NuevaPropiedadPage() {
               </div>
 
               <div className="space-y-3">
-                <label htmlFor="imagenes" className="text-sm font-medium text-[#000000]">
+                <label
+                  htmlFor="imagenes"
+                  className="text-sm font-medium text-[#000000]"
+                >
                   Imágenes
                 </label>
                 <textarea
@@ -272,7 +306,8 @@ export default function NuevaPropiedadPage() {
                   className="input-premium"
                 />
                 <p className="text-sm text-[#4d4d4d]">
-                  Puedes subir imágenes arriba o pegar URLs manualmente si quieres.
+                  Puedes subir imágenes arriba o pegar URLs manualmente si
+                  quieres.
                 </p>
               </div>
 
@@ -289,7 +324,9 @@ export default function NuevaPropiedadPage() {
                         className="h-40 w-full object-cover"
                       />
                       <div className="p-3">
-                        <p className="break-all text-xs text-[#4d4d4d]">{url}</p>
+                        <p className="break-all text-xs text-[#4d4d4d]">
+                          {url}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -311,7 +348,9 @@ export default function NuevaPropiedadPage() {
                 </label>
               </div>
 
-              {state.error && <p className="text-sm text-red-600">{state.error}</p>}
+              {state.error && (
+                <p className="text-sm text-red-600">{state.error}</p>
+              )}
 
               <div className="flex flex-wrap gap-4">
                 <button

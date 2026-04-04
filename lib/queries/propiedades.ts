@@ -1,7 +1,73 @@
 import { sql } from "@/lib/db";
 
+type TipoNegocio = "venta" | "renta";
+type EstadoPropiedad =
+  | "disponible"
+  | "bajo_contrato"
+  | "vendida"
+  | "rentada";
+
+export type PropiedadQueryRow = {
+  id: string;
+  slug: string;
+  titulo: string;
+  descripcion: string;
+  municipio: string;
+  precio: string | number;
+  tipo_negocio: TipoNegocio;
+  tipo_propiedad: string;
+  habitaciones: number;
+  banos: number;
+  estacionamientos: number;
+  metros_cuadrados: number;
+  estado: EstadoPropiedad;
+  destacado: boolean;
+  imagenes: string[];
+};
+
+export type PropiedadHomeDestacada = {
+  id: string;
+  slug: string;
+  titulo: string;
+  municipio: string;
+  precio: string | number;
+  tipo_negocio: TipoNegocio;
+  tipo_propiedad: string;
+  estado: EstadoPropiedad;
+  destacado: boolean;
+  imagenes: string[];
+};
+
+export async function getPropiedadesDestacadas(limit = 3) {
+  const rows = await sql<PropiedadHomeDestacada[]>`
+    SELECT
+      p.id,
+      p.slug,
+      p.titulo,
+      p.municipio,
+      p.precio,
+      p.tipo_negocio,
+      p.tipo_propiedad,
+      p.estado,
+      p.destacado,
+      COALESCE(
+        json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
+        '[]'
+      ) AS imagenes
+    FROM propiedades p
+    LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
+    WHERE p.destacado = true
+      AND p.estado IN ('disponible', 'bajo_contrato')
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
+    LIMIT ${limit}
+  `;
+
+  return rows;
+}
+
 export async function getPropiedades() {
-  const rows = await sql`
+  const rows = await sql<PropiedadQueryRow[]>`
     SELECT
       p.id,
       p.slug,
@@ -32,7 +98,7 @@ export async function getPropiedades() {
 }
 
 export async function getPropiedadBySlug(slug: string) {
-  const rows = await sql`
+  const rows = await sql<PropiedadQueryRow[]>`
     SELECT
       p.id,
       p.slug,
@@ -69,7 +135,7 @@ export async function getPropiedadesSimilares(
   tipoPropiedad: string,
   limit = 3
 ) {
-  const rows = await sql`
+  const rows = await sql<PropiedadQueryRow[]>`
     SELECT
       p.id,
       p.slug,

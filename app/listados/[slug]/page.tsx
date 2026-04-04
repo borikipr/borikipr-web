@@ -7,6 +7,7 @@ import {
   getPropiedadBySlug,
   getPropiedadesSimilares,
 } from "@/lib/queries/propiedades";
+import { TipoPropiedad } from "@/data/listados";
 
 type TipoNegocio = "venta" | "renta";
 type EstadoPropiedad =
@@ -14,12 +15,6 @@ type EstadoPropiedad =
   | "bajo_contrato"
   | "vendida"
   | "rentada";
-
-type PageProps = {
-  params: Promise<{
-    slug: string;
-  }>;
-};
 
 type PropiedadDB = {
   id: string;
@@ -29,7 +24,7 @@ type PropiedadDB = {
   municipio: string;
   precio: string | number;
   tipo_negocio: TipoNegocio;
-  tipo_propiedad: string;
+  tipo_propiedad: TipoPropiedad;
   habitaciones: number;
   banos: number;
   estacionamientos: number;
@@ -74,8 +69,16 @@ function estadoClasses(estado: EstadoPropiedad) {
   }
 }
 
-export default async function DetallePropiedadPage({ params }: PageProps) {
+export default async function DetallePropiedadPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
   const { slug } = await params;
+
+  if (!slug) {
+    notFound();
+  }
 
   const row = (await getPropiedadBySlug(slug)) as unknown as PropiedadDB | null;
 
@@ -106,8 +109,26 @@ export default async function DetallePropiedadPage({ params }: PageProps) {
     metrosCuadrados: row.metros_cuadrados,
     estado: row.estado,
     destacado: row.destacado,
-    imagenes: Array.isArray(row.imagenes) ? row.imagenes : [],
+    imagenes:
+      Array.isArray(row.imagenes) && row.imagenes.length > 0
+        ? row.imagenes
+        : ["/placeholder.jpg"],
   };
+
+  const propiedadUrl = `https://borikipr.com/listados/${propiedad.slug}`;
+
+  const whatsappMensaje = encodeURIComponent(
+    `Hola, me interesa esta propiedad:
+
+${propiedad.titulo}
+${propiedad.municipio}, Puerto Rico
+Precio: ${formatoPrecio(propiedad.precio, propiedad.tipoNegocio)}
+
+Link:
+${propiedadUrl}`
+  );
+
+  const whatsappUrl = `https://wa.me/17876774900?text=${whatsappMensaje}`;
 
   return (
     <>
@@ -172,9 +193,9 @@ export default async function DetallePropiedadPage({ params }: PageProps) {
                   </p>
 
                   <p className="mt-2 leading-relaxed text-[#4d4d4d]">
-                    Esta propiedad se encuentra actualmente bajo contrato.
-                    Aun así, podemos orientarte sobre esta oportunidad y
-                    mostrarte opciones similares que encajen con lo que buscas.
+                    Esta propiedad se encuentra actualmente bajo contrato. Aun
+                    así, podemos orientarte sobre esta oportunidad y mostrarte
+                    opciones similares que encajen con lo que buscas.
                   </p>
 
                   <div className="mt-4">
@@ -241,7 +262,7 @@ export default async function DetallePropiedadPage({ params }: PageProps) {
                     </Link>
 
                     <Link
-                      href="https://wa.me/17876774900"
+                      href={whatsappUrl}
                       target="_blank"
                       className="inline-flex w-full items-center justify-center rounded-full border border-[#11518b] px-6 py-3 text-sm font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
                     >

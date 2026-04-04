@@ -16,6 +16,7 @@ const tiposPropiedadValidos = new Set([
   "Apartamento",
   "Condominio",
   "Terreno",
+  "Comercial",
 ]);
 const estadosValidos = new Set([
   "disponible",
