@@ -3,11 +3,14 @@ import Image from "next/image";
 import Link from "next/link";
 import GaleriaPropiedad from "@/components/GaleriaPropiedad";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import {
   getPropiedadBySlug,
   getPropiedadesSimilares,
 } from "@/lib/queries/propiedades";
 import { TipoPropiedad } from "@/data/listados";
+import WhatsAppTrackerButton from "@/components/WhatsAppTrackerButton";
+import TrackLinkButton from "@/components/TrackLinkButton";
 
 type TipoNegocio = "venta" | "renta";
 type EstadoPropiedad =
@@ -67,6 +70,87 @@ function estadoClasses(estado: EstadoPropiedad) {
     default:
       return "bg-[#cccccc] text-black";
   }
+}
+
+function buildAbsoluteImageUrl(imageUrl: string) {
+  if (!imageUrl) {
+    return "https://borikipr.com/placeholder.jpg";
+  }
+
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+    return imageUrl;
+  }
+
+  if (imageUrl.startsWith("/")) {
+    return `https://borikipr.com${imageUrl}`;
+  }
+
+  return `https://borikipr.com/${imageUrl}`;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+
+  if (!slug) {
+    return {
+      title: "Propiedad no encontrada | Borikí",
+      description: "La propiedad solicitada no está disponible.",
+    };
+  }
+
+  const row = (await getPropiedadBySlug(slug)) as unknown as PropiedadDB | null;
+
+  if (!row) {
+    return {
+      title: "Propiedad no encontrada | Borikí",
+      description: "La propiedad solicitada no está disponible.",
+    };
+  }
+
+  const titulo = `${row.titulo} | Borikí`;
+  const descripcion = row.descripcion?.trim()
+    ? row.descripcion.trim().slice(0, 160)
+    : `Propiedad en ${row.municipio}, Puerto Rico.`;
+
+  const imagen =
+    Array.isArray(row.imagenes) && row.imagenes.length > 0
+      ? buildAbsoluteImageUrl(row.imagenes[0])
+      : "https://borikipr.com/placeholder.jpg";
+
+  const url = `https://borikipr.com/listados/${row.slug}`;
+
+  return {
+    title: titulo,
+    description: descripcion,
+    alternates: {
+      canonical: url,
+    },
+    openGraph: {
+      title: titulo,
+      description: descripcion,
+      url,
+      siteName: "Borikí",
+      type: "article",
+      images: [
+        {
+          url: imagen,
+          width: 1200,
+          height: 630,
+          alt: row.titulo,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: titulo,
+      description: descripcion,
+      images: [imagen],
+    },
+  };
 }
 
 export default async function DetallePropiedadPage({
@@ -253,23 +337,28 @@ ${propiedadUrl}`
                     dudas directamente con Ivonne.
                   </p>
 
+                  <p className="mt-4 text-sm text-[#4d4d4d]">
+                    Respuesta rápida por WhatsApp.
+                  </p>
+
                   <div className="mt-6 space-y-3">
-                    <Link
+                    <TrackLinkButton
                       href="/contact"
+                      slug={propiedad.slug}
+                      tipo="contact_click"
                       className="inline-flex w-full items-center justify-center rounded-full bg-[#11518b] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#0d406d]"
                     >
                       Solicitar información
-                    </Link>
+                    </TrackLinkButton>
 
-                    <Link
-                      href={whatsappUrl}
-                      target="_blank"
-                      className="inline-flex w-full items-center justify-center rounded-full border border-[#11518b] px-6 py-3 text-sm font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
+                    <WhatsAppTrackerButton
+                      url={whatsappUrl}
+                      slug={propiedad.slug}
+                      className="inline-flex w-full items-center justify-center rounded-full border border-[#25D366] px-6 py-3 text-sm font-semibold text-[#25D366] transition hover:bg-[#25D366] hover:text-white"
                     >
                       Escribir por WhatsApp
-                    </Link>
+                    </WhatsAppTrackerButton>
                   </div>
-
                   <div className="mt-6 border-t border-[#dddddd] pt-6 text-sm text-[#4d4d4d]">
                     <p className="font-semibold text-[#000000]">
                       Atención personalizada

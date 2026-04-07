@@ -126,7 +126,7 @@ export default async function AdminPage() {
           />
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
           <ActionCard
             eyebrow="Propiedades"
             title="Administrar listados"
@@ -145,6 +145,14 @@ export default async function AdminPage() {
             primaryLabel="Ver testimonios"
             secondaryHref="/admin/testimonios/nuevo"
             secondaryLabel="Nuevo testimonio"
+          />
+
+          <ActionCard
+            eyebrow="Leads"
+            title="Ver interacciones"
+            description="Consulta qué propiedades están generando más interés a través de clics en WhatsApp."
+            primaryHref="/admin/leads"
+            primaryLabel="Ver leads"
           />
 
           <ActionCard
