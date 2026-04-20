@@ -10,20 +10,16 @@ export default function About() {
       <main className="bg-white pt-[96px] lg:pt-[128px]">
         <section className="section-shell py-20">
           <div className="grid gap-14 xl:grid-cols-[0.95fr_1.05fr] xl:items-center">
-            <div className="relative">
-              <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-br from-[#11518b]/8 to-[#d4af37]/10" />
-
-              <div className="surface-muted relative overflow-hidden px-6 pt-10">
-                <div className="mx-auto max-w-md">
-                  <Image
-                    src="/ivonne.png"
-                    alt="Ivonne Erickson - Corredora de Bienes Raíces en Puerto Rico"
-                    width={700}
-                    height={900}
-                    priority
-                    className="h-auto w-full object-contain"
-                  />
-                </div>
+            <div className="flex justify-center">
+              <div className="w-full max-w-md">
+                <Image
+                  src="/ivonne.png"
+                  alt="Ivonne Erickson - Corredora de Bienes Raíces en Puerto Rico"
+                  width={700}
+                  height={900}
+                  priority
+                  className="h-auto w-full object-contain"
+                />
               </div>
             </div>
 

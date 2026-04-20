@@ -5,13 +5,20 @@ import { SESSION_COOKIE, verifyAdminSessionValue } from "@/lib/admin/auth";
 export const runtime = "nodejs";
 
 const MAX_FILES = 10;
-const MAX_SIZE_MB = 10;
-const ALLOWED_TYPES = new Set([
+const MAX_IMAGE_SIZE_MB = 10;
+const MAX_VIDEO_SIZE_MB = 50;
+const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
   "image/jpg",
 ]);
+const ALLOWED_VIDEO_TYPES = new Set([
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+]);
+const ALL_ALLOWED_TYPES = new Set([...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES]);
 
 export async function POST(request: Request) {
   try {
@@ -52,17 +59,19 @@ export async function POST(request: Request) {
     }
 
     for (const file of files) {
-      if (!ALLOWED_TYPES.has(file.type)) {
+      if (!ALL_ALLOWED_TYPES.has(file.type)) {
         return NextResponse.json(
-          { ok: false, error: `Tipo no permitido: ${file.name}` },
+          { ok: false, error: `Tipo no permitido: ${file.name}. Se aceptan imágenes (JPG, PNG, WebP) y videos (MP4, WebM).` },
           { status: 400 }
         );
       }
 
+      const isVideo = ALLOWED_VIDEO_TYPES.has(file.type);
+      const maxSize = isVideo ? MAX_VIDEO_SIZE_MB : MAX_IMAGE_SIZE_MB;
       const sizeMb = file.size / (1024 * 1024);
-      if (sizeMb > MAX_SIZE_MB) {
+      if (sizeMb > maxSize) {
         return NextResponse.json(
-          { ok: false, error: `${file.name} excede ${MAX_SIZE_MB}MB.` },
+          { ok: false, error: `${file.name} excede ${maxSize}MB.` },
           { status: 400 }
         );
       }
@@ -71,7 +80,9 @@ export async function POST(request: Request) {
     const urls: string[] = [];
 
     for (const file of files) {
-      const url = await uploadImageToR2(file, "propiedades");
+      const isVideo = ALLOWED_VIDEO_TYPES.has(file.type);
+      const folder = isVideo ? "propiedades/videos" : "propiedades";
+      const url = await uploadImageToR2(file, folder);
       urls.push(url);
     }
 

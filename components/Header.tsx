@@ -82,7 +82,8 @@ export default function Header({ transparent = false }: HeaderProps) {
                 width={180}
                 height={60}
                 priority
-                className="h-auto w-[160px] sm:w-[165px] lg:w-[180px]"
+                style={{ width: "auto", height: "auto" }}
+                className="w-[160px] sm:w-[165px] lg:w-[180px]"
               />
             </Link>
 

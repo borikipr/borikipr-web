@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 
+function isVideoUrl(url: string) {
+  return /\.(mp4|webm|mov)(\?|$)/i.test(url) || url.includes("/videos/");
+}
+
 export default function GaleriaPropiedad({
   imagenes,
   titulo,
@@ -29,7 +33,8 @@ export default function GaleriaPropiedad({
     }
   }, [indiceActivo, totalImagenes]);
 
-  const imagenActiva = imagenesValidas[indiceActivo];
+  const itemActivo = imagenesValidas[indiceActivo];
+  const esVideoActivo = isVideoUrl(itemActivo);
 
   const irAnterior = () => {
     setIndiceActivo((prev) => (prev === 0 ? totalImagenes - 1 : prev - 1));
@@ -72,15 +77,38 @@ export default function GaleriaPropiedad({
           type="button"
           onClick={() => setLightboxAbierto(true)}
           className="relative block h-[440px] w-full overflow-hidden rounded-3xl bg-[#f5f5f5]"
-          aria-label="Abrir galería de imágenes"
+          aria-label="Abrir galería"
         >
-          <Image
-            src={imagenActiva}
-            alt={titulo}
-            fill
-            priority
-            className="object-cover transition duration-300 hover:scale-[1.02]"
-          />
+          {esVideoActivo ? (
+            <>
+              <video
+                key={itemActivo}
+                src={itemActivo}
+                className="h-full w-full object-cover"
+                autoPlay
+                muted
+                loop
+                playsInline
+              />
+              <div className="absolute left-4 top-4">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#11518b] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-white">
+                  <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                  Video
+                </span>
+              </div>
+            </>
+          ) : (
+            <Image
+              src={itemActivo}
+              alt={titulo}
+              fill
+              priority
+              sizes="(max-width: 1280px) 100vw, 60vw"
+              className="object-cover transition duration-300 hover:scale-[1.02]"
+            />
+          )}
 
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent p-6 text-left">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -97,8 +125,9 @@ export default function GaleriaPropiedad({
 
         {totalImagenes > 1 && (
           <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
-            {imagenesValidas.map((img, index) => {
+            {imagenesValidas.map((item, index) => {
               const activa = index === indiceActivo;
+              const esVideo = isVideoUrl(item);
 
               return (
                 <button
@@ -110,14 +139,34 @@ export default function GaleriaPropiedad({
                       ? "border-[#11518b] ring-2 ring-[#11518b]/20"
                       : "border-[#cccccc] hover:border-[#11518b]"
                   }`}
-                  aria-label={`Ver imagen ${index + 1}`}
+                  aria-label={`Ver ${esVideo ? "video" : "imagen"} ${index + 1}`}
                 >
-                  <Image
-                    src={img}
-                    alt={`${titulo} imagen ${index + 1}`}
-                    fill
-                    className="object-cover"
-                  />
+                  {esVideo ? (
+                    <>
+                      <video
+                        src={item}
+                        className="h-full w-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/80">
+                          <svg className="h-4 w-4 text-[#11518b] ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <Image
+                      src={item}
+                      alt={`${titulo} imagen ${index + 1}`}
+                      fill
+                      sizes="(max-width: 640px) 50vw, 25vw"
+                      className="object-cover"
+                    />
+                  )}
                 </button>
               );
             })}
@@ -125,6 +174,7 @@ export default function GaleriaPropiedad({
         )}
       </div>
 
+      {/* Lightbox */}
       {lightboxAbierto && (
         <div
           className="fixed inset-0 z-[100] bg-black/90"
@@ -157,7 +207,7 @@ export default function GaleriaPropiedad({
                   irAnterior();
                 }}
                 className="absolute left-6 top-1/2 z-[110] inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-2xl text-white transition hover:bg-white/20"
-                aria-label="Imagen anterior"
+                aria-label="Anterior"
               >
                 ‹
               </button>
@@ -169,7 +219,7 @@ export default function GaleriaPropiedad({
                   irSiguiente();
                 }}
                 className="absolute right-6 top-1/2 z-[110] inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-2xl text-white transition hover:bg-white/20"
-                aria-label="Imagen siguiente"
+                aria-label="Siguiente"
               >
                 ›
               </button>
@@ -181,12 +231,24 @@ export default function GaleriaPropiedad({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative h-[70vh] w-full max-w-6xl">
-              <Image
-                src={imagenActiva}
-                alt={titulo}
-                fill
-                className="object-contain"
-              />
+              {esVideoActivo ? (
+                <video
+                  key={itemActivo}
+                  src={itemActivo}
+                  className="h-full w-full object-contain"
+                  autoPlay
+                  controls
+                  playsInline
+                />
+              ) : (
+                <Image
+                  src={itemActivo}
+                  alt={titulo}
+                  fill
+                  sizes="100vw"
+                  className="object-contain"
+                />
+              )}
             </div>
           </div>
 
@@ -195,8 +257,9 @@ export default function GaleriaPropiedad({
               className="absolute inset-x-0 bottom-6 mx-auto flex w-fit max-w-[90vw] gap-3 overflow-x-auto rounded-2xl bg-white/5 px-4 py-3"
               onClick={(e) => e.stopPropagation()}
             >
-              {imagenesValidas.map((img, index) => {
+              {imagenesValidas.map((item, index) => {
                 const activa = index === indiceActivo;
+                const esVideo = isVideoUrl(item);
 
                 return (
                   <button
@@ -210,12 +273,29 @@ export default function GaleriaPropiedad({
                     }`}
                     aria-label={`Ver miniatura ${index + 1}`}
                   >
-                    <Image
-                      src={img}
-                      alt={`${titulo} miniatura ${index + 1}`}
-                      fill
-                      className="object-cover"
-                    />
+                    {esVideo ? (
+                      <>
+                        <video
+                          src={item}
+                          className="h-full w-full object-cover"
+                          muted
+                          playsInline
+                          preload="metadata"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                          <svg className="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                        </div>
+                      </>
+                    ) : (
+                      <Image
+                        src={item}
+                        alt={`${titulo} miniatura ${index + 1}`}
+                        fill
+                        className="object-cover"
+                      />
+                    )}
                   </button>
                 );
               })}

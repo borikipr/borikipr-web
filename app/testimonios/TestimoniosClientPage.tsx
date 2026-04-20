@@ -4,7 +4,7 @@ import Header from "@/components/Header";
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { TestimonioPublico } from "@/lib/queries/testimonios";
+import type { TestimonioPublico, TestimoniosPaginados } from "@/lib/queries/testimonios";
 
 type TipoFiltro = "todos" | "comprador" | "vendedor";
 
@@ -40,6 +40,7 @@ function TestimonioCard({ item }: { item: TestimonioPublico }) {
           src={item.imagen}
           alt={item.titulo || `${item.nombre} - Testimonio`}
           fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
           className="object-cover"
         />
 
@@ -61,7 +62,7 @@ function TestimonioCard({ item }: { item: TestimonioPublico }) {
         </h3>
 
         <p className="mt-5 text-lg leading-relaxed text-[#4d4d4d]">
-          “{item.texto}”
+          "{item.texto}"
         </p>
 
         <div className="mt-6 border-t border-[#efefef] pt-5">
@@ -75,17 +76,66 @@ function TestimonioCard({ item }: { item: TestimonioPublico }) {
   );
 }
 
-export default function TestimoniosClientPage({
-  testimonios,
+function PaginationControls({
+  currentPage,
+  totalPages,
 }: {
-  testimonios: TestimonioPublico[];
+  currentPage: number;
+  totalPages: number;
+}) {
+  const pages = [];
+  for (let i = 1; i <= totalPages; i++) {
+    pages.push(i);
+  }
+
+  return (
+    <div className="flex items-center justify-center gap-2">
+      {currentPage > 1 && (
+        <Link
+          href={`/testimonios?page=${currentPage - 1}`}
+          className="rounded-lg border border-[#d9d9d9] px-4 py-2 text-sm font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
+        >
+          Anterior
+        </Link>
+      )}
+
+      {pages.map((page) => (
+        <Link
+          key={page}
+          href={`/testimonios?page=${page}`}
+          className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+            page === currentPage
+              ? "bg-[#11518b] text-white"
+              : "border border-[#d9d9d9] text-[#4d4d4d] hover:border-[#11518b] hover:text-[#11518b]"
+          }`}
+        >
+          {page}
+        </Link>
+      ))}
+
+      {currentPage < totalPages && (
+        <Link
+          href={`/testimonios?page=${currentPage + 1}`}
+          className="rounded-lg border border-[#d9d9d9] px-4 py-2 text-sm font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
+        >
+          Siguiente
+        </Link>
+      )}
+    </div>
+  );
+}
+
+export default function TestimoniosClientPage({
+  data,
+}: {
+  data: TestimoniosPaginados;
 }) {
   const [filtro, setFiltro] = useState<TipoFiltro>("todos");
 
   const testimoniosFiltrados = useMemo(() => {
-    if (filtro === "todos") return testimonios;
-    return testimonios.filter((item) => item.tipo === filtro);
-  }, [filtro, testimonios]);
+    if (filtro === "todos") return data.testimonios;
+    return data.testimonios.filter((item) => item.tipo === filtro);
+  }, [filtro, data.testimonios]);
 
   return (
     <>
@@ -145,11 +195,22 @@ export default function TestimoniosClientPage({
                 </p>
               </div>
             ) : (
-              <div className="grid gap-8 xl:grid-cols-1">
-                {testimoniosFiltrados.map((item) => (
-                  <TestimonioCard key={item.id} item={item} />
-                ))}
-              </div>
+              <>
+                <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-2">
+                  {testimoniosFiltrados.map((item) => (
+                    <TestimonioCard key={item.id} item={item} />
+                  ))}
+                </div>
+
+                {data.totalPages > 1 && (
+                  <div className="mt-16">
+                    <PaginationControls
+                      currentPage={data.currentPage}
+                      totalPages={data.totalPages}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
         </section>

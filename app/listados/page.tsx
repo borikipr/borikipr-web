@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Header from "@/components/Header";
 import ListadosClient from "@/components/ListadosClient";
-import { getPropiedades } from "@/lib/queries/propiedades";
+import { getPropiedadesPaginadas } from "@/lib/queries/propiedades";
 
 type TipoNegocio = "venta" | "renta";
 type TipoPropiedad =
@@ -40,8 +40,11 @@ type SearchParams = Promise<{
   tipoPropiedad?: string;
   precioMin?: string;
   precioMax?: string;
+  habitaciones?: string;
+  banos?: string;
   orden?: string;
   q?: string;
+  page?: string;
 }>;
 
 export default async function ListadosPage({
@@ -49,10 +52,12 @@ export default async function ListadosPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const rows = (await getPropiedades()) as unknown as PropiedadDB[];
   const params = await searchParams;
+  const page = parseInt(params.page || "1", 10);
 
-  const propiedades = rows.map((p) => ({
+  const data = await getPropiedadesPaginadas(page, 12);
+
+  const propiedades = data.propiedades.map((p) => ({
     id: p.id,
     slug: p.slug,
     titulo: p.titulo,
@@ -108,6 +113,11 @@ export default async function ListadosPage({
         >
           <ListadosClient
             propiedades={propiedades}
+            paginationData={{
+              currentPage: data.currentPage,
+              totalPages: data.totalPages,
+              totalItems: data.totalItems,
+            }}
             initialFilters={{
               q: params.q ?? "",
               municipio: params.municipio ?? "",
@@ -125,6 +135,8 @@ export default async function ListadosPage({
                   : "",
               precioMin: params.precioMin ?? "",
               precioMax: params.precioMax ?? "",
+              habitaciones: params.habitaciones ?? "",
+              banos: params.banos ?? "",
               orden:
                 params.orden === "precio-asc" ||
                 params.orden === "precio-desc" ||

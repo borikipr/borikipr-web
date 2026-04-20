@@ -6,6 +6,7 @@ import {
   getPropiedades,
   getPropiedadesDestacadas,
 } from "@/lib/queries/propiedades";
+import { getTestimoniosPublicos } from "@/lib/queries/testimonios";
 
 type TipoNegocio = "venta" | "renta";
 type EstadoPropiedad =
@@ -49,11 +50,52 @@ function estadoClasses(estado: EstadoPropiedad) {
   }
 }
 
+const zonasHome = [
+  {
+    nombre: "Metropolitana",
+    descripcion: "San Juan, Guaynabo, Carolina, Bayamón",
+    icon: "🏙️",
+  },
+  {
+    nombre: "Norte",
+    descripcion: "Dorado, Arecibo, Manatí, Vega Baja",
+    icon: "🌊",
+  },
+  {
+    nombre: "Sur",
+    descripcion: "Ponce, Guayama, Salinas, Coamo",
+    icon: "☀️",
+  },
+  {
+    nombre: "Este",
+    descripcion: "Fajardo, Río Grande, Luquillo, Vieques",
+    icon: "🌴",
+  },
+  {
+    nombre: "Oeste",
+    descripcion: "Mayagüez, Cabo Rojo, Rincón, Isabela",
+    icon: "🌅",
+  },
+  {
+    nombre: "Central",
+    descripcion: "Cayey, Aibonito, Barranquitas, Orocovis",
+    icon: "⛰️",
+  },
+];
+
 export default async function Home() {
   const rows = (await getPropiedades()) as unknown as { id: string }[];
   const totalPropiedades = rows.length;
 
   const destacadas = await getPropiedadesDestacadas(3);
+  const allTestimonios = await getTestimoniosPublicos();
+  const testimoniosDestacados = allTestimonios
+    .filter((t) => t.destacado)
+    .slice(0, 3);
+  const testimoniosHome =
+    testimoniosDestacados.length > 0
+      ? testimoniosDestacados
+      : allTestimonios.slice(0, 3);
 
   return (
     <>
@@ -62,56 +104,79 @@ export default async function Home() {
       <main className="bg-white">
         <HomeHeroClient totalPropiedades={totalPropiedades} />
 
+        {/* Sección: Por qué elegir a Ivonne */}
         <section className="bg-white py-24">
-          <div className="section-shell grid gap-14 xl:grid-cols-[1.1fr_0.9fr]">
-            <div>
-              <p className="eyebrow">Erickson Real Estate</p>
+          <div className="section-shell">
+            <div className="text-center max-w-3xl mx-auto">
+              <p className="eyebrow">¿Por qué Erickson Real Estate?</p>
 
-              <h2 className="heading-section mt-4 max-w-3xl">
-                Una presencia profesional para decisiones importantes.
+              <h2 className="heading-section mt-4">
+                Compromiso, estrategia y presencia en cada transacción.
               </h2>
 
-              <p className="body-lg mt-6 max-w-2xl">
-                Cada propiedad tiene una historia, una estrategia y un momento.
-                La experiencia correcta combina mercado, presentación y guía
-                precisa para ayudarte a avanzar con seguridad.
+              <p className="body-lg mt-6">
+                Más que una agente, una aliada que entiende el mercado, cuida
+                cada detalle y te guía con transparencia de principio a fin.
               </p>
             </div>
 
-            <div className="grid gap-5 sm:grid-cols-2">
-              <div className="surface-muted card-hover p-7">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                  Comprar
-                </p>
-                <p className="body-base mt-4">
-                  Encuentra una propiedad alineada con tu visión, estilo de vida
-                  y objetivos.
-                </p>
-              </div>
-
-              <div className="surface-muted card-hover p-7">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                  Vender
-                </p>
-                <p className="body-base mt-4">
-                  Presentación, estrategia y posicionamiento para destacar tu
-                  propiedad en el mercado.
+            <div className="mt-14 grid gap-8 md:grid-cols-4">
+              <div className="text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#11518b]/10">
+                  <span className="text-2xl font-bold text-[#11518b]">✓</span>
+                </div>
+                <h3 className="mt-5 text-lg font-semibold text-[#000000]">
+                  Atención personalizada
+                </h3>
+                <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
+                  Cada cliente recibe un trato único, adaptado a sus necesidades
+                  y objetivos específicos.
                 </p>
               </div>
 
-              <div className="surface-muted card-hover p-7 sm:col-span-2">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                  Invertir
+              <div className="text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#11518b]/10">
+                  <span className="text-2xl font-bold text-[#11518b]">📊</span>
+                </div>
+                <h3 className="mt-5 text-lg font-semibold text-[#000000]">
+                  Estrategia de mercado
+                </h3>
+                <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
+                  Análisis profundo del mercado para posicionar tu propiedad
+                  con el mejor precio y visibilidad.
                 </p>
-                <p className="body-base mt-4 max-w-xl">
-                  Identifica oportunidades con potencial real en uno de los
-                  mercados más atractivos del Caribe.
+              </div>
+
+              <div className="text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#11518b]/10">
+                  <span className="text-2xl font-bold text-[#11518b]">📸</span>
+                </div>
+                <h3 className="mt-5 text-lg font-semibold text-[#000000]">
+                  Presentación premium
+                </h3>
+                <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
+                  Fotografía profesional, descripciones cuidadas y marketing
+                  visual que destaca cada propiedad.
+                </p>
+              </div>
+
+              <div className="text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#11518b]/10">
+                  <span className="text-2xl font-bold text-[#11518b]">🤝</span>
+                </div>
+                <h3 className="mt-5 text-lg font-semibold text-[#000000]">
+                  Acompañamiento completo
+                </h3>
+                <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
+                  Desde la primera consulta hasta el cierre, siempre con
+                  comunicación clara y transparente.
                 </p>
               </div>
             </div>
           </div>
         </section>
 
+        {/* Sección: Propiedades destacadas */}
         <section className="bg-[#f8f8f8] py-24">
           <div className="section-shell">
             <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
@@ -138,79 +203,24 @@ export default async function Home() {
 
             <div className="mt-14">
               {destacadas.length === 0 ? (
-                <div className="overflow-hidden rounded-[2rem] border border-[#e8e8e8] bg-white shadow-sm">
-                  <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
-                    <div className="relative min-h-[320px] bg-[#f1f1f1]">
-                      <div className="absolute inset-0 bg-gradient-to-br from-[#e2e2e2] via-[#f2f2f2] to-white" />
-
-                      <div className="absolute left-6 top-6">
-                        <span className="rounded-full bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#11518b] shadow-sm">
-                          Próximamente
-                        </span>
-                      </div>
-
-                      <div className="absolute inset-x-0 bottom-0 p-6">
-                        <div className="max-w-md rounded-2xl border border-white/50 bg-white/70 p-5 backdrop-blur-sm">
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d4af37]">
-                            Selección destacada
-                          </p>
-                          <p className="mt-3 text-lg font-semibold text-[#000000]">
-                            Nuevas propiedades premium en camino
-                          </p>
-                          <p className="mt-2 text-sm leading-relaxed text-[#4d4d4d]">
-                            Pronto podrás explorar oportunidades reales con mejor
-                            presentación, detalles claros y acceso rápido a cada
-                            listing.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-8 md:p-10">
-                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                        Qué verás aquí
-                      </p>
-
-                      <h3 className="mt-4 text-3xl font-bold leading-tight text-[#000000]">
-                        Una vitrina más cuidada, clara y profesional.
-                      </h3>
-
-                      <p className="body-base mt-6">
-                        Cuando entren listados reales, esta sección presentará
-                        propiedades seleccionadas por su atractivo visual,
-                        ubicación, potencial y calidad de presentación.
-                      </p>
-
-                      <div className="mt-8 grid gap-4 sm:grid-cols-2">
-                        <div className="rounded-2xl bg-[#f8f8f8] p-5">
-                          <p className="text-sm font-semibold text-[#000000]">
-                            Venta y renta
-                          </p>
-                          <p className="mt-2 text-sm leading-relaxed text-[#4d4d4d]">
-                            Oportunidades reales y actualizadas.
-                          </p>
-                        </div>
-
-                        <div className="rounded-2xl bg-[#f8f8f8] p-5">
-                          <p className="text-sm font-semibold text-[#000000]">
-                            Presentación premium
-                          </p>
-                          <p className="mt-2 text-sm leading-relaxed text-[#4d4d4d]">
-                            Fotografías y detalles bien organizados.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-8 flex flex-wrap gap-4">
-                        <Link href="/listados" className="btn-primary">
-                          Explorar listados
-                        </Link>
-
-                        <Link href="/contact" className="btn-secondary">
-                          Solicitar orientación
-                        </Link>
-                      </div>
-                    </div>
+                <div className="rounded-2xl border border-[#e8e8e8] bg-white p-10 text-center shadow-sm">
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
+                    Próximamente
+                  </p>
+                  <h3 className="mt-4 text-2xl font-bold text-[#000000]">
+                    Nuevas propiedades premium en camino
+                  </h3>
+                  <p className="mt-4 max-w-lg mx-auto text-[#4d4d4d] leading-relaxed">
+                    Pronto podrás explorar oportunidades reales con mejor
+                    presentación, detalles claros y acceso rápido a cada listing.
+                  </p>
+                  <div className="mt-8 flex flex-wrap gap-4 justify-center">
+                    <Link href="/listados" className="btn-primary">
+                      Explorar listados
+                    </Link>
+                    <Link href="/contact" className="btn-secondary">
+                      Solicitar orientación
+                    </Link>
                   </div>
                 </div>
               ) : (
@@ -231,6 +241,7 @@ export default async function Home() {
                             src={imagenPrincipal}
                             alt={item.titulo}
                             fill
+                            sizes="(max-width: 768px) 100vw, (max-width: 1536px) 50vw, 33vw"
                             className="object-cover transition-transform duration-500 group-hover:scale-105"
                           />
 
@@ -270,7 +281,11 @@ export default async function Home() {
                             {formatoPrecio(Number(item.precio), item.tipo_negocio)}
                           </p>
 
-                          <div className="mt-4 flex flex-wrap gap-4 text-sm text-[#4d4d4d]">
+                          <div className="mt-4 flex flex-wrap gap-3 text-sm text-[#4d4d4d]">
+                            {item.habitaciones && (
+                              <span>{item.habitaciones} hab</span>
+                            )}
+                            {item.banos && <span>{item.banos} baños</span>}
                             <span>{item.tipo_propiedad}</span>
                           </div>
 
@@ -292,7 +307,8 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="bg-[#f8f8f8] py-24">
+        {/* Sección: Servicios */}
+        <section className="bg-white py-24">
           <div className="section-shell">
             <div className="max-w-3xl">
               <p className="eyebrow">Servicios</p>
@@ -344,6 +360,122 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* Sección: Zonas de Puerto Rico */}
+        <section className="bg-[#f8f8f8] py-24">
+          <div className="section-shell">
+            <div className="text-center max-w-3xl mx-auto">
+              <p className="eyebrow">Zonas</p>
+
+              <h2 className="heading-section mt-4">
+                Cubrimos toda la isla de Puerto Rico.
+              </h2>
+
+              <p className="body-lg mt-6">
+                Desde la zona metropolitana hasta las costas y montañas,
+                te ayudamos a encontrar la propiedad ideal en cualquier región.
+              </p>
+            </div>
+
+            <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {zonasHome.map((zona) => (
+                <Link
+                  key={zona.nombre}
+                  href={`/listados?q=${encodeURIComponent(zona.nombre)}`}
+                  className="group rounded-2xl border border-[#e8e8e8] bg-white p-7 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-[#11518b]/30"
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-3xl">{zona.icon}</span>
+                    <div>
+                      <h3 className="text-lg font-semibold text-[#11518b] group-hover:text-[#0d3a63] transition">
+                        {zona.nombre}
+                      </h3>
+                      <p className="mt-1 text-sm text-[#4d4d4d]">
+                        {zona.descripcion}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Sección: Testimonios */}
+        {testimoniosHome.length > 0 && (
+          <section className="bg-white py-24">
+            <div className="section-shell">
+              <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+                <div className="max-w-3xl">
+                  <p className="eyebrow">Testimonios</p>
+
+                  <h2 className="heading-section mt-4">
+                    Lo que dicen nuestros clientes.
+                  </h2>
+
+                  <p className="body-lg mt-6 max-w-2xl">
+                    Experiencias reales de personas que confiaron en nosotros
+                    para comprar, vender o invertir en Puerto Rico.
+                  </p>
+                </div>
+
+                <div>
+                  <Link href="/testimonios" className="btn-secondary">
+                    Ver todos los testimonios
+                  </Link>
+                </div>
+              </div>
+
+              <div className="mt-14 grid gap-8 md:grid-cols-3">
+                {testimoniosHome.map((testimonio) => (
+                  <article
+                    key={testimonio.id}
+                    className="rounded-2xl border border-[#e8e8e8] bg-white p-8 shadow-sm transition-all duration-300 hover:shadow-lg"
+                  >
+                    <div className="flex items-center gap-4 mb-6">
+                      {testimonio.imagen && testimonio.imagen !== "/placeholder.jpg" ? (
+                        <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-full">
+                          <Image
+                            src={testimonio.imagen}
+                            alt={testimonio.nombre}
+                            fill
+                            sizes="56px"
+                            className="object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-[#11518b]/10">
+                          <span className="text-xl font-bold text-[#11518b]">
+                            {testimonio.nombre.charAt(0)}
+                          </span>
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-semibold text-[#000000]">
+                          {testimonio.nombre}
+                        </p>
+                        <p className="text-sm text-[#4d4d4d]">
+                          {testimonio.lugar}
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="text-sm font-semibold uppercase tracking-[0.15em] text-[#d4af37] mb-3">
+                      {testimonio.tipo === "comprador"
+                        ? "Compra"
+                        : "Venta"}
+                    </p>
+
+                    <p className="text-[#4d4d4d] leading-relaxed line-clamp-4">
+                      &ldquo;{testimonio.texto}&rdquo;
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Sección: CTA */}
         <section className="bg-[#11518b] py-24">
           <div className="section-shell">
             <div className="rounded-[2rem] border border-white/10 bg-white/10 p-10 text-white shadow-xl backdrop-blur-sm md:p-14">

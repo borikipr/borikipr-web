@@ -33,6 +33,8 @@ export type PropiedadHomeDestacada = {
   precio: string | number;
   tipo_negocio: TipoNegocio;
   tipo_propiedad: string;
+  habitaciones: number;
+  banos: number;
   estado: EstadoPropiedad;
   destacado: boolean;
   imagenes: string[];
@@ -48,6 +50,8 @@ export async function getPropiedadesDestacadas(limit = 3) {
       p.precio,
       p.tipo_negocio,
       p.tipo_propiedad,
+      p.habitaciones,
+      p.banos,
       p.estado,
       p.destacado,
       COALESCE(
@@ -176,4 +180,60 @@ export async function getPropiedadesSimilares(
   `;
 
   return rows;
+}
+
+export type PropiedadesPaginadas = {
+  propiedades: PropiedadQueryRow[];
+  totalPages: number;
+  currentPage: number;
+  totalItems: number;
+};
+
+export async function getPropiedadesPaginadas(
+  page: number = 1,
+  itemsPerPage: number = 12
+) {
+  const offset = (page - 1) * itemsPerPage;
+
+  const rows = await sql<PropiedadQueryRow[]>`
+    SELECT
+      p.id,
+      p.slug,
+      p.titulo,
+      p.descripcion,
+      p.municipio,
+      p.precio,
+      p.tipo_negocio,
+      p.tipo_propiedad,
+      p.habitaciones,
+      p.banos,
+      p.estacionamientos,
+      p.metros_cuadrados,
+      p.estado,
+      p.destacado,
+      COALESCE(
+        json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
+        '[]'
+      ) AS imagenes
+    FROM propiedades p
+    LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
+    WHERE p.estado IN ('disponible', 'bajo_contrato')
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
+    LIMIT ${itemsPerPage} OFFSET ${offset}
+  `;
+
+  const countResult = await sql<{ total: number }[]>`
+    SELECT COUNT(DISTINCT p.id) as total FROM propiedades p WHERE p.estado IN ('disponible', 'bajo_contrato')
+  `;
+
+  const totalItems = countResult[0]?.total || 0;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+  return {
+    propiedades: rows,
+    totalPages,
+    currentPage: page,
+    totalItems,
+  };
 }

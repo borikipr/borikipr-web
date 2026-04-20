@@ -71,7 +71,7 @@ export default function ContactPage() {
               eyebrow="Compradores"
               title="Quiero comprar"
               description="Cuéntanos qué estás buscando y te ayudamos a identificar propiedades alineadas con tu estilo de vida, presupuesto y objetivos."
-              href="https://forms.gle/2ab4Ceeb5NokKCvx9"
+              href="/contact/comprador"
               label="Solicitar orientación para comprar"
               variant="primary"
             />
@@ -80,7 +80,7 @@ export default function ContactPage() {
               eyebrow="Vendedores"
               title="Quiero vender"
               description="Comparte la información de tu propiedad y te orientamos sobre presentación, estrategia y posicionamiento para salir al mercado con mejor dirección."
-              href="https://forms.gle/xQbK2PDaCAF3MRvc8"
+              href="/contact/vendedor"
               label="Solicitar orientación para vender"
               variant="primary"
             />
@@ -117,16 +117,14 @@ export default function ContactPage() {
 
                   <div className="mt-8 flex flex-wrap gap-4">
                     <Link
-                      href="https://forms.gle/2ab4Ceeb5NokKCvx9"
-                      target="_blank"
+                      href="/contact/comprador"
                       className="btn-primary"
                     >
                       Formulario compradores
                     </Link>
 
                     <Link
-                      href="https://forms.gle/xQbK2PDaCAF3MRvc8"
-                      target="_blank"
+                      href="/contact/vendedor"
                       className="btn-secondary"
                     >
                       Formulario vendedores
