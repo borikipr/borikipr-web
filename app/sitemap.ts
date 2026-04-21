@@ -39,7 +39,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const propiedades = await getPropiedades();
 
-  const propiedadesPages: MetadataRoute.Sitemap = propiedades.map((item: any) => ({
+  const propiedadesPages: MetadataRoute.Sitemap = propiedades.map((item) => ({
     url: `${baseUrl}/listados/${item.slug}`,
     lastModified: new Date(),
     changeFrequency: "weekly",

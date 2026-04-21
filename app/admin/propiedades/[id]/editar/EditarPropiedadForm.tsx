@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
+import Image from "next/image";
 import { municipiosPR } from "@/data/municipios";
 import { updatePropiedadAction, type UpdatePropiedadState } from "../../actions";
 import ImagenesUploader from "../../ImagenesUploader";
@@ -38,6 +39,7 @@ export default function EditarPropiedadForm({
     initialState
   );
   const [imagenesValue, setImagenesValue] = useState(propiedad.imagenes.join(", "));
+  const [destacado, setDestacado] = useState(propiedad.destacado);
 
   const imagenesPreview = useMemo(
     () =>
@@ -71,7 +73,7 @@ export default function EditarPropiedadForm({
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <label htmlFor="slug" className="text-sm font-medium text-[#000000]">
-                Slug
+                Slug <span className="text-red-500">*</span>
               </label>
               <input
                 id="slug"
@@ -81,11 +83,14 @@ export default function EditarPropiedadForm({
                 className="input-premium"
                 required
               />
+              <p className="text-xs text-[#4d4d4d]">
+                Identificador único para la URL (solo letras, números y guiones).
+              </p>
             </div>
 
             <div className="space-y-2">
               <label htmlFor="titulo" className="text-sm font-medium text-[#000000]">
-                Título
+                Título <span className="text-red-500">*</span>
               </label>
               <input
                 id="titulo"
@@ -100,7 +105,7 @@ export default function EditarPropiedadForm({
 
           <div className="space-y-2">
             <label htmlFor="descripcion" className="text-sm font-medium text-[#000000]">
-              Descripción
+              Descripción <span className="text-red-500">*</span>
             </label>
             <textarea
               id="descripcion"
@@ -135,7 +140,7 @@ export default function EditarPropiedadForm({
 
             <div className="space-y-2">
               <label htmlFor="precio" className="text-sm font-medium text-[#000000]">
-                Precio
+                Precio <span className="text-red-500">*</span>
               </label>
               <input
                 id="precio"
@@ -147,6 +152,9 @@ export default function EditarPropiedadForm({
                 className="input-premium"
                 required
               />
+              <p className="text-xs text-[#4d4d4d]">
+                Ej: 350000 (sin comas ni símbolos).
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -191,7 +199,7 @@ export default function EditarPropiedadForm({
             </div>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-6">
             <div className="space-y-2">
               <label
                 htmlFor="habitaciones"
@@ -274,6 +282,44 @@ export default function EditarPropiedadForm({
                 <option value="rentada">Rentada</option>
               </select>
             </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-[#000000]">
+                Destacado
+              </label>
+              <div className="flex h-[46px] items-center">
+                <input
+                  type="hidden"
+                  name="destacado"
+                  value={destacado ? "on" : ""}
+                />
+                <button
+                  type="button"
+                  onClick={() => setDestacado(!destacado)}
+                  className={`flex h-10 w-full items-center justify-center gap-2 rounded-xl border transition-all duration-300 ${
+                    destacado
+                      ? "border-[#d4af37] bg-[#fff9e6] text-[#d4af37] shadow-sm"
+                      : "border-[#d9d9d9] bg-white text-[#4d4d4d] hover:border-[#d4af37] hover:text-[#d4af37]"
+                  }`}
+                >
+                  <svg
+                    className={`h-5 w-5 ${destacado ? "fill-current" : "fill-none"}`}
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.382-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                    />
+                  </svg>
+                  <span className="text-sm font-semibold">
+                    {destacado ? "Destacado" : "Normal"}
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -338,11 +384,15 @@ export default function EditarPropiedadForm({
                         </span>
                       </div>
                     ) : (
-                      <img
-                        src={url}
-                        alt="Preview"
-                        className="h-40 w-full object-cover"
-                      />
+                      <div className="relative h-40 w-full">
+                        <Image
+                          src={url}
+                          alt="Preview"
+                          fill
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          className="object-cover"
+                        />
+                      </div>
                     )}
                     <div className="p-3">
                       <p className="break-all text-xs text-[#4d4d4d]">{url}</p>
@@ -353,21 +403,7 @@ export default function EditarPropiedadForm({
             </div>
           )}
 
-          <div className="flex items-center gap-3">
-            <input
-              id="destacado"
-              name="destacado"
-              type="checkbox"
-              defaultChecked={propiedad.destacado}
-              className="h-4 w-4"
-            />
-            <label
-              htmlFor="destacado"
-              className="text-sm font-medium text-[#000000]"
-            >
-              Marcar como destacado
-            </label>
-          </div>
+
 
           {state.error && <p className="text-sm text-red-600">{state.error}</p>}
 

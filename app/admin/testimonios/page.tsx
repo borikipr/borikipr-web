@@ -1,15 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAdminSessionUser } from "@/lib/admin/auth";
+import Image from "next/image";
 import { getAdminTestimonios } from "@/lib/admin/testimonios-queries";
 import TestimonioRowActions from "./TestimonioRowActions";
 import StatusBadge from "@/components/admin/StatusBadge";
 import AdminAlert from "@/components/admin/AdminAlert";
+import TestimonioTipoFilter from "./TestimonioTipoFilter";
 
 export default async function AdminTestimoniosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; id?: string }>;
+  searchParams: Promise<{ ok?: string; id?: string; tipo?: string }>;
 }) {
   const user = await getAdminSessionUser();
 
@@ -17,8 +19,8 @@ export default async function AdminTestimoniosPage({
     redirect("/admin/login");
   }
 
-  const testimonios = await getAdminTestimonios();
   const params = await searchParams;
+  const testimonios = await getAdminTestimonios(params.tipo);
 
   return (
     <main className="px-6 py-10">
@@ -35,14 +37,18 @@ export default async function AdminTestimoniosPage({
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              <Link href="/admin" className="btn-secondary">
-                Volver al panel
-              </Link>
+            <div className="flex flex-wrap items-center gap-4">
+              <TestimonioTipoFilter currentTipo={params.tipo} />
 
-              <Link href="/admin/testimonios/nuevo" className="btn-primary">
-                Nuevo testimonio
-              </Link>
+              <div className="flex flex-wrap gap-3">
+                <Link href="/admin" className="btn-secondary">
+                  Volver al panel
+                </Link>
+
+                <Link href="/admin/testimonios/nuevo" className="btn-primary">
+                  Nuevo testimonio
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -97,9 +103,26 @@ export default async function AdminTestimoniosPage({
                       }`}
                     >
                       <td className="px-6 py-5">
-                        <p className="font-semibold text-[#000000]">
-                          {item.nombre}
-                        </p>
+                        <div className="flex items-center gap-3">
+                          <div className="relative h-10 w-10 overflow-hidden rounded-full border border-[#e8e8e8] bg-[#f8f8f8]">
+                            {item.foto_url ? (
+                              <Image
+                                src={item.foto_url}
+                                alt={item.nombre}
+                                fill
+                                sizes="40px"
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center bg-[#11518b] text-xs font-bold text-white">
+                                {item.nombre.charAt(0)}
+                              </div>
+                            )}
+                          </div>
+                          <p className="font-semibold text-[#000000]">
+                            {item.nombre}
+                          </p>
+                        </div>
                       </td>
 
                       <td className="px-6 py-5">
@@ -153,6 +176,7 @@ export default async function AdminTestimoniosPage({
                         <TestimonioRowActions
                           id={item.id}
                           activoActual={item.activo}
+                          destacadoActual={item.destacado}
                         />
                       </td>
                     </tr>

@@ -11,6 +11,7 @@ export type AdminPropiedadRow = {
   estado: "disponible" | "bajo_contrato" | "vendida" | "rentada";
   destacado: boolean;
   created_at: string;
+  total_leads: number;
 };
 
 export type AdminPropiedadDetalle = {
@@ -67,21 +68,26 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
   };
 }
 
-export async function getAdminPropiedades() {
+export async function getAdminPropiedades(tipo?: string) {
   const rows = await sql<AdminPropiedadRow[]>`
     SELECT
-      id,
-      slug,
-      titulo,
-      municipio,
-      precio,
-      tipo_negocio,
-      tipo_propiedad,
-      estado,
-      destacado,
-      created_at
-    FROM propiedades
-    ORDER BY created_at DESC
+      p.id,
+      p.slug,
+      p.titulo,
+      p.municipio,
+      p.precio,
+      p.tipo_negocio,
+      p.tipo_propiedad,
+      p.estado,
+      p.destacado,
+      p.created_at,
+      COUNT(le.id)::int AS total_leads
+    FROM propiedades p
+    LEFT JOIN lead_events le ON le.propiedad_slug = p.slug
+    WHERE 1=1
+    ${tipo ? sql`AND p.tipo_propiedad = ${tipo}` : sql``}
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
   `;
 
   return rows;

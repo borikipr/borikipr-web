@@ -1,38 +1,17 @@
 import { Suspense } from "react";
 import Header from "@/components/Header";
 import ListadosClient from "@/components/ListadosClient";
+import PropiedadSkeleton from "@/components/PropiedadSkeleton";
 import { getPropiedadesPaginadas } from "@/lib/queries/propiedades";
 
-type TipoNegocio = "venta" | "renta";
 type TipoPropiedad =
   | "Casa"
   | "Apartamento"
   | "Condominio"
   | "Terreno"
   | "Comercial";
-type EstadoPropiedad =
-  | "disponible"
-  | "bajo_contrato"
-  | "vendida"
-  | "rentada";
 
-type PropiedadDB = {
-  id: string;
-  slug: string;
-  titulo: string;
-  descripcion: string;
-  municipio: string;
-  precio: string | number;
-  tipo_negocio: TipoNegocio;
-  tipo_propiedad: TipoPropiedad;
-  habitaciones: number;
-  banos: number;
-  estacionamientos: number;
-  metros_cuadrados: number;
-  estado: EstadoPropiedad;
-  destacado: boolean;
-  imagenes: string[];
-};
+
 
 type SearchParams = Promise<{
   municipio?: string;
@@ -65,7 +44,7 @@ export default async function ListadosPage({
     municipio: p.municipio,
     precio: Number(p.precio),
     tipo_negocio: p.tipo_negocio,
-    tipo_propiedad: p.tipo_propiedad,
+    tipo_propiedad: p.tipo_propiedad as TipoPropiedad,
     habitaciones: p.habitaciones,
     banos: p.banos,
     estacionamientos: p.estacionamientos,
@@ -102,10 +81,10 @@ export default async function ListadosPage({
           fallback={
             <section className="pb-24">
               <div className="section-shell">
-                <div className="rounded-3xl border border-[#e8e8e8] bg-white p-10 text-center shadow-sm">
-                  <p className="text-lg font-medium text-[#000000]">
-                    Cargando listados...
-                  </p>
+                <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+                  {[...Array(6)].map((_, i) => (
+                    <PropiedadSkeleton key={i} />
+                  ))}
                 </div>
               </div>
             </section>

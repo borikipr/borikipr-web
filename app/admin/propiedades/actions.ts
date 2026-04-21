@@ -387,3 +387,24 @@ export async function deletePropiedadAction(formData: FormData) {
   
   return {ok: true};
 }
+
+export async function toggleDestacadoAction(formData: FormData) {
+  const id = String(formData.get("id") || "").trim();
+  const destacado = formData.get("destacado") === "true";
+
+  if (!id) {
+    throw new Error("No se encontró la propiedad.");
+  }
+
+  await sql`
+    UPDATE propiedades
+    SET destacado = ${destacado}
+    WHERE id = ${id}
+  `;
+
+  revalidatePath("/admin/propiedades");
+  revalidatePath("/listados");
+  revalidatePath("/");
+
+  return { ok: true };
+}

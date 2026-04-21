@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
+import Image from "next/image";
 
 type Props = {
   onUploaded: (urls: string[]) => void;
@@ -194,11 +195,15 @@ export default function ImagenesUploader({ onUploaded }: Props) {
                       </span>
                     </div>
                   ) : (
-                    <img
-                      src={sf.previewUrl}
-                      alt={sf.file.name}
-                      className="h-40 w-full object-cover"
-                    />
+                    <div className="relative h-40 w-full">
+                      <Image
+                        src={sf.previewUrl}
+                        alt={sf.file.name}
+                        fill
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        className="object-cover"
+                      />
+                    </div>
                   )}
 
                   <div className="p-3">
@@ -253,11 +258,15 @@ export default function ImagenesUploader({ onUploaded }: Props) {
                       </span>
                     </div>
                   ) : (
-                    <img
-                      src={url}
-                      alt="Imagen subida"
-                      className="h-40 w-full object-cover"
-                    />
+                    <div className="relative h-40 w-full">
+                      <Image
+                        src={url}
+                        alt="Imagen subida"
+                        fill
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        className="object-cover"
+                      />
+                    </div>
                   )}
                   <div className="p-3">
                     <p className="break-all text-xs text-[#4d4d4d]">{url}</p>

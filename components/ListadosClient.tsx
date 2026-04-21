@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { municipiosPR } from "@/data/municipios";
+
 import { buscarSugerencias } from "@/data/zonas";
 import {
   filtrarPropiedades,
@@ -184,19 +184,27 @@ export default function ListadosClient({
   const [banos, setBanos] = useState(initialFilters.banos);
   const [orden, setOrden] = useState<Orden>(initialFilters.orden);
   const [shareMessage, setShareMessage] = useState("");
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [favorites, setFavorites] = useState<Set<string>>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("favorites");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            return new Set(parsed);
+          }
+        } catch (e) {
+          console.error("Error parsing favorites from localStorage", e);
+        }
+      }
+    }
+    return new Set();
+  });
   const [sugerencias, setSugerencias] = useState<{
     zonas: string[];
     municipios: string[];
   }>({ zonas: [], municipios: [] });
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("favorites");
-    if (saved) {
-      setFavorites(new Set(JSON.parse(saved)));
-    }
-  }, []);
 
   const toggleFavorite = (id: string) => {
     const newFavorites = new Set(favorites);
@@ -630,7 +638,7 @@ export default function ListadosClient({
 
             {/* Tipo de Propiedad - Toggle Switches */}
             <div className="flex flex-wrap gap-4 lg:flex-nowrap">
-              {["Casa", "Apartamento", "Condominio", "Terreno", "Comercial"].map((tipo) => (
+              {(["Casa", "Apartamento", "Condominio", "Terreno", "Comercial"] as TipoPropiedad[]).map((tipo) => (
                 <label key={tipo} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"

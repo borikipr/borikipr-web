@@ -74,7 +74,7 @@ export async function getLeadsResumen(
       COUNT(*) FILTER (WHERE le.tipo_evento = 'whatsapp_click') AS total_whatsapp,
       COUNT(*) FILTER (WHERE le.tipo_evento = 'contact_click') AS total_contact
     FROM lead_events le
-    LEFT JOIN propiedades p
+    INNER JOIN propiedades p
       ON p.slug = le.propiedad_slug
     WHERE le.propiedad_slug IS NOT NULL
     ${rangeCondition}
@@ -114,7 +114,7 @@ export async function getLeadsActividadReciente(
       le.ruta_origen,
       le.created_at
     FROM lead_events le
-    LEFT JOIN propiedades p
+    INNER JOIN propiedades p
       ON p.slug = le.propiedad_slug
     WHERE 1=1
     ${rangeCondition}

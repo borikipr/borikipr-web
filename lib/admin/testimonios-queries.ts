@@ -25,7 +25,7 @@ export type AdminTestimonioDetalle = {
   orden: number;
 };
 
-export async function getAdminTestimonios() {
+export async function getAdminTestimonios(tipo?: string) {
   const rows = await sql<AdminTestimonioRow[]>`
     SELECT
       id,
@@ -39,6 +39,8 @@ export async function getAdminTestimonios() {
       orden,
       created_at
     FROM testimonios
+    WHERE 1=1
+    ${tipo ? sql`AND tipo = ${tipo}` : sql``}
     ORDER BY orden ASC, created_at DESC
   `;
 
@@ -63,4 +65,11 @@ export async function getAdminTestimonioById(id: string) {
   `;
 
   return rows[0] ?? null;
+}
+export async function getNextTestimonioOrden() {
+  const rows = await sql<{ max_orden: number }[]>`
+    SELECT COALESCE(MAX(orden), -1) + 1 as max_orden
+    FROM testimonios
+  `;
+  return rows[0]?.max_orden ?? 0;
 }

@@ -27,11 +27,10 @@ export default function GaleriaPropiedad({
 
   const totalImagenes = imagenesValidas.length;
 
-  useEffect(() => {
-    if (indiceActivo > totalImagenes - 1) {
-      setIndiceActivo(0);
-    }
-  }, [indiceActivo, totalImagenes]);
+  // Ajustar el índice si las imágenes cambian y el índice actual queda fuera de rango
+  if (indiceActivo > totalImagenes - 1 && totalImagenes > 0) {
+    setIndiceActivo(0);
+  }
 
   const itemActivo = imagenesValidas[indiceActivo];
   const esVideoActivo = isVideoUrl(itemActivo);

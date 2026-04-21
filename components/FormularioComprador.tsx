@@ -20,7 +20,7 @@ export default function FormularioComprador() {
     // Obtener checkboxes de tipo de propiedad
     const tiposPropiedad = Array.from(
       form.querySelectorAll('input[name="tipoPropiedad"]:checked')
-    ).map((el: any) => el.value);
+    ).map((el) => (el as HTMLInputElement).value);
 
     const data = {
       nombre: formData.get("nombre"),
@@ -101,6 +101,7 @@ export default function FormularioComprador() {
             type="email"
             id="email"
             name="email"
+            required
             placeholder="tu@email.com"
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -116,6 +117,8 @@ export default function FormularioComprador() {
             id="telefono"
             name="telefono"
             required
+            pattern="[0-9]{10}|[0-9]{3}-[0-9]{3}-[0-9]{4}|\([0-9]{3}\) [0-9]{3}-[0-9]{4}"
+            title="Por favor ingresa un número de teléfono válido (ej: 7871234567 o 787-123-4567)"
             placeholder="(787) 123-4567"
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />

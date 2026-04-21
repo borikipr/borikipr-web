@@ -194,3 +194,31 @@ export async function deleteTestimonioAction(formData: FormData) {
 
   return { ok: true };
 }
+export async function toggleTestimonioDestacadoAction(formData: FormData) {
+  const id = String(formData.get("id") || "").trim();
+  const destacado = formData.get("destacado") === "true";
+
+  if (!id) {
+    throw new Error("No se encontró el testimonio.");
+  }
+
+  await sql`
+    UPDATE testimonios
+    SET destacado = ${destacado}
+    WHERE id = ${id}
+  `;
+
+  revalidatePath("/admin/testimonios");
+  revalidatePath("/");
+  revalidatePath("/testimonios");
+
+  return { ok: true };
+}
+
+export async function getSiguienteOrdenAction() {
+  const rows = await sql<{ max_orden: number }[]>`
+    SELECT COALESCE(MAX(orden), -1) + 1 as max_orden
+    FROM testimonios
+  `;
+  return rows[0]?.max_orden ?? 0;
+}

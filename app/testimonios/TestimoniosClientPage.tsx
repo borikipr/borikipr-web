@@ -62,7 +62,7 @@ function TestimonioCard({ item }: { item: TestimonioPublico }) {
         </h3>
 
         <p className="mt-5 text-lg leading-relaxed text-[#4d4d4d]">
-          "{item.texto}"
+          &quot;{item.texto}&quot;
         </p>
 
         <div className="mt-6 border-t border-[#efefef] pt-5">
