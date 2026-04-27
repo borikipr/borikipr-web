@@ -24,7 +24,7 @@ export default function Footer() {
             <div className="mt-6 flex flex-wrap gap-3">
               {/* Facebook */}
               <Link
-                href="https://www.facebook.com/ericksonrealestatepr"
+                href="https://www.facebook.com/prericksonrealestate"
                 target="_blank"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/85 transition hover:-translate-y-0.5 hover:border-[#d4af37] hover:text-[#d4af37]"
                 aria-label="Facebook"
