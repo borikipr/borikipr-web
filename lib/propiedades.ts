@@ -19,8 +19,18 @@ export type FiltrosPropiedades = {
   tipoPropiedad: "" | TipoPropiedad;
   precioMin: string;
   precioMax: string;
+  habitaciones: string;
+  banos: string;
   orden: Orden;
 };
+
+function parseMinimoFiltro(value: string) {
+  const limpio = value.trim().replace("+", "");
+  if (!limpio) return null;
+
+  const numero = Number(limpio);
+  return Number.isFinite(numero) ? numero : null;
+}
 
 export function formatoPrecio(precio: number, tipo: TipoNegocio) {
   return tipo === "renta"
@@ -91,13 +101,23 @@ export function filtrarPropiedades(
       ? propiedad.precio <= Number(filtros.precioMax)
       : true;
 
+    const habitacionesMin = parseMinimoFiltro(filtros.habitaciones);
+    const banosMin = parseMinimoFiltro(filtros.banos);
+
+    const coincideHabitaciones =
+      habitacionesMin !== null ? propiedad.habitaciones >= habitacionesMin : true;
+
+    const coincideBanos = banosMin !== null ? propiedad.banos >= banosMin : true;
+
     return (
       coincideTexto &&
       coincideNegocio &&
       coincideMunicipio &&
       coincideTipo &&
       coincidePrecioMin &&
-      coincidePrecioMax
+      coincidePrecioMax &&
+      coincideHabitaciones &&
+      coincideBanos
     );
   });
 
