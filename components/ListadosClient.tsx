@@ -381,6 +381,8 @@ export default function ListadosClient({
       tipoPropiedad,
       precioMin,
       precioMax,
+      habitaciones,
+      banos,
       orden,
     });
   }, [
@@ -391,6 +393,8 @@ export default function ListadosClient({
     tipoPropiedad,
     precioMin,
     precioMax,
+    habitaciones,
+    banos,
     orden,
   ]);
 
@@ -613,27 +617,52 @@ export default function ListadosClient({
           {/* Segunda fila: Habitaciones, Baños, Tipo de Propiedad, Ordenar, Limpiar */}
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-3">
             {/* Habitaciones */}
-            <div className="lg:max-w-[90px]">
-              <input
-                type="number"
-                placeholder="Hab."
-                min="0"
-                value={habitaciones}
-                onChange={(e) => setHabitaciones(e.target.value)}
-                className="input-premium w-full text-sm"
-              />
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-[#4d4d4d]">Hab.</span>
+              <div className="flex flex-wrap gap-2">
+                {["All", "1+", "2+", "3+", "4+", "5+"].map((opt) => {
+                  const active =
+                    (opt === "All" && !habitaciones) || habitaciones === opt;
+                  return (
+                    <button
+                      key={`hab-${opt}`}
+                      type="button"
+                      onClick={() => setHabitaciones(opt === "All" ? "" : opt)}
+                      className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                        active
+                          ? "border-[#11518b] bg-[#11518b] text-white"
+                          : "border-[#d9d9d9] text-[#4d4d4d] hover:bg-[#f7f7f7]"
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Baños */}
-            <div className="lg:max-w-[90px]">
-              <input
-                type="number"
-                placeholder="Baños"
-                min="0"
-                value={banos}
-                onChange={(e) => setBanos(e.target.value)}
-                className="input-premium w-full text-sm"
-              />
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-[#4d4d4d]">Baños</span>
+              <div className="flex flex-wrap gap-2">
+                {["All", "1+", "2+", "3+", "4+", "5+"].map((opt) => {
+                  const active = (opt === "All" && !banos) || banos === opt;
+                  return (
+                    <button
+                      key={`bath-${opt}`}
+                      type="button"
+                      onClick={() => setBanos(opt === "All" ? "" : opt)}
+                      className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                        active
+                          ? "border-[#11518b] bg-[#11518b] text-white"
+                          : "border-[#d9d9d9] text-[#4d4d4d] hover:bg-[#f7f7f7]"
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Tipo de Propiedad - Toggle Switches */}
