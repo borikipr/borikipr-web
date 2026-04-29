@@ -14,7 +14,7 @@ import {
   Orden,
 } from "@/lib/propiedades";
 
-type TipoNegocio = "venta" | "renta"; // "renta" se muestra como "alquiler"
+type TipoNegocio = "venta" | "renta";
 type TipoPropiedad =
   | "Casa"
   | "Apartamento"
@@ -25,7 +25,7 @@ type EstadoPropiedad =
   | "disponible"
   | "bajo_contrato"
   | "vendida"
-  | "alquilada";
+  | "rentada";
 
 type Propiedad = {
   id: string;
@@ -43,7 +43,6 @@ type Propiedad = {
   estado: EstadoPropiedad;
   destacado: boolean;
   imagenes: string[];
-  origen_listado: "propio" | "co_broke" | "externo";
 };
 
 type PropiedadUI = {
@@ -62,7 +61,6 @@ type PropiedadUI = {
   estado: EstadoPropiedad;
   destacado: boolean;
   imagenes: string[];
-  origenListado: "propio" | "co_broke" | "externo";
 };
 
 type InitialFilters = {
@@ -77,7 +75,34 @@ type InitialFilters = {
   orden: Orden;
 };
 
+type ActiveChip = {
+  key:
+    | "q"
+    | "tipoNegocio"
+    | "municipio"
+    | "tipoPropiedad"
+    | "precioMin"
+    | "precioMax"
+    | "habitaciones"
+    | "banos"
+    | "orden";
+  label: string;
+};
 
+function ordenLabel(orden: Orden) {
+  switch (orden) {
+    case "precio-asc":
+      return "Precio: menor a mayor";
+    case "precio-desc":
+      return "Precio: mayor a menor";
+    case "municipio-asc":
+      return "Municipio: A-Z";
+    case "municipio-desc":
+      return "Municipio: Z-A";
+    default:
+      return "";
+  }
+}
 
 function PaginationControls({
   currentPage,
@@ -184,7 +209,7 @@ export default function ListadosClient({
   const [tipoNegocio, setTipoNegocio] = useState<TipoNegocio>(
     initialFilters.tipoNegocio || "venta"
   );
-  const [municipio] = useState(initialFilters.municipio);
+  const [municipio, setMunicipio] = useState(initialFilters.municipio);
   const [tipoPropiedad, setTipoPropiedad] = useState<TipoPropiedad[]>(
     Array.isArray(initialFilters.tipoPropiedad) ? initialFilters.tipoPropiedad : []
   );
@@ -192,7 +217,7 @@ export default function ListadosClient({
   const [precioMax, setPrecioMax] = useState(initialFilters.precioMax);
   const [habitaciones, setHabitaciones] = useState(initialFilters.habitaciones);
   const [banos, setBanos] = useState(initialFilters.banos);
-  const [orden] = useState<Orden>(initialFilters.orden);
+  const [orden, setOrden] = useState<Orden>(initialFilters.orden);
   const [shareMessage, setShareMessage] = useState("");
   const [favorites, setFavorites] = useState<Set<string>>(() => {
     if (typeof window !== "undefined") {
@@ -227,7 +252,34 @@ export default function ListadosClient({
     localStorage.setItem("favorites", JSON.stringify(Array.from(newFavorites)));
   };
 
-
+  const limpiarFiltros = () => {
+    setQ("");
+    setQTemp("");
+    setTipoNegocio("venta");
+    setMunicipio("");
+    setTipoPropiedad([]);
+    setPrecioMin("");
+    setPrecioMinTemp("");
+    setPrecioMax("");
+    setPrecioMaxTemp("");
+    setHabitaciones("");
+    setHabitacionesTemp("");
+    setBanos("");
+    setBanosTemp("");
+    setOrden("");
+    // Actualizar URL
+    updateUrl({
+      q: "",
+      tipoNegocio: "venta",
+      municipio: "",
+      tipoPropiedad: [],
+      precioMin: "",
+      precioMax: "",
+      habitaciones: "",
+      banos: "",
+      orden: "",
+    });
+  };
 
   // Función para actualizar la URL con los filtros actuales
   const updateUrl = (filters: {
@@ -282,7 +334,7 @@ export default function ListadosClient({
     });
   };
 
-  // Manejador de Venta/Alquiler: exclusión mutua (SIN actualizar URL)
+  // Manejador de Venta/Renta: exclusión mutua (SIN actualizar URL)
   const handleTipoNegocio = (tipo: TipoNegocio) => {
     if (tipoNegocio === tipo) {
       // Si ya está seleccionado, no hacer nada (siempre debe haber uno activo)
@@ -292,7 +344,42 @@ export default function ListadosClient({
     setTipoNegocio(tipo);
   };
 
-
+  const quitarFiltro = (key: ActiveChip["key"]) => {
+    switch (key) {
+      case "q":
+        setQ("");
+        setQTemp("");
+        break;
+      case "tipoNegocio":
+        setTipoNegocio("venta");
+        break;
+      case "municipio":
+        setMunicipio("");
+        break;
+      case "tipoPropiedad":
+        setTipoPropiedad([]);
+        break;
+      case "precioMin":
+        setPrecioMin("");
+        setPrecioMinTemp("");
+        break;
+      case "precioMax":
+        setPrecioMax("");
+        setPrecioMaxTemp("");
+        break;
+      case "habitaciones":
+        setHabitaciones("");
+        setHabitacionesTemp("");
+        break;
+      case "banos":
+        setBanos("");
+        setBanosTemp("");
+        break;
+      case "orden":
+        setOrden("");
+        break;
+    }
+  };
 
   // NO hay useEffect reactivo. La URL solo se actualiza cuando se llama a updateUrl()
   // Esto previene auto-updates mientras el usuario escribe
@@ -324,7 +411,6 @@ export default function ListadosClient({
           Array.isArray(p.imagenes) && p.imagenes.length > 0
             ? p.imagenes
             : ["/placeholder.jpg"],
-        origenListado: p.origen_listado,
       })),
     [propiedades]
   );
@@ -354,7 +440,42 @@ export default function ListadosClient({
     orden,
   ]);
 
+  const activeChips = useMemo<ActiveChip[]>(() => {
+    const chips: ActiveChip[] = [];
 
+    if (q.trim()) {
+      chips.push({ key: "q", label: `Buscar: ${q.trim()}` });
+    }
+    if (tipoNegocio) {
+      chips.push({
+        key: "tipoNegocio",
+        label: tipoNegocio === "venta" ? "Venta" : "Renta",
+      });
+    }
+    if (municipio.trim()) {
+      chips.push({ key: "municipio", label: `Municipio: ${municipio.trim()}` });
+    }
+    if (tipoPropiedad.length > 0) {
+      chips.push({ key: "tipoPropiedad", label: `Tipos: ${tipoPropiedad.join(", ")}` });
+    }
+    if (precioMin.trim()) {
+      chips.push({ key: "precioMin", label: `Desde: $${Number(precioMin).toLocaleString("en-US")}` });
+    }
+    if (precioMax.trim()) {
+      chips.push({ key: "precioMax", label: `Hasta: $${Number(precioMax).toLocaleString("en-US")}` });
+    }
+    if (habitaciones.trim()) {
+      chips.push({ key: "habitaciones", label: `${habitaciones} hab.` });
+    }
+    if (banos.trim()) {
+      chips.push({ key: "banos", label: `${banos} baños` });
+    }
+    if (orden) {
+      chips.push({ key: "orden", label: ordenLabel(orden) });
+    }
+
+    return chips;
+  }, [q, tipoNegocio, municipio, tipoPropiedad, precioMin, precioMax, habitaciones, banos, orden]);
 
   const shareUrl = useMemo(() => {
     const query = searchParams.toString();
@@ -416,17 +537,17 @@ export default function ListadosClient({
               {/* Row 1: For Sale | For Rent + Search by Location + Search btn */}
               <div className="flex items-stretch gap-0 mb-4">
                 {/* Venta tab */}
-                        <button
-                          type="button"
-                          onClick={() => handleTipoNegocio("renta")}
-                          className={`flex-1 px-6 py-2.5 text-sm font-semibold rounded-r transition ${
-                            tipoNegocio === "renta"
-                              ? "bg-[#11518b] text-white"
-                              : "bg-[#f5f5f5] text-[#333] border border-[#d9d9d9]"
-                          }`}
-                        >
-                          Alquiler
-                        </button>
+                <button
+                  type="button"
+                  onClick={() => handleTipoNegocio("venta")}
+                  className={`px-5 py-2.5 text-sm font-semibold rounded-l transition whitespace-nowrap ${
+                    tipoNegocio === "venta"
+                      ? "bg-[#11518b] text-white"
+                      : "bg-white text-[#333] border border-[#d9d9d9] hover:bg-[#f5f5f5]"
+                  }`}
+                >
+                  Venta
+                </button>
 
                 {/* Renta tab */}
                 <button
@@ -812,18 +933,6 @@ export default function ListadosClient({
                         {estadoLabel(propiedad.estado)}
                       </span>
 
-                      {propiedad.origenListado === "co_broke" && (
-                        <span className="rounded-full bg-[#11518b] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-white">
-                          Co-Broke
-                        </span>
-                      )}
-
-                      {propiedad.origenListado === "externo" && (
-                        <span className="rounded-full bg-[#4d4d4d] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-white">
-                          Referencia
-                        </span>
-                      )}
-
                       {propiedad.destacado && (
                         <span className="rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#11518b]">
                           Destacado
@@ -844,7 +953,7 @@ export default function ListadosClient({
                   <div className="p-6">
                     <div className="mb-3 flex justify-between gap-4">
                       <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                        {propiedad.tipoNegocio === "venta" ? "Venta" : "Alquiler"}
+                        {propiedad.tipoNegocio === "venta" ? "Venta" : "Renta"}
                       </span>
                     </div>
 

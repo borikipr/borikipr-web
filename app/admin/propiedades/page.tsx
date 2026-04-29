@@ -40,7 +40,7 @@ function estadoLabel(
     case "vendida":
       return "Vendida";
     case "rentada":
-      return "Alquilada";
+      return "Rentada";
     default:
       return estado;
   }
@@ -124,7 +124,6 @@ export default async function AdminPropiedadesPage({
                     <th className="px-6 py-4 font-semibold">Precio</th>
                     <th className="px-6 py-4 font-semibold">Interés</th>
                     <th className="px-6 py-4 font-semibold">Tipo</th>
-                    <th className="px-6 py-4 font-semibold">Origen</th>
                     <th className="px-6 py-4 font-semibold">Estado</th>
                     <th className="px-6 py-4 font-semibold">Acciones</th>
                   </tr>
@@ -178,18 +177,12 @@ export default async function AdminPropiedadesPage({
                       <td className="px-6 py-5 text-sm text-[#4d4d4d]">
                         <div className="space-y-2">
                           <div>
-                            {item.tipo_negocio === "venta" ? "Venta" : "Alquiler"}
+                            {item.tipo_negocio === "venta" ? "Venta" : "Renta"}
                           </div>
                           <StatusBadge variant="outline">
                             {item.tipo_propiedad}
                           </StatusBadge>
                         </div>
-                      </td>
-
-                      <td className="px-6 py-5">
-                        <StatusBadge variant={item.origen_listado === "propio" ? "blue" : item.origen_listado === "co_broke" ? "gold" : "gray"}>
-                          {item.origen_listado === "propio" ? "Propio" : item.origen_listado === "co_broke" ? "Co-Broke" : "Externo"}
-                        </StatusBadge>
                       </td>
 
                       <td className="px-6 py-5">

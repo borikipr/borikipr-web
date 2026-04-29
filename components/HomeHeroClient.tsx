@@ -196,7 +196,7 @@ export default function HomeHeroClient({
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {/* Columna izquierda */}
                   <div className="lg:col-span-2 space-y-6">
-                    {/* Venta/Alquiler */}
+                    {/* Venta/Renta */}
                     <div>
                       <div className="flex gap-2">
                         <button
@@ -219,7 +219,7 @@ export default function HomeHeroClient({
                               : "bg-[#f5f5f5] text-[#333] border border-[#d9d9d9]"
                           }`}
                         >
-                          Alquiler
+                          Renta
                         </button>
                       </div>
                     </div>
@@ -425,7 +425,7 @@ export default function HomeHeroClient({
                 Mercado
               </p>
               <p className="mt-2 text-sm text-white/90">
-                Propiedades en venta y alquiler en Puerto Rico
+                Propiedades en venta y renta en Puerto Rico
               </p>
             </div>
 

@@ -12,7 +12,6 @@ export type AdminPropiedadRow = {
   destacado: boolean;
   created_at: string;
   total_leads: number;
-  origen_listado: "propio" | "co_broke" | "externo";
 };
 
 export type AdminPropiedadDetalle = {
@@ -31,14 +30,6 @@ export type AdminPropiedadDetalle = {
   estado: "disponible" | "bajo_contrato" | "vendida" | "rentada";
   destacado: boolean;
   imagenes: string[];
-  origen_listado: "propio" | "co_broke" | "externo";
-  corredor_colaborador_nombre?: string;
-  corredor_colaborador_empresa?: string;
-  corredor_colaborador_contacto?: string;
-  enlace_original?: string;
-  permiso_publicar_web: boolean;
-  permiso_usar_fotos: boolean;
-  notas_internas?: string;
 };
 
 export type AdminDashboardStats = {
@@ -90,7 +81,6 @@ export async function getAdminPropiedades(tipo?: string) {
       p.estado,
       p.destacado,
       p.created_at,
-      p.origen_listado,
       COUNT(le.id)::int AS total_leads
     FROM propiedades p
     LEFT JOIN lead_events le ON le.propiedad_slug = p.slug
@@ -120,14 +110,6 @@ export async function getAdminPropiedadById(id: string) {
       p.metros_cuadrados,
       p.estado,
       p.destacado,
-      p.origen_listado,
-      p.corredor_colaborador_nombre,
-      p.corredor_colaborador_empresa,
-      p.corredor_colaborador_contacto,
-      p.enlace_original,
-      p.permiso_publicar_web,
-      p.permiso_usar_fotos,
-      p.notas_internas,
       COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'

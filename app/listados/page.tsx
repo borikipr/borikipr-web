@@ -55,7 +55,6 @@ export default async function ListadosPage({
       Array.isArray(p.imagenes) && p.imagenes.length > 0
         ? p.imagenes
         : ["/placeholder.jpg"],
-    origen_listado: p.origen_listado,
   }));
 
   // Parse tipoPropiedad as array
@@ -82,7 +81,7 @@ export default async function ListadosPage({
             <p className="eyebrow">Listados</p>
 
             <h1 className="heading-section mt-4">
-              Propiedades en venta y alquiler en Puerto Rico
+              Propiedades en venta y renta en Puerto Rico
             </h1>
 
             <p className="body-lg mt-6">

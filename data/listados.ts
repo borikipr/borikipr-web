@@ -28,5 +28,4 @@ export interface Propiedad {
   estado: EstadoPropiedad;
   imagenes: string[];
   destacado?: boolean;
-  origenListado: "propio" | "co_broke" | "externo";
 }
