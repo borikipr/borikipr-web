@@ -24,6 +24,7 @@ const estadosValidos = new Set([
   "vendida",
   "rentada",
 ]);
+const origenListadoValidos = new Set(["propio", "co_broke", "externo"]);
 
 function parsePositiveNumber(value: string) {
   const num = Number(value);
@@ -63,6 +64,14 @@ export async function createPropiedadAction(
   const estado = String(formData.get("estado") || "").trim();
   const destacado = formData.get("destacado") === "on";
   const imagenesRaw = String(formData.get("imagenes") || "").trim();
+  const origenListado = String(formData.get("origen_listado") || "propio").trim();
+  const corredorNombre = String(formData.get("corredor_colaborador_nombre") || "").trim();
+  const corredorEmpresa = String(formData.get("corredor_colaborador_empresa") || "").trim();
+  const corredorContacto = String(formData.get("corredor_colaborador_contacto") || "").trim();
+  const enlaceOriginal = String(formData.get("enlace_original") || "").trim();
+  const permisoPublicar = formData.get("permiso_publicar_web") === "on";
+  const permisoFotos = formData.get("permiso_usar_fotos") === "on";
+  const notasInternas = String(formData.get("notas_internas") || "").trim();
 
   const slug = normalizeSlug(slugRaw);
 
@@ -93,6 +102,14 @@ export async function createPropiedadAction(
 
   if (!estadosValidos.has(estado as never)) {
     return { error: "Selecciona un estado válido." };
+  }
+
+  if (!origenListadoValidos.has(origenListado as never)) {
+    return { error: "Selecciona un origen de listado válido." };
+  }
+
+  if ((origenListado === "co_broke" || origenListado === "externo") && !corredorNombre) {
+    return { error: "El nombre del corredor es requerido para Co-Broke y Externo." };
   }
 
   const precio = parsePositiveNumber(precioRaw);
@@ -150,7 +167,15 @@ export async function createPropiedadAction(
         estacionamientos,
         metros_cuadrados,
         estado,
-        destacado
+        destacado,
+        origen_listado,
+        corredor_colaborador_nombre,
+        corredor_colaborador_empresa,
+        corredor_colaborador_contacto,
+        enlace_original,
+        permiso_publicar_web,
+        permiso_usar_fotos,
+        notas_internas
       ) VALUES (
         ${slug},
         ${titulo},
@@ -164,7 +189,15 @@ export async function createPropiedadAction(
         ${estacionamientos},
         ${metrosCuadrados},
         ${estado},
-        ${destacado}
+        ${destacado},
+        ${origenListado},
+        ${origenListado !== "propio" ? corredorNombre : null},
+        ${origenListado !== "propio" ? corredorEmpresa : null},
+        ${origenListado !== "propio" ? corredorContacto : null},
+        ${origenListado !== "propio" ? enlaceOriginal : null},
+        ${permisoPublicar},
+        ${permisoFotos},
+        ${origenListado !== "propio" ? notasInternas : null}
       )
       RETURNING id
     `;
@@ -214,6 +247,14 @@ export async function updatePropiedadAction(
   const estado = String(formData.get("estado") || "").trim();
   const destacado = formData.get("destacado") === "on";
   const imagenesRaw = String(formData.get("imagenes") || "").trim();
+  const origenListado = String(formData.get("origen_listado") || "propio").trim();
+  const corredorNombre = String(formData.get("corredor_colaborador_nombre") || "").trim();
+  const corredorEmpresa = String(formData.get("corredor_colaborador_empresa") || "").trim();
+  const corredorContacto = String(formData.get("corredor_colaborador_contacto") || "").trim();
+  const enlaceOriginal = String(formData.get("enlace_original") || "").trim();
+  const permisoPublicar = formData.get("permiso_publicar_web") === "on";
+  const permisoFotos = formData.get("permiso_usar_fotos") === "on";
+  const notasInternas = String(formData.get("notas_internas") || "").trim();
 
   if (!id) {
     return { error: "No se encontró la propiedad a editar." };
@@ -248,6 +289,14 @@ export async function updatePropiedadAction(
 
   if (!estadosValidos.has(estado as never)) {
     return { error: "Selecciona un estado válido." };
+  }
+
+  if (!origenListadoValidos.has(origenListado as never)) {
+    return { error: "Selecciona un origen de listado válido." };
+  }
+
+  if ((origenListado === "co_broke" || origenListado === "externo") && !corredorNombre) {
+    return { error: "El nombre del corredor es requerido para Co-Broke y Externo." };
   }
 
   const precio = parsePositiveNumber(precioRaw);
@@ -305,7 +354,15 @@ export async function updatePropiedadAction(
         estacionamientos = ${estacionamientos},
         metros_cuadrados = ${metrosCuadrados},
         estado = ${estado},
-        destacado = ${destacado}
+        destacado = ${destacado},
+        origen_listado = ${origenListado},
+        corredor_colaborador_nombre = ${origenListado !== "propio" ? corredorNombre : null},
+        corredor_colaborador_empresa = ${origenListado !== "propio" ? corredorEmpresa : null},
+        corredor_colaborador_contacto = ${origenListado !== "propio" ? corredorContacto : null},
+        enlace_original = ${origenListado !== "propio" ? enlaceOriginal : null},
+        permiso_publicar_web = ${permisoPublicar},
+        permiso_usar_fotos = ${permisoFotos},
+        notas_internas = ${origenListado !== "propio" ? notasInternas : null}
       WHERE id = ${id}
       RETURNING id
     `;

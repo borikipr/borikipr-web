@@ -35,6 +35,11 @@ type PropiedadDB = {
   estado: EstadoPropiedad;
   destacado: boolean;
   imagenes: string[];
+  origen_listado: "propio" | "co_broke" | "externo";
+  corredor_colaborador_nombre?: string;
+  corredor_colaborador_empresa?: string;
+  enlace_original?: string;
+  permiso_usar_fotos: boolean;
 };
 
 function formatoPrecio(precio: number, tipo: TipoNegocio) {
@@ -197,16 +202,27 @@ export default async function DetallePropiedadPage({
       Array.isArray(row.imagenes) && row.imagenes.length > 0
         ? row.imagenes
         : ["/placeholder.jpg"],
+    origenListado: row.origen_listado,
+    corredorNombre: row.corredor_colaborador_nombre,
+    corredorEmpresa: row.corredor_colaborador_empresa,
+    enlaceOriginal: row.enlace_original,
+    permisoFotos: row.permiso_usar_fotos,
   };
 
   const propiedadUrl = `https://borikipr.com/listados/${propiedad.slug}`;
+
+  const tipoPropiedad = propiedad.origenListado === "co_broke" 
+    ? "\nTipo: Propiedad en colaboración" 
+    : propiedad.origenListado === "externo"
+    ? "\nTipo: Propiedad de referencia"
+    : "";
 
   const whatsappMensaje = encodeURIComponent(
     `Hola, me interesa esta propiedad:
 
 ${propiedad.titulo}
 ${propiedad.municipio}, Puerto Rico
-Precio: ${formatoPrecio(propiedad.precio, propiedad.tipoNegocio)}
+Precio: ${formatoPrecio(propiedad.precio, propiedad.tipoNegocio)}${tipoPropiedad}
 
 Link:
 ${propiedadUrl}`
@@ -244,6 +260,18 @@ ${propiedadUrl}`
                 >
                   {estadoLabel(propiedad.estado)}
                 </span>
+
+                {propiedad.origenListado === "co_broke" && (
+                  <span className="rounded-full bg-[#11518b] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                    Co-Broke
+                  </span>
+                )}
+
+                {propiedad.origenListado === "externo" && (
+                  <span className="rounded-full bg-[#4d4d4d] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                    Referencia
+                  </span>
+                )}
 
                 {propiedad.destacado && (
                   <span className="rounded-full bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#11518b]">
@@ -287,6 +315,44 @@ ${propiedadUrl}`
                       Hablar con Ivonne
                     </Link>
                   </div>
+                </div>
+              )}
+
+              {propiedad.origenListado === "co_broke" && (
+                <div className="mt-6 rounded-2xl border border-[#11518b] bg-[#f0f5fb] p-6">
+                  <p className="text-sm font-semibold uppercase tracking-[0.15em] text-[#11518b]">
+                    Propiedad en colaboración
+                  </p>
+
+                  <p className="mt-2 leading-relaxed text-[#4d4d4d]">
+                    Esta propiedad se presenta en colaboración con otro profesional de bienes raíces. Ivonne Erickson puede asistirle en la orientación, coordinación de información y proceso de representación, sujeto a disponibilidad y acuerdo entre las partes.
+                  </p>
+
+                  {propiedad.corredorNombre && (
+                    <div className="mt-4 text-sm text-[#4d4d4d]">
+                      <p><strong>Corredor colaborador:</strong> {propiedad.corredorNombre}</p>
+                      {propiedad.corredorEmpresa && <p><strong>Empresa:</strong> {propiedad.corredorEmpresa}</p>}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {propiedad.origenListado === "externo" && (
+                <div className="mt-6 rounded-2xl border border-[#4d4d4d] bg-[#f5f5f5] p-6">
+                  <p className="text-sm font-semibold uppercase tracking-[0.15em] text-[#4d4d4d]">
+                    Propiedad de referencia
+                  </p>
+
+                  <p className="mt-2 leading-relaxed text-[#4d4d4d]">
+                    Esta propiedad puede provenir de una fuente externa o colaboración profesional. La información está sujeta a confirmación de disponibilidad.
+                  </p>
+
+                  {propiedad.corredorNombre && (
+                    <div className="mt-4 text-sm text-[#4d4d4d]">
+                      <p><strong>Referencia:</strong> {propiedad.corredorNombre}</p>
+                      {propiedad.corredorEmpresa && <p><strong>Empresa:</strong> {propiedad.corredorEmpresa}</p>}
+                    </div>
+                  )}
                 </div>
               )}
 

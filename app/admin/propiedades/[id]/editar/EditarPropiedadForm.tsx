@@ -24,6 +24,14 @@ type EditarPropiedadFormProps = {
     estado: "disponible" | "bajo_contrato" | "vendida" | "rentada";
     destacado: boolean;
     imagenes: string[];
+    origen_listado: "propio" | "co_broke" | "externo";
+    corredor_colaborador_nombre?: string;
+    corredor_colaborador_empresa?: string;
+    corredor_colaborador_contacto?: string;
+    enlace_original?: string;
+    permiso_publicar_web: boolean;
+    permiso_usar_fotos: boolean;
+    notas_internas?: string;
   };
 };
 
@@ -40,6 +48,9 @@ export default function EditarPropiedadForm({
   );
   const [imagenesValue, setImagenesValue] = useState(propiedad.imagenes.join(", "));
   const [destacado, setDestacado] = useState(propiedad.destacado);
+  const [origenListado, setOrigenListado] = useState(propiedad.origen_listado);
+  const [permisoPublicar, setPermisoPublicar] = useState(propiedad.permiso_publicar_web);
+  const [permisoFotos, setPermisoFotos] = useState(propiedad.permiso_usar_fotos);
 
   const imagenesPreview = useMemo(
     () =>
@@ -116,6 +127,160 @@ export default function EditarPropiedadForm({
               required
             />
           </div>
+
+          <div className="space-y-2">
+            <label
+              htmlFor="origen_listado"
+              className="text-sm font-medium text-[#000000]"
+            >
+              Origen del listado <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="origen_listado"
+              name="origen_listado"
+              value={origenListado}
+              onChange={(e) => setOrigenListado(e.target.value as "propio" | "co_broke" | "externo")}
+              className="input-premium"
+              required
+            >
+              <option value="propio">Listado propio</option>
+              <option value="co_broke">Propiedad en colaboración / Co-Broke</option>
+              <option value="externo">Externo / referencia</option>
+            </select>
+          </div>
+
+          {(origenListado === "co_broke" || origenListado === "externo") && (
+            <div className="space-y-6 rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] p-6">
+              <h3 className="text-lg font-semibold text-[#000000]">
+                Información del corredor colaborador
+              </h3>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label
+                    htmlFor="corredor_nombre"
+                    className="text-sm font-medium text-[#000000]"
+                  >
+                    Nombre del corredor <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="corredor_nombre"
+                    name="corredor_colaborador_nombre"
+                    type="text"
+                    defaultValue={propiedad.corredor_colaborador_nombre || ""}
+                    placeholder="Juan Pérez"
+                    className="input-premium"
+                    required={true}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="corredor_empresa"
+                    className="text-sm font-medium text-[#000000]"
+                  >
+                    Compañía u oficina
+                  </label>
+                  <input
+                    id="corredor_empresa"
+                    name="corredor_colaborador_empresa"
+                    type="text"
+                    defaultValue={propiedad.corredor_colaborador_empresa || ""}
+                    placeholder="Inmobiliaria XYZ"
+                    className="input-premium"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label
+                    htmlFor="corredor_contacto"
+                    className="text-sm font-medium text-[#000000]"
+                  >
+                    Contacto interno del corredor
+                  </label>
+                  <input
+                    id="corredor_contacto"
+                    name="corredor_colaborador_contacto"
+                    type="text"
+                    defaultValue={propiedad.corredor_colaborador_contacto || ""}
+                    placeholder="787-555-1234 o correo@ejemplo.com"
+                    className="input-premium"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="enlace_original"
+                    className="text-sm font-medium text-[#000000]"
+                  >
+                    Enlace original del anuncio
+                  </label>
+                  <input
+                    id="enlace_original"
+                    name="enlace_original"
+                    type="url"
+                    defaultValue={propiedad.enlace_original || ""}
+                    placeholder="https://..."
+                    className="input-premium"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-[#000000]">
+                  Permisos
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="permiso_publicar"
+                    name="permiso_publicar_web"
+                    type="checkbox"
+                    checked={permisoPublicar}
+                    onChange={(e) => setPermisoPublicar(e.target.checked)}
+                    className="h-4 w-4 rounded border-[#d9d9d9]"
+                  />
+                  <label htmlFor="permiso_publicar" className="text-sm text-[#4d4d4d]">
+                    Permiso para publicar en website
+                  </label>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="permiso_fotos"
+                    name="permiso_usar_fotos"
+                    type="checkbox"
+                    checked={permisoFotos}
+                    onChange={(e) => setPermisoFotos(e.target.checked)}
+                    className="h-4 w-4 rounded border-[#d9d9d9]"
+                  />
+                  <label htmlFor="permiso_fotos" className="text-sm text-[#4d4d4d]">
+                    Permiso para usar fotos
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="notas_internas"
+                  className="text-sm font-medium text-[#000000]"
+                >
+                  Notas internas
+                </label>
+                <textarea
+                  id="notas_internas"
+                  name="notas_internas"
+                  rows={3}
+                  defaultValue={propiedad.notas_internas || ""}
+                  placeholder="Notas privadas sobre esta propiedad..."
+                  className="input-premium"
+                />
+                <p className="text-xs text-[#4d4d4d]">
+                  Estas notas no serán visibles públicamente.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
             <div className="space-y-2">
