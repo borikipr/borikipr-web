@@ -35,6 +35,10 @@ type PropiedadDB = {
   estado: EstadoPropiedad;
   destacado: boolean;
   imagenes: string[];
+  origen_listado: "propio" | "co_broke" | "externo";
+  corredor_colaborador_nombre?: string;
+  corredor_colaborador_empresa?: string;
+  enlace_original?: string;
 };
 
 function formatoPrecio(precio: number, tipo: TipoNegocio) {
@@ -197,16 +201,26 @@ export default async function DetallePropiedadPage({
       Array.isArray(row.imagenes) && row.imagenes.length > 0
         ? row.imagenes
         : ["/placeholder.jpg"],
+    origenListado: row.origen_listado,
+    corredorColaboradorNombre: row.corredor_colaborador_nombre,
+    corredorColaboradorEmpresa: row.corredor_colaborador_empresa,
+    enlaceOriginal: row.enlace_original,
   };
 
   const propiedadUrl = `https://borikipr.com/listados/${propiedad.slug}`;
+
+  const tipoLinea = propiedad.origenListado === "co_broke"
+    ? "Tipo: Propiedad en colaboración"
+    : propiedad.origenListado === "externo"
+    ? "Tipo: Propiedad de referencia"
+    : "";
 
   const whatsappMensaje = encodeURIComponent(
     `Hola, me interesa esta propiedad:
 
 ${propiedad.titulo}
 ${propiedad.municipio}, Puerto Rico
-Precio: ${formatoPrecio(propiedad.precio, propiedad.tipoNegocio)}
+Precio: ${formatoPrecio(propiedad.precio, propiedad.tipoNegocio)}${tipoLinea ? "\n" + tipoLinea : ""}
 
 Link:
 ${propiedadUrl}`
@@ -287,6 +301,30 @@ ${propiedadUrl}`
                       Hablar con Ivonne
                     </Link>
                   </div>
+                </div>
+              )}
+
+              {propiedad.origenListado === "co_broke" && (
+                <div className="mt-6 rounded-2xl border border-[#d4af37] bg-[#fff9e6] p-6">
+                  <p className="text-sm font-semibold uppercase tracking-[0.15em] text-[#d4af37]">
+                    Propiedad en colaboración
+                  </p>
+
+                  <p className="mt-2 leading-relaxed text-[#4d4d4d]">
+                    Esta propiedad se presenta en colaboración con otro profesional de bienes raíces. Ivonne Erickson puede asistirle en la orientación, coordinación de información y proceso de representación, sujeto a disponibilidad y acuerdo entre las partes.
+                  </p>
+                </div>
+              )}
+
+              {propiedad.origenListado === "externo" && (
+                <div className="mt-6 rounded-2xl border border-[#d4af37] bg-[#fff9e6] p-6">
+                  <p className="text-sm font-semibold uppercase tracking-[0.15em] text-[#d4af37]">
+                    Propiedad de referencia
+                  </p>
+
+                  <p className="mt-2 leading-relaxed text-[#4d4d4d]">
+                    Esta propiedad puede provenir de una fuente externa o colaboración profesional. La información está sujeta a confirmación de disponibilidad.
+                  </p>
                 </div>
               )}
 

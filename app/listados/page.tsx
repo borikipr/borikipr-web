@@ -55,6 +55,7 @@ export default async function ListadosPage({
       Array.isArray(p.imagenes) && p.imagenes.length > 0
         ? p.imagenes
         : ["/placeholder.jpg"],
+    origen_listado: p.origen_listado,
   }));
 
   // Parse tipoPropiedad as array

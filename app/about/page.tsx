@@ -31,37 +31,23 @@ export default function About() {
               </h1>
 
               <p className="body-lg mt-8 max-w-2xl">
-                Soy Ivonne Erickson, corredora de bienes raíces en Puerto Rico.
-                Mi enfoque se basa en acompañar a cada cliente con claridad,
-                estrategia y una atención personalizada que inspire confianza en
-                cada etapa del proceso.
+                Soy Ivonne Erickson, corredora de bienes raíces en Puerto Rico,
+                dedicada a guiarte con claridad, estrategia y una atención
+                personalizada que inspira confianza en cada etapa del proceso.
               </p>
 
               <p className="body-lg mt-6 max-w-2xl">
-                Comprar, vender o invertir no es solo una transacción. Es una
-                decisión importante que merece criterio, dirección de mercado y
-                una experiencia profesional bien guiada.
+                Comprar, vender o invertir en una propiedad no es solo una
+                transacción, sino una decisión importante que requiere
+                conocimiento del mercado, dirección precisa y asesoría
+                profesional sólida.
               </p>
 
-              <div className="mt-10 grid gap-4 sm:grid-cols-2">
-                <div className="surface-muted card-hover p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                    Licencia
-                  </p>
-                  <p className="mt-2 text-base font-semibold text-[#000000]">
-                    C-25961
-                  </p>
-                </div>
-
-                <div className="surface-muted card-hover p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                    Enfoque
-                  </p>
-                  <p className="mt-2 text-base font-semibold text-[#000000]">
-                    Atención estratégica y personalizada
-                  </p>
-                </div>
-              </div>
+              <p className="body-lg mt-6 max-w-2xl">
+                Mi compromiso es acompañarte de principio a fin, brindándote
+                una experiencia fluida, transparente y enfocada en alcanzar
+                tus objetivos.
+              </p>
 
               <div className="mt-10 flex flex-wrap gap-4">
                 <Link href="/contact" className="btn-primary">

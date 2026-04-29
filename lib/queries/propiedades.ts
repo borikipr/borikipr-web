@@ -23,6 +23,7 @@ export type PropiedadQueryRow = {
   estado: EstadoPropiedad;
   destacado: boolean;
   imagenes: string[];
+  origen_listado: "propio" | "co_broke" | "externo";
 };
 
 export type PropiedadHomeDestacada = {
@@ -38,6 +39,7 @@ export type PropiedadHomeDestacada = {
   estado: EstadoPropiedad;
   destacado: boolean;
   imagenes: string[];
+  origen_listado: "propio" | "co_broke" | "externo";
 };
 
 export async function getPropiedadesDestacadas(limit = 3) {
@@ -54,6 +56,7 @@ export async function getPropiedadesDestacadas(limit = 3) {
       p.banos,
       p.estado,
       p.destacado,
+      p.origen_listado,
       COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'
@@ -62,6 +65,7 @@ export async function getPropiedadesDestacadas(limit = 3) {
     LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
     WHERE p.destacado = true
       AND p.estado IN ('disponible', 'bajo_contrato')
+      AND (p.origen_listado = 'propio' OR p.permiso_publicar_web = true)
     GROUP BY p.id
     ORDER BY p.created_at DESC
     LIMIT ${limit}
@@ -87,6 +91,7 @@ export async function getPropiedades() {
       p.metros_cuadrados,
       p.estado,
       p.destacado,
+      p.origen_listado,
       COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'
@@ -94,6 +99,7 @@ export async function getPropiedades() {
     FROM propiedades p
     LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
     WHERE p.estado IN ('disponible', 'bajo_contrato')
+      AND (p.origen_listado = 'propio' OR p.permiso_publicar_web = true)
     GROUP BY p.id
     ORDER BY p.created_at DESC
   `;
@@ -118,6 +124,7 @@ export async function getPropiedadBySlug(slug: string) {
       p.metros_cuadrados,
       p.estado,
       p.destacado,
+      p.origen_listado,
       COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'
@@ -125,6 +132,7 @@ export async function getPropiedadBySlug(slug: string) {
     FROM propiedades p
     LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
     WHERE p.slug = ${slug}
+      AND (p.origen_listado = 'propio' OR p.permiso_publicar_web = true)
     GROUP BY p.id
     LIMIT 1
   `;
@@ -155,6 +163,7 @@ export async function getPropiedadesSimilares(
       p.metros_cuadrados,
       p.estado,
       p.destacado,
+      p.origen_listado,
       COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'
@@ -164,6 +173,7 @@ export async function getPropiedadesSimilares(
     WHERE p.slug <> ${slug}
       AND p.tipo_negocio = ${tipoNegocio}
       AND p.estado IN ('disponible', 'bajo_contrato')
+      AND (p.origen_listado = 'propio' OR p.permiso_publicar_web = true)
       AND (
         p.municipio = ${municipio}
         OR p.tipo_propiedad = ${tipoPropiedad}
@@ -211,6 +221,7 @@ export async function getPropiedadesPaginadas(
       p.metros_cuadrados,
       p.estado,
       p.destacado,
+      p.origen_listado,
       COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'
@@ -218,13 +229,14 @@ export async function getPropiedadesPaginadas(
     FROM propiedades p
     LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
     WHERE p.estado IN ('disponible', 'bajo_contrato')
+      AND (p.origen_listado = 'propio' OR p.permiso_publicar_web = true)
     GROUP BY p.id
     ORDER BY p.created_at DESC
     LIMIT ${itemsPerPage} OFFSET ${offset}
   `;
 
   const countResult = await sql<{ total: number }[]>`
-    SELECT COUNT(DISTINCT p.id) as total FROM propiedades p WHERE p.estado IN ('disponible', 'bajo_contrato')
+    SELECT COUNT(DISTINCT p.id) as total FROM propiedades p WHERE p.estado IN ('disponible', 'bajo_contrato') AND (p.origen_listado = 'propio' OR p.permiso_publicar_web = true)
   `;
 
   const totalItems = countResult[0]?.total || 0;

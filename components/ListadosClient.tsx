@@ -27,7 +27,9 @@ type EstadoPropiedad =
   | "vendida"
   | "rentada";
 
-type Propiedad = {
+// Note: This type is used for the server-side data from queries
+// It uses snake_case to match database column names
+type PropiedadDB = {
   id: string;
   slug: string;
   titulo: string;
@@ -43,25 +45,11 @@ type Propiedad = {
   estado: EstadoPropiedad;
   destacado: boolean;
   imagenes: string[];
+  origen_listado: "propio" | "co_broke" | "externo";
+  permiso_publicar_web?: boolean;
+  permiso_usar_fotos?: boolean;
 };
 
-type PropiedadUI = {
-  id: string;
-  slug: string;
-  titulo: string;
-  descripcion: string;
-  municipio: string;
-  precio: number;
-  tipoNegocio: TipoNegocio;
-  tipoPropiedad: TipoPropiedad;
-  habitaciones: number;
-  banos: number;
-  estacionamientos: number;
-  metrosCuadrados: number;
-  estado: EstadoPropiedad;
-  destacado: boolean;
-  imagenes: string[];
-};
 
 type InitialFilters = {
   q: string;
@@ -185,7 +173,7 @@ export default function ListadosClient({
   paginationData,
   initialFilters,
 }: {
-  propiedades: Propiedad[];
+  propiedades: PropiedadDB[];
   paginationData: {
     currentPage: number;
     totalPages: number;
@@ -252,6 +240,7 @@ export default function ListadosClient({
     localStorage.setItem("favorites", JSON.stringify(Array.from(newFavorites)));
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const limpiarFiltros = () => {
     setQ("");
     setQTemp("");
@@ -344,6 +333,7 @@ export default function ListadosClient({
     setTipoNegocio(tipo);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const quitarFiltro = (key: ActiveChip["key"]) => {
     switch (key) {
       case "q":
@@ -390,9 +380,9 @@ export default function ListadosClient({
     return () => clearTimeout(timer);
   }, [shareMessage]);
 
-  const propiedadesNormalizadas: PropiedadUI[] = useMemo(
+  const propiedadesNormalizadas = useMemo(
     () =>
-      propiedades.map((p) => ({
+      (propiedades as PropiedadDB[]).map((p) => ({
         id: p.id,
         slug: p.slug,
         titulo: p.titulo,
@@ -411,6 +401,10 @@ export default function ListadosClient({
           Array.isArray(p.imagenes) && p.imagenes.length > 0
             ? p.imagenes
             : ["/placeholder.jpg"],
+        origenListado: p.origen_listado || "propio",
+        origen_listado: p.origen_listado || "propio",
+        permiso_publicar_web: p.permiso_publicar_web || false,
+        permiso_usar_fotos: p.permiso_usar_fotos || false,
       })),
     [propiedades]
   );
@@ -440,6 +434,7 @@ export default function ListadosClient({
     orden,
   ]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const activeChips = useMemo<ActiveChip[]>(() => {
     const chips: ActiveChip[] = [];
 
@@ -951,10 +946,20 @@ export default function ListadosClient({
                   </div>
 
                   <div className="p-6">
-                    <div className="mb-3 flex justify-between gap-4">
+                    <div className="mb-3 flex items-center justify-between gap-2">
                       <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
                         {propiedad.tipoNegocio === "venta" ? "Venta" : "Renta"}
                       </span>
+                      {propiedad.origen_listado === "co_broke" && (
+                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37] bg-[#fff9e6] px-2 py-1 rounded">
+                          En colaboración
+                        </span>
+                      )}
+                      {propiedad.origen_listado === "externo" && (
+                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37] bg-[#fff9e6] px-2 py-1 rounded">
+                          Referencia externa
+                        </span>
+                      )}
                     </div>
 
                     <h3 className="mb-2 text-lg font-bold text-[#000000] line-clamp-2">

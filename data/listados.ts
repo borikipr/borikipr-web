@@ -12,6 +12,8 @@ export type EstadoPropiedad =
   | "vendida"
   | "rentada";
 
+export type OrigenListado = "propio" | "co_broke" | "externo";
+
 export interface Propiedad {
   id: string;
   slug: string;
@@ -28,4 +30,12 @@ export interface Propiedad {
   estado: EstadoPropiedad;
   imagenes: string[];
   destacado?: boolean;
+  origen_listado: OrigenListado;
+  corredor_colaborador_nombre?: string;
+  corredor_colaborador_empresa?: string;
+  corredor_colaborador_contacto?: string;
+  enlace_original?: string;
+  permiso_publicar_web: boolean;
+  permiso_usar_fotos: boolean;
+  notas_internas?: string;
 }
