@@ -67,7 +67,7 @@ type InitialFilters = {
   q: string;
   tipoNegocio: "" | TipoNegocio;
   municipio: string;
-  tipoPropiedad: "" | TipoPropiedad;
+  tipoPropiedad: TipoPropiedad[];
   precioMin: string;
   precioMax: string;
   habitaciones: string;
@@ -153,6 +153,33 @@ function PaginationControls({
   );
 }
 
+/* ─── Toggle switch component ─────────────────────────────────────────────── */
+function Toggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-[22px] w-[42px] flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+        checked ? "bg-[#11518b]" : "bg-[#d9d9d9]"
+      }`}
+    >
+      <span
+        className={`pointer-events-none inline-block h-[18px] w-[18px] transform rounded-full bg-white shadow ring-0 transition duration-200 ${
+          checked ? "translate-x-[20px]" : "translate-x-0"
+        }`}
+      />
+    </button>
+  );
+}
+
 export default function ListadosClient({
   propiedades,
   paginationData,
@@ -170,13 +197,21 @@ export default function ListadosClient({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // Filtros temporales (se actualizan mientras el usuario escribe)
+  const [qTemp, setQTemp] = useState(initialFilters.q);
+  const [precioMinTemp, setPrecioMinTemp] = useState(initialFilters.precioMin);
+  const [precioMaxTemp, setPrecioMaxTemp] = useState(initialFilters.precioMax);
+  const [habitacionesTemp, setHabitacionesTemp] = useState(initialFilters.habitaciones);
+  const [banosTemp, setBanosTemp] = useState(initialFilters.banos);
+
+  // Filtros aplicados (se actualizan solo al hacer clic en buscar o presionar Enter)
   const [q, setQ] = useState(initialFilters.q);
-  const [tipoNegocio, setTipoNegocio] = useState<"" | TipoNegocio>(
-    initialFilters.tipoNegocio
+  const [tipoNegocio, setTipoNegocio] = useState<TipoNegocio>(
+    initialFilters.tipoNegocio || "venta"
   );
   const [municipio, setMunicipio] = useState(initialFilters.municipio);
-  const [tipoPropiedad, setTipoPropiedad] = useState<"" | TipoPropiedad>(
-    initialFilters.tipoPropiedad
+  const [tipoPropiedad, setTipoPropiedad] = useState<TipoPropiedad[]>(
+    Array.isArray(initialFilters.tipoPropiedad) ? initialFilters.tipoPropiedad : []
   );
   const [precioMin, setPrecioMin] = useState(initialFilters.precioMin);
   const [precioMax, setPrecioMax] = useState(initialFilters.precioMax);
@@ -219,41 +254,126 @@ export default function ListadosClient({
 
   const limpiarFiltros = () => {
     setQ("");
-    setTipoNegocio("");
+    setQTemp("");
+    setTipoNegocio("venta");
     setMunicipio("");
-    setTipoPropiedad("");
+    setTipoPropiedad([]);
     setPrecioMin("");
+    setPrecioMinTemp("");
     setPrecioMax("");
+    setPrecioMaxTemp("");
     setHabitaciones("");
+    setHabitacionesTemp("");
     setBanos("");
+    setBanosTemp("");
     setOrden("");
+    // Actualizar URL
+    updateUrl({
+      q: "",
+      tipoNegocio: "venta",
+      municipio: "",
+      tipoPropiedad: [],
+      precioMin: "",
+      precioMax: "",
+      habitaciones: "",
+      banos: "",
+      orden: "",
+    });
+  };
+
+  // Función para actualizar la URL con los filtros actuales
+  const updateUrl = (filters: {
+    q?: string;
+    tipoNegocio?: TipoNegocio;
+    municipio?: string;
+    tipoPropiedad?: TipoPropiedad[];
+    precioMin?: string;
+    precioMax?: string;
+    habitaciones?: string;
+    banos?: string;
+    orden?: Orden;
+  }) => {
+    const params = new URLSearchParams();
+
+    if (filters.q?.trim()) params.set("q", filters.q.trim());
+    if (filters.tipoNegocio) params.set("tipoNegocio", filters.tipoNegocio);
+    if (filters.municipio?.trim()) params.set("municipio", filters.municipio.trim());
+    if (filters.tipoPropiedad && filters.tipoPropiedad.length > 0) {
+      params.set("tipoPropiedad", filters.tipoPropiedad.join(","));
+    }
+    if (filters.precioMin?.trim()) params.set("precioMin", filters.precioMin.trim());
+    if (filters.precioMax?.trim()) params.set("precioMax", filters.precioMax.trim());
+    if (filters.habitaciones?.trim()) params.set("habitaciones", filters.habitaciones.trim());
+    if (filters.banos?.trim()) params.set("banos", filters.banos.trim());
+    if (filters.orden) params.set("orden", filters.orden);
+
+    const query = params.toString();
+    const nextUrl = query ? `${pathname}?${query}` : pathname;
+    router.replace(nextUrl, { scroll: false });
+  };
+
+  // Función para aplicar la búsqueda (se ejecuta al hacer clic en lupa o presionar Enter)
+  const aplicarBusqueda = () => {
+    setQ(qTemp);
+    setPrecioMin(precioMinTemp);
+    setPrecioMax(precioMaxTemp);
+    setHabitaciones(habitacionesTemp);
+    setBanos(banosTemp);
+
+    // Actualizar URL con los nuevos valores
+    updateUrl({
+      q: qTemp,
+      tipoNegocio,
+      municipio,
+      tipoPropiedad,
+      precioMin: precioMinTemp,
+      precioMax: precioMaxTemp,
+      habitaciones: habitacionesTemp,
+      banos: banosTemp,
+      orden,
+    });
+  };
+
+  // Manejador de Venta/Renta: exclusión mutua (SIN actualizar URL)
+  const handleTipoNegocio = (tipo: TipoNegocio) => {
+    if (tipoNegocio === tipo) {
+      // Si ya está seleccionado, no hacer nada (siempre debe haber uno activo)
+      return;
+    }
+    // Solo cambiar el estado, NO actualizar la URL
+    setTipoNegocio(tipo);
   };
 
   const quitarFiltro = (key: ActiveChip["key"]) => {
     switch (key) {
       case "q":
         setQ("");
+        setQTemp("");
         break;
       case "tipoNegocio":
-        setTipoNegocio("");
+        setTipoNegocio("venta");
         break;
       case "municipio":
         setMunicipio("");
         break;
       case "tipoPropiedad":
-        setTipoPropiedad("");
+        setTipoPropiedad([]);
         break;
       case "precioMin":
         setPrecioMin("");
+        setPrecioMinTemp("");
         break;
       case "precioMax":
         setPrecioMax("");
+        setPrecioMaxTemp("");
         break;
       case "habitaciones":
         setHabitaciones("");
+        setHabitacionesTemp("");
         break;
       case "banos":
         setBanos("");
+        setBanosTemp("");
         break;
       case "orden":
         setOrden("");
@@ -261,86 +381,8 @@ export default function ListadosClient({
     }
   };
 
-  useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString());
-
-    if (q.trim()) {
-      params.set("q", q.trim());
-    } else {
-      params.delete("q");
-    }
-
-    if (tipoNegocio) {
-      params.set("tipoNegocio", tipoNegocio);
-    } else {
-      params.delete("tipoNegocio");
-    }
-
-    if (municipio.trim()) {
-      params.set("municipio", municipio.trim());
-    } else {
-      params.delete("municipio");
-    }
-
-    if (tipoPropiedad) {
-      params.set("tipoPropiedad", tipoPropiedad);
-    } else {
-      params.delete("tipoPropiedad");
-    }
-
-    if (precioMin.trim()) {
-      params.set("precioMin", precioMin.trim());
-    } else {
-      params.delete("precioMin");
-    }
-
-    if (precioMax.trim()) {
-      params.set("precioMax", precioMax.trim());
-    } else {
-      params.delete("precioMax");
-    }
-
-    if (habitaciones.trim()) {
-      params.set("habitaciones", habitaciones.trim());
-    } else {
-      params.delete("habitaciones");
-    }
-
-    if (banos.trim()) {
-      params.set("banos", banos.trim());
-    } else {
-      params.delete("banos");
-    }
-
-    if (orden) {
-      params.set("orden", orden);
-    } else {
-      params.delete("orden");
-    }
-
-    const query = params.toString();
-    const nextUrl = query ? `${pathname}?${query}` : pathname;
-    const currentUrl = searchParams.toString()
-      ? `${pathname}?${searchParams.toString()}`
-      : pathname;
-
-    if (nextUrl !== currentUrl) {
-      router.replace(nextUrl, { scroll: false });
-    }
-  }, [
-    q,
-    tipoNegocio,
-    municipio,
-    tipoPropiedad,
-    precioMin,
-    precioMax,
-    habitaciones,
-    banos,
-    orden,
-    pathname,
-    router,
-    searchParams,
-  ]);
+  // NO hay useEffect reactivo. La URL solo se actualiza cuando se llama a updateUrl()
+  // Esto previene auto-updates mientras el usuario escribe
 
   useEffect(() => {
     if (!shareMessage) return;
@@ -381,6 +423,8 @@ export default function ListadosClient({
       tipoPropiedad,
       precioMin,
       precioMax,
+      habitaciones,
+      banos,
       orden,
     });
   }, [
@@ -391,6 +435,8 @@ export default function ListadosClient({
     tipoPropiedad,
     precioMin,
     precioMax,
+    habitaciones,
+    banos,
     orden,
   ]);
 
@@ -398,66 +444,34 @@ export default function ListadosClient({
     const chips: ActiveChip[] = [];
 
     if (q.trim()) {
-      chips.push({
-        key: "q",
-        label: `Buscar: ${q.trim()}`,
-      });
+      chips.push({ key: "q", label: `Buscar: ${q.trim()}` });
     }
-
     if (tipoNegocio) {
       chips.push({
         key: "tipoNegocio",
         label: tipoNegocio === "venta" ? "Venta" : "Renta",
       });
     }
-
     if (municipio.trim()) {
-      chips.push({
-        key: "municipio",
-        label: `Municipio: ${municipio.trim()}`,
-      });
+      chips.push({ key: "municipio", label: `Municipio: ${municipio.trim()}` });
     }
-
-    if (tipoPropiedad) {
-      chips.push({
-        key: "tipoPropiedad",
-        label: `Tipo: ${tipoPropiedad}`,
-      });
+    if (tipoPropiedad.length > 0) {
+      chips.push({ key: "tipoPropiedad", label: `Tipos: ${tipoPropiedad.join(", ")}` });
     }
-
     if (precioMin.trim()) {
-      chips.push({
-        key: "precioMin",
-        label: `Desde: $${Number(precioMin).toLocaleString("en-US")}`,
-      });
+      chips.push({ key: "precioMin", label: `Desde: $${Number(precioMin).toLocaleString("en-US")}` });
     }
-
     if (precioMax.trim()) {
-      chips.push({
-        key: "precioMax",
-        label: `Hasta: $${Number(precioMax).toLocaleString("en-US")}`,
-      });
+      chips.push({ key: "precioMax", label: `Hasta: $${Number(precioMax).toLocaleString("en-US")}` });
     }
-
     if (habitaciones.trim()) {
-      chips.push({
-        key: "habitaciones",
-        label: `${habitaciones} hab.`,
-      });
+      chips.push({ key: "habitaciones", label: `${habitaciones} hab.` });
     }
-
     if (banos.trim()) {
-      chips.push({
-        key: "banos",
-        label: `${banos} baños`,
-      });
+      chips.push({ key: "banos", label: `${banos} baños` });
     }
-
     if (orden) {
-      chips.push({
-        key: "orden",
-        label: ordenLabel(orden),
-      });
+      chips.push({ key: "orden", label: ordenLabel(orden) });
     }
 
     return chips;
@@ -474,7 +488,6 @@ export default function ListadosClient({
         typeof window !== "undefined"
           ? `${window.location.origin}${shareUrl}`
           : shareUrl;
-
       await navigator.clipboard.writeText(fullUrl);
       setShareMessage("Enlace copiado");
     } catch {
@@ -482,222 +495,348 @@ export default function ListadosClient({
     }
   };
 
+  /* ── helpers for property type toggles ── */
+  const ALL_TIPOS: TipoPropiedad[] = ["Casa", "Apartamento", "Condominio", "Terreno", "Comercial"];
+  const allSelected = tipoPropiedad.length === ALL_TIPOS.length;
+
+  const toggleTipo = (tipo: TipoPropiedad) => {
+    let newTipos: TipoPropiedad[];
+    if (tipoPropiedad.includes(tipo)) {
+      newTipos = tipoPropiedad.filter((t) => t !== tipo);
+    } else {
+      newTipos = [...tipoPropiedad, tipo];
+    }
+    setTipoPropiedad(newTipos);
+    // Actualizar URL inmediatamente
+    updateUrl({
+      q,
+      tipoNegocio,
+      municipio,
+      tipoPropiedad: newTipos,
+      precioMin,
+      precioMax,
+      habitaciones,
+      banos,
+      orden,
+    });
+  };
+
   return (
     <section className="pb-24">
       <div className="section-shell">
-        {/* Filtro horizontal */}
-        <div className="mb-8 rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-sm">
-          {/* Primera fila: Venta/Renta + Búsqueda + Precios */}
-          <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-3">
-            {/* Botones Venta/Renta */}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  setTipoNegocio(tipoNegocio === "venta" ? "" : "venta")
-                }
-                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  tipoNegocio === "venta"
-                    ? "bg-[#11518b] text-white"
-                    : "border border-[#d9d9d9] text-[#4d4d4d] hover:bg-[#f7f7f7]"
-                }`}
-              >
-                Venta
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setTipoNegocio(tipoNegocio === "renta" ? "" : "renta")
-                }
-                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  tipoNegocio === "renta"
-                    ? "bg-[#11518b] text-white"
-                    : "border border-[#d9d9d9] text-[#4d4d4d] hover:bg-[#f7f7f7]"
-                }`}
-              >
-                Renta
-              </button>
-            </div>
 
-            {/* Búsqueda con autocompletado */}
-            <div className="relative flex-1">
-              <input
-                type="text"
-                placeholder="Buscar por ubicación, municipio, zona..."
-                value={q}
-                onChange={(e) => {
-                  setQ(e.target.value);
-                  if (e.target.value.trim()) {
-                    const sug = buscarSugerencias(e.target.value);
-                    setSugerencias(sug);
-                    setMostrarSugerencias(true);
-                  } else {
-                    setSugerencias({ zonas: [], municipios: [] });
-                    setMostrarSugerencias(false);
-                  }
-                }}
-                onFocus={() => q.trim() && setMostrarSugerencias(true)}
-                onBlur={() => setTimeout(() => setMostrarSugerencias(false), 200)}
-                className="input-premium w-full"
-              />
+        {/* ══════════════════════════════════════════════════════════════════
+            SEARCH PANEL — matches reference design
+        ══════════════════════════════════════════════════════════════════ */}
+        <div className="mb-8 rounded-lg border border-[#e0e0e0] bg-white shadow-sm">
+          <div className="flex flex-col lg:flex-row">
 
-              {/* Dropdown de sugerencias */}
-              {mostrarSugerencias && (sugerencias.zonas.length > 0 || sugerencias.municipios.length > 0) && (
-                <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg border border-[#e8e8e8] bg-white shadow-lg max-h-64 overflow-y-auto">
-                  {sugerencias.zonas.length > 0 && (
-                    <div className="border-b border-[#e8e8e8] p-2">
-                      <p className="px-3 py-1 text-xs font-semibold uppercase text-[#11518b]">Zonas</p>
-                      {sugerencias.zonas.map((zona) => (
-                        <button
-                          key={zona}
-                          type="button"
-                          onClick={() => {
-                            setQ(zona);
-                            setMostrarSugerencias(false);
-                            setSugerencias({ zonas: [], municipios: [] });
-                          }}
-                          className="block w-full px-3 py-2 text-left text-sm text-[#4d4d4d] hover:bg-[#f7f7f7]"
-                        >
-                          {zona}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+            {/* ── LEFT COLUMN ────────────────────────────────────────────── */}
+            <div className="flex-1 p-5 lg:border-r lg:border-[#e0e0e0]">
 
-                  {sugerencias.municipios.length > 0 && (
-                    <div className="p-2">
-                      <p className="px-3 py-1 text-xs font-semibold uppercase text-[#11518b]">Municipios</p>
-                      {sugerencias.municipios.map((municipio) => (
-                        <button
-                          key={municipio}
-                          type="button"
-                          onClick={() => {
-                            setQ(municipio);
-                            setMostrarSugerencias(false);
-                            setSugerencias({ zonas: [], municipios: [] });
-                          }}
-                          className="block w-full px-3 py-2 text-left text-sm text-[#4d4d4d] hover:bg-[#f7f7f7]"
-                        >
-                          {municipio}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+              {/* Row 1: For Sale | For Rent + Search by Location + Search btn */}
+              <div className="flex items-stretch gap-0 mb-4">
+                {/* Venta tab */}
+                <button
+                  type="button"
+                  onClick={() => handleTipoNegocio("venta")}
+                  className={`px-5 py-2.5 text-sm font-semibold rounded-l transition whitespace-nowrap ${
+                    tipoNegocio === "venta"
+                      ? "bg-[#11518b] text-white"
+                      : "bg-white text-[#333] border border-[#d9d9d9] hover:bg-[#f5f5f5]"
+                  }`}
+                >
+                  Venta
+                </button>
 
-            {/* Precio Min */}
-            <div className="lg:max-w-[90px]">
-              <input
-                type="number"
-                placeholder="Min $"
-                value={precioMin}
-                onChange={(e) => setPrecioMin(e.target.value)}
-                className="input-premium w-full text-sm"
-              />
-            </div>
+                {/* Renta tab */}
+                <button
+                  type="button"
+                  onClick={() => handleTipoNegocio("renta")}
+                  className={`px-5 py-2.5 text-sm font-semibold border-t border-b transition whitespace-nowrap ${
+                    tipoNegocio === "renta"
+                      ? "bg-[#11518b] text-white border-[#11518b]"
+                      : "bg-white text-[#333] border-[#d9d9d9] hover:bg-[#f5f5f5]"
+                  }`}
+                >
+                  Renta
+                </button>
 
-            {/* Precio Max */}
-            <div className="lg:max-w-[90px]">
-              <input
-                type="number"
-                placeholder="Max $"
-                value={precioMax}
-                onChange={(e) => setPrecioMax(e.target.value)}
-                className="input-premium w-full text-sm"
-              />
-            </div>
-          </div>
-
-          {/* Segunda fila: Habitaciones, Baños, Tipo de Propiedad, Ordenar, Limpiar */}
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-3">
-            {/* Habitaciones */}
-            <div className="lg:max-w-[90px]">
-              <input
-                type="number"
-                placeholder="Hab."
-                min="0"
-                value={habitaciones}
-                onChange={(e) => setHabitaciones(e.target.value)}
-                className="input-premium w-full text-sm"
-              />
-            </div>
-
-            {/* Baños */}
-            <div className="lg:max-w-[90px]">
-              <input
-                type="number"
-                placeholder="Baños"
-                min="0"
-                value={banos}
-                onChange={(e) => setBanos(e.target.value)}
-                className="input-premium w-full text-sm"
-              />
-            </div>
-
-            {/* Tipo de Propiedad - Toggle Switches */}
-            <div className="flex flex-wrap gap-4 lg:flex-nowrap">
-              {(["Casa", "Apartamento", "Condominio", "Terreno", "Comercial"] as TipoPropiedad[]).map((tipo) => (
-                <label key={tipo} className="flex items-center gap-2 cursor-pointer">
+                {/* Search by Location input */}
+                <div className="relative flex-1">
                   <input
-                    type="checkbox"
-                    checked={tipoPropiedad === tipo}
-                    onChange={(e) =>
-                      setTipoPropiedad(e.target.checked ? tipo : "")
-                    }
-                    className="sr-only"
+                    type="text"
+                    placeholder="Buscar por ubicación"
+                    value={qTemp}
+                    onChange={(e) => {
+                      setQTemp(e.target.value);
+                      if (e.target.value.trim()) {
+                        const sug = buscarSugerencias(e.target.value);
+                        setSugerencias(sug);
+                        setMostrarSugerencias(true);
+                      } else {
+                        setSugerencias({ zonas: [], municipios: [] });
+                        setMostrarSugerencias(false);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setQ(qTemp);
+                        aplicarBusqueda();
+                        setMostrarSugerencias(false);
+                      }
+                    }}
+                    onFocus={() => qTemp.trim() && setMostrarSugerencias(true)}
+                    onBlur={() => setTimeout(() => setMostrarSugerencias(false), 200)}
+                    className="h-full w-full border border-[#d9d9d9] border-l-0 px-4 py-2.5 text-sm text-[#333] outline-none focus:border-[#11518b] transition placeholder:text-[#aaa]"
                   />
-                  <div className={`w-10 h-5 rounded-full transition ${tipoPropiedad === tipo ? "bg-[#11518b]" : "bg-[#e8e8e8]"}`}>
-                    <div className={`w-4 h-4 rounded-full bg-white transition transform ${tipoPropiedad === tipo ? "translate-x-5" : "translate-x-0.5"} mt-0.5`} />
+
+                  {/* Autocomplete dropdown */}
+                  {mostrarSugerencias &&
+                    (sugerencias.zonas.length > 0 || sugerencias.municipios.length > 0) && (
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg border border-[#e8e8e8] bg-white shadow-lg max-h-64 overflow-y-auto">
+                        {sugerencias.zonas.length > 0 && (
+                          <div className="border-b border-[#e8e8e8] p-2">
+                            <p className="px-3 py-1 text-xs font-semibold uppercase text-[#11518b]">
+                              Zonas
+                            </p>
+                            {sugerencias.zonas.map((zona) => (
+                              <button
+                                key={zona}
+                                type="button"
+                                onClick={() => {
+                                  setQTemp(zona);
+                                  setQ(zona);
+                                  setMostrarSugerencias(false);
+                                  setSugerencias({ zonas: [], municipios: [] });
+                                  updateUrl({
+                                    q: zona,
+                                    tipoNegocio,
+                                    municipio,
+                                    tipoPropiedad,
+                                    precioMin,
+                                    precioMax,
+                                    habitaciones,
+                                    banos,
+                                    orden,
+                                  });
+                                }}
+                                className="block w-full px-3 py-2 text-left text-sm text-[#4d4d4d] hover:bg-[#f7f7f7]"
+                              >
+                                {zona}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {sugerencias.municipios.length > 0 && (
+                          <div className="p-2">
+                            <p className="px-3 py-1 text-xs font-semibold uppercase text-[#11518b]">
+                              Municipios
+                            </p>
+                            {sugerencias.municipios.map((mun) => (
+                              <button
+                                key={mun}
+                                type="button"
+                                onClick={() => {
+                                  setQTemp(mun);
+                                  setQ(mun);
+                                  setMostrarSugerencias(false);
+                                  setSugerencias({ zonas: [], municipios: [] });
+                                  updateUrl({
+                                    q: mun,
+                                    tipoNegocio,
+                                    municipio,
+                                    tipoPropiedad,
+                                    precioMin,
+                                    precioMax,
+                                    habitaciones,
+                                    banos,
+                                    orden,
+                                  });
+                                }}
+                                className="block w-full px-3 py-2 text-left text-sm text-[#4d4d4d] hover:bg-[#f7f7f7]"
+                              >
+                                {mun}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                </div>
+
+                {/* Botón de búsqueda */}
+                <button
+                  type="button"
+                  onClick={aplicarBusqueda}
+                  className="flex items-center justify-center bg-[#11518b] hover:bg-[#0d406d] text-white px-4 rounded-r transition"
+                  title="Buscar"
+                >
+                  {/* Magnifier icon */}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Row 2: Min $ | Max $ | Beds | Baths */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+
+                {/* Min $ */}
+                <div className="flex items-center gap-2 rounded border border-[#d9d9d9] bg-white px-3 py-2.5 hover:border-[#11518b] transition">
+                  <span className="text-sm font-medium text-[#555] whitespace-nowrap">Mín $</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={precioMinTemp}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      // Bloquear números negativos y la letra 'e'
+                      if (val === "" || (parseInt(val) >= 0 && !val.includes("-"))) {
+                        setPrecioMinTemp(val.replace(/[eE-]/g, ""));
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "e" || e.key === "E" || e.key === "-" || e.key === "+") e.preventDefault();
+                      if (e.key === "Enter") aplicarBusqueda();
+                    }}
+                    className="flex-1 min-w-0 outline-none text-sm bg-transparent text-[#333] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    onFocus={(e) => e.target.classList.add('focus:border-[#11518b]')}
+                  />
+                </div>
+
+                {/* Max $ */}
+                <div className="flex items-center gap-2 rounded border border-[#d9d9d9] bg-white px-3 py-2.5 hover:border-[#11518b] transition">
+                  <span className="text-sm font-medium text-[#555] whitespace-nowrap">Máx $</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={precioMaxTemp}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      // Bloquear números negativos y la letra 'e'
+                      if (val === "" || (parseInt(val) >= 0 && !val.includes("-"))) {
+                        setPrecioMaxTemp(val.replace(/[eE-]/g, ""));
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "e" || e.key === "E" || e.key === "-" || e.key === "+") e.preventDefault();
+                      if (e.key === "Enter") aplicarBusqueda();
+                    }}
+                    className="flex-1 min-w-0 outline-none text-sm bg-transparent text-[#333] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    onFocus={(e) => e.target.classList.add('focus:border-[#11518b]')}
+                  />
+                </div>
+
+                {/* Beds */}
+                <div className="flex items-center gap-2 rounded border border-[#d9d9d9] bg-white px-3 py-2.5 hover:border-[#11518b] transition">
+                  {/* Bed icon — matches reference exactly */}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="text-[#3a3a3a] flex-shrink-0"
+                  >
+                    <path d="M22 10.5V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v4.5A2.5 2.5 0 0 0 0 13v5h1.5v2h1v-2h19v2h1v-2H24v-5a2.5 2.5 0 0 0-2-2.5zM4 6h16v4h-5V9a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v1H4V6zm5 4V9h6v1H9zm-7 8v-5a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v5H2z" />
+                  </svg>
+                  <input
+                    type="number"
+                    placeholder="Habitaciones"
+                    min="0"
+                    value={habitacionesTemp}
+                    onChange={(e) => setHabitacionesTemp(e.target.value)}
+                    onKeyDown={(e) => { 
+                      if (e.key === "Enter") aplicarBusqueda();
+                      if (e.key === "e" || e.key === "E" || e.key === "+" || e.key === "-") e.preventDefault();
+                    }}
+                    className="flex-1 min-w-0 outline-none text-sm bg-transparent text-[#333] placeholder:text-[#aaa]"
+                  />
+                </div>
+
+                {/* Baths */}
+                <div className="flex items-center gap-2 rounded border border-[#d9d9d9] bg-white px-3 py-2.5 hover:border-[#11518b] transition">
+                  {/* Bath icon — matches reference exactly */}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="text-[#3a3a3a] flex-shrink-0"
+                  >
+                    <path d="M21 10H7V5a1 1 0 0 1 1-1 1 1 0 0 1 1 1 3 3 0 0 0 3 3h1a1 1 0 0 0 0-2h-1a1 1 0 0 1-1-1 3 3 0 0 0-3-3 3 3 0 0 0-3 3v5H3a1 1 0 0 0-1 1v2a5 5 0 0 0 4 4.9V20H4a1 1 0 0 0 0 2h16a1 1 0 0 0 0-2h-2v-2.1A5 5 0 0 0 22 13v-2a1 1 0 0 0-1-1zm-1 3a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-1h16v1zm-5 5v2H9v-2h6z" />
+                  </svg>
+                  <input
+                    type="number"
+                    placeholder="Baños"
+                    min="0"
+                    value={banosTemp}
+                    onChange={(e) => setBanosTemp(e.target.value)}
+                    onKeyDown={(e) => { 
+                      if (e.key === "Enter") aplicarBusqueda();
+                      if (e.key === "e" || e.key === "E" || e.key === "+" || e.key === "-") e.preventDefault();
+                    }}
+                    className="flex-1 min-w-0 outline-none text-sm bg-transparent text-[#333] placeholder:text-[#aaa]"
+                  />
+                </div>
+
+              </div>
+            </div>
+
+            {/* ── RIGHT COLUMN: Property Type ────────────────────────────── */}
+            <div className="p-5 lg:w-[380px]">
+              {/* Header row */}
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-base font-semibold text-[#222]">Tipo de Propiedad</span>
+                <div className="flex items-center gap-2">
+                  <Toggle
+                    checked={allSelected}
+                    onChange={(v) => setTipoPropiedad(v ? [...ALL_TIPOS] : [])}
+                  />
+                  <span className="text-sm text-[#555]">Todos</span>
+                </div>
+              </div>
+
+              {/* Tipo grid: 2 columns */}
+              <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                {(
+                  [
+                    { tipo: "Apartamento", label: "Apartamento" },
+                    { tipo: "Comercial",   label: "Comercial" },
+                    { tipo: "Casa",        label: "Casa" },
+                    { tipo: "Terreno",     label: "Terreno" },
+                    { tipo: "Condominio",  label: "Condominio" },
+                  ] as { tipo: TipoPropiedad; label: string }[]
+                ).map(({ tipo, label }) => (
+                  <div key={tipo} className="flex items-center gap-2">
+                    <Toggle
+                      checked={tipoPropiedad.includes(tipo)}
+                      onChange={() => toggleTipo(tipo)}
+                    />
+                    <span className="text-sm text-[#444]">{label}</span>
                   </div>
-                  <span className="text-sm text-[#4d4d4d]">{tipo}</span>
-                </label>
-              ))}
+                ))}
+              </div>
             </div>
 
-            {/* Ordenar */}
-            <div className="lg:max-w-xs">
-              <select
-                value={orden}
-                onChange={(e) => setOrden(e.target.value as Orden)}
-                className="input-premium w-full text-sm"
-              >
-                <option value="">Ordenar</option>
-                <option value="precio-asc">Precio ↑</option>
-                <option value="precio-desc">Precio ↓</option>
-                <option value="municipio-asc">Municipio A-Z</option>
-                <option value="municipio-desc">Municipio Z-A</option>
-              </select>
-            </div>
-
-            {/* Botón Limpiar */}
-            <button
-              type="button"
-              onClick={limpiarFiltros}
-              className="btn-secondary px-5 py-2.5 text-sm lg:ml-auto"
-            >
-              Limpiar
-            </button>
           </div>
         </div>
-
-        {/* Chips de filtros activos */}
-        {activeChips.length > 0 && (
-          <div className="mb-8 flex flex-wrap gap-3">
-            {activeChips.map((chip) => (
-              <button
-                key={chip.key}
-                type="button"
-                onClick={() => quitarFiltro(chip.key)}
-                className="inline-flex items-center gap-2 rounded-full border border-[#e2e2e2] bg-[#fafafa] px-4 py-2 text-sm font-medium text-[#4d4d4d] transition hover:border-[#11518b] hover:text-[#11518b]"
-              >
-                <span>{chip.label}</span>
-                <span className="text-xs">✕</span>
-              </button>
-            ))}
-          </div>
-        )}
+        {/* ══════════════════════════════════════════════════════════════════ */}
 
         {/* Resultados y compartir */}
         <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -764,20 +903,14 @@ export default function ListadosClient({
                       const esVideo = /\.(mp4|webm|mov)(\?|$)/i.test(src) || src.includes("/videos/");
                       if (esVideo) {
                         return (
-                          <>
-                            <video
-                              src={src}
-                              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                              muted
-                              autoPlay
-                              loop
-                              playsInline
-                              preload="metadata"
-                            />
-                            <span className="absolute top-4 right-14 z-10 rounded-full bg-[#11518b] px-2.5 py-1 text-[10px] font-semibold uppercase text-white">
-                              Video
-                            </span>
-                          </>
+                          <video
+                            src={src}
+                            muted
+                            autoPlay
+                            loop
+                            playsInline
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
                         );
                       }
                       return (
@@ -785,7 +918,7 @@ export default function ListadosClient({
                           src={src}
                           alt={propiedad.titulo}
                           fill
-                          sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                          sizes="(max-width: 768px) 100vw, (max-width: 1536px) 50vw, 33vw"
                           className="object-cover transition-transform duration-500 group-hover:scale-105"
                         />
                       );
@@ -810,97 +943,73 @@ export default function ListadosClient({
                     <button
                       type="button"
                       onClick={() => toggleFavorite(propiedad.id)}
-                      className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-lg transition hover:bg-white"
-                      title="Agregar a favoritos"
+                      className="absolute right-4 top-4 rounded-full bg-white/90 p-2 text-xl transition hover:bg-white"
+                      title={favorites.has(propiedad.id) ? "Quitar de favoritos" : "Agregar a favoritos"}
                     >
                       {favorites.has(propiedad.id) ? "❤️" : "🤍"}
                     </button>
-
-                    {propiedad.estado === "bajo_contrato" && (
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4">
-                        <p className="text-sm font-semibold text-[#ffd700]">
-                          ⚠️ Bajo contrato
-                        </p>
-                      </div>
-                    )}
                   </div>
 
-                  <div className="p-8">
-                    <div className="mb-4 flex justify-between gap-4">
-                      <div>
-                        <span className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                          {propiedad.tipoNegocio === "venta"
-                            ? "Venta"
-                            : "Renta"}
-                        </span>
-                        <span className="text-sm text-[#4d4d4d]">
-                          {propiedad.municipio}
-                        </span>
+                  <div className="p-6">
+                    <div className="mb-3 flex justify-between gap-4">
+                      <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
+                        {propiedad.tipoNegocio === "venta" ? "Venta" : "Renta"}
+                      </span>
+                    </div>
+
+                    <h3 className="mb-2 text-lg font-bold text-[#000000] line-clamp-2">
+                      {propiedad.titulo}
+                    </h3>
+
+                    <p className="mb-4 text-sm text-[#4d4d4d] line-clamp-2">
+                      {propiedad.descripcion}
+                    </p>
+
+                    <div className="mb-4 flex items-center justify-between">
+                      <span className="text-2xl font-bold text-[#11518b]">
+                        {formatoPrecio(propiedad.precio, propiedad.tipoNegocio)}
+                      </span>
+                    </div>
+
+                    <div className="mb-4 grid grid-cols-3 gap-2 border-t border-[#e8e8e8] pt-4">
+                      <div className="text-center">
+                        <p className="text-xs text-[#4d4d4d]">Habitaciones</p>
+                        <p className="text-lg font-bold text-[#000000]">
+                          {propiedad.habitaciones}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs text-[#4d4d4d]">Baños</p>
+                        <p className="text-lg font-bold text-[#000000]">
+                          {propiedad.banos}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs text-[#4d4d4d]">m²</p>
+                        <p className="text-lg font-bold text-[#000000]">
+                          {propiedad.metrosCuadrados}
+                        </p>
                       </div>
                     </div>
 
-                    <h2 className="text-xl font-semibold text-[#11518b]">
-                      {propiedad.titulo}
-                    </h2>
-
-                    <p className="mt-4 text-2xl font-bold tracking-tight text-[#000000]">
-                      {formatoPrecio(
-                        propiedad.precio,
-                        propiedad.tipoNegocio
-                      )}
-                    </p>
-
-                    <div className="mt-4 flex flex-wrap gap-4 text-sm text-[#4d4d4d]">
-                      <span>{propiedad.tipoPropiedad}</span>
-                      {propiedad.habitaciones > 0 && (
-                        <span>{propiedad.habitaciones} hab.</span>
-                      )}
-                      {propiedad.banos > 0 && (
-                        <span>{propiedad.banos} baños</span>
-                      )}
-                    </div>
-
-                    <div className="mt-6 flex flex-col gap-3">
-                      <Link
-                        href={`/listados/${propiedad.slug}`}
-                        className="inline-flex items-center justify-center rounded-full border border-[#11518b] px-5 py-2.5 text-sm font-semibold text-[#11518b] transition-all duration-300 hover:bg-[#11518b] hover:text-white"
-                      >
-                        Ver detalles
-                      </Link>
-
-                      <a
-                        href={`https://wa.me/17876774900?text=${encodeURIComponent(
-                          `Hola, me interesa esta propiedad:
-
-${propiedad.titulo}
-${propiedad.municipio}, Puerto Rico
-Precio: ${formatoPrecio(
-                            propiedad.precio,
-                            propiedad.tipoNegocio
-                          )}
-
-https://borikipr.com/listados/${propiedad.slug}`
-                        )}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center justify-center rounded-full bg-[#d4af37] px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
-                      >
-                        Consultar por WhatsApp
-                      </a>
-                    </div>
+                    <Link
+                      href={`/listados/${propiedad.slug}`}
+                      className="btn-primary w-full text-center py-2.5"
+                    >
+                      Ver detalles
+                    </Link>
                   </div>
                 </article>
               ))}
             </div>
 
-            {paginationData.totalPages > 1 && (
-              <div className="mt-16">
-                <PaginationControls
-                  currentPage={paginationData.currentPage}
-                  totalPages={paginationData.totalPages}
-                />
-              </div>
-            )}
+            {/* Paginación */}
+            <div className="mt-12">
+              <PaginationControls
+                currentPage={paginationData.currentPage}
+                totalPages={paginationData.totalPages}
+              />
+            </div>
           </>
         )}
       </div>

@@ -14,12 +14,12 @@ export default function HomeHeroClient({
   const router = useRouter();
 
   const [q, setQ] = useState("");
-  const [tipoNegocio, setTipoNegocio] = useState("");
+  const [tipoNegocio, setTipoNegocio] = useState("venta");
   const [precioMin, setPrecioMin] = useState("");
   const [precioMax, setPrecioMax] = useState("");
   const [habitaciones, setHabitaciones] = useState("");
   const [banos, setBanos] = useState("");
-  const [tipoPropiedad, setTipoPropiedad] = useState("");
+  const [tipoPropiedad, setTipoPropiedad] = useState<string[]>([]);
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [sugerencias, setSugerencias] = useState<{
     zonas: string[];
@@ -56,10 +56,23 @@ export default function HomeHeroClient({
     if (precioMax) params.set("precioMax", precioMax);
     if (habitaciones) params.set("habitaciones", habitaciones);
     if (banos) params.set("banos", banos);
-    if (tipoPropiedad) params.set("tipoPropiedad", tipoPropiedad);
+    if (tipoPropiedad.length > 0) params.set("tipoPropiedad", tipoPropiedad.join(","));
 
     const query = params.toString();
     router.push(query ? `/listados?${query}` : "/listados");
+  };
+
+  const toggleTipoNegocio = (tipo: "venta" | "renta") => {
+    if (tipoNegocio === tipo) return;
+    setTipoNegocio(tipo);
+  };
+
+  const toggleTipoPropiedad = (tipo: string) => {
+    if (tipoPropiedad.includes(tipo)) {
+      setTipoPropiedad(tipoPropiedad.filter((t) => t !== tipo));
+    } else {
+      setTipoPropiedad([...tipoPropiedad, tipo]);
+    }
   };
 
   return (
@@ -91,33 +104,33 @@ export default function HomeHeroClient({
             confianza desde el primer paso.
           </p>
 
-          {/* Barra de búsqueda premium */}
+          {/* Barra de búsqueda rectangular */}
           <form
             onSubmit={handleBuscar}
-            className="mt-12 max-w-3xl mx-auto w-full"
+            className="mt-12 max-w-4xl mx-auto w-full"
           >
-            {/* Búsqueda principal */}
-            <div className="relative rounded-full bg-white shadow-2xl overflow-hidden flex items-center">
-              {/* Botón de filtros avanzados */}
+            {/* Búsqueda principal - rectangular */}
+            <div className="relative bg-white shadow-2xl overflow-hidden flex items-center border border-[#e0e0e0]">
+              {/* Botón toggle +/- */}
               <button
                 type="button"
                 onClick={() => setMostrarFiltros(!mostrarFiltros)}
-                className="flex-shrink-0 h-16 w-16 flex items-center justify-center text-[#11518b] hover:bg-[#f7f7f7] transition font-bold text-xl"
-                title="Filtros avanzados"
+                className="flex-shrink-0 h-14 w-14 flex items-center justify-center text-[#11518b] hover:bg-[#f7f7f7] transition font-bold text-2xl border-r border-[#e0e0e0]"
+                title={mostrarFiltros ? "Cerrar filtros" : "Mostrar filtros"}
               >
-                +
+                {mostrarFiltros ? "−" : "+"}
               </button>
 
               {/* Input de búsqueda */}
               <div className="relative flex-1">
                 <input
                   type="text"
-                  placeholder="Buscar por ubicación, municipio, zona..."
+                  placeholder="Buscar por ubicación"
                   value={q}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   onFocus={() => q.trim() && setMostrarSugerencias(true)}
                   onBlur={() => setTimeout(() => setMostrarSugerencias(false), 200)}
-                  className="w-full px-6 py-4 text-[#4d4d4d] outline-none text-base"
+                  className="w-full px-6 py-3.5 text-[#4d4d4d] outline-none text-base placeholder:text-[#aaa]"
                 />
 
                 {/* Dropdown de sugerencias */}
@@ -167,155 +180,185 @@ export default function HomeHeroClient({
               {/* Botón de búsqueda con lupa */}
               <button
                 type="submit"
-                className="flex-shrink-0 h-16 w-16 flex items-center justify-center bg-[#11518b] text-white hover:bg-[#0d3a63] transition text-xl"
+                className="flex-shrink-0 h-14 w-14 flex items-center justify-center bg-[#11518b] text-white hover:bg-[#0d3a63] transition border-l border-[#e0e0e0]"
                 title="Buscar"
               >
-                🔍
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
               </button>
             </div>
 
             {/* Filtros avanzados expandibles */}
             {mostrarFiltros && (
-              <div className="mt-4 rounded-2xl bg-white/95 backdrop-blur-sm p-6 shadow-xl">
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {/* Venta/Renta */}
-                  <div>
-                    <label className="block text-sm font-semibold text-[#4d4d4d] mb-2">
-                      Tipo
-                    </label>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setTipoNegocio(tipoNegocio === "venta" ? "" : "venta")}
-                        className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition ${
-                          tipoNegocio === "venta"
-                            ? "bg-[#11518b] text-white"
-                            : "border border-[#d9d9d9] text-[#4d4d4d] hover:border-[#11518b]"
-                        }`}
-                      >
-                        Venta
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTipoNegocio(tipoNegocio === "renta" ? "" : "renta")}
-                        className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition ${
-                          tipoNegocio === "renta"
-                            ? "bg-[#11518b] text-white"
-                            : "border border-[#d9d9d9] text-[#4d4d4d] hover:border-[#11518b]"
-                        }`}
-                      >
-                        Renta
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Precio Min */}
-                  <div>
-                    <label className="block text-sm font-semibold text-[#4d4d4d] mb-2">
-                      Precio mínimo
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="Min $"
-                      value={precioMin}
-                      onChange={(e) => setPrecioMin(e.target.value)}
-                      className="w-full rounded-lg border border-[#d9d9d9] px-4 py-2.5 text-sm text-[#4d4d4d] outline-none focus:border-[#11518b]"
-                    />
-                  </div>
-
-                  {/* Precio Max */}
-                  <div>
-                    <label className="block text-sm font-semibold text-[#4d4d4d] mb-2">
-                      Precio máximo
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="Max $"
-                      value={precioMax}
-                      onChange={(e) => setPrecioMax(e.target.value)}
-                      className="w-full rounded-lg border border-[#d9d9d9] px-4 py-2.5 text-sm text-[#4d4d4d] outline-none focus:border-[#11518b]"
-                    />
-                  </div>
-
-                  {/* Habitaciones */}
-                  <div className="lg:col-span-2">
-                    <label className="block text-sm font-semibold text-[#4d4d4d] mb-3">
-                      Habitaciones
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {["All", "1+", "2+", "3+", "4+", "5+"].map((opt) => (
+              <div className="mt-0 bg-white border border-t-0 border-[#e0e0e0] p-6 shadow-lg">
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {/* Columna izquierda */}
+                  <div className="lg:col-span-2 space-y-6">
+                    {/* Venta/Renta */}
+                    <div>
+                      <div className="flex gap-2">
                         <button
-                          key={opt}
                           type="button"
-                          onClick={() => setHabitaciones(opt === "All" ? "" : opt)}
-                          className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                            (opt === "All" && !habitaciones) ||
-                            habitaciones === opt
+                          onClick={() => toggleTipoNegocio("venta")}
+                          className={`px-6 py-2.5 text-sm font-semibold rounded-l transition ${
+                            tipoNegocio === "venta"
                               ? "bg-[#11518b] text-white"
-                              : "border border-[#d9d9d9] text-[#4d4d4d] hover:border-[#11518b]"
+                              : "bg-[#f5f5f5] text-[#333] border border-[#d9d9d9]"
                           }`}
                         >
-                          {opt}
+                          Venta
                         </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Baños */}
-                  <div className="lg:col-span-2">
-                    <label className="block text-sm font-semibold text-[#4d4d4d] mb-3">
-                      Baños
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {["All", "1+", "2+", "3+", "4+", "5+"].map((opt) => (
                         <button
-                          key={opt}
                           type="button"
-                          onClick={() => setBanos(opt === "All" ? "" : opt)}
-                          className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                            (opt === "All" && !banos) || banos === opt
+                          onClick={() => toggleTipoNegocio("renta")}
+                          className={`px-6 py-2.5 text-sm font-semibold rounded-r transition ${
+                            tipoNegocio === "renta"
                               ? "bg-[#11518b] text-white"
-                              : "border border-[#d9d9d9] text-[#4d4d4d] hover:border-[#11518b]"
+                              : "bg-[#f5f5f5] text-[#333] border border-[#d9d9d9]"
                           }`}
                         >
-                          {opt}
+                          Renta
                         </button>
-                      ))}
+                      </div>
+                    </div>
+
+                    {/* Rango de Precio */}
+                    <div>
+                      <label className="block text-sm font-semibold text-[#333] mb-2">
+                        Rango de Precio
+                      </label>
+                      <div className="flex gap-4">
+                        <div className="flex-1">
+                          <label className="block text-xs text-[#666] mb-1">
+                            Mín
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={precioMin}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              // Bloquear números negativos y la letra 'e'
+                              if (val === "" || (parseInt(val) >= 0 && !val.includes("-"))) {
+                                setPrecioMin(val.replace(/[eE-]/g, ""));
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "e" || e.key === "E" || e.key === "-" || e.key === "+") e.preventDefault();
+                            }}
+                            className="w-full rounded border border-[#d9d9d9] px-3 py-2.5 text-sm text-[#333] outline-none focus:border-[#11518b]"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-xs text-[#666] mb-1">
+                            Máx
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={precioMax}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              // Bloquear números negativos y la letra 'e'
+                              if (val === "" || (parseInt(val) >= 0 && !val.includes("-"))) {
+                                setPrecioMax(val.replace(/[eE-]/g, ""));
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "e" || e.key === "E" || e.key === "-" || e.key === "+") e.preventDefault();
+                            }}
+                            className="w-full rounded border border-[#d9d9d9] px-3 py-2.5 text-sm text-[#333] outline-none focus:border-[#11518b]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Habitaciones */}
+                    <div>
+                      <label className="block text-sm font-semibold text-[#333] mb-3">
+                        Habitaciones
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {["Todos", "1+", "2+", "3+", "4+", "5+"].map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => setHabitaciones(opt === "Todos" ? "" : opt)}
+                            className={`px-4 py-2 rounded text-sm font-semibold transition ${
+                              (opt === "Todos" && !habitaciones) ||
+                              habitaciones === opt
+                                ? "bg-[#11518b] text-white"
+                                : "border border-[#d9d9d9] text-[#333] hover:border-[#11518b]"
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Baños */}
+                    <div>
+                      <label className="block text-sm font-semibold text-[#333] mb-3">
+                        Baños
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {["Todos", "1+", "2+", "3+", "4+", "5+"].map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => setBanos(opt === "Todos" ? "" : opt)}
+                            className={`px-4 py-2 rounded text-sm font-semibold transition ${
+                              (opt === "Todos" && !banos) || banos === opt
+                                ? "bg-[#11518b] text-white"
+                                : "border border-[#d9d9d9] text-[#333] hover:border-[#11518b]"
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Tipo de propiedad */}
-                  <div className="lg:col-span-3">
-                    <label className="block text-sm font-semibold text-[#4d4d4d] mb-3">
-                      Tipo de propiedad
-                    </label>
-<div className="flex flex-wrap gap-4">
-                      {["Casa", "Apartamento", "Condominio", "Terreno", "Comercial"].map(
+                  {/* Columna derecha - Tipo de Propiedad */}
+                  <div className="lg:col-span-1">
+                    <h3 className="text-sm font-semibold text-[#333] mb-4">
+                      Tipo de Propiedad
+                    </h3>
+                    <div className="space-y-3">
+                      {["Apartamento", "Comercial", "Casas", "Terreno", "Multi-Familia"].map(
                         (tipo) => (
                           <label
                             key={tipo}
-                            className="flex items-center gap-2 cursor-pointer"
+                            className="flex items-center gap-3 cursor-pointer"
                           >
                             <input
                               type="checkbox"
-                              checked={tipoPropiedad === tipo}
-                              onChange={(e) =>
-                                setTipoPropiedad(e.target.checked ? tipo : "")
-                              }
+                              checked={tipoPropiedad.includes(tipo)}
+                              onChange={() => toggleTipoPropiedad(tipo)}
                               className="sr-only"
                             />
-                            <div className={`w-12 h-6 rounded-full transition ${
-                              tipoPropiedad === tipo
-                                ? "bg-[#11518b]"
-                                : "bg-[#e8e8e8]"
-                            }`}>
-                              <div className={`w-5 h-5 rounded-full bg-white transition transform ${
-                                tipoPropiedad === tipo
-                                  ? "translate-x-6"
-                                  : "translate-x-0.5"
-                              } mt-0.5`} />
+                            <div
+                              className={`w-10 h-6 rounded-full transition border ${
+                                tipoPropiedad.includes(tipo)
+                                  ? "bg-[#11518b] border-[#11518b]"
+                                  : "bg-white border-[#d9d9d9]"
+                              }`}
+                            >
+                              <div
+                                className={`w-4 h-4 rounded-full transition transform mt-1 ${
+                                  tipoPropiedad.includes(tipo)
+                                    ? "bg-white translate-x-5"
+                                    : "bg-[#999] translate-x-1"
+                                }`}
+                              />
                             </div>
-                            <span className="text-sm text-[#4d4d4d]">{tipo}</span>
+                            <span className="text-sm text-[#333]">{tipo}</span>
                           </label>
                         )
                       )}
@@ -323,27 +366,24 @@ export default function HomeHeroClient({
                   </div>
                 </div>
 
+                {/* Botones de acción */}
                 <div className="mt-6 flex gap-3">
                   <button
                     type="submit"
-                    className="flex-1 rounded-lg bg-[#11518b] text-white font-semibold py-3 hover:bg-[#0d3a63] transition"
+                    className="flex items-center gap-2 rounded bg-[#11518b] text-white font-semibold py-2.5 px-6 hover:bg-[#0d3a63] transition"
                   >
-                    Buscar con filtros
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                    Buscar
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setMostrarFiltros(false);
-                      setTipoNegocio("");
-                      setPrecioMin("");
-                      setPrecioMax("");
-                      setHabitaciones("");
-                      setBanos("");
-                      setTipoPropiedad("");
-                    }}
-                    className="rounded-lg border border-[#d9d9d9] text-[#4d4d4d] font-semibold py-3 px-6 hover:bg-[#f7f7f7] transition"
+                    onClick={() => setMostrarFiltros(false)}
+                    className="rounded border border-[#d9d9d9] text-[#333] font-semibold py-2.5 px-6 hover:bg-[#f5f5f5] transition"
                   >
-                    Limpiar
+                    Cerrar
                   </button>
                 </div>
               </div>

@@ -16,9 +16,11 @@ export type FiltrosPropiedades = {
   q: string;
   tipoNegocio: "" | TipoNegocio;
   municipio: string;
-  tipoPropiedad: "" | TipoPropiedad;
+  tipoPropiedad: TipoPropiedad[];
   precioMin: string;
   precioMax: string;
+  habitaciones: string;
+  banos: string;
   orden: Orden;
 };
 
@@ -79,8 +81,8 @@ export function filtrarPropiedades(
       ? propiedad.municipio === filtros.municipio
       : true;
 
-    const coincideTipo = filtros.tipoPropiedad
-      ? propiedad.tipoPropiedad === filtros.tipoPropiedad
+    const coincideTipo = filtros.tipoPropiedad.length > 0
+      ? filtros.tipoPropiedad.includes(propiedad.tipoPropiedad)
       : true;
 
     const coincidePrecioMin = filtros.precioMin
@@ -91,13 +93,25 @@ export function filtrarPropiedades(
       ? propiedad.precio <= Number(filtros.precioMax)
       : true;
 
+    const minHabitaciones = filtros.habitaciones ? parseInt(filtros.habitaciones.replace('+', '')) : 0;
+    const coincideHabitaciones = minHabitaciones > 0
+      ? propiedad.habitaciones >= minHabitaciones
+      : true;
+
+    const minBanos = filtros.banos ? parseInt(filtros.banos.replace('+', '')) : 0;
+    const coincideBanos = minBanos > 0
+      ? propiedad.banos >= minBanos
+      : true;
+
     return (
       coincideTexto &&
       coincideNegocio &&
       coincideMunicipio &&
       coincideTipo &&
       coincidePrecioMin &&
-      coincidePrecioMax
+      coincidePrecioMax &&
+      coincideHabitaciones &&
+      coincideBanos
     );
   });
 

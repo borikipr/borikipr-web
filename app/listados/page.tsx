@@ -57,6 +57,20 @@ export default async function ListadosPage({
         : ["/placeholder.jpg"],
   }));
 
+  // Parse tipoPropiedad as array
+  const tiposPropiedadValidos: TipoPropiedad[] = [
+    "Casa",
+    "Apartamento",
+    "Condominio",
+    "Terreno",
+    "Comercial",
+  ];
+  const tipoPropiedad = params.tipoPropiedad
+    ? params.tipoPropiedad
+        .split(",")
+        .filter((tipo) => tiposPropiedadValidos.includes(tipo as TipoPropiedad))
+    : [];
+
   return (
     <>
       <Header />
@@ -104,14 +118,7 @@ export default async function ListadosPage({
                 params.tipoNegocio === "venta" || params.tipoNegocio === "renta"
                   ? params.tipoNegocio
                   : "",
-              tipoPropiedad:
-                params.tipoPropiedad === "Casa" ||
-                params.tipoPropiedad === "Apartamento" ||
-                params.tipoPropiedad === "Condominio" ||
-                params.tipoPropiedad === "Terreno" ||
-                params.tipoPropiedad === "Comercial"
-                  ? params.tipoPropiedad
-                  : "",
+              tipoPropiedad: tipoPropiedad as TipoPropiedad[],
               precioMin: params.precioMin ?? "",
               precioMax: params.precioMax ?? "",
               habitaciones: params.habitaciones ?? "",
