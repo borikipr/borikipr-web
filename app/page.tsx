@@ -30,7 +30,7 @@ function estadoLabel(estado: EstadoPropiedad) {
     case "vendida":
       return "Vendida";
     case "rentada":
-      return "Rentada";
+      return "Alquilada";
     default:
       return estado;
   }
@@ -188,7 +188,7 @@ export default async function Home() {
                 </h2>
 
                 <p className="body-lg mt-6 max-w-2xl">
-                  Explora una selección destacada de propiedades en venta y renta
+                  Explora una selección destacada de propiedades en venta y alquiler
                   en Puerto Rico, con fotografía cuidada, información clara y una
                   experiencia visual más premium.
                 </p>
@@ -265,7 +265,7 @@ export default async function Home() {
                         <div className="p-8">
                           <div className="mb-4 flex justify-between gap-4">
                             <span className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                              {item.tipo_negocio === "venta" ? "Venta" : "Renta"}
+                              {item.tipo_negocio === "venta" ? "Venta" : "Alquiler"}
                             </span>
 
                             <span className="text-sm text-[#4d4d4d]">

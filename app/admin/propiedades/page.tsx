@@ -40,7 +40,7 @@ function estadoLabel(
     case "vendida":
       return "Vendida";
     case "rentada":
-      return "Rentada";
+      return "Alquilada";
     default:
       return estado;
   }
@@ -178,7 +178,7 @@ export default async function AdminPropiedadesPage({
                       <td className="px-6 py-5 text-sm text-[#4d4d4d]">
                         <div className="space-y-2">
                           <div>
-                            {item.tipo_negocio === "venta" ? "Venta" : "Renta"}
+                            {item.tipo_negocio === "venta" ? "Venta" : "Alquiler"}
                           </div>
                           <StatusBadge variant="outline">
                             {item.tipo_propiedad}

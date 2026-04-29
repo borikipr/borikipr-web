@@ -11,12 +11,12 @@ export const metadata: Metadata = {
   },
 
   description:
-    "Explora propiedades en venta y renta en Puerto Rico. Encuentra casas, apartamentos y oportunidades comerciales con asesoría profesional.",
+    "Explora propiedades en venta y alquiler en Puerto Rico. Encuentra casas, apartamentos y oportunidades comerciales con asesoría profesional.",
 
   openGraph: {
     title: "Borikí | Puerto Rico Real Estate",
     description:
-      "Explora propiedades en venta y renta en Puerto Rico con una experiencia moderna y profesional.",
+      "Explora propiedades en venta y alquiler en Puerto Rico con una experiencia moderna y profesional.",
     url: "https://borikipr.com",
     siteName: "Borikí",
     locale: "es_PR",
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Borikí | Puerto Rico Real Estate",
     description:
-      "Propiedades en venta y renta en Puerto Rico con asesoría profesional.",
+      "Propiedades en venta y alquiler en Puerto Rico con asesoría profesional.",
     images: ["https://borikipr.com/og-image.jpg"],
   },
 };

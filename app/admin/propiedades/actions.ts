@@ -10,7 +10,7 @@ export type CreatePropiedadState = {
 };
 
 const municipiosValidos = new Set(municipiosPR);
-const tiposNegocioValidos = new Set(["venta", "renta"]);
+const tiposNegocioValidos = new Set(["venta", "renta"]); // "renta" se muestra como "alquiler"
 const tiposPropiedadValidos = new Set([
   "Casa",
   "Apartamento",
@@ -22,7 +22,7 @@ const estadosValidos = new Set([
   "disponible",
   "bajo_contrato",
   "vendida",
-  "rentada",
+    "alquilada",
 ]);
 const origenListadoValidos = new Set(["propio", "co_broke", "externo"]);
 
@@ -93,7 +93,7 @@ export async function createPropiedadAction(
   }
 
   if (!tiposNegocioValidos.has(tipoNegocio as never)) {
-    return { error: "Selecciona un tipo de negocio válido." };
+    return { error: "Selecciona un tipo de negocio válido (Venta o Alquiler)." };
   }
 
   if (!tiposPropiedadValidos.has(tipoPropiedad as never)) {
@@ -280,7 +280,7 @@ export async function updatePropiedadAction(
   }
 
   if (!tiposNegocioValidos.has(tipoNegocio as never)) {
-    return { error: "Selecciona un tipo de negocio válido." };
+    return { error: "Selecciona un tipo de negocio válido (Venta o Alquiler)." };
   }
 
   if (!tiposPropiedadValidos.has(tipoPropiedad as never)) {

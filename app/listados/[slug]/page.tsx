@@ -17,7 +17,7 @@ type EstadoPropiedad =
   | "disponible"
   | "bajo_contrato"
   | "vendida"
-  | "rentada";
+  | "alquilada";
 
 type PropiedadDB = {
   id: string;
@@ -57,7 +57,7 @@ function estadoLabel(estado: EstadoPropiedad) {
     case "vendida":
       return "Vendida";
     case "rentada":
-      return "Rentada";
+      return "Alquilada";
     default:
       return estado;
   }
@@ -283,7 +283,7 @@ ${propiedadUrl}`
 
             <div>
               <p className="eyebrow">
-                {propiedad.tipoNegocio === "venta" ? "Venta" : "Renta"}
+                {propiedad.tipoNegocio === "venta" ? "Venta" : "Alquiler"}
               </p>
 
               <h1 className="mt-4 text-4xl font-bold leading-tight text-[#000000]">

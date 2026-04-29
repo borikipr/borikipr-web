@@ -14,7 +14,7 @@ import {
   Orden,
 } from "@/lib/propiedades";
 
-type TipoNegocio = "venta" | "renta";
+type TipoNegocio = "venta" | "renta"; // "renta" se muestra como "alquiler"
 type TipoPropiedad =
   | "Casa"
   | "Apartamento"
@@ -25,7 +25,7 @@ type EstadoPropiedad =
   | "disponible"
   | "bajo_contrato"
   | "vendida"
-  | "rentada";
+  | "alquilada";
 
 type Propiedad = {
   id: string;
@@ -282,7 +282,7 @@ export default function ListadosClient({
     });
   };
 
-  // Manejador de Venta/Renta: exclusión mutua (SIN actualizar URL)
+  // Manejador de Venta/Alquiler: exclusión mutua (SIN actualizar URL)
   const handleTipoNegocio = (tipo: TipoNegocio) => {
     if (tipoNegocio === tipo) {
       // Si ya está seleccionado, no hacer nada (siempre debe haber uno activo)
@@ -416,17 +416,17 @@ export default function ListadosClient({
               {/* Row 1: For Sale | For Rent + Search by Location + Search btn */}
               <div className="flex items-stretch gap-0 mb-4">
                 {/* Venta tab */}
-                <button
-                  type="button"
-                  onClick={() => handleTipoNegocio("venta")}
-                  className={`px-5 py-2.5 text-sm font-semibold rounded-l transition whitespace-nowrap ${
-                    tipoNegocio === "venta"
-                      ? "bg-[#11518b] text-white"
-                      : "bg-white text-[#333] border border-[#d9d9d9] hover:bg-[#f5f5f5]"
-                  }`}
-                >
-                  Venta
-                </button>
+                        <button
+                          type="button"
+                          onClick={() => handleTipoNegocio("renta")}
+                          className={`flex-1 px-6 py-2.5 text-sm font-semibold rounded-r transition ${
+                            tipoNegocio === "renta"
+                              ? "bg-[#11518b] text-white"
+                              : "bg-[#f5f5f5] text-[#333] border border-[#d9d9d9]"
+                          }`}
+                        >
+                          Alquiler
+                        </button>
 
                 {/* Renta tab */}
                 <button
@@ -844,7 +844,7 @@ export default function ListadosClient({
                   <div className="p-6">
                     <div className="mb-3 flex justify-between gap-4">
                       <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                        {propiedad.tipoNegocio === "venta" ? "Venta" : "Renta"}
+                        {propiedad.tipoNegocio === "venta" ? "Venta" : "Alquiler"}
                       </span>
                     </div>
 

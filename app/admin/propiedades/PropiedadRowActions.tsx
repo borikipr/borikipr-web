@@ -109,7 +109,7 @@ export default function PropiedadRowActions({
           <option value="disponible">Disponible</option>
           <option value="bajo_contrato">Bajo contrato</option>
           <option value="vendida">Vendida</option>
-          <option value="rentada">Rentada</option>
+          <option value="rentada">Alquilada</option>
         </select>
 
         {!confirmandoBorrado ? (
