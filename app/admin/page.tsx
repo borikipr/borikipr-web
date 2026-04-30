@@ -117,7 +117,7 @@ export default async function AdminPage() {
           <StatCard
             label="Cerradas"
             value={stats.cerradas}
-            description="Vendidas o rentadas"
+            description="Vendidas o alquiladas"
           />
           <StatCard
             label="Destacadas"

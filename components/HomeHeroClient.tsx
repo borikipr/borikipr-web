@@ -219,7 +219,7 @@ export default function HomeHeroClient({
                               : "bg-[#f5f5f5] text-[#333] border border-[#d9d9d9]"
                           }`}
                         >
-                          Renta
+                          Alquiler
                         </button>
                       </div>
                     </div>
@@ -425,7 +425,7 @@ export default function HomeHeroClient({
                 Mercado
               </p>
               <p className="mt-2 text-sm text-white/90">
-                Propiedades en venta y renta en Puerto Rico
+                Propiedades en venta y alquiler en Puerto Rico
               </p>
             </div>
 

@@ -56,7 +56,7 @@ function estadoLabel(estado: EstadoPropiedad) {
     case "vendida":
       return "Vendida";
     case "rentada":
-      return "Rentada";
+      return "Alquilada";
     default:
       return estado;
   }
@@ -269,7 +269,7 @@ ${propiedadUrl}`
 
             <div>
               <p className="eyebrow">
-                {propiedad.tipoNegocio === "venta" ? "Venta" : "Renta"}
+                {propiedad.tipoNegocio === "venta" ? "Venta" : "Alquiler"}
               </p>
 
               <h1 className="mt-4 text-4xl font-bold leading-tight text-[#000000]">
@@ -486,7 +486,7 @@ ${propiedadUrl}`
                       <div className="p-8">
                         <div className="mb-4 flex justify-between gap-4">
                           <span className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                            {item.tipo_negocio === "venta" ? "Venta" : "Renta"}
+                            {item.tipo_negocio === "venta" ? "Venta" : "Alquiler"}
                           </span>
 
                           <span className="text-sm text-[#4d4d4d]">

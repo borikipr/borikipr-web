@@ -181,7 +181,7 @@ export default function EditarPropiedadForm({
                 required
               >
                 <option value="venta">Venta</option>
-                <option value="renta">Renta</option>
+                <option value="renta">Alquiler</option>
               </select>
             </div>
 
@@ -288,7 +288,7 @@ export default function EditarPropiedadForm({
                 <option value="disponible">Disponible</option>
                 <option value="bajo_contrato">Bajo contrato</option>
                 <option value="vendida">Vendida</option>
-                <option value="rentada">Rentada</option>
+                <option value="rentada">Alquilada</option>
               </select>
             </div>
 

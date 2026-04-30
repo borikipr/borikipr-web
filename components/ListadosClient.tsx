@@ -444,7 +444,7 @@ export default function ListadosClient({
     if (tipoNegocio) {
       chips.push({
         key: "tipoNegocio",
-        label: tipoNegocio === "venta" ? "Venta" : "Renta",
+        label: tipoNegocio === "venta" ? "Venta" : "Alquiler",
       });
     }
     if (municipio.trim()) {
@@ -554,7 +554,7 @@ export default function ListadosClient({
                       : "bg-white text-[#333] border-[#d9d9d9] hover:bg-[#f5f5f5]"
                   }`}
                 >
-                  Renta
+                  Alquiler
                 </button>
 
                 {/* Search by Location input */}
@@ -948,7 +948,7 @@ export default function ListadosClient({
                   <div className="p-6">
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                        {propiedad.tipoNegocio === "venta" ? "Venta" : "Renta"}
+                        {propiedad.tipoNegocio === "venta" ? "Venta" : "Alquiler"}
                       </span>
                       {propiedad.origen_listado === "co_broke" && (
                         <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37] bg-[#fff9e6] px-2 py-1 rounded">

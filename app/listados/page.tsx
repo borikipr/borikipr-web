@@ -82,7 +82,7 @@ export default async function ListadosPage({
             <p className="eyebrow">Listados</p>
 
             <h1 className="heading-section mt-4">
-              Propiedades en venta y renta en Puerto Rico
+              Propiedades en venta y alquiler en Puerto Rico
             </h1>
 
             <p className="body-lg mt-6">

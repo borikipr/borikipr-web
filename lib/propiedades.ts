@@ -39,7 +39,7 @@ export function estadoLabel(estado: EstadoPropiedad) {
     case "vendida":
       return "Vendida";
     case "rentada":
-      return "Rentada";
+      return "Alquilada";
     default:
       return estado;
   }
