@@ -90,18 +90,16 @@ export default function HomeHeroClient({
       <div className="absolute inset-0 bg-black/45" />
       <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/20 to-black/30" />
 
-      <div className="section-shell relative z-10 flex min-h-screen flex-col items-center justify-center pt-32 pb-16 lg:pt-40">
+      <div className="section-shell relative z-10 flex min-h-screen flex-col items-center justify-center pt-32 pb-24 lg:pt-40 lg:pb-32">
         <div className="max-w-4xl w-full">
-          <p className="eyebrow mb-5 text-center">Puerto Rico Real Estate</p>
+          <p className="eyebrow mb-5 text-center">Erickson Real Estate · Puerto Rico</p>
 
           <h1 className="max-w-4xl text-4xl font-bold leading-[0.95] text-white sm:text-5xl md:text-7xl xl:text-[5.5rem] text-center mx-auto">
-            Propiedades con visión, estrategia y presencia.
+            Propiedades con estrategia, intención y presencia.
           </h1>
 
           <p className="mt-8 max-w-2xl text-lg leading-relaxed text-white/90 md:text-xl text-center mx-auto">
-            Compra, vende o invierte en Puerto Rico con una asesoría clara,
-            una imagen profesional y una experiencia diseñada para inspirar
-            confianza desde el primer paso.
+            Compra, vende o invierte en Puerto Rico con guía clara, estrategia y confianza desde el inicio.
           </p>
 
           {/* Barra de búsqueda rectangular */}
@@ -407,36 +405,6 @@ export default function HomeHeroClient({
             >
               Agendar consulta
             </Link>
-          </div>
-
-          {/* Info cards */}
-          <div className="mt-12 grid max-w-3xl gap-4 md:grid-cols-3 mx-auto">
-            <div className="rounded-2xl border border-white/15 bg-white/10 px-5 py-4 backdrop-blur-md">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                Enfoque
-              </p>
-              <p className="mt-2 text-sm text-white/90">
-                Atención estratégica y personalizada
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-white/15 bg-white/10 px-5 py-4 backdrop-blur-md">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                Mercado
-              </p>
-              <p className="mt-2 text-sm text-white/90">
-                Propiedades en venta y alquiler en Puerto Rico
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-white/15 bg-white/10 px-5 py-4 backdrop-blur-md">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                Experiencia
-              </p>
-              <p className="mt-2 text-sm text-white/90">
-                Acompañamiento claro en cada etapa
-              </p>
-            </div>
           </div>
         </div>
       </div>

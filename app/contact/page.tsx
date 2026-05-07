@@ -54,13 +54,11 @@ export default function ContactPage() {
             <p className="eyebrow">Contacto</p>
 
             <h1 className="heading-display mt-4">
-              ¿Cómo podemos ayudarte?
+              ¿Cómo puedo orientarte?
             </h1>
 
             <p className="body-lg mt-8 max-w-3xl">
-              Elige la opción que mejor describa lo que necesitas. Así podemos
-              orientarte de una forma más clara, organizada y alineada con tu
-              objetivo en Puerto Rico.
+              Elige la opción que mejor se ajuste a lo que necesitas. Así puedo orientarte con más claridad, estrategia y una experiencia alineada a tus objetivos en Puerto Rico.
             </p>
           </div>
         </section>
@@ -70,7 +68,7 @@ export default function ContactPage() {
             <ContactOptionCard
               eyebrow="Compradores"
               title="Quiero comprar"
-              description="Cuéntanos qué estás buscando y te ayudamos a identificar propiedades alineadas con tu estilo de vida, presupuesto y objetivos."
+              description="Cuéntame qué estás buscando y te ayudaré a identificar propiedades alineadas con tu estilo de vida, presupuesto y objetivos."
               href="/contact/comprador"
               label="Solicitar orientación para comprar"
               variant="primary"
@@ -79,7 +77,7 @@ export default function ContactPage() {
             <ContactOptionCard
               eyebrow="Vendedores"
               title="Quiero vender"
-              description="Comparte la información de tu propiedad y te orientamos sobre presentación, estrategia y posicionamiento para salir al mercado con mejor dirección."
+              description="Comparte la información de tu propiedad y te orientaré sobre presentación, estrategia y posicionamiento para salir al mercado con mejor dirección."
               href="/contact/vendedor"
               label="Solicitar orientación para vender"
               variant="primary"
@@ -87,8 +85,8 @@ export default function ContactPage() {
 
             <ContactOptionCard
               eyebrow="Consulta general"
-              title="Tengo otra pregunta"
-              description="Si necesitas ayuda más general, deseas conversar directamente o tienes una consulta distinta, puedes escribirnos y te orientamos."
+              title="Necesito orientación general"
+              description="Si tienes dudas, necesitas orientación adicional o prefieres una conversación más directa, también puedes escribir por WhatsApp."
               href="https://wa.me/17876774900"
               label="Escribir por WhatsApp"
               variant="secondary"
@@ -100,13 +98,13 @@ export default function ContactPage() {
           <div className="section-shell">
             <div className="overflow-hidden rounded-[2rem] border border-[#e8e8e8] bg-white shadow-sm">
               <div className="grid gap-0 lg:grid-cols-[1fr_1fr]">
-                <div className="p-10 md:p-12">
+                <div className="p-10 md:p-12 lg:pb-16">
                   <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#d4af37]">
                     Atención personalizada
                   </p>
 
                   <h2 className="mt-4 text-3xl font-bold leading-tight text-[#000000]">
-                    Una conversación correcta puede ahorrarte tiempo y darte más claridad.
+                    Una buena orientación puede ahorrarte tiempo y darte más claridad
                   </h2>
 
                   <p className="body-base mt-6">
@@ -114,22 +112,6 @@ export default function ContactPage() {
                     necesites orientación, el objetivo es ayudarte a avanzar con
                     estrategia, información clara y una experiencia profesional.
                   </p>
-
-                  <div className="mt-8 flex flex-wrap gap-4">
-                    <Link
-                      href="/contact/comprador"
-                      className="btn-primary"
-                    >
-                      Formulario compradores
-                    </Link>
-
-                    <Link
-                      href="/contact/vendedor"
-                      className="btn-secondary"
-                    >
-                      Formulario vendedores
-                    </Link>
-                  </div>
                 </div>
 
                 <div className="bg-[#11518b] p-10 text-white md:p-12">
@@ -138,10 +120,10 @@ export default function ContactPage() {
                   </p>
 
                   <h3 className="mt-4 text-3xl font-bold leading-tight">
-                    ¿Prefieres escribir directamente?
+                    ¿Prefieres una respuesta más directa?
                   </h3>
 
-                  <p className="mt-6 text-white/85">
+                  <p className="mt-6 text-white/90">
                     Si ya tienes una duda puntual o quieres una respuesta más
                     directa, también puedes comunicarte por WhatsApp.
                   </p>
@@ -156,7 +138,7 @@ export default function ContactPage() {
                     </Link>
                   </div>
 
-                  <div className="mt-10 border-t border-white/20 pt-8 text-sm text-white/80">
+                  <div className="mt-10 border-t border-white/20 pt-8 text-sm text-white/85">
                     <p className="font-semibold text-white">
                       Erickson Real Estate
                     </p>

@@ -23,7 +23,7 @@ function FiltroButton({
       onClick={onClick}
       className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
         active
-          ? "bg-[#11518b] text-white"
+          ? "bg-[#d4af37] text-[#111111]"
           : "border border-[#d9d9d9] bg-white text-[#4d4d4d] hover:border-[#11518b] hover:text-[#11518b]"
       }`}
     >
@@ -42,6 +42,7 @@ function TestimonioCard({ item }: { item: TestimonioPublico }) {
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
           className="object-cover"
+          loading="lazy"
         />
 
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent p-6">
@@ -61,14 +62,14 @@ function TestimonioCard({ item }: { item: TestimonioPublico }) {
           {item.titulo || item.nombre}
         </h3>
 
-        <p className="mt-5 text-lg leading-relaxed text-[#4d4d4d]">
+        <p className="mt-5 text-lg leading-relaxed text-[#4d4d4d] line-clamp-5">
           &quot;{item.texto}&quot;
         </p>
 
         <div className="mt-6 border-t border-[#efefef] pt-5">
           <p className="font-semibold text-[#000000]">{item.nombre}</p>
           <p className="mt-1 text-sm text-[#4d4d4d]">
-            Cliente {item.tipo} · {item.lugar}
+            {item.tipo === "comprador" ? "Comprador" : "Vendedor"} · {item.lugar}
           </p>
         </div>
       </div>
@@ -215,60 +216,26 @@ export default function TestimoniosClientPage({
           </div>
         </section>
 
-        <section className="bg-[#f8f8f8] py-24">
-          <div className="section-shell grid gap-8 md:grid-cols-2 xl:grid-cols-3">
-            <div className="surface-card card-hover p-8">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#d4af37]">
-                Claridad
-              </p>
-              <p className="mt-4 leading-relaxed text-[#4d4d4d]">
-                Un proceso mejor guiado reduce dudas y ayuda a tomar decisiones
-                con más seguridad.
-              </p>
-            </div>
-
-            <div className="surface-card card-hover p-8">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#d4af37]">
-                Estrategia
-              </p>
-              <p className="mt-4 leading-relaxed text-[#4d4d4d]">
-                Cada propiedad y cada cliente requieren un enfoque bien pensado,
-                no una fórmula genérica.
-              </p>
-            </div>
-
-            <div className="surface-card card-hover p-8 md:col-span-2 xl:col-span-1">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#d4af37]">
-                Confianza
-              </p>
-              <p className="mt-4 leading-relaxed text-[#4d4d4d]">
-                Una presencia profesional consistente hace que cada interacción
-                se sienta más sólida y mejor acompañada.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="section-shell py-24">
-          <div className="surface-muted p-10 md:p-14">
+        <section className="bg-[#11518b] py-24 text-white">
+          <div className="section-shell">
             <div className="max-w-3xl">
-              <p className="eyebrow">¿Quieres vivir una experiencia similar?</p>
+              <p className="eyebrow text-white/90">¿Quieres vivir una experiencia similar?</p>
 
-              <h2 className="mt-4 text-3xl font-bold leading-tight text-[#000000] md:text-4xl">
-                Conversemos sobre tu próxima compra o venta en Puerto Rico.
+              <h2 className="mt-4 text-3xl font-bold leading-tight text-white md:text-4xl">
+                Conversemos sobre tu próxima decisión inmobiliaria en Puerto Rico
               </h2>
 
-              <p className="body-lg mt-6">
+              <p className="body-lg mt-6 !text-white">
                 Cada cliente merece una orientación clara, una estrategia sólida
                 y una experiencia profesional desde el primer contacto.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-4">
-                <Link href="/contact" className="btn-primary">
+                <Link href="/contact" className="btn-gold">
                   Contactar a Ivonne
                 </Link>
 
-                <Link href="/listados" className="btn-secondary">
+                <Link href="/listados" className="border-2 border-white px-8 py-4 text-sm font-bold uppercase tracking-widest text-white transition hover:bg-white hover:text-[#11518b]">
                   Ver propiedades
                 </Link>
               </div>

@@ -111,12 +111,11 @@ export default async function Home() {
               <p className="eyebrow">¿Por qué Erickson Real Estate?</p>
 
               <h2 className="heading-section mt-4">
-                Compromiso, estrategia y presencia en cada transacción.
+                Estrategia clara. Ejecución precisa. Resultados con intención.
               </h2>
 
               <p className="body-lg mt-6">
-                Más que una agente, una aliada que entiende el mercado, cuida
-                cada detalle y te guía con transparencia de principio a fin.
+                Más que un servicio inmobiliario, una experiencia guiada con estrategia, transparencia y atención real en cada paso del proceso.
               </p>
             </div>
 
@@ -129,8 +128,7 @@ export default async function Home() {
                   Atención personalizada
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
-                  Cada cliente recibe un trato único, adaptado a sus necesidades
-                  y objetivos específicos.
+                  Cada cliente recibe una estrategia adaptada a sus objetivos, estilo de vida y visión a futuro.
                 </p>
               </div>
 
@@ -142,8 +140,7 @@ export default async function Home() {
                   Estrategia de mercado
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
-                  Análisis profundo del mercado para posicionar tu propiedad
-                  con el mejor precio y visibilidad.
+                  Análisis profundo del mercado para posicionar tu propiedad con inteligencia, precisión y ventaja competitiva.
                 </p>
               </div>
 
@@ -155,8 +152,7 @@ export default async function Home() {
                   Presentación premium
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
-                  Fotografía profesional, descripciones cuidadas y marketing
-                  visual que destaca cada propiedad.
+                  Fotografía profesional, narrativa visual cuidada y marketing que eleva el valor percibido de cada propiedad.
                 </p>
               </div>
 
@@ -168,8 +164,7 @@ export default async function Home() {
                   Acompañamiento completo
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
-                  Desde la primera consulta hasta el cierre, siempre con
-                  comunicación clara y transparente.
+                  Acompañamiento claro y constante desde la primera conversación hasta el cierre exitoso.
                 </p>
               </div>
             </div>
@@ -184,13 +179,11 @@ export default async function Home() {
                 <p className="eyebrow">Propiedades destacadas</p>
 
                 <h2 className="heading-section mt-4">
-                  Oportunidades seleccionadas con mejor presentación.
+                  Propiedades seleccionadas por valor, presentación y potencial.
                 </h2>
 
                 <p className="body-lg mt-6 max-w-2xl">
-                  Explora una selección destacada de propiedades en venta y alquiler
-                  en Puerto Rico, con fotografía cuidada, información clara y una
-                  experiencia visual más premium.
+                  Explora propiedades en venta y alquiler en Puerto Rico con información clara, fotografía cuidada y una experiencia visual más premium.
                 </p>
               </div>
 
@@ -307,59 +300,6 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Sección: Servicios */}
-        <section className="bg-white py-24">
-          <div className="section-shell">
-            <div className="max-w-3xl">
-              <p className="eyebrow">Servicios</p>
-
-              <h2 className="heading-section mt-4">
-                Una experiencia inmobiliaria más clara y mejor presentada.
-              </h2>
-
-              <p className="body-lg mt-6">
-                Desde la primera llamada hasta la negociación y el cierre, cada
-                paso debe sentirse organizado, estratégico y bien acompañado.
-              </p>
-            </div>
-
-            <div className="mt-14 grid gap-6 md:grid-cols-3">
-              <article className="surface-card card-hover p-8">
-                <div className="mb-5 h-1.5 w-14 rounded-full bg-[#d4af37]" />
-                <h3 className="text-2xl font-semibold text-[#11518b]">
-                  Compra
-                </h3>
-                <p className="body-base mt-4">
-                  Evaluación clara de opciones, orientación local y apoyo
-                  estratégico para elegir con confianza.
-                </p>
-              </article>
-
-              <article className="surface-card card-hover p-8">
-                <div className="mb-5 h-1.5 w-14 rounded-full bg-[#d4af37]" />
-                <h3 className="text-2xl font-semibold text-[#11518b]">
-                  Venta
-                </h3>
-                <p className="body-base mt-4">
-                  Estrategia de presentación, visibilidad y manejo profesional
-                  del proceso para maximizar valor.
-                </p>
-              </article>
-
-              <article className="surface-card card-hover p-8">
-                <div className="mb-5 h-1.5 w-14 rounded-full bg-[#d4af37]" />
-                <h3 className="text-2xl font-semibold text-[#11518b]">
-                  Consultoría
-                </h3>
-                <p className="body-base mt-4">
-                  Conversaciones estratégicas para compradores, vendedores e
-                  inversionistas que quieren claridad antes de decidir.
-                </p>
-              </article>
-            </div>
-          </div>
-        </section>
-
         {/* Sección: Zonas de Puerto Rico */}
         <section className="bg-[#f8f8f8] py-24">
           <div className="section-shell">
@@ -367,12 +307,11 @@ export default async function Home() {
               <p className="eyebrow">Zonas</p>
 
               <h2 className="heading-section mt-4">
-                Cubrimos toda la isla de Puerto Rico.
+                Presencia en toda la isla de Puerto Rico.
               </h2>
 
               <p className="body-lg mt-6">
-                Desde la zona metropolitana hasta las costas y montañas,
-                te ayudamos a encontrar la propiedad ideal en cualquier región.
+                Desde la zona metropolitana hasta las costas y montañas, conectamos contigo oportunidades inmobiliarias en cada región de Puerto Rico con claridad y enfoque.
               </p>
             </div>
 
@@ -409,12 +348,11 @@ export default async function Home() {
                   <p className="eyebrow">Testimonios</p>
 
                   <h2 className="heading-section mt-4">
-                    Lo que dicen nuestros clientes.
+                    Experiencias reales que hablan por sí solas.
                   </h2>
 
                   <p className="body-lg mt-6 max-w-2xl">
-                    Experiencias reales de personas que confiaron en nosotros
-                    para comprar, vender o invertir en Puerto Rico.
+                    Historias de personas que confiaron para comprar, vender o invertir en Puerto Rico.
                   </p>
                 </div>
 
@@ -490,9 +428,7 @@ export default async function Home() {
                   </h2>
 
                   <p className="mt-6 text-lg leading-relaxed text-white/85">
-                    Cuéntanos qué estás buscando y te ayudamos a construir el
-                    camino correcto con una presencia profesional y un enfoque
-                    estratégico.
+                    Cuéntanos qué estás buscando y te ayudamos a construir el camino correcto con claridad, estrategia y acompañamiento profesional.
                   </p>
                 </div>
 

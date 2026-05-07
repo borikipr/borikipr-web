@@ -43,7 +43,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     url: `${baseUrl}/listados/${item.slug}`,
     lastModified: new Date(),
     changeFrequency: "weekly",
-    priority: item.destacado ? 0.9 : 0.8,
+    priority: item.destacado ? 0.8 : 0.6,
   }));
 
   return [...staticPages, ...propiedadesPages];

@@ -286,9 +286,9 @@ export default function FormularioComprador() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full px-6 py-2 bg-purple-600 text-white font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full px-6 py-3 bg-[#d4af37] text-[#111111] font-semibold rounded-md transition hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? "Enviando..." : "Submit"}
+          {loading ? "Enviando..." : "Enviar solicitud"}
         </button>
       </form>
     </div>

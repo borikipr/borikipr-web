@@ -67,99 +67,96 @@ export default function About() {
         </section>
 
         <section className="bg-[#f8f8f8] py-24">
-          <div className="section-shell">
-            <div className="max-w-3xl">
-              <p className="eyebrow">Filosofía de servicio</p>
+  <div className="section-shell">
+    <div className="max-w-3xl">
+      <p className="eyebrow">Filosofía de servicio</p>
 
-              <h2 className="heading-section mt-4">
-                Cada propiedad merece una estrategia bien pensada.
-              </h2>
+      <h2 className="heading-section mt-4">
+        Cada propiedad merece una estrategia bien pensada
+      </h2>
 
-              <p className="body-lg mt-6">
-                Mi prioridad es crear una experiencia inmobiliaria clara,
-                organizada y profesional, donde cada cliente se sienta bien
-                orientado y respaldado en cada decisión.
-              </p>
-            </div>
+      <p className="body-lg mt-6">
+        Mi enfoque va más allá de una simple transacción. Trabajo cada
+        propiedad con intención, claridad y estrategia, creando una experiencia
+        inmobiliaria organizada y profesional donde cada cliente se siente
+        acompañado, informado y seguro en cada decisión.
+      </p>
+    </div>
 
-            <div className="mt-14 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-              <article className="surface-card card-hover p-8">
-                <div className="mb-5 h-1.5 w-14 rounded-full bg-[#d4af37]" />
-                <h3 className="text-2xl font-semibold text-[#11518b]">
-                  Claridad
-                </h3>
-                <p className="body-base mt-4">
-                  Información directa, orientación transparente y pasos bien
-                  explicados para que el proceso se sienta más seguro.
-                </p>
-              </article>
+    <div className="mt-14 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+      <article className="surface-card card-hover p-8">
+        <div className="mb-5 h-1.5 w-14 rounded-full bg-[#d4af37]" />
+        <h3 className="text-2xl font-semibold text-[#11518b]">
+          Claridad
+        </h3>
+        <p className="body-base mt-4">
+          Comunicación directa, orientación transparente y cada paso explicado
+          con precisión para que tomes decisiones con seguridad.
+        </p>
+      </article>
 
-              <article className="surface-card card-hover p-8">
-                <div className="mb-5 h-1.5 w-14 rounded-full bg-[#d4af37]" />
-                <h3 className="text-2xl font-semibold text-[#11518b]">
-                  Estrategia
-                </h3>
-                <p className="body-base mt-4">
-                  Cada propiedad y cada cliente requieren una dirección distinta,
-                  con enfoque en objetivos reales y decisiones inteligentes.
-                </p>
-              </article>
+      <article className="surface-card card-hover p-8">
+        <div className="mb-5 h-1.5 w-14 rounded-full bg-[#d4af37]" />
+        <h3 className="text-2xl font-semibold text-[#11518b]">
+          Estrategia
+        </h3>
+        <p className="body-base mt-4">
+          Cada propiedad es única. Diseño un enfoque personalizado basado en
+          objetivos reales, análisis del mercado y decisiones inteligentes.
+        </p>
+      </article>
 
-              <article className="surface-card card-hover p-8 md:col-span-2 xl:col-span-1">
-                <div className="mb-5 h-1.5 w-14 rounded-full bg-[#d4af37]" />
-                <h3 className="text-2xl font-semibold text-[#11518b]">
-                  Confianza
-                </h3>
-                <p className="body-base mt-4">
-                  Más que una transacción, busco construir relaciones sólidas con
-                  una presencia profesional consistente y un acompañamiento bien
-                  guiado.
-                </p>
-              </article>
-            </div>
-          </div>
-        </section>
+      <article className="surface-card card-hover p-8 md:col-span-2 xl:col-span-1">
+        <div className="mb-5 h-1.5 w-14 rounded-full bg-[#d4af37]" />
+        <h3 className="text-2xl font-semibold text-[#11518b]">
+          Confianza
+        </h3>
+        <p className="body-base mt-4">
+          Más que cerrar negocios, construyo relaciones. Presencia profesional,
+          consistencia y acompañamiento en cada etapa del proceso.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
 
         <section className="bg-white py-24">
           <div className="section-shell grid gap-12 xl:grid-cols-[1fr_1fr]">
             <div className="surface-muted card-hover p-8 md:p-10">
               <p className="eyebrow">Presencia profesional</p>
 
-              <h2 className="mt-4 text-3xl font-bold leading-tight text-[#000000] md:text-4xl">
-                Una experiencia bien presentada genera más confianza.
-              </h2>
+<h2 className="mt-4 text-3xl font-bold leading-tight text-[#000000] md:text-4xl">
+  La forma en que se presenta una propiedad define su valor
+</h2>
 
-              <p className="body-base mt-6">
-                La forma en que se presenta una propiedad, se atiende una
-                consulta o se acompaña una decisión cambia por completo la
-                experiencia del cliente. Mi enfoque combina servicio,
-                estrategia y una imagen profesional coherente.
-              </p>
+<p className="body-base mt-6">
+  Cada detalle comunica. Desde la presentación de una propiedad hasta la manera en que se guía una decisión, todo influye en la percepción y en los resultados. Mi enfoque integra estrategia, servicio y una imagen profesional coherente para elevar cada experiencia.
+</p>
             </div>
 
             <div className="surface-card card-hover p-8 md:p-10">
               <p className="eyebrow">Credenciales</p>
 
-              <div className="mt-6 space-y-5 text-[#4d4d4d]">
-                <div className="border-b border-[#efefef] pb-5">
-                  <p className="font-semibold text-[#000000]">
-                    Corredora de Bienes Raíces
-                  </p>
-                  <p className="mt-1">Puerto Rico</p>
-                </div>
+<div className="mt-6 space-y-5 text-[#4d4d4d]">
+  <div className="border-b border-[#efefef] pb-5">
+    <p className="font-semibold text-[#000000]">
+      Corredora de Bienes Raíces
+    </p>
+    <p className="mt-1">Puerto Rico</p>
+  </div>
 
-                <div className="border-b border-[#efefef] pb-5">
-                  <p className="font-semibold text-[#000000]">Licencia</p>
-                  <p className="mt-1">C-25961</p>
-                </div>
+  <div className="border-b border-[#efefef] pb-5">
+    <p className="font-semibold text-[#000000]">Licencia</p>
+    <p className="mt-1">C-25961</p>
+  </div>
 
-                <div>
-                  <p className="font-semibold text-[#000000]">Atención</p>
-                  <p className="mt-1">
-                    Orientación clara para compra, venta e inversión.
-                  </p>
-                </div>
-              </div>
+  <div>
+    <p className="font-semibold text-[#000000]">Enfoque</p>
+    <p className="mt-1">
+      Asesoría clara para compra, venta e inversión inmobiliaria.
+    </p>
+  </div>
+</div>
             </div>
           </div>
         </section>
@@ -170,31 +167,31 @@ export default function About() {
               <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
                 <div className="max-w-3xl">
                   <p className="text-sm font-semibold uppercase tracking-[0.25em] text-[#d4af37]">
-                    Siguiente paso
-                  </p>
+  Siguiente paso
+</p>
 
-                  <h2 className="mt-4 text-4xl font-bold leading-tight md:text-5xl">
-                    Una conversación clara puede cambiar toda la experiencia.
-                  </h2>
+<h2 className="mt-4 text-4xl font-bold leading-tight md:text-5xl">
+  Tomar la decisión correcta empieza con una buena conversación
+</h2>
 
-                  <p className="mt-6 text-lg leading-relaxed text-white/85">
-                    Si estás considerando comprar, vender o invertir en Puerto
-                    Rico, estaré encantada de orientarte con una estrategia más
-                    clara y una experiencia profesional.
-                  </p>
+<p className="mt-6 text-lg leading-relaxed text-white/85">
+  Si estás considerando comprar, vender o invertir en Puerto Rico,
+  te orientaré con claridad, estrategia y una experiencia profesional
+  desde el primer momento.
+</p>
                 </div>
 
                 <div className="flex flex-wrap gap-4">
                   <Link href="/contact" className="btn-gold">
-                    Contactar ahora
-                  </Link>
+  Agendar consulta
+</Link>
 
-                  <Link
-                    href="/listados"
-                    className="inline-flex items-center justify-center rounded-full border border-white/30 px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10"
-                  >
-                    Ver listados
-                  </Link>
+<Link
+  href="/listados"
+  className="inline-flex items-center justify-center rounded-full border border-white/30 px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10"
+>
+  Explorar propiedades
+</Link>
                 </div>
               </div>
             </div>
