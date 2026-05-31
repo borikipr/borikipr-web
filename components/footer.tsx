@@ -108,7 +108,7 @@ export default function Footer() {
             <div className="mt-6 space-y-4 text-sm text-white/75">
               <div>
                 <p className="font-medium text-white">Email</p>
-                <p className="mt-1">ericksonrealestatepr@gmail.com</p>
+                <p className="mt-1">ivonneerickson@borikipr.com</p>
               </div>
 
               <div>
