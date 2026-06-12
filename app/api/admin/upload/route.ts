@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       ? decodeURIComponent(sessionCookie.split("=").slice(1).join("="))
       : null;
 
-    const adminUser = verifyAdminSessionValue(sessionValue);
+    const adminUser = await verifyAdminSessionValue(sessionValue);
 
     if (!adminUser) {
       return NextResponse.json(

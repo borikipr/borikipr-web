@@ -1,8 +1,21 @@
 import { NextResponse } from "next/server";
 import { trackLeadEvent } from "@/lib/queries/leads";
+import { checkRateLimit, getClientIp, nextRateLimitResponse } from "@/lib/rate-limit";
+
+const EVENT_TYPES = new Set(["contact_click", "whatsapp_click"]);
 
 export async function POST(req: Request) {
   try {
+    const rateLimit = checkRateLimit({
+      key: `track:${getClientIp(req)}`,
+      limit: 60,
+      windowMs: 10 * 60 * 1000,
+    });
+
+    if (!rateLimit.allowed) {
+      return nextRateLimitResponse();
+    }
+
     const body = await req.json();
 
     const slug =
@@ -20,9 +33,9 @@ export async function POST(req: Request) {
         ? body.rutaOrigen.trim()
         : null;
 
-    if (!tipo) {
+    if (!tipo || !EVENT_TYPES.has(tipo)) {
       return NextResponse.json(
-        { ok: false, error: "tipo_evento es requerido" },
+        { ok: false, error: "Tipo de evento invalido." },
         { status: 400 }
       );
     }

@@ -311,7 +311,7 @@ export default async function AdminLeadsPage({
               <Link href="/admin" className="btn-secondary">
                 Volver al dashboard
               </Link>
-              <Link href="/listados" className="btn-secondary" target="_blank">
+              <Link href="/listados" className="btn-secondary" target="_blank" rel="noopener noreferrer">
                 Ver listados
               </Link>
             </div>
@@ -420,6 +420,7 @@ export default async function AdminLeadsPage({
                       <Link
                         href={`/listados/${item.propiedadSlug}`}
                         target="_blank"
+                        rel="noopener noreferrer"
                         className="text-sm font-medium text-[#11518b] transition hover:text-[#0d406d]"
                       >
                         Ver web
@@ -499,6 +500,7 @@ export default async function AdminLeadsPage({
                           <Link
                             href={`/listados/${item.propiedadSlug}`}
                             target="_blank"
+                            rel="noopener noreferrer"
                             className="text-sm font-medium text-[#11518b] transition hover:text-[#0d406d]"
                           >
                             Ver web
@@ -615,6 +617,7 @@ export default async function AdminLeadsPage({
                           <Link
                             href={`/listados/${item.propiedadSlug}`}
                             target="_blank"
+                            rel="noopener noreferrer"
                             className="text-sm font-medium text-[#11518b] transition hover:text-[#0d406d]"
                           >
                             Ver web

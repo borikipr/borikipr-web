@@ -1,8 +1,18 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import Header from "@/components/Header";
 import ListadosClient from "@/components/ListadosClient";
 import PropiedadSkeleton from "@/components/PropiedadSkeleton";
 import { getPropiedadesPaginadas } from "@/lib/queries/propiedades";
+
+export const metadata: Metadata = {
+  title: "Listados de Propiedades | Erickson Real Estate",
+  description:
+    "Explora propiedades en venta y alquiler en Puerto Rico con informacion clara, filtros utiles y orientacion profesional.",
+  alternates: {
+    canonical: "/listados",
+  },
+};
 
 type TipoPropiedad =
   | "Casa"
@@ -22,6 +32,7 @@ type SearchParams = Promise<{
   habitaciones?: string;
   banos?: string;
   orden?: string;
+  estado?: string;
   q?: string;
   page?: string;
 }>;
@@ -32,9 +43,50 @@ export default async function ListadosPage({
   searchParams: SearchParams;
 }) {
   const params = await searchParams;
-  const page = parseInt(params.page || "1", 10);
+  const requestedPage = parseInt(params.page || "1", 10);
+  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
 
-  const data = await getPropiedadesPaginadas(page, 12);
+  // Parse tipoPropiedad as array
+  const tiposPropiedadValidos: TipoPropiedad[] = [
+    "Casa",
+    "Apartamento",
+    "Condominio",
+    "Terreno",
+    "Comercial",
+  ];
+  const tipoPropiedad = params.tipoPropiedad
+    ? params.tipoPropiedad
+        .split(",")
+        .filter((tipo) => tiposPropiedadValidos.includes(tipo as TipoPropiedad))
+    : [];
+
+  const data = await getPropiedadesPaginadas(page, 12, {
+    q: params.q ?? "",
+    municipio: params.municipio ?? "",
+    tipoNegocio:
+      params.tipoNegocio === "venta" || params.tipoNegocio === "renta"
+        ? params.tipoNegocio
+        : "",
+    tipoPropiedad,
+    precioMin: params.precioMin ?? "",
+    precioMax: params.precioMax ?? "",
+    habitaciones: params.habitaciones ?? "",
+    banos: params.banos ?? "",
+    estado:
+      params.estado === "disponible" ||
+      params.estado === "bajo_contrato" ||
+      params.estado === "vendida" ||
+      params.estado === "rentada"
+        ? params.estado
+        : "",
+    orden:
+      params.orden === "precio-asc" ||
+      params.orden === "precio-desc" ||
+      params.orden === "municipio-asc" ||
+      params.orden === "municipio-desc"
+        ? params.orden
+        : "",
+  });
 
   const propiedades = data.propiedades.map((p) => ({
     id: p.id,
@@ -54,23 +106,9 @@ export default async function ListadosPage({
     imagenes:
       Array.isArray(p.imagenes) && p.imagenes.length > 0
         ? p.imagenes
-        : ["/placeholder.jpg"],
+        : ["/og-image.jpg"],
     origen_listado: p.origen_listado,
   }));
-
-  // Parse tipoPropiedad as array
-  const tiposPropiedadValidos: TipoPropiedad[] = [
-    "Casa",
-    "Apartamento",
-    "Condominio",
-    "Terreno",
-    "Comercial",
-  ];
-  const tipoPropiedad = params.tipoPropiedad
-    ? params.tipoPropiedad
-        .split(",")
-        .filter((tipo) => tiposPropiedadValidos.includes(tipo as TipoPropiedad))
-    : [];
 
   return (
     <>
@@ -82,7 +120,7 @@ export default async function ListadosPage({
             <p className="eyebrow">Listados</p>
 
             <h1 className="heading-section mt-4">
-              Propiedades en venta y alquiler en Puerto Rico
+            Propiedades en venta y alquiler
             </h1>
 
             <p className="body-lg mt-6">

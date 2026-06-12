@@ -31,6 +31,20 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: "/contact/comprador",
+        destination: "/contact/compradores-arrendatarios",
+        statusCode: 301,
+      },
+      {
+        source: "/contact/vendedor",
+        destination: "/contact/vendedor-arrendador",
+        statusCode: 301,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

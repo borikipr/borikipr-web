@@ -1,6 +1,16 @@
+import type { Metadata } from "next";
 import Header from "@/components/Header";
 import Image from "next/image";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Sobre Ivonne Erickson | Erickson Real Estate",
+  description:
+    "Conoce el enfoque de Ivonne Erickson para guiar decisiones inmobiliarias en Puerto Rico con estrategia, claridad y acompanamiento profesional.",
+  alternates: {
+    canonical: "/about",
+  },
+};
 
 export default function About() {
   return (
@@ -10,7 +20,7 @@ export default function About() {
       <main className="bg-white pt-[96px] lg:pt-[128px]">
         <section className="section-shell py-20">
           <div className="grid gap-14 xl:grid-cols-[0.95fr_1.05fr] xl:items-center">
-            <div className="flex justify-center">
+            <div className="order-2 flex justify-center xl:order-1">
               <div className="w-full max-w-md">
                 <Image
                   src="/ivonne.png"
@@ -23,30 +33,30 @@ export default function About() {
               </div>
             </div>
 
-            <div>
+            <div className="order-1 xl:order-2">
               <p className="eyebrow">Sobre mí</p>
 
               <h1 className="heading-display mt-4 max-w-3xl">
-                Experiencia, estrategia y presencia en cada decisión.
+                Experiencia, estrategia y acompañamiento en cada decisión.
               </h1>
 
               <p className="body-lg mt-8 max-w-2xl">
                 Soy Ivonne Erickson, corredora de bienes raíces en Puerto Rico,
-                dedicada a guiarte con claridad, estrategia y una atención
-                personalizada que inspira confianza en cada etapa del proceso.
+                comprometida a guiarte con claridad, estrategia y una atención
+                personalizada que inspire confianza en cada etapa del proceso.
               </p>
 
               <p className="body-lg mt-6 max-w-2xl">
-                Comprar, vender o invertir en una propiedad no es solo una
-                transacción, sino una decisión importante que requiere
-                conocimiento del mercado, dirección precisa y asesoría
+                Comprar, vender o invertir en una propiedad no es simplemente
+                una transacción; es una decisión importante que requiere
+                conocimiento del mercado, orientación precisa y una asesoría
                 profesional sólida.
               </p>
 
               <p className="body-lg mt-6 max-w-2xl">
                 Mi compromiso es acompañarte de principio a fin, brindándote
-                una experiencia fluida, transparente y enfocada en alcanzar
-                tus objetivos.
+                una experiencia fluida, transparente y enfocada en ayudarte
+                a alcanzar tus objetivos.
               </p>
 
               <div className="mt-10 flex flex-wrap gap-4">
@@ -57,6 +67,7 @@ export default function About() {
                 <Link
                   href="https://wa.me/17876774900"
                   target="_blank"
+                  rel="noopener noreferrer"
                   className="btn-secondary"
                 >
                   Escribir por WhatsApp

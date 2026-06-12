@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 
 const municipiosPR = [
   "Adjuntas",
@@ -13,13 +13,12 @@ const municipiosPR = [
   "Barceloneta",
   "Barranquitas",
   "Bayamón",
-  "Buena Vista",
   "Cabo Rojo",
   "Caguas",
   "Camuy",
   "Canóvanas",
   "Carolina",
-  "Catano",
+  "Cataño",
   "Cayey",
   "Ceiba",
   "Ciales",
@@ -27,10 +26,8 @@ const municipiosPR = [
   "Coamo",
   "Comerío",
   "Corozal",
-  "Corrales",
   "Culebra",
   "Dorado",
-  "Ensenada",
   "Fajardo",
   "Florida",
   "Guánica",
@@ -63,14 +60,11 @@ const municipiosPR = [
   "Patillas",
   "Peñuelas",
   "Ponce",
-  "Puerto Real",
   "Quebradillas",
   "Rincón",
   "Río Grande",
   "Sabana Grande",
   "Salinas",
-  "San Blas",
-  "San Carlos",
   "San Germán",
   "San Juan",
   "San Lorenzo",
@@ -87,6 +81,16 @@ const municipiosPR = [
   "Yabucoa",
   "Yauco",
 ];
+
+const tiposPropiedad = [
+  "Casa",
+  "Apartamento",
+  "Terreno",
+  "Multifamiliar",
+  "Propiedad Comercial",
+];
+
+const interesesPrincipales = ["Vender", "Alquilar", "Evaluar ambas opciones"];
 
 export default function FormularioVendedor() {
   const [loading, setLoading] = useState(false);
@@ -109,6 +113,7 @@ export default function FormularioVendedor() {
       tipoPropiedad: formData.get("tipoPropiedad"),
       ubicacion: formData.get("ubicacion"),
       razonVenta: formData.get("razonVenta"),
+      comentarios: formData.get("comentarios"),
     };
 
     try {
@@ -134,99 +139,49 @@ export default function FormularioVendedor() {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-6">
-      {/* Header */}
-      <div className="mb-8 pb-6 border-b border-gray-200">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">
-          Evaluación para Venta de Propiedad
-        </h1>
-        <p className="text-gray-600 mb-2">
-          Completa este formulario para brindarte una orientación precisa sobre la venta de tu propiedad.
-        </p>
-        <p className="text-gray-600">
-          Nos comunicaremos contigo lo antes posible. 📞✨
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-7">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#d4af37]">
+          Información de contacto
         </p>
       </div>
 
-      <form ref={formRef} onSubmit={handleSubmit} className="space-y-8">
-        {/* Nombre completo */}
-        <div>
-          <label htmlFor="nombre" className="block text-sm font-medium text-gray-700 mb-2">
-            Nombre completo <span className="text-red-500">*</span>
-          </label>
+      <div className="grid gap-5 md:grid-cols-2">
+        <Field label="Nombre completo" htmlFor="nombre" required>
           <input
-            type="text"
             id="nombre"
             name="nombre"
+            type="text"
             required
-            placeholder="Tu nombre"
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Tu nombre y apellido"
+            className="input-premium"
           />
-        </div>
+        </Field>
 
-        {/* Email */}
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-            Email <span className="text-red-500">*</span>
-          </label>
+        <Field label="Email" htmlFor="email" required>
           <input
-            type="email"
             id="email"
             name="email"
+            type="email"
             required
             placeholder="tu@email.com"
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="input-premium"
           />
-        </div>
+        </Field>
 
-        {/* Teléfono */}
-        <div>
-          <label htmlFor="telefono" className="block text-sm font-medium text-gray-700 mb-2">
-            Teléfono <span className="text-red-500">*</span>
-          </label>
+        <Field label="Teléfono" htmlFor="telefono" required>
           <input
-            type="tel"
             id="telefono"
             name="telefono"
+            type="tel"
             required
-            pattern="[0-9]{10}|[0-9]{3}-[0-9]{3}-[0-9]{4}|\([0-9]{3}\) [0-9]{3}-[0-9]{4}"
-            title="Por favor ingresa un número de teléfono válido (ej: 7871234567 o 787-123-4567)"
             placeholder="(787) 123-4567"
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="input-premium"
           />
-        </div>
+        </Field>
 
-        {/* Tipo Propiedad */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Tipo Propiedad <span className="text-red-500">*</span>
-          </label>
-          <div className="space-y-2">
-            {["Casa", "Apartamento", "Terreno", "Multifamiliar", "Propiedad Comercial"].map((option) => (
-              <label key={option} className="flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name="tipoPropiedad"
-                  value={option}
-                  required
-                  className="w-4 h-4"
-                />
-                <span className="ml-2 text-gray-700">{option}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* Ubicación de la Propiedad (Municipio) */}
-        <div>
-          <label htmlFor="ubicacion" className="block text-sm font-medium text-gray-700 mb-2">
-            Ubicación de la Propiedad
-          </label>
-          <select
-            id="ubicacion"
-            name="ubicacion"
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
+        <Field label="Municipio" htmlFor="ubicacion">
+          <select id="ubicacion" name="ubicacion" className="input-premium">
             <option value="">Selecciona un municipio</option>
             {municipiosPR.map((municipio) => (
               <option key={municipio} value={municipio}>
@@ -234,51 +189,123 @@ export default function FormularioVendedor() {
               </option>
             ))}
           </select>
+        </Field>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <ChoiceGroup
+          legend="Tipo de propiedad"
+          name="tipoPropiedad"
+          options={tiposPropiedad}
+          type="radio"
+          required
+        />
+
+        <ChoiceGroup
+          legend="¿Cuál es tu interés principal?"
+          name="razonVenta"
+          options={interesesPrincipales}
+          type="radio"
+          required
+        />
+      </div>
+
+      <Field label="Comentarios adicionales" htmlFor="comentarios">
+        <textarea
+          id="comentarios"
+          name="comentarios"
+          rows={5}
+          placeholder="Ejemplo: remodelaciones recientes, placas solares, generador, piscina, mejoras importantes, etc."
+          className="input-premium resize-none"
+        />
+      </Field>
+
+      {success && (
+        <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800">
+          Gracias. Tu solicitud fue enviada correctamente y nos comunicaremos pronto.
         </div>
+      )}
 
-        {/* ¿Por qué deseas vender? */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            ¿Por qué deseas vender? <span className="text-red-500">*</span>
-          </label>
-          <div className="space-y-2">
-            {["Mudanza", "Inversión", "Otro"].map((option) => (
-              <label key={option} className="flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name="razonVenta"
-                  value={option}
-                  required
-                  className="w-4 h-4"
-                />
-                <span className="ml-2 text-gray-700">{option}</span>
-              </label>
-            ))}
-          </div>
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+          {error}
         </div>
+      )}
 
-        {/* Mensajes de estado */}
-        {success && (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-md text-green-700">
-            ¡Gracias! Tu solicitud ha sido enviada correctamente. Nos pondremos en contacto pronto.
-          </div>
-        )}
+      <button
+        type="submit"
+        disabled={loading}
+        className="btn-primary w-full justify-center py-3.5 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {loading ? "Enviando..." : "Enviar solicitud"}
+      </button>
+    </form>
+  );
+}
 
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-md text-red-700">
-            {error}
-          </div>
-        )}
-
-        {/* Botón */}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full px-6 py-3 bg-[#d4af37] text-[#111111] font-semibold rounded-md transition hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? "Enviando..." : "Enviar solicitud"}
-        </button>
-      </form>
+function Field({
+  label,
+  htmlFor,
+  required,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <label htmlFor={htmlFor} className="text-sm font-semibold text-[#000000]">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      {children}
     </div>
+  );
+}
+
+function ChoiceGroup({
+  legend,
+  helper,
+  name,
+  options,
+  type,
+  required,
+  columns = "grid-cols-1",
+}: {
+  legend: string;
+  helper?: string;
+  name: string;
+  options: string[];
+  type: "radio" | "checkbox";
+  required?: boolean;
+  columns?: string;
+}) {
+  return (
+    <fieldset className="space-y-3">
+      <div>
+        <legend className="text-sm font-semibold text-[#000000]">
+          {legend} {required && <span className="text-red-500">*</span>}
+        </legend>
+        {helper && <p className="mt-1 text-sm text-[#4d4d4d]">{helper}</p>}
+      </div>
+      <div className={`grid gap-2 ${columns}`}>
+        {options.map((option) => (
+          <label
+            key={option}
+            className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-[#d9d9d9] bg-white px-4 py-2.5 text-sm text-[#333333] transition hover:border-[#11518b] hover:bg-[#f7fbff]"
+          >
+            <input
+              type={type}
+              name={name}
+              value={option}
+              required={required}
+              className="h-4 w-4 border-[#d9d9d9] accent-[#11518b]"
+            />
+            <span>{option}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }

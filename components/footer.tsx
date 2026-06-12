@@ -26,6 +26,7 @@ export default function Footer() {
               <Link
                 href="https://www.facebook.com/ericksonrealestatepr"
                 target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/85 transition hover:-translate-y-0.5 hover:border-[#d4af37] hover:text-[#d4af37]"
                 aria-label="Facebook"
               >
@@ -38,6 +39,7 @@ export default function Footer() {
               <Link
                 href="https://www.instagram.com/ivonnerealestatepr/"
                 target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/85 transition hover:-translate-y-0.5 hover:border-[#d4af37] hover:text-[#d4af37]"
                 aria-label="Instagram"
               >
@@ -50,6 +52,7 @@ export default function Footer() {
               <Link
                 href="https://wa.me/17876774900"
                 target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/85 transition hover:-translate-y-0.5 hover:border-[#d4af37] hover:text-[#d4af37]"
                 aria-label="WhatsApp"
               >

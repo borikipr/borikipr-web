@@ -18,7 +18,7 @@ export default function GaleriaPropiedad({
     () =>
       Array.isArray(imagenes) && imagenes.length > 0
         ? imagenes
-        : ["/placeholder.jpg"],
+        : ["/og-image.jpg"],
     [imagenes]
   );
 

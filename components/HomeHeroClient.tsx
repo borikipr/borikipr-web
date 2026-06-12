@@ -92,14 +92,14 @@ export default function HomeHeroClient({
 
       <div className="section-shell relative z-10 flex min-h-screen flex-col items-center justify-center pt-32 pb-24 lg:pt-40 lg:pb-32">
         <div className="max-w-4xl w-full">
-          <p className="eyebrow mb-5 text-center">Erickson Real Estate · Puerto Rico</p>
+          <p className="eyebrow mb-5 text-center !text-[1.35rem] sm:!text-[1.45rem]">Erickson Real Estate · Puerto Rico</p>
 
-          <h1 className="max-w-4xl text-4xl font-bold leading-[0.95] text-white sm:text-5xl md:text-7xl xl:text-[5.5rem] text-center mx-auto">
+          <h1 className="max-w-4xl text-[2rem] font-bold leading-[0.95] text-white sm:text-[2.625rem] md:text-[4rem] xl:text-[4.875rem] text-center mx-auto">
             Propiedades con estrategia, intención y presencia.
           </h1>
 
           <p className="mt-8 max-w-2xl text-lg leading-relaxed text-white/90 md:text-xl text-center mx-auto">
-            Compra, vende o invierte en Puerto Rico con guía clara, estrategia y confianza desde el inicio.
+            Compra, vende o invierte con guía clara, estrategia y confianza desde el inicio.
           </p>
 
           {/* Barra de búsqueda rectangular */}

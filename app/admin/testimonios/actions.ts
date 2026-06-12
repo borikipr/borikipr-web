@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { sql } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { getAdminSessionUser } from "@/lib/admin/auth";
 
 export type CreateTestimonioState = {
   error: string;
@@ -20,10 +21,19 @@ function parseOrden(value: string) {
   return Math.floor(num);
 }
 
+async function requireAdminSession() {
+  const user = await getAdminSessionUser();
+  if (!user) {
+    throw new Error("No autorizado.");
+  }
+}
+
 export async function createTestimonioAction(
   _prevState: CreateTestimonioState,
   formData: FormData
 ): Promise<CreateTestimonioState> {
+  await requireAdminSession();
+
   const nombre = String(formData.get("nombre") || "").trim();
   const texto = String(formData.get("texto") || "").trim();
   const ubicacion = String(formData.get("ubicacion") || "").trim();
@@ -90,6 +100,8 @@ export async function updateTestimonioAction(
   _prevState: UpdateTestimonioState,
   formData: FormData
 ): Promise<UpdateTestimonioState> {
+  await requireAdminSession();
+
   const id = String(formData.get("id") || "").trim();
   const nombre = String(formData.get("nombre") || "").trim();
   const texto = String(formData.get("texto") || "").trim();
@@ -151,6 +163,8 @@ export async function updateTestimonioAction(
 }
 
 export async function updateTestimonioActivoAction(formData: FormData) {
+  await requireAdminSession();
+
   const id = String(formData.get("id") || "").trim();
   const activo = String(formData.get("activo") || "").trim() === "true";
 
@@ -172,6 +186,8 @@ export async function updateTestimonioActivoAction(formData: FormData) {
 }
 
 export async function deleteTestimonioAction(formData: FormData) {
+  await requireAdminSession();
+
   const id = String(formData.get("id") || "").trim();
   const confirmacion = String(formData.get("confirmacion") || "").trim();
 
@@ -195,6 +211,8 @@ export async function deleteTestimonioAction(formData: FormData) {
   return { ok: true };
 }
 export async function toggleTestimonioDestacadoAction(formData: FormData) {
+  await requireAdminSession();
+
   const id = String(formData.get("id") || "").trim();
   const destacado = formData.get("destacado") === "true";
 
@@ -216,6 +234,8 @@ export async function toggleTestimonioDestacadoAction(formData: FormData) {
 }
 
 export async function getSiguienteOrdenAction() {
+  await requireAdminSession();
+
   const rows = await sql<{ max_orden: number }[]>`
     SELECT COALESCE(MAX(orden), -1) + 1 as max_orden
     FROM testimonios

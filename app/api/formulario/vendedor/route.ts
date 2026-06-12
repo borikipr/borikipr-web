@@ -1,9 +1,20 @@
 import { Resend } from "resend";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
+    const rateLimit = checkRateLimit({
+      key: `formulario-vendedor:${getClientIp(req)}`,
+      limit: 5,
+      windowMs: 10 * 60 * 1000,
+    });
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse();
+    }
+
     const body = await req.json();
 
     const nombre = String(body?.nombre || "").trim();
@@ -12,6 +23,7 @@ export async function POST(req: Request) {
     const tipoPropiedad = String(body?.tipoPropiedad || "").trim();
     const ubicacion = String(body?.ubicacion || "").trim();
     const razonVenta = String(body?.razonVenta || "").trim();
+    const comentarios = String(body?.comentarios || "").trim();
 
     // Validación
     if (!nombre || !email || !telefono) {
@@ -48,10 +60,10 @@ export async function POST(req: Request) {
         <div style="max-width: 640px; margin: 0 auto; border: 1px solid #e8e8e8; border-radius: 18px; overflow: hidden;">
           <div style="background: #11518b; padding: 20px 24px;">
             <h2 style="margin: 0; color: #d4af37; font-size: 22px;">
-              Nuevo Lead - Vendedor
+              Nueva solicitud de vendedor o arrendador
             </h2>
             <p style="margin: 6px 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">
-              Solicitud de orientación para vender
+              Orientación para vender o alquilar una propiedad
             </p>
           </div>
 
@@ -61,7 +73,14 @@ export async function POST(req: Request) {
             <p style="margin: 0 0 12px;"><strong>Teléfono:</strong> ${escapeHtml(telefono)}</p>
             <p style="margin: 0 0 12px;"><strong>Tipo de propiedad:</strong> ${escapeHtml(tipoPropiedad || "No especificado")}</p>
             <p style="margin: 0 0 12px;"><strong>Ubicación (Municipio):</strong> ${escapeHtml(ubicacion || "No especificado")}</p>
-            <p style="margin: 0 0 20px;"><strong>Razón de venta:</strong> ${escapeHtml(razonVenta || "No especificado")}</p>
+            <p style="margin: 0 0 20px;"><strong>Interés principal:</strong> ${escapeHtml(razonVenta || "No especificado")}</p>
+
+            ${comentarios ? `
+            <div style="border-top: 1px solid #ececec; padding-top: 20px;">
+              <p style="margin: 0 0 10px; font-weight: 700;">Comentarios adicionales:</p>
+              <p style="margin: 0; color: #4d4d4d; white-space: pre-line;">${escapeHtml(comentarios)}</p>
+            </div>
+            ` : ''}
           </div>
 
           <div style="background: #f8f8f8; padding: 20px 24px; border-top: 1px solid #e8e8e8;">
@@ -77,7 +96,7 @@ export async function POST(req: Request) {
       from: `Erickson Real Estate <${fromEmail}>`,
       to: [toEmail],
       replyTo: email,
-      subject: `Nuevo Lead - Vendedor: ${nombre}`,
+      subject: `Nueva solicitud de vendedor o arrendador`,
       html,
     });
 

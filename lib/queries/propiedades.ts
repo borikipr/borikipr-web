@@ -24,6 +24,11 @@ export type PropiedadQueryRow = {
   destacado: boolean;
   imagenes: string[];
   origen_listado: "propio" | "co_broke" | "externo";
+  configuracion_formulario?: Record<string, unknown> | null;
+  requiere_precalificacion?: boolean | null;
+  fecha_showing?: string | Date | null;
+  pregunta_personalizada?: string | null;
+  formulario_showing_activo?: boolean;
 };
 
 export type PropiedadHomeDestacada = {
@@ -40,6 +45,11 @@ export type PropiedadHomeDestacada = {
   destacado: boolean;
   imagenes: string[];
   origen_listado: "propio" | "co_broke" | "externo";
+  configuracion_formulario?: Record<string, unknown> | null;
+  requiere_precalificacion?: boolean | null;
+  fecha_showing?: string | Date | null;
+  pregunta_personalizada?: string | null;
+  formulario_showing_activo?: boolean;
 };
 
 export async function getPropiedadesDestacadas(limit = 3) {
@@ -57,6 +67,11 @@ export async function getPropiedadesDestacadas(limit = 3) {
       p.estado,
       p.destacado,
       p.origen_listado,
+      p.configuracion_formulario,
+      p.requiere_precalificacion,
+      p.fecha_showing,
+      p.pregunta_personalizada,
+      p.formulario_showing_activo,
       COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'
@@ -92,6 +107,11 @@ export async function getPropiedades() {
       p.estado,
       p.destacado,
       p.origen_listado,
+      p.configuracion_formulario,
+      p.requiere_precalificacion,
+      p.fecha_showing,
+      p.pregunta_personalizada,
+      p.formulario_showing_activo,
       COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'
@@ -125,6 +145,11 @@ export async function getPropiedadBySlug(slug: string) {
       p.estado,
       p.destacado,
       p.origen_listado,
+      p.configuracion_formulario,
+      p.requiere_precalificacion,
+      p.fecha_showing,
+      p.pregunta_personalizada,
+      p.formulario_showing_activo,
       COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'
@@ -164,6 +189,11 @@ export async function getPropiedadesSimilares(
       p.estado,
       p.destacado,
       p.origen_listado,
+      p.configuracion_formulario,
+      p.requiere_precalificacion,
+      p.fecha_showing,
+      p.pregunta_personalizada,
+      p.formulario_showing_activo,
       COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'
@@ -199,11 +229,94 @@ export type PropiedadesPaginadas = {
   totalItems: number;
 };
 
+export type PropiedadesFiltros = {
+  q?: string;
+  tipoNegocio?: "" | TipoNegocio;
+  municipio?: string;
+  tipoPropiedad?: string[];
+  precioMin?: string;
+  precioMax?: string;
+  habitaciones?: string;
+  banos?: string;
+  estado?: "" | EstadoPropiedad;
+  orden?: "" | "precio-asc" | "precio-desc" | "municipio-asc" | "municipio-desc";
+};
+
+function parseNumericFilter(value: string | undefined) {
+  if (!value) return null;
+  const parsed = Number(value.replace("+", ""));
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
 export async function getPropiedadesPaginadas(
   page: number = 1,
-  itemsPerPage: number = 12
+  itemsPerPage: number = 12,
+  filtros: PropiedadesFiltros = {}
 ) {
   const offset = (page - 1) * itemsPerPage;
+  const q = filtros.q?.trim();
+  const qLike = q ? `%${q}%` : null;
+  const precioMin = parseNumericFilter(filtros.precioMin);
+  const precioMax = parseNumericFilter(filtros.precioMax);
+  const habitaciones = parseNumericFilter(filtros.habitaciones);
+  const banos = parseNumericFilter(filtros.banos);
+  const tipoPropiedad = filtros.tipoPropiedad?.filter(Boolean) ?? [];
+
+  const conditions = [
+    filtros.estado
+      ? sql`p.estado = ${filtros.estado}`
+      : sql`p.estado IN ('disponible', 'bajo_contrato')`,
+    sql`(p.origen_listado = 'propio' OR p.permiso_publicar_web = true)`,
+  ];
+
+  if (qLike) {
+    conditions.push(sql`(
+      p.titulo ILIKE ${qLike}
+      OR p.descripcion ILIKE ${qLike}
+      OR p.municipio ILIKE ${qLike}
+      OR p.tipo_propiedad ILIKE ${qLike}
+    )`);
+  }
+
+  if (filtros.tipoNegocio) {
+    conditions.push(sql`p.tipo_negocio = ${filtros.tipoNegocio}`);
+  }
+
+  if (filtros.municipio?.trim()) {
+    conditions.push(sql`p.municipio = ${filtros.municipio.trim()}`);
+  }
+
+  if (tipoPropiedad.length > 0) {
+    conditions.push(sql`p.tipo_propiedad IN ${sql(tipoPropiedad)}`);
+  }
+
+  if (precioMin !== null) {
+    conditions.push(sql`p.precio >= ${precioMin}`);
+  }
+
+  if (precioMax !== null) {
+    conditions.push(sql`p.precio <= ${precioMax}`);
+  }
+
+  if (habitaciones !== null) {
+    conditions.push(sql`p.habitaciones >= ${habitaciones}`);
+  }
+
+  if (banos !== null) {
+    conditions.push(sql`p.banos >= ${banos}`);
+  }
+
+  const whereClause = conditions.reduce((acc, condition) => sql`${acc} AND ${condition}`);
+  const orderClause =
+    filtros.orden === "precio-asc"
+      ? sql`p.precio ASC, p.created_at DESC`
+      : filtros.orden === "precio-desc"
+        ? sql`p.precio DESC, p.created_at DESC`
+        : filtros.orden === "municipio-asc"
+          ? sql`p.municipio ASC, p.created_at DESC`
+          : filtros.orden === "municipio-desc"
+            ? sql`p.municipio DESC, p.created_at DESC`
+            : sql`p.created_at DESC`;
 
   const rows = await sql<PropiedadQueryRow[]>`
     SELECT
@@ -222,21 +335,27 @@ export async function getPropiedadesPaginadas(
       p.estado,
       p.destacado,
       p.origen_listado,
+      p.configuracion_formulario,
+      p.requiere_precalificacion,
+      p.fecha_showing,
+      p.pregunta_personalizada,
+      p.formulario_showing_activo,
       COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'
       ) AS imagenes
     FROM propiedades p
     LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
-    WHERE p.estado IN ('disponible', 'bajo_contrato')
-      AND (p.origen_listado = 'propio' OR p.permiso_publicar_web = true)
+    WHERE ${whereClause}
     GROUP BY p.id
-    ORDER BY p.created_at DESC
+    ORDER BY ${orderClause}
     LIMIT ${itemsPerPage} OFFSET ${offset}
   `;
 
   const countResult = await sql<{ total: number }[]>`
-    SELECT COUNT(DISTINCT p.id) as total FROM propiedades p WHERE p.estado IN ('disponible', 'bajo_contrato') AND (p.origen_listado = 'propio' OR p.permiso_publicar_web = true)
+    SELECT COUNT(DISTINCT p.id) as total
+    FROM propiedades p
+    WHERE ${whereClause}
   `;
 
   const totalItems = countResult[0]?.total || 0;

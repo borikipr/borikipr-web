@@ -7,6 +7,7 @@ export default function WhatsAppButton() {
     <Link
       href="https://wa.me/17876774900"
       target="_blank"
+      rel="noopener noreferrer"
       aria-label="Escribir por WhatsApp"
       className="fixed bottom-6 right-6 z-50 inline-flex items-center gap-3 rounded-full bg-[#11518b] px-5 py-3 text-white shadow-lg transition hover:bg-[#0d406d] hover:shadow-xl"
     >

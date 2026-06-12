@@ -203,6 +203,7 @@ export default async function AdminPropiedadesPage({
                           <Link
                             href={`/listados/${item.slug}`}
                             target="_blank"
+                            rel="noopener noreferrer"
                             className="text-sm font-medium text-[#11518b] hover:text-[#0d406d]"
                           >
                             Ver web

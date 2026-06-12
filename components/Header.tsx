@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 
 type HeaderProps = {
   transparent?: boolean;
 };
 
 export default function Header({ transparent = false }: HeaderProps) {
+  const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -33,6 +35,23 @@ export default function Header({ transparent = false }: HeaderProps) {
   const mobileButtonStyle = isTransparent
     ? "border-white/30 bg-black/10 text-white backdrop-blur-sm"
     : "border-[#d9d9d9] bg-white text-[#11518b]";
+  const logoNavigationDisabled = [
+    "/contact/compradores-arrendatarios",
+    "/contact/perfil-comprador",
+    "/contact/vendedor-arrendador",
+  ].includes(pathname);
+
+  const logoImage = (
+    <Image
+      src="/logo-erickson.png"
+      alt="Ivonne Erickson Real Estate"
+      width={180}
+      height={60}
+      priority
+      style={{ width: "auto", height: "auto" }}
+      className="w-[160px] sm:w-[165px] lg:w-[180px]"
+    />
+  );
 
   return (
     <>
@@ -65,6 +84,7 @@ export default function Header({ transparent = false }: HeaderProps) {
               <Link
                 href="https://wa.me/17876774900"
                 target="_blank"
+                rel="noopener noreferrer"
                 className="font-medium text-white transition hover:text-[#d4af37]"
               >
                 WhatsApp: (787) 677-4900
@@ -75,17 +95,15 @@ export default function Header({ transparent = false }: HeaderProps) {
 
         <div className="section-shell">
           <div className="flex h-[84px] items-center justify-between">
-            <Link href="/" className="shrink-0">
-              <Image
-                src="/logo-erickson.png"
-                alt="Ivonne Erickson Real Estate"
-                width={180}
-                height={60}
-                priority
-                style={{ width: "auto", height: "auto" }}
-                className="w-[160px] sm:w-[165px] lg:w-[180px]"
-              />
-            </Link>
+            {logoNavigationDisabled ? (
+              <div className="shrink-0 cursor-default" aria-label="Ivonne Erickson Real Estate">
+                {logoImage}
+              </div>
+            ) : (
+              <Link href="/" className="shrink-0">
+                {logoImage}
+              </Link>
+            )}
 
             <nav
               className={`hidden items-center gap-6 text-sm font-medium lg:flex xl:gap-8 ${desktopText}`}
@@ -232,6 +250,7 @@ export default function Header({ transparent = false }: HeaderProps) {
           <Link
             href="https://wa.me/17876774900"
             target="_blank"
+            rel="noopener noreferrer"
             onClick={() => setMenuOpen(false)}
             className="btn-secondary mt-6 justify-center"
           >

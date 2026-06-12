@@ -7,7 +7,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { buscarSugerencias } from "@/data/zonas";
 import {
-  filtrarPropiedades,
   formatoPrecio,
   estadoClasses,
   estadoLabel,
@@ -95,20 +94,28 @@ function ordenLabel(orden: Orden) {
 function PaginationControls({
   currentPage,
   totalPages,
+  queryString,
 }: {
   currentPage: number;
   totalPages: number;
+  queryString: string;
 }) {
   const pages = [];
   for (let i = 1; i <= totalPages; i++) {
     pages.push(i);
   }
 
+  const pageHref = (page: number) => {
+    const params = new URLSearchParams(queryString);
+    params.set("page", String(page));
+    return `/listados?${params.toString()}`;
+  };
+
   return (
     <div className="flex items-center justify-center gap-2">
       {currentPage > 1 && (
         <Link
-          href={`/listados?page=${currentPage - 1}`}
+          href={pageHref(currentPage - 1)}
           className="rounded-lg border border-[#d9d9d9] px-4 py-2 text-sm font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
         >
           Anterior
@@ -118,7 +125,7 @@ function PaginationControls({
       {pages.map((page) => (
         <Link
           key={page}
-          href={`/listados?page=${page}`}
+          href={pageHref(page)}
           className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
             page === currentPage
               ? "bg-[#11518b] text-white"
@@ -131,7 +138,7 @@ function PaginationControls({
 
       {currentPage < totalPages && (
         <Link
-          href={`/listados?page=${currentPage + 1}`}
+          href={pageHref(currentPage + 1)}
           className="rounded-lg border border-[#d9d9d9] px-4 py-2 text-sm font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
         >
           Siguiente
@@ -400,7 +407,7 @@ export default function ListadosClient({
         imagenes:
           Array.isArray(p.imagenes) && p.imagenes.length > 0
             ? p.imagenes
-            : ["/placeholder.jpg"],
+            : ["/og-image.jpg"],
         origenListado: p.origen_listado || "propio",
         origen_listado: p.origen_listado || "propio",
         permiso_publicar_web: p.permiso_publicar_web || false,
@@ -409,30 +416,7 @@ export default function ListadosClient({
     [propiedades]
   );
 
-  const propiedadesFiltradas = useMemo(() => {
-    return filtrarPropiedades(propiedadesNormalizadas, {
-      q,
-      tipoNegocio,
-      municipio,
-      tipoPropiedad,
-      precioMin,
-      precioMax,
-      habitaciones,
-      banos,
-      orden,
-    });
-  }, [
-    propiedadesNormalizadas,
-    q,
-    tipoNegocio,
-    municipio,
-    tipoPropiedad,
-    precioMin,
-    precioMax,
-    habitaciones,
-    banos,
-    orden,
-  ]);
+  const propiedadesFiltradas = propiedadesNormalizadas;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const activeChips = useMemo<ActiveChip[]>(() => {
@@ -837,8 +821,8 @@ export default function ListadosClient({
         <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-sm text-[#4d4d4d]">
-              {propiedadesFiltradas.length} resultado
-              {propiedadesFiltradas.length !== 1 ? "s" : ""}
+              {paginationData.totalItems} resultado
+              {paginationData.totalItems !== 1 ? "s" : ""}
             </p>
           </div>
 
@@ -877,7 +861,7 @@ export default function ListadosClient({
               <a
                 href="https://wa.me/17876774900"
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="btn-secondary px-8 py-3"
               >
                 Escribir por WhatsApp
@@ -894,7 +878,7 @@ export default function ListadosClient({
                 >
                   <div className="relative h-72 w-full bg-[#f5f5f5]">
                     {(() => {
-                      const src = propiedad.imagenes[0] || "/placeholder.jpg";
+                      const src = propiedad.imagenes[0] || "/og-image.jpg";
                       const esVideo = /\.(mp4|webm|mov)(\?|$)/i.test(src) || src.includes("/videos/");
                       if (esVideo) {
                         return (
@@ -1013,6 +997,7 @@ export default function ListadosClient({
               <PaginationControls
                 currentPage={paginationData.currentPage}
                 totalPages={paginationData.totalPages}
+                queryString={searchParams.toString()}
               />
             </div>
           </>

@@ -33,8 +33,12 @@ function FiltroButton({
 }
 
 function TestimonioCard({ item }: { item: TestimonioPublico }) {
+  const [expanded, setExpanded] = useState(false);
+  const initialClampClass = item.destacado ? "line-clamp-6" : "line-clamp-3";
+  const canExpand = item.texto.length > (item.destacado ? 260 : 150);
+
   return (
-    <article className="overflow-hidden rounded-[2rem] border border-[#e8e8e8] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+    <article className="flex h-full flex-col overflow-hidden rounded-[2rem] border border-[#e8e8e8] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md">
       <div className="relative h-80 w-full bg-[#f5f5f5]">
         <Image
           src={item.imagen}
@@ -53,7 +57,7 @@ function TestimonioCard({ item }: { item: TestimonioPublico }) {
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="flex flex-1 flex-col p-8">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
           {item.tipo === "comprador" ? "Comprador" : "Vendedor"}
         </p>
@@ -62,11 +66,28 @@ function TestimonioCard({ item }: { item: TestimonioPublico }) {
           {item.titulo || item.nombre}
         </h3>
 
-        <p className="mt-5 text-lg leading-relaxed text-[#4d4d4d] line-clamp-5">
+        <p
+          id={`testimonio-texto-${item.id}`}
+          className={`mt-5 text-lg leading-relaxed text-[#4d4d4d] ${
+            expanded ? "" : initialClampClass
+          }`}
+        >
           &quot;{item.texto}&quot;
         </p>
 
-        <div className="mt-6 border-t border-[#efefef] pt-5">
+        {canExpand && (
+          <button
+            type="button"
+            onClick={() => setExpanded((current) => !current)}
+            aria-expanded={expanded}
+            aria-controls={`testimonio-texto-${item.id}`}
+            className="mt-4 self-start text-sm font-semibold text-[#11518b] transition hover:text-[#0d406d]"
+          >
+            {expanded ? "Leer menos" : "Leer más"}
+          </button>
+        )}
+
+        <div className="mt-auto border-t border-[#efefef] pt-5">
           <p className="font-semibold text-[#000000]">{item.nombre}</p>
           <p className="mt-1 text-sm text-[#4d4d4d]">
             {item.tipo === "comprador" ? "Comprador" : "Vendedor"} · {item.lugar}
@@ -154,7 +175,7 @@ export default function TestimoniosClientPage({
             <p className="body-lg mt-8 max-w-3xl">
               Cada proceso inmobiliario tiene una historia. Estas experiencias
               reflejan el acompañamiento, la estrategia y la claridad con la que
-              Ivonne guía a sus clientes en Puerto Rico.
+              Ivonne guía a sus clientes.
             </p>
           </div>
 
@@ -219,7 +240,7 @@ export default function TestimoniosClientPage({
         <section className="bg-[#11518b] py-24 text-white">
           <div className="section-shell">
             <div className="max-w-3xl">
-              <p className="eyebrow text-white/90">¿Quieres vivir una experiencia similar?</p>
+              <p className="eyebrow text-white/90">¿Te gustaría vivir una experiencia similar?</p>
 
               <h2 className="mt-4 text-3xl font-bold leading-tight text-white md:text-4xl">
                 Conversemos sobre tu próxima decisión inmobiliaria en Puerto Rico
@@ -227,7 +248,7 @@ export default function TestimoniosClientPage({
 
               <p className="body-lg mt-6 !text-white">
                 Cada cliente merece una orientación clara, una estrategia sólida
-                y una experiencia profesional desde el primer contacto.
+                y un acompañamiento profesional desde el primer contacto.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-4">
@@ -235,7 +256,10 @@ export default function TestimoniosClientPage({
                   Contactar a Ivonne
                 </Link>
 
-                <Link href="/listados" className="border-2 border-white px-8 py-4 text-sm font-bold uppercase tracking-widest text-white transition hover:bg-white hover:text-[#11518b]">
+                <Link
+                  href="/listados"
+                  className="inline-flex items-center justify-center rounded-full border-2 border-[#d4af37] bg-transparent px-8 py-4 text-sm font-bold tracking-normal text-[#d4af37] transition hover:bg-[#d4af37] hover:text-[#111111] focus:outline-none focus:ring-2 focus:ring-[#d4af37] focus:ring-offset-2 focus:ring-offset-[#11518b]"
+                >
                   Ver propiedades
                 </Link>
               </div>

@@ -1,9 +1,20 @@
 import { Resend } from "resend";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
+    const rateLimit = checkRateLimit({
+      key: `contact:${getClientIp(req)}`,
+      limit: 5,
+      windowMs: 10 * 60 * 1000,
+    });
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse();
+    }
+
     const body = await req.json();
 
     const name = String(body?.name || "").trim();

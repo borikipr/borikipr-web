@@ -39,6 +39,15 @@ export type AdminPropiedadDetalle = {
   permiso_publicar_web: boolean;
   permiso_usar_fotos: boolean;
   notas_internas?: string;
+  configuracion_formulario?: Record<string, unknown> | null;
+  tiene_placas_solares?: boolean | null;
+  cantidad_placas?: number | null;
+  placas_en_lease?: boolean | null;
+  requiere_precalificacion?: boolean | null;
+  acepta_cdbg?: boolean | null;
+  fecha_showing?: string | null;
+  pregunta_personalizada?: string | null;
+  formulario_showing_activo: boolean;
 };
 
 export type AdminDashboardStats = {
@@ -128,6 +137,15 @@ export async function getAdminPropiedadById(id: string) {
       p.permiso_publicar_web,
       p.permiso_usar_fotos,
       p.notas_internas,
+      p.configuracion_formulario,
+      p.tiene_placas_solares,
+      p.cantidad_placas,
+      p.placas_en_lease,
+      p.requiere_precalificacion,
+      p.acepta_cdbg,
+      p.fecha_showing,
+      p.pregunta_personalizada,
+      p.formulario_showing_activo,
       COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'

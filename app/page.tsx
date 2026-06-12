@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Header from "@/components/Header";
 import Image from "next/image";
 import Link from "next/link";
@@ -5,8 +6,18 @@ import HomeHeroClient from "@/components/HomeHeroClient";
 import {
   getPropiedades,
   getPropiedadesDestacadas,
+  type PropiedadHomeDestacada,
 } from "@/lib/queries/propiedades";
-import { getTestimoniosPublicos } from "@/lib/queries/testimonios";
+import { getTestimoniosPublicos, type TestimonioPublico } from "@/lib/queries/testimonios";
+
+export const metadata: Metadata = {
+  title: "Erickson Real Estate | Bienes Raices en Puerto Rico",
+  description:
+    "Compra, vende o invierte en Puerto Rico con orientacion clara, estrategia y acompanamiento profesional.",
+  alternates: {
+    canonical: "/",
+  },
+};
 
 type TipoNegocio = "venta" | "renta";
 type EstadoPropiedad =
@@ -53,42 +64,61 @@ function estadoClasses(estado: EstadoPropiedad) {
 const zonasHome = [
   {
     nombre: "Metropolitana",
-    descripcion: "San Juan, Guaynabo, Carolina, Bayamón",
+    descripcion: "San Juan, Guaynabo, Carolina, Bayamón y más.",
     icon: "🏙️",
   },
   {
     nombre: "Norte",
-    descripcion: "Dorado, Arecibo, Manatí, Vega Baja",
+    descripcion: "Dorado, Arecibo, Manatí, Vega Baja y más.",
     icon: "🌊",
   },
   {
     nombre: "Sur",
-    descripcion: "Ponce, Guayama, Salinas, Coamo",
+    descripcion: "Ponce, Guayama, Salinas, Coamo y más.",
     icon: "☀️",
   },
   {
     nombre: "Este",
-    descripcion: "Fajardo, Río Grande, Luquillo, Vieques",
+    descripcion: "Fajardo, Río Grande, Luquillo, Vieques y más.",
     icon: "🌴",
   },
   {
     nombre: "Oeste",
-    descripcion: "Mayagüez, Cabo Rojo, Rincón, Isabela",
+    descripcion: "Mayagüez, Cabo Rojo, Rincón, Isabela y más.",
     icon: "🌅",
   },
   {
     nombre: "Central",
-    descripcion: "Cayey, Aibonito, Barranquitas, Orocovis",
+    descripcion: "Cayey, Aibonito, Barranquitas, Orocovis y más.",
     icon: "⛰️",
   },
 ];
 
 export default async function Home() {
-  const rows = (await getPropiedades()) as unknown as { id: string }[];
+  let rows: { id: string }[] = [];
+  let destacadas: PropiedadHomeDestacada[] = [];
+  let allTestimonios: TestimonioPublico[] = [];
+
+  try {
+    rows = (await getPropiedades()) as unknown as { id: string }[];
+  } catch (error) {
+    console.warn("HOME WARNING: no se pudo cargar el total de propiedades.", error);
+  }
+
+  try {
+    destacadas = await getPropiedadesDestacadas(3);
+  } catch (error) {
+    console.warn("HOME WARNING: no se pudieron cargar propiedades destacadas.", error);
+  }
+
+  try {
+    allTestimonios = await getTestimoniosPublicos();
+  } catch (error) {
+    console.warn("HOME WARNING: no se pudieron cargar testimonios.", error);
+  }
+
   const totalPropiedades = rows.length;
 
-  const destacadas = await getPropiedadesDestacadas(3);
-  const allTestimonios = await getTestimoniosPublicos();
   const testimoniosDestacados = allTestimonios
     .filter((t) => t.destacado)
     .slice(0, 3);
@@ -115,7 +145,7 @@ export default async function Home() {
               </h2>
 
               <p className="body-lg mt-6">
-                Más que un servicio inmobiliario, una experiencia guiada con estrategia, transparencia y atención real en cada paso del proceso.
+                Más que un servicio inmobiliario, es una experiencia guiada con estrategia, transparencia y acompañamiento real para que tomes decisiones seguras en cada etapa del proceso.
               </p>
             </div>
 
@@ -140,7 +170,7 @@ export default async function Home() {
                   Estrategia de mercado
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
-                  Análisis profundo del mercado para posicionar tu propiedad con inteligencia, precisión y ventaja competitiva.
+                  Conocimiento actualizado del mercado para ayudarte a tomar decisiones informadas y aprovechar las mejores oportunidades.
                 </p>
               </div>
 
@@ -152,7 +182,7 @@ export default async function Home() {
                   Presentación premium
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
-                  Fotografía profesional, narrativa visual cuidada y marketing que eleva el valor percibido de cada propiedad.
+                  Presentación profesional y estrategias de mercadeo diseñadas para destacar el potencial de cada propiedad.
                 </p>
               </div>
 
@@ -164,7 +194,7 @@ export default async function Home() {
                   Acompañamiento completo
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
-                  Acompañamiento claro y constante desde la primera conversación hasta el cierre exitoso.
+                  Acompañamiento cercano y constante desde la primera conversación hasta el cierre del proceso.
                 </p>
               </div>
             </div>
@@ -176,14 +206,14 @@ export default async function Home() {
           <div className="section-shell">
             <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
               <div className="max-w-3xl">
-                <p className="eyebrow">Propiedades destacadas</p>
+                <p className="eyebrow">Nuevos listados</p>
 
                 <h2 className="heading-section mt-4">
-                  Propiedades seleccionadas por valor, presentación y potencial.
+                  Conoce los nuevos listados disponibles.
                 </h2>
 
                 <p className="body-lg mt-6 max-w-2xl">
-                  Explora propiedades en venta y alquiler en Puerto Rico con información clara, fotografía cuidada y una experiencia visual más premium.
+                  Descubre propiedades recientemente incorporadas al mercado en venta y alquiler. Explora nuevas oportunidades con información clara y actualizada para ayudarte a tomar decisiones con confianza.
                 </p>
               </div>
 
@@ -201,18 +231,17 @@ export default async function Home() {
                     Próximamente
                   </p>
                   <h3 className="mt-4 text-2xl font-bold text-[#000000]">
-                    Nuevas propiedades premium en camino
+                    Muy pronto habrá nuevos listados disponibles
                   </h3>
                   <p className="mt-4 max-w-lg mx-auto text-[#4d4d4d] leading-relaxed">
-                    Pronto podrás explorar oportunidades reales con mejor
-                    presentación, detalles claros y acceso rápido a cada listing.
+                    Esta sección se actualizará regularmente con nuevas propiedades en venta y alquiler. Vuelve pronto para descubrir las oportunidades más recientes disponibles.
                   </p>
                   <div className="mt-8 flex flex-wrap gap-4 justify-center">
                     <Link href="/listados" className="btn-primary">
-                      Explorar listados
+                      Ver todos los listados
                     </Link>
                     <Link href="/contact" className="btn-secondary">
-                      Solicitar orientación
+                      Contactar a Ivonne
                     </Link>
                   </div>
                 </div>
@@ -222,7 +251,7 @@ export default async function Home() {
                     const imagenPrincipal =
                       Array.isArray(item.imagenes) && item.imagenes.length > 0
                         ? item.imagenes[0]
-                        : "/placeholder.jpg";
+                        : "/og-image.jpg";
 
                     return (
                       <article
@@ -311,7 +340,7 @@ export default async function Home() {
               </h2>
 
               <p className="body-lg mt-6">
-                Desde la zona metropolitana hasta las costas y montañas, conectamos contigo oportunidades inmobiliarias en cada región de Puerto Rico con claridad y enfoque.
+                Desde la zona metropolitana hasta las costas y montañas, conectamos contigo oportunidades inmobiliarias en cada región de Puerto Rico.
               </p>
             </div>
 
@@ -370,7 +399,7 @@ export default async function Home() {
                     className="rounded-2xl border border-[#e8e8e8] bg-white p-8 shadow-sm transition-all duration-300 hover:shadow-lg"
                   >
                     <div className="flex items-center gap-4 mb-6">
-                      {testimonio.imagen && testimonio.imagen !== "/placeholder.jpg" ? (
+                      {testimonio.imagen && testimonio.imagen !== "/og-image.jpg" ? (
                         <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-full">
                           <Image
                             src={testimonio.imagen}
@@ -428,13 +457,13 @@ export default async function Home() {
                   </h2>
 
                   <p className="mt-6 text-lg leading-relaxed text-white/85">
-                    Cuéntanos qué estás buscando y te ayudamos a construir el camino correcto con claridad, estrategia y acompañamiento profesional.
+                    Ya sea que estés comprando, vendiendo o invirtiendo, estoy aquí para brindarte una atención personalizada, estrátegica y enfocada en tus objetivos, y ayudarte a tomar decisiones con confianza.
                   </p>
                 </div>
 
                 <div className="flex flex-wrap gap-4">
                   <Link href="/contact" className="btn-gold">
-                    Contactar ahora
+                    Solicitar orientación
                   </Link>
 
                   <Link

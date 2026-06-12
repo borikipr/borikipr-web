@@ -32,6 +32,15 @@ type EditarPropiedadFormProps = {
     permiso_publicar_web: boolean;
     permiso_usar_fotos: boolean;
     notas_internas?: string;
+    configuracion_formulario?: Record<string, unknown> | null;
+    tiene_placas_solares?: boolean | null;
+    cantidad_placas?: number | null;
+    placas_en_lease?: boolean | null;
+    requiere_precalificacion?: boolean | null;
+    acepta_cdbg?: boolean | null;
+    fecha_showing?: string | null;
+    pregunta_personalizada?: string | null;
+    formulario_showing_activo: boolean;
   };
 };
 
@@ -49,6 +58,20 @@ export default function EditarPropiedadForm({
   const [imagenesValue, setImagenesValue] = useState(propiedad.imagenes.join(", "));
   const [destacado, setDestacado] = useState(propiedad.destacado);
   const [origenListado, setOrigenListado] = useState<"propio" | "co_broke" | "externo">(propiedad.origen_listado);
+  const [showingActivo, setShowingActivo] = useState(propiedad.formulario_showing_activo);
+  const [tienePlacas, setTienePlacas] = useState(Boolean(propiedad.tiene_placas_solares));
+
+  const fechaShowing = propiedad.fecha_showing ? new Date(propiedad.fecha_showing) : null;
+  const fechaShowingValue = fechaShowing && !Number.isNaN(fechaShowing.getTime())
+    ? fechaShowing.toISOString().slice(0, 10)
+    : "";
+  const horaShowingValue = fechaShowing && !Number.isNaN(fechaShowing.getTime())
+    ? fechaShowing.toTimeString().slice(0, 5)
+    : "";
+  const notasCompradores =
+    typeof propiedad.configuracion_formulario?.notas_compradores === "string"
+      ? propiedad.configuracion_formulario.notas_compradores
+      : "";
 
   const imagenesPreview = useMemo(
     () =>
@@ -483,6 +506,158 @@ export default function EditarPropiedadForm({
               </div>
             </div>
           )}
+
+          <div className="space-y-6 rounded-2xl border border-[#11518b]/20 bg-[#f7fbff] p-6">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#11518b]">
+                Formulario de showing/open house
+              </p>
+              <p className="mt-2 text-sm text-[#4d4d4d]">
+                Activalo solo cuando haya una fecha y hora confirmada para recibir perfiles de compradores.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                id="formulario_showing_activo"
+                type="checkbox"
+                name="formulario_showing_activo"
+                checked={showingActivo}
+                onChange={(e) => setShowingActivo(e.target.checked)}
+                className="h-4 w-4 rounded border-[#d9d9d9] accent-[#11518b]"
+              />
+              <label htmlFor="formulario_showing_activo" className="text-sm font-medium text-[#000000]">
+                Activar formulario para showing/open house
+              </label>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+              <div className="space-y-2">
+                <label htmlFor="fecha_showing_fecha" className="text-sm font-medium text-[#000000]">
+                  Fecha del showing/open house
+                </label>
+                <input
+                  id="fecha_showing_fecha"
+                  name="fecha_showing_fecha"
+                  type="date"
+                  defaultValue={fechaShowingValue}
+                  className="input-premium"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="fecha_showing_hora" className="text-sm font-medium text-[#000000]">
+                  Hora del showing/open house
+                </label>
+                <input
+                  id="fecha_showing_hora"
+                  name="fecha_showing_hora"
+                  type="time"
+                  defaultValue={horaShowingValue}
+                  className="input-premium"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-7">
+                <input
+                  id="requiere_precalificacion"
+                  name="requiere_precalificacion"
+                  type="checkbox"
+                  defaultChecked={Boolean(propiedad.requiere_precalificacion)}
+                  className="h-4 w-4 rounded border-[#d9d9d9] accent-[#11518b]"
+                />
+                <label htmlFor="requiere_precalificacion" className="text-sm text-[#4d4d4d]">
+                  Requiere carta de preaprobacion
+                </label>
+              </div>
+
+              <div className="flex items-center gap-3 pt-7">
+                <input
+                  id="acepta_cdbg"
+                  name="acepta_cdbg"
+                  type="checkbox"
+                  defaultChecked={Boolean(propiedad.acepta_cdbg)}
+                  className="h-4 w-4 rounded border-[#d9d9d9] accent-[#11518b]"
+                />
+                <label htmlFor="acepta_cdbg" className="text-sm text-[#4d4d4d]">
+                  Acepta CDBG
+                </label>
+              </div>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-3">
+              <div className="flex items-center gap-3">
+                <input
+                  id="tiene_placas_solares"
+                  name="tiene_placas_solares"
+                  type="checkbox"
+                  checked={tienePlacas}
+                  onChange={(e) => setTienePlacas(e.target.checked)}
+                  className="h-4 w-4 rounded border-[#d9d9d9] accent-[#11518b]"
+                />
+                <label htmlFor="tiene_placas_solares" className="text-sm text-[#4d4d4d]">
+                  Tiene placas solares
+                </label>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="cantidad_placas" className="text-sm font-medium text-[#000000]">
+                  Cantidad de placas
+                </label>
+                <input
+                  id="cantidad_placas"
+                  name="cantidad_placas"
+                  type="number"
+                  min="0"
+                  defaultValue={propiedad.cantidad_placas ?? 0}
+                  disabled={!tienePlacas}
+                  className="input-premium disabled:bg-[#eeeeee]"
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  id="placas_en_lease"
+                  name="placas_en_lease"
+                  type="checkbox"
+                  defaultChecked={Boolean(propiedad.placas_en_lease)}
+                  disabled={!tienePlacas}
+                  className="h-4 w-4 rounded border-[#d9d9d9] accent-[#11518b] disabled:opacity-50"
+                />
+                <label htmlFor="placas_en_lease" className="text-sm text-[#4d4d4d]">
+                  Sistema de placas en lease
+                </label>
+              </div>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <label htmlFor="pregunta_personalizada" className="text-sm font-medium text-[#000000]">
+                  Pregunta personalizada
+                </label>
+                <textarea
+                  id="pregunta_personalizada"
+                  name="pregunta_personalizada"
+                  rows={3}
+                  defaultValue={propiedad.pregunta_personalizada || ""}
+                  className="input-premium"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="notas_compradores" className="text-sm font-medium text-[#000000]">
+                  Nota adicional para compradores
+                </label>
+                <textarea
+                  id="notas_compradores"
+                  name="notas_compradores"
+                  rows={3}
+                  defaultValue={notasCompradores}
+                  className="input-premium"
+                />
+              </div>
+            </div>
+          </div>
 
           <div className="space-y-3">
             <label htmlFor="imagenes" className="text-sm font-medium text-[#000000]">

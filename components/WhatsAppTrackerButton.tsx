@@ -40,6 +40,7 @@ export default function WhatsAppTrackerButton({
     <Link
       href={url}
       target="_blank"
+      rel="noopener noreferrer"
       onClick={handleClick}
       className={className}
     >

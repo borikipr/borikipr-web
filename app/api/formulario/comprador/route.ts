@@ -1,17 +1,28 @@
 import { Resend } from "resend";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
+    const rateLimit = checkRateLimit({
+      key: `formulario-comprador:${getClientIp(req)}`,
+      limit: 5,
+      windowMs: 10 * 60 * 1000,
+    });
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse();
+    }
+
     const body = await req.json();
 
     const nombre = String(body?.nombre || "").trim();
     const email = String(body?.email || "").trim().toLowerCase();
     const telefono = String(body?.telefono || "").trim();
+    const interesPrincipal = String(body?.interesPrincipal || "").trim();
+    const cualificacionCompra = String(body?.cualificacionCompra || "").trim();
     const presupuesto = String(body?.presupuesto || "").trim();
-    const metodoCompra = String(body?.metodoCompra || "").trim();
-    const preAprobado = String(body?.preAprobado || "").trim();
     const municipios = String(body?.municipios || "").trim();
     const tipoPropiedad = Array.isArray(body?.tipoPropiedad)
       ? body.tipoPropiedad.join(", ")
@@ -47,10 +58,10 @@ export async function POST(req: Request) {
         <div style="max-width: 640px; margin: 0 auto; border: 1px solid #e8e8e8; border-radius: 18px; overflow: hidden;">
           <div style="background: #11518b; padding: 20px 24px;">
             <h2 style="margin: 0; color: #d4af37; font-size: 22px;">
-              Nuevo Lead - Comprador
+              Nuevo registro de comprador o arrendatario
             </h2>
             <p style="margin: 6px 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">
-              Solicitud de orientación para comprar
+              Registro de comprador o arrendatario activo
             </p>
           </div>
 
@@ -58,9 +69,11 @@ export async function POST(req: Request) {
             <p style="margin: 0 0 12px;"><strong>Nombre:</strong> ${escapeHtml(nombre)}</p>
             <p style="margin: 0 0 12px;"><strong>Email:</strong> ${escapeHtml(email || "No provisto")}</p>
             <p style="margin: 0 0 12px;"><strong>Teléfono:</strong> ${escapeHtml(telefono)}</p>
-            <p style="margin: 0 0 12px;"><strong>Presupuesto:</strong> ${escapeHtml(presupuesto || "No especificado")}</p>
-            <p style="margin: 0 0 12px;"><strong>Método de compra:</strong> ${escapeHtml(metodoCompra || "No especificado")}</p>
-            <p style="margin: 0 0 12px;"><strong>Pre-aprobado:</strong> ${escapeHtml(preAprobado || "No especificado")}</p>
+            <p style="margin: 0 0 12px;"><strong>Interés principal:</strong> ${escapeHtml(interesPrincipal || "No especificado")}</p>
+            ${interesPrincipal === "Comprar" ? `
+              <p style="margin: 0 0 12px;"><strong>Cualificación para compra:</strong> ${escapeHtml(cualificacionCompra || "No especificado")}</p>
+            ` : ""}
+            <p style="margin: 0 0 12px;"><strong>Presupuesto de compra o alquiler:</strong> ${escapeHtml(presupuesto || "No especificado")}</p>
             <p style="margin: 0 0 12px;"><strong>Municipios de interés:</strong> ${escapeHtml(municipios || "No especificado")}</p>
             <p style="margin: 0 0 12px;"><strong>Tipo de propiedad:</strong> ${escapeHtml(tipoPropiedad || "No especificado")}</p>
             <p style="margin: 0 0 12px;"><strong>Habitaciones:</strong> ${escapeHtml(habitaciones || "No especificado")}</p>
@@ -87,7 +100,7 @@ export async function POST(req: Request) {
       from: `Erickson Real Estate <${fromEmail}>`,
       to: [toEmail],
       replyTo: email || undefined,
-      subject: `Nuevo Lead - Comprador: ${nombre}`,
+      subject: `Nuevo registro de comprador o arrendatario: ${nombre}`,
       html,
     });
 

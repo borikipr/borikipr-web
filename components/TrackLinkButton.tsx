@@ -44,6 +44,7 @@ export default function TrackLinkButton({
     <Link
       href={href}
       target={target}
+      rel={target === "_blank" ? "noopener noreferrer" : undefined}
       onClick={handleClick}
       className={className}
     >

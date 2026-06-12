@@ -39,6 +39,8 @@ type PropiedadDB = {
   corredor_colaborador_nombre?: string;
   corredor_colaborador_empresa?: string;
   enlace_original?: string;
+  formulario_showing_activo?: boolean;
+  fecha_showing?: string | Date | null;
 };
 
 function formatoPrecio(precio: number, tipo: TipoNegocio) {
@@ -78,7 +80,7 @@ function estadoClasses(estado: EstadoPropiedad) {
 
 function buildAbsoluteImageUrl(imageUrl: string) {
   if (!imageUrl) {
-    return "https://borikipr.com/placeholder.jpg";
+    return "https://borikipr.com/og-image.jpg";
   }
 
   if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
@@ -123,7 +125,7 @@ export async function generateMetadata({
   const imagen =
     Array.isArray(row.imagenes) && row.imagenes.length > 0
       ? buildAbsoluteImageUrl(row.imagenes[0])
-      : "https://borikipr.com/placeholder.jpg";
+      : "https://borikipr.com/og-image.jpg";
 
   const url = `https://borikipr.com/listados/${row.slug}`;
 
@@ -200,11 +202,13 @@ export default async function DetallePropiedadPage({
     imagenes:
       Array.isArray(row.imagenes) && row.imagenes.length > 0
         ? row.imagenes
-        : ["/placeholder.jpg"],
+        : ["/og-image.jpg"],
     origenListado: row.origen_listado,
     corredorColaboradorNombre: row.corredor_colaborador_nombre,
     corredorColaboradorEmpresa: row.corredor_colaborador_empresa,
     enlaceOriginal: row.enlace_original,
+    formularioShowingActivo: row.formulario_showing_activo,
+    fechaShowing: row.fecha_showing,
   };
 
   const propiedadUrl = `https://borikipr.com/listados/${propiedad.slug}`;
@@ -396,6 +400,15 @@ ${propiedadUrl}`
                     >
                       Escribir por WhatsApp
                     </WhatsAppTrackerButton>
+
+                    {propiedad.formularioShowingActivo && propiedad.fechaShowing && (
+                      <Link
+                        href={`/listados/${propiedad.slug}/perfil-comprador`}
+                        className="inline-flex w-full items-center justify-center rounded-full border border-[#d4af37] px-6 py-3 text-sm font-semibold text-[#111111] transition hover:bg-[#d4af37]"
+                      >
+                        Completar perfil para showing
+                      </Link>
+                    )}
                   </div>
                   <div className="mt-6 border-t border-[#dddddd] pt-6 text-sm text-[#4d4d4d]">
                     <p className="font-semibold text-[#000000]">
@@ -450,7 +463,7 @@ ${propiedadUrl}`
                   const imagenPrincipal =
                     Array.isArray(item.imagenes) && item.imagenes.length > 0
                       ? item.imagenes[0]
-                      : "/placeholder.jpg";
+                      : "/og-image.jpg";
 
                   return (
                     <article

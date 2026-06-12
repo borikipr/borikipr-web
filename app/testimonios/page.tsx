@@ -1,5 +1,15 @@
+import type { Metadata } from "next";
 import TestimoniosClientPage from "./TestimoniosClientPage";
 import { getTestimoniosPublicosPaginados } from "@/lib/queries/testimonios";
+
+export const metadata: Metadata = {
+  title: "Testimonios | Erickson Real Estate",
+  description:
+    "Lee experiencias de clientes que han recibido orientacion inmobiliaria clara, estrategia y acompanamiento profesional con Ivonne Erickson.",
+  alternates: {
+    canonical: "/testimonios",
+  },
+};
 
 export default async function TestimoniosPage({
   searchParams,

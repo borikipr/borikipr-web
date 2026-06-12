@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { sql } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { municipiosPR } from "@/data/municipios";
+import { getAdminSessionUser } from "@/lib/admin/auth";
 
 export type CreatePropiedadState = {
   error: string;
@@ -44,10 +45,24 @@ function normalizeSlug(value: string) {
     .replace(/^-|-$/g, "");
 }
 
+function buildShowingDateTime(dateValue: string, timeValue: string) {
+  if (!dateValue || !timeValue) return null;
+  return `${dateValue} ${timeValue}:00`;
+}
+
+async function requireAdminSession() {
+  const user = await getAdminSessionUser();
+  if (!user) {
+    throw new Error("No autorizado.");
+  }
+}
+
 export async function createPropiedadAction(
   _prevState: CreatePropiedadState,
   formData: FormData
 ): Promise<CreatePropiedadState> {
+  await requireAdminSession();
+
   const slugRaw = String(formData.get("slug") || "");
   const titulo = String(formData.get("titulo") || "").trim();
   const descripcion = String(formData.get("descripcion") || "").trim();
@@ -72,6 +87,18 @@ export async function createPropiedadAction(
   const permisoPublicar = formData.get("permiso_publicar_web") === "on";
   const permisoFotos = formData.get("permiso_usar_fotos") === "on";
   const notasInternas = String(formData.get("notas_internas") || "").trim();
+  const formularioShowingActivo = formData.get("formulario_showing_activo") === "on";
+  const fechaShowing = buildShowingDateTime(
+    String(formData.get("fecha_showing_fecha") || "").trim(),
+    String(formData.get("fecha_showing_hora") || "").trim()
+  );
+  const requierePrecalificacion = formData.get("requiere_precalificacion") === "on";
+  const preguntaPersonalizada = String(formData.get("pregunta_personalizada") || "").trim();
+  const tienePlacasSolares = formData.get("tiene_placas_solares") === "on";
+  const cantidadPlacas = parsePositiveNumber(String(formData.get("cantidad_placas") || "0").trim() || "0");
+  const placasEnLease = formData.get("placas_en_lease") === "on";
+  const aceptaCdbg = formData.get("acepta_cdbg") === "on";
+  const notasCompradores = String(formData.get("notas_compradores") || "").trim();
 
   const slug = normalizeSlug(slugRaw);
 
@@ -120,6 +147,14 @@ export async function createPropiedadAction(
 
   if (precio === null) {
     return { error: "El precio debe ser un número válido." };
+  }
+
+  if (cantidadPlacas === null) {
+    return { error: "La cantidad de placas debe ser un numero valido." };
+  }
+
+  if (formularioShowingActivo && !fechaShowing) {
+    return { error: "Indica fecha y hora para activar el formulario de showing." };
   }
 
   if (
@@ -175,7 +210,16 @@ export async function createPropiedadAction(
         enlace_original,
         permiso_publicar_web,
         permiso_usar_fotos,
-        notas_internas
+        notas_internas,
+        formulario_showing_activo,
+        fecha_showing,
+        requiere_precalificacion,
+        pregunta_personalizada,
+        tiene_placas_solares,
+        cantidad_placas,
+        placas_en_lease,
+        acepta_cdbg,
+        configuracion_formulario
       ) VALUES (
         ${slug},
         ${titulo},
@@ -197,7 +241,16 @@ export async function createPropiedadAction(
         ${enlaceOriginal || null},
         ${permisoPublicar},
         ${permisoFotos},
-        ${notasInternas || null}
+        ${notasInternas || null},
+        ${formularioShowingActivo},
+        ${fechaShowing},
+        ${requierePrecalificacion},
+        ${preguntaPersonalizada || null},
+        ${tienePlacasSolares},
+        ${cantidadPlacas},
+        ${placasEnLease},
+        ${aceptaCdbg},
+        ${sql.json({ notas_compradores: notasCompradores })}
       )
       RETURNING id
     `;
@@ -231,6 +284,8 @@ export async function updatePropiedadAction(
   _prevState: UpdatePropiedadState,
   formData: FormData
 ): Promise<UpdatePropiedadState> {
+  await requireAdminSession();
+
   const id = String(formData.get("id") || "").trim();
   const slugRaw = String(formData.get("slug") || "");
   const titulo = String(formData.get("titulo") || "").trim();
@@ -256,6 +311,18 @@ export async function updatePropiedadAction(
   const permisoPublicar = formData.get("permiso_publicar_web") === "on";
   const permisoFotos = formData.get("permiso_usar_fotos") === "on";
   const notasInternas = String(formData.get("notas_internas") || "").trim();
+  const formularioShowingActivo = formData.get("formulario_showing_activo") === "on";
+  const fechaShowing = buildShowingDateTime(
+    String(formData.get("fecha_showing_fecha") || "").trim(),
+    String(formData.get("fecha_showing_hora") || "").trim()
+  );
+  const requierePrecalificacion = formData.get("requiere_precalificacion") === "on";
+  const preguntaPersonalizada = String(formData.get("pregunta_personalizada") || "").trim();
+  const tienePlacasSolares = formData.get("tiene_placas_solares") === "on";
+  const cantidadPlacas = parsePositiveNumber(String(formData.get("cantidad_placas") || "0").trim() || "0");
+  const placasEnLease = formData.get("placas_en_lease") === "on";
+  const aceptaCdbg = formData.get("acepta_cdbg") === "on";
+  const notasCompradores = String(formData.get("notas_compradores") || "").trim();
 
   if (!id) {
     return { error: "No se encontró la propiedad a editar." };
@@ -308,6 +375,14 @@ export async function updatePropiedadAction(
 
   if (precio === null) {
     return { error: "El precio debe ser un número válido." };
+  }
+
+  if (cantidadPlacas === null) {
+    return { error: "La cantidad de placas debe ser un numero valido." };
+  }
+
+  if (formularioShowingActivo && !fechaShowing) {
+    return { error: "Indica fecha y hora para activar el formulario de showing." };
   }
 
   if (
@@ -363,7 +438,16 @@ export async function updatePropiedadAction(
         enlace_original = ${enlaceOriginal || null},
         permiso_publicar_web = ${permisoPublicar},
         permiso_usar_fotos = ${permisoFotos},
-        notas_internas = ${notasInternas || null}
+        notas_internas = ${notasInternas || null},
+        formulario_showing_activo = ${formularioShowingActivo},
+        fecha_showing = ${fechaShowing},
+        requiere_precalificacion = ${requierePrecalificacion},
+        pregunta_personalizada = ${preguntaPersonalizada || null},
+        tiene_placas_solares = ${tienePlacasSolares},
+        cantidad_placas = ${cantidadPlacas},
+        placas_en_lease = ${placasEnLease},
+        acepta_cdbg = ${aceptaCdbg},
+        configuracion_formulario = ${sql.json({ notas_compradores: notasCompradores })}
       WHERE id = ${id}
       RETURNING id
     `;
@@ -399,6 +483,8 @@ export async function updatePropiedadAction(
 }
 
 export async function updatePropiedadEstadoAction(formData: FormData) {
+  await requireAdminSession();
+
   const id = String(formData.get("id") || "").trim();
   const estado = String(formData.get("estado") || "").trim();
 
@@ -424,6 +510,8 @@ export async function updatePropiedadEstadoAction(formData: FormData) {
 }
 
 export async function deletePropiedadAction(formData: FormData) {
+  await requireAdminSession();
+
   const id = String(formData.get("id") || "").trim();
   const confirmacion = String(formData.get("confirmacion") || "").trim();
 
@@ -448,6 +536,8 @@ export async function deletePropiedadAction(formData: FormData) {
 }
 
 export async function toggleDestacadoAction(formData: FormData) {
+  await requireAdminSession();
+
   const id = String(formData.get("id") || "").trim();
   const destacado = formData.get("destacado") === "true";
 

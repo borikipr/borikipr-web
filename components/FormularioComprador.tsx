@@ -1,11 +1,31 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
+
+const tiposPropiedad = [
+  "Casa",
+  "Apartamento",
+  "Condominio",
+  "Terreno",
+  "Propiedad comercial",
+];
+
+const habitaciones = ["1", "2", "3", "4+"];
+const banos = ["1", "2", "3+"];
+const interesesPrincipales = ["Comprar", "Alquilar"];
+const cualificacionCompra = [
+  "Cuento con carta de precalificación o preaprobación vigente.",
+  "Estoy en proceso de obtener mi carta de precalificación.",
+  "Aún no he iniciado el proceso con una institución financiera.",
+  "La compra sería en efectivo.",
+  "Otro método o programa de ayuda.",
+];
 
 export default function FormularioComprador() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [interesPrincipal, setInteresPrincipal] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -16,21 +36,19 @@ export default function FormularioComprador() {
 
     const form = formRef.current!;
     const formData = new FormData(form);
-    
-    // Obtener checkboxes de tipo de propiedad
-    const tiposPropiedad = Array.from(
+    const tiposSeleccionados = Array.from(
       form.querySelectorAll('input[name="tipoPropiedad"]:checked')
     ).map((el) => (el as HTMLInputElement).value);
 
     const data = {
       nombre: formData.get("nombre"),
-      email: formData.get("email"),
       telefono: formData.get("telefono"),
-      presupuesto: formData.get("presupuesto"),
-      metodoCompra: formData.get("metodoCompra"),
-      preAprobado: formData.get("preAprobado"),
+      email: formData.get("email"),
+      interesPrincipal: formData.get("interesPrincipal"),
+      cualificacionCompra: formData.get("cualificacionCompra"),
       municipios: formData.get("municipios"),
-      tipoPropiedad: tiposPropiedad,
+      tipoPropiedad: tiposSeleccionados,
+      presupuesto: formData.get("presupuesto"),
       habitaciones: formData.get("habitaciones"),
       banos: formData.get("banos"),
       comentarios: formData.get("comentarios"),
@@ -49,6 +67,7 @@ export default function FormularioComprador() {
       }
 
       setSuccess(true);
+      setInteresPrincipal("");
       formRef.current?.reset();
       setTimeout(() => setSuccess(false), 5000);
     } catch (err) {
@@ -59,238 +78,214 @@ export default function FormularioComprador() {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-6">
-      {/* Header */}
-      <div className="mb-8 pb-6 border-b border-gray-200">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">
-          Solicitud de Compra de Propiedad
-        </h1>
-        <p className="text-gray-600 mb-2">
-          Bienvenido 👋
-        </p>
-        <p className="text-gray-600 mb-2">
-          Completa este formulario para ayudarte a encontrar la propiedad ideal según tus necesidades.
-        </p>
-        <p className="text-gray-600">
-          Toma menos de 2 minutos ✨
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-7">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#d4af37]">
+          Información de contacto
         </p>
       </div>
 
-      <form ref={formRef} onSubmit={handleSubmit} className="space-y-8">
-        {/* Nombre Completo */}
-        <div>
-          <label htmlFor="nombre" className="block text-sm font-medium text-gray-700 mb-2">
-            Nombre Completo <span className="text-red-500">*</span>
-          </label>
+      <div className="grid gap-5 md:grid-cols-2">
+        <Field label="Nombre completo" htmlFor="nombre" required>
           <input
-            type="text"
             id="nombre"
             name="nombre"
+            type="text"
             required
-            placeholder="Tu nombre"
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Tu nombre y apellido"
+            className="input-premium"
           />
-        </div>
+        </Field>
 
-        {/* Email */}
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-            Email
-          </label>
+        <Field label="Teléfono" htmlFor="telefono" required>
           <input
-            type="email"
-            id="email"
-            name="email"
-            required
-            placeholder="tu@email.com"
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        {/* Teléfono */}
-        <div>
-          <label htmlFor="telefono" className="block text-sm font-medium text-gray-700 mb-2">
-            Teléfono <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="tel"
             id="telefono"
             name="telefono"
+            type="tel"
             required
-            pattern="[0-9]{10}|[0-9]{3}-[0-9]{3}-[0-9]{4}|\([0-9]{3}\) [0-9]{3}-[0-9]{4}"
-            title="Por favor ingresa un número de teléfono válido (ej: 7871234567 o 787-123-4567)"
             placeholder="(787) 123-4567"
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="input-premium"
           />
-        </div>
+        </Field>
+      </div>
 
-        {/* Presupuesto aproximado */}
-        <div>
-          <label htmlFor="presupuesto" className="block text-sm font-medium text-gray-700 mb-2">
-            Presupuesto aproximado 💰 <span className="text-red-500">*</span>
-          </label>
+      <div className="grid gap-5 md:grid-cols-2">
+        <Field label="Email" htmlFor="email">
           <input
-            type="text"
-            id="presupuesto"
-            name="presupuesto"
-            required
-            placeholder="$200,000 - $500,000"
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            id="email"
+            name="email"
+            type="email"
+            placeholder="tu@email.com"
+            className="input-premium"
           />
-        </div>
+        </Field>
 
-        {/* Método de compra */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Método de compra <span className="text-red-500">*</span>
-          </label>
-          <div className="space-y-2">
-            {["Financiamiento", "Cash", "R3 o CDBG"].map((option) => (
-              <label key={option} className="flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name="metodoCompra"
-                  value={option}
-                  required
-                  className="w-4 h-4"
-                />
-                <span className="ml-2 text-gray-700">{option}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* ¿Estás pre-aprobado? */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            ¿Estás pre-aprobado por un banco?
-          </label>
-          <div className="space-y-2">
-            {["Sí", "No", "En Proceso"].map((option) => (
-              <label key={option} className="flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name="preAprobado"
-                  value={option}
-                  className="w-4 h-4"
-                />
-                <span className="ml-2 text-gray-700">{option}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* Municipios de interés */}
-        <div>
-          <label htmlFor="municipios" className="block text-sm font-medium text-gray-700 mb-2">
-            Municipios de interés <span className="text-red-500">*</span>
-          </label>
+        <Field label="Municipio o zona de interés" htmlFor="municipios" required>
           <input
-            type="text"
             id="municipios"
             name="municipios"
+            type="text"
             required
-            placeholder="Ej: San Juan, Dorado, Guaynabo"
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Ej: Guaynabo, Dorado, San Juan"
+            className="input-premium"
           />
-        </div>
+        </Field>
+      </div>
 
-        {/* Tipo de Propiedad */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Tipo de Propiedad <span className="text-red-500">*</span>
-          </label>
-          <div className="space-y-2">
-            {["Casa", "Apartamento", "Terreno", "Propiedad Comercial"].map((option) => (
-              <label key={option} className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  name="tipoPropiedad"
-                  value={option}
-                  className="w-4 h-4"
-                />
-                <span className="ml-2 text-gray-700">{option}</span>
-              </label>
-            ))}
-          </div>
-        </div>
+      <ChoiceGroup
+        legend="¿Cuál es tu interés principal?"
+        name="interesPrincipal"
+        options={interesesPrincipales}
+        type="radio"
+        required
+        columns="sm:grid-cols-2"
+        value={interesPrincipal}
+        onChange={setInteresPrincipal}
+      />
 
-        {/* Habitaciones deseadas */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Habitaciones deseadas
-          </label>
-          <div className="space-y-2">
-            {["1", "2", "3", "4+"].map((option) => (
-              <label key={option} className="flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name="habitaciones"
-                  value={option}
-                  className="w-4 h-4"
-                />
-                <span className="ml-2 text-gray-700">{option}</span>
-              </label>
-            ))}
-          </div>
-        </div>
+      {interesPrincipal === "Comprar" && (
+        <ChoiceGroup
+          legend="¿Cómo se encuentra cualificado(a) actualmente para la compra?"
+          name="cualificacionCompra"
+          options={cualificacionCompra}
+          type="radio"
+          required
+        />
+      )}
 
-        {/* Baños deseados */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Baños deseados
-          </label>
-          <div className="space-y-2">
-            {["1", "2", "3+"].map((option) => (
-              <label key={option} className="flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name="banos"
-                  value={option}
-                  className="w-4 h-4"
-                />
-                <span className="ml-2 text-gray-700">{option}</span>
-              </label>
-            ))}
-          </div>
-        </div>
+      <ChoiceGroup
+        legend="Tipo de propiedad de interés"
+        name="tipoPropiedad"
+        options={tiposPropiedad}
+        type="checkbox"
+        columns="sm:grid-cols-2"
+      />
 
-        {/* Comentarios adicionales */}
-        <div>
-          <label htmlFor="comentarios" className="block text-sm font-medium text-gray-700 mb-2">
-            Comentarios adicionales
-          </label>
-          <textarea
-            id="comentarios"
-            name="comentarios"
-            rows={4}
-            placeholder="Cuéntanos más sobre lo que buscas..."
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+      <div className="grid gap-5 md:grid-cols-2">
+        <Field label="Presupuesto aproximado de compra o alquiler" htmlFor="presupuesto" required>
+          <input
+            id="presupuesto"
+            name="presupuesto"
+            type="text"
+            required
+            placeholder="$250,000 - $450,000"
+            className="input-premium"
           />
+        </Field>
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <ChoiceGroup
+          legend="Habitaciones deseadas"
+          name="habitaciones"
+          options={habitaciones}
+          type="radio"
+        />
+        <ChoiceGroup
+          legend="Baños deseados"
+          name="banos"
+          options={banos}
+          type="radio"
+        />
+      </div>
+
+      <Field label="Comentarios adicionales" htmlFor="comentarios">
+        <textarea
+          id="comentarios"
+          name="comentarios"
+          rows={5}
+          placeholder="Comparte cualquier detalle importante sobre ubicación, estilo de vida, financiamiento o preferencias."
+          className="input-premium resize-none"
+        />
+      </Field>
+
+      {success && (
+        <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800">
+          Gracias. Tu solicitud fue enviada correctamente y nos comunicaremos pronto.
         </div>
+      )}
 
-        {/* Mensajes de estado */}
-        {success && (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-md text-green-700">
-            ¡Gracias! Tu solicitud ha sido enviada correctamente. Nos pondremos en contacto pronto.
-          </div>
-        )}
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+          {error}
+        </div>
+      )}
 
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-md text-red-700">
-            {error}
-          </div>
-        )}
+      <button
+        type="submit"
+        disabled={loading}
+        className="btn-primary w-full justify-center py-3.5 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {loading ? "Enviando..." : "Enviar solicitud"}
+      </button>
+    </form>
+  );
+}
 
-        {/* Botón */}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full px-6 py-3 bg-[#d4af37] text-[#111111] font-semibold rounded-md transition hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? "Enviando..." : "Enviar solicitud"}
-        </button>
-      </form>
+function Field({
+  label,
+  htmlFor,
+  required,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <label htmlFor={htmlFor} className="text-sm font-semibold text-[#000000]">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      {children}
     </div>
+  );
+}
+
+function ChoiceGroup({
+  legend,
+  name,
+  options,
+  type,
+  required,
+  columns = "grid-cols-1",
+  value,
+  onChange,
+}: {
+  legend: string;
+  name: string;
+  options: string[];
+  type: "radio" | "checkbox";
+  required?: boolean;
+  columns?: string;
+  value?: string;
+  onChange?: (value: string) => void;
+}) {
+  return (
+    <fieldset className="space-y-3">
+      <legend className="text-sm font-semibold text-[#000000]">
+        {legend} {required && <span className="text-red-500">*</span>}
+      </legend>
+      <div className={`grid gap-2 ${columns}`}>
+        {options.map((option) => (
+          <label
+            key={option}
+            className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-[#d9d9d9] bg-white px-4 py-2.5 text-sm text-[#333333] transition hover:border-[#11518b] hover:bg-[#f7fbff]"
+          >
+            <input
+              type={type}
+              name={name}
+              value={option}
+              required={required}
+              checked={type === "radio" && value !== undefined ? value === option : undefined}
+              onChange={onChange ? () => onChange(option) : undefined}
+              className="h-4 w-4 border-[#d9d9d9] text-[#11518b] accent-[#11518b]"
+            />
+            <span>{option}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }

@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { getPropiedades } from "@/lib/queries/propiedades";
+import { getPropiedades, type PropiedadQueryRow } from "@/lib/queries/propiedades";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://borikipr.com";
@@ -37,7 +37,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  const propiedades = await getPropiedades();
+  let propiedades: PropiedadQueryRow[] = [];
+
+  try {
+    propiedades = await getPropiedades();
+  } catch (error) {
+    console.warn(
+      "SITEMAP WARNING: no se pudieron cargar las propiedades; se usaran solo rutas estaticas.",
+      error
+    );
+  }
 
   const propiedadesPages: MetadataRoute.Sitemap = propiedades.map((item) => ({
     url: `${baseUrl}/listados/${item.slug}`,

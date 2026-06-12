@@ -40,6 +40,7 @@ export default async function EditarPropiedadPage({
             <Link
               href={`/listados/${propiedad.slug}`}
               target="_blank"
+              rel="noopener noreferrer"
               className="btn-secondary"
             >
               Ver web

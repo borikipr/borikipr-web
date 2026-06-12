@@ -19,6 +19,7 @@ export default function NuevaPropiedadPage() {
   const [imagenesValue, setImagenesValue] = useState("");
   const [destacado, setDestacado] = useState(false);
   const [origenListado, setOrigenListado] = useState<"propio" | "co_broke" | "externo">("propio");
+  const [showingActivo, setShowingActivo] = useState(false);
 
   const imagenesPreview = useMemo(
     () =>
@@ -481,6 +482,99 @@ export default function NuevaPropiedadPage() {
                   </div>
                 </div>
               )}
+
+              <div className="space-y-6 rounded-2xl border border-[#11518b]/20 bg-[#f7fbff] p-6">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#11518b]">
+                    Formulario de showing/open house
+                  </p>
+                  <p className="mt-2 text-sm text-[#4d4d4d]">
+                    Actívalo solo cuando haya una fecha y hora confirmada para recibir perfiles de compradores.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    id="formulario_showing_activo"
+                    type="checkbox"
+                    name="formulario_showing_activo"
+                    checked={showingActivo}
+                    onChange={(e) => setShowingActivo(e.target.checked)}
+                    className="h-4 w-4 rounded border-[#d9d9d9] accent-[#11518b]"
+                  />
+                  <label htmlFor="formulario_showing_activo" className="text-sm font-medium text-[#000000]">
+                    Activar formulario para showing/open house
+                  </label>
+                </div>
+
+                {showingActivo && (
+                  <div className="space-y-6">
+                    <div className="grid gap-6 md:grid-cols-3">
+                      <div className="space-y-2">
+                        <label htmlFor="fecha_showing_fecha" className="text-sm font-medium text-[#000000]">
+                          Fecha del showing/open house
+                        </label>
+                        <input
+                          id="fecha_showing_fecha"
+                          name="fecha_showing_fecha"
+                          type="date"
+                          className="input-premium"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label htmlFor="fecha_showing_hora" className="text-sm font-medium text-[#000000]">
+                          Hora del showing/open house
+                        </label>
+                        <input
+                          id="fecha_showing_hora"
+                          name="fecha_showing_hora"
+                          type="time"
+                          className="input-premium"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-3 pt-7">
+                        <input
+                          id="requiere_precalificacion"
+                          name="requiere_precalificacion"
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-[#d9d9d9] accent-[#11518b]"
+                        />
+                        <label htmlFor="requiere_precalificacion" className="text-sm text-[#4d4d4d]">
+                          Requiere carta de preaprobación
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-6 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <label htmlFor="pregunta_personalizada" className="text-sm font-medium text-[#000000]">
+                          Pregunta personalizada
+                        </label>
+                        <textarea
+                          id="pregunta_personalizada"
+                          name="pregunta_personalizada"
+                          rows={3}
+                          className="input-premium"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label htmlFor="notas_compradores" className="text-sm font-medium text-[#000000]">
+                          Notas adicionales para compradores
+                        </label>
+                        <textarea
+                          id="notas_compradores"
+                          name="notas_compradores"
+                          rows={3}
+                          className="input-premium"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <div className="space-y-3">
                 <label
