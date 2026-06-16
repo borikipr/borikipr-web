@@ -41,16 +41,36 @@ export default function Header({ transparent = false }: HeaderProps) {
     "/contact/vendedor-arrendador",
   ].includes(pathname);
 
+  const logoClass = isTransparent
+    ? "w-[166px] sm:w-[205px] lg:w-[190px]"
+    : "w-[166px] sm:w-[205px] lg:w-[190px]";
+  const logoSizes = "(min-width: 1024px) 190px, (min-width: 640px) 205px, 166px";
   const logoImage = (
-    <Image
-      src="/logo-erickson.png"
-      alt="Ivonne Erickson Real Estate"
-      width={180}
-      height={60}
-      priority
-      style={{ width: "auto", height: "auto" }}
-      className="w-[136px] sm:w-[165px] lg:w-[180px]"
-    />
+    <span className={`relative block ${logoClass}`}>
+      <Image
+        src="/logo-erickson.png"
+        alt="Ivonne Erickson Real Estate"
+        width={180}
+        height={60}
+        priority
+        sizes={logoSizes}
+        className={`h-auto w-full transition-opacity duration-300 ${
+          isTransparent ? "opacity-0" : "opacity-100"
+        }`}
+      />
+      <Image
+        src="/logo-erickson-light.png"
+        alt=""
+        aria-hidden="true"
+        width={180}
+        height={60}
+        priority
+        sizes={logoSizes}
+        className={`absolute inset-0 h-auto w-full transition-opacity duration-300 ${
+          isTransparent ? "opacity-100" : "opacity-0"
+        }`}
+      />
+    </span>
   );
 
   return (
@@ -58,7 +78,7 @@ export default function Header({ transparent = false }: HeaderProps) {
       <header
         className={`fixed left-0 top-0 z-50 w-full transition-all duration-300 ${
           isTransparent
-            ? "bg-transparent"
+            ? "bg-gradient-to-b from-black/60 via-black/30 to-transparent"
             : "border-b border-[#e8e8e8] bg-white/95 backdrop-blur-md"
         }`}
       >
@@ -96,7 +116,10 @@ export default function Header({ transparent = false }: HeaderProps) {
         <div className="section-shell">
           <div className="flex h-[84px] items-center justify-between">
             {logoNavigationDisabled ? (
-              <div className="shrink-0 cursor-default" aria-label="Ivonne Erickson Real Estate">
+              <div
+                className="shrink-0 cursor-default"
+                aria-label="Ivonne Erickson Real Estate"
+              >
                 {logoImage}
               </div>
             ) : (

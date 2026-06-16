@@ -449,7 +449,7 @@ export default async function Home() {
               <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
                 <div className="max-w-3xl">
                   <p className="text-sm font-semibold uppercase tracking-[0.25em] text-[#d4af37]">
-                    Próximo paso
+                    Comencemos
                   </p>
 
                   <h2 className="mt-4 text-4xl font-bold leading-tight md:text-5xl">

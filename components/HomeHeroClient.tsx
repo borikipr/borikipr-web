@@ -79,7 +79,7 @@ export default function HomeHeroClient({
     <section className="relative min-h-screen overflow-hidden">
       <div className="absolute inset-0">
         <Image
-          src="/hero-luxurypr.jpg"
+          src="/hero-new-image.png"
           alt="Residencia de lujo en Puerto Rico"
           fill
           priority
@@ -87,46 +87,41 @@ export default function HomeHeroClient({
         />
       </div>
 
-      <div className="absolute inset-0 bg-black/45" />
-      <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/20 to-black/30" />
+      <div className="absolute inset-0 bg-black/50" />
 
       <div className="section-shell relative z-10 flex min-h-screen flex-col items-center justify-center pt-32 pb-24 lg:pt-40 lg:pb-32">
-        <div className="max-w-4xl w-full">
-          <p className="eyebrow mb-5 text-center !leading-tight sm:!text-[1.8rem] sm:!leading-normal sm:!tracking-[0.25em]">
-            <span className="block !text-[1.28rem] !tracking-[0.08em] sm:hidden">
+        <div className="w-full max-w-[calc(100vw-2.5rem)] sm:max-w-4xl">
+          <p className="eyebrow mb-6 text-center !leading-tight sm:mb-7 sm:!text-[1.8rem] sm:!leading-normal sm:!tracking-[0.25em]">
+            <span className="block !text-[1.05rem] !tracking-[0.05em] sm:hidden">
               Erickson Real Estate
-              <span className="mt-1 block !text-[1.1rem] !font-medium !tracking-[0.08em]">Puerto Rico</span>
+              <span className="mt-1 block !text-[0.95rem] !font-bold !tracking-[0.05em]">Puerto Rico</span>
             </span>
             <span className="hidden sm:inline">Erickson Real Estate · Puerto Rico</span>
           </p>
 
-          <h1 className="max-w-4xl text-[1.75rem] font-bold leading-[0.95] text-white sm:text-[2.3rem] md:text-[3.5rem] xl:text-[4.25rem] text-center mx-auto">
+          <h1 className="mx-auto max-w-[17rem] text-center text-[1.08rem] font-bold leading-[1.08] text-white sm:max-w-4xl sm:text-[1.85rem] sm:leading-[1.02] md:text-[2.85rem] xl:text-[3.6rem]">
             Propiedades con estrategia, intención y presencia.
           </h1>
-
-          <p className="mt-8 max-w-2xl text-lg leading-relaxed text-white/90 md:text-xl text-center mx-auto">
-            Compra, vende o invierte con guía clara, estrategia y confianza desde el inicio.
-          </p>
 
           {/* Barra de búsqueda rectangular */}
           <form
             onSubmit={handleBuscar}
-            className="mt-12 max-w-4xl mx-auto w-full"
+            className="mx-auto mt-8 w-full min-w-0 max-w-5xl md:mt-11"
           >
             {/* Búsqueda principal - rectangular */}
-            <div className="relative bg-white shadow-2xl overflow-hidden flex items-center border border-[#e0e0e0]">
+            <div className="relative flex min-w-0 items-center overflow-hidden rounded-2xl border border-white/20 bg-white shadow-[0_22px_60px_rgba(0,0,0,0.28)]">
               {/* Botón toggle +/- */}
               <button
                 type="button"
                 onClick={() => setMostrarFiltros(!mostrarFiltros)}
-                className="flex-shrink-0 h-14 w-14 flex items-center justify-center text-[#11518b] hover:bg-[#f7f7f7] transition font-bold text-2xl border-r border-[#e0e0e0]"
+                className="flex h-14 w-12 flex-shrink-0 items-center justify-center border-r border-[#e0e0e0] text-2xl font-bold text-[#11518b] transition hover:bg-[#f7f7f7] sm:w-14"
                 title={mostrarFiltros ? "Cerrar filtros" : "Mostrar filtros"}
               >
                 {mostrarFiltros ? "−" : "+"}
               </button>
 
               {/* Input de búsqueda */}
-              <div className="relative flex-1">
+              <div className="relative min-w-0 flex-1">
                 <input
                   type="text"
                   placeholder="Buscar por ubicación"
@@ -134,7 +129,7 @@ export default function HomeHeroClient({
                   onChange={(e) => handleSearchChange(e.target.value)}
                   onFocus={() => q.trim() && setMostrarSugerencias(true)}
                   onBlur={() => setTimeout(() => setMostrarSugerencias(false), 200)}
-                  className="w-full px-6 py-3.5 text-[#4d4d4d] outline-none text-base placeholder:text-[#aaa]"
+                  className="w-full min-w-0 px-4 py-3.5 text-base text-[#4d4d4d] outline-none placeholder:text-[#aaa] sm:px-6"
                 />
 
                 {/* Dropdown de sugerencias */}
@@ -184,7 +179,7 @@ export default function HomeHeroClient({
               {/* Botón de búsqueda con lupa */}
               <button
                 type="submit"
-                className="flex-shrink-0 h-14 w-14 flex items-center justify-center bg-[#11518b] text-white hover:bg-[#0d3a63] transition border-l border-[#e0e0e0]"
+                className="flex h-14 w-12 flex-shrink-0 items-center justify-center border-l border-[#e0e0e0] bg-[#11518b] text-white transition hover:bg-[#0d3a63] sm:w-14"
                 title="Buscar"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -393,21 +388,27 @@ export default function HomeHeroClient({
               </div>
             )}
 
-            <p className="mt-4 text-center text-sm text-white/80">
-              {totalPropiedades}{" "}
-              {totalPropiedades === 1 ? "listado disponible" : "listados disponibles"}
-            </p>
+            {totalPropiedades > 0 && (
+              <p className="mt-4 text-center text-sm text-white/85">
+                {totalPropiedades}{" "}
+                {totalPropiedades === 1 ? "listado disponible" : "listados disponibles"}
+              </p>
+            )}
           </form>
 
+          <p className="mx-auto mt-6 max-w-[17rem] text-center text-[0.95rem] leading-[1.7] text-white/90 sm:max-w-xl sm:text-base md:mt-8 md:max-w-2xl md:text-xl md:leading-relaxed">
+            Compra, vende o invierte con guía clara, estrategia y confianza desde el inicio.
+          </p>
+
           {/* CTA Buttons */}
-          <div className="mt-8 flex flex-wrap gap-4 justify-center">
-            <Link href="/listados" className="btn-primary">
+          <div className="mx-auto mt-7 flex w-full max-w-xs flex-col gap-3 justify-center sm:max-w-none sm:flex-row sm:flex-wrap sm:gap-4 md:mt-9">
+            <Link href="/listados" className="btn-primary min-h-[50px] w-full sm:w-auto">
               Explorar listados
             </Link>
 
             <Link
               href="/contact"
-              className="inline-flex items-center justify-center rounded-full border border-white/60 bg-white/10 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
+              className="inline-flex min-h-[50px] w-full items-center justify-center rounded-full border border-white/60 bg-white/10 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 sm:w-auto"
             >
               Agendar consulta
             </Link>
