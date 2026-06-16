@@ -3,14 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
 
 type HeaderProps = {
   transparent?: boolean;
 };
 
 export default function Header({ transparent = false }: HeaderProps) {
-  const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -35,18 +33,13 @@ export default function Header({ transparent = false }: HeaderProps) {
   const mobileButtonStyle = isTransparent
     ? "border-white/30 bg-black/10 text-white backdrop-blur-sm"
     : "border-[#d9d9d9] bg-white text-[#11518b]";
-  const logoNavigationDisabled = [
-    "/contact/compradores-arrendatarios",
-    "/contact/perfil-comprador",
-    "/contact/vendedor-arrendador",
-  ].includes(pathname);
 
   const logoClass = isTransparent
     ? "w-[166px] sm:w-[205px] lg:w-[190px]"
     : "w-[166px] sm:w-[205px] lg:w-[190px]";
   const logoSizes = "(min-width: 1024px) 190px, (min-width: 640px) 205px, 166px";
   const logoImage = (
-    <span className={`relative block ${logoClass}`}>
+    <>
       <Image
         src="/logo-erickson.png"
         alt="Ivonne Erickson Real Estate"
@@ -70,8 +63,11 @@ export default function Header({ transparent = false }: HeaderProps) {
           isTransparent ? "opacity-100" : "opacity-0"
         }`}
       />
-    </span>
+    </>
   );
+  const logoContainerClass = `relative block shrink-0 ${logoClass}`;
+  const logoHitAreaClass =
+    "absolute left-[32%] top-[29%] h-[42%] w-[36%] cursor-pointer";
 
   return (
     <>
@@ -115,18 +111,14 @@ export default function Header({ transparent = false }: HeaderProps) {
 
         <div className="section-shell">
           <div className="flex h-[84px] items-center justify-between">
-            {logoNavigationDisabled ? (
-              <div
-                className="shrink-0 cursor-default"
-                aria-label="Ivonne Erickson Real Estate"
-              >
-                {logoImage}
-              </div>
-            ) : (
-              <Link href="/" className="shrink-0">
-                {logoImage}
-              </Link>
-            )}
+            <span className={logoContainerClass}>
+              {logoImage}
+              <Link
+                href="/"
+                aria-label="Ir al inicio"
+                className={logoHitAreaClass}
+              />
+            </span>
 
             <nav
               className={`hidden items-center gap-6 text-sm font-medium lg:flex xl:gap-8 ${desktopText}`}
