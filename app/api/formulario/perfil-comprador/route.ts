@@ -6,6 +6,8 @@ export const runtime = "nodejs";
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_ATTACHMENT_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const FILE_TOO_LARGE_MESSAGE =
+  "El archivo excede el tamaño máximo permitido de 10 MB. Por favor, selecciona un archivo más pequeño.";
 const ALLOWED_FILE_TYPES = new Set([
   "application/pdf",
   "image/jpeg",
@@ -24,6 +26,10 @@ function getFile(formData: FormData, key: string) {
 }
 
 function validateFile(file: File) {
+  if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+    return FILE_TOO_LARGE_MESSAGE;
+  }
+
   if (!ALLOWED_FILE_TYPES.has(file.type)) {
     return "Solo se aceptan PDF e imágenes JPG, PNG o WebP.";
   }
@@ -91,16 +97,12 @@ export async function POST(req: Request) {
         return Response.json({ ok: false, error: validationError }, { status: 400 });
       }
 
-      if (cartaFile.size <= MAX_ATTACHMENT_SIZE_BYTES) {
-        const attachmentBuffer = Buffer.from(await cartaFile.arrayBuffer());
-        attachments.push({
-          filename: cartaFile.name || "carta-precalificacion",
-          content: attachmentBuffer.toString("base64"),
-          contentType: cartaFile.type,
-        });
-      } else {
-        attachmentNote = `El archivo excede ${MAX_FILE_SIZE_MB}MB y no se adjuntó al correo. Usa el enlace de respaldo.`;
-      }
+      const attachmentBuffer = Buffer.from(await cartaFile.arrayBuffer());
+      attachments.push({
+        filename: cartaFile.name || "carta-precalificacion",
+        content: attachmentBuffer.toString("base64"),
+        contentType: cartaFile.type,
+      });
 
       if (isR2Configured()) {
         cartaUrl = await uploadImageToR2(cartaFile, "contact/perfiles-comprador");

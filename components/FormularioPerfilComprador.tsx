@@ -7,6 +7,10 @@ const evidenciaFondos = ["Sí", "No"];
 const fondosCierre = ["Sí", "Parcialmente", "Aún no"];
 const opcionesSiNo = ["Sí", "No"];
 
+const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const FILE_TOO_LARGE_MESSAGE =
+  "El archivo excede el tamaño máximo permitido de 10 MB. Por favor, selecciona un archivo más pequeño.";
+
 export default function FormularioPerfilComprador() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -23,6 +27,13 @@ export default function FormularioPerfilComprador() {
 
     const form = event.currentTarget;
     const formData = new FormData(form);
+    const cartaFile = formData.get("cartaPreaprobacion");
+
+    if (cartaFile instanceof File && cartaFile.size > MAX_UPLOAD_SIZE_BYTES) {
+      setError(FILE_TOO_LARGE_MESSAGE);
+      setLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch("/api/formulario/perfil-comprador", {
