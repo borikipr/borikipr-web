@@ -95,7 +95,7 @@ export default function HomeHeroClient({
           <p className="eyebrow mb-5 text-center !leading-tight sm:!text-[1.8rem] sm:!leading-normal sm:!tracking-[0.25em]">
             <span className="block !text-[1.28rem] !tracking-[0.08em] sm:hidden">
               Erickson Real Estate
-              <span className="mt-1 block !text-[0.95rem] !font-medium !normal-case !tracking-[0.08em]">Puerto Rico</span>
+              <span className="mt-1 block !text-[1.1rem] !font-medium !tracking-[0.08em]">Puerto Rico</span>
             </span>
             <span className="hidden sm:inline">Erickson Real Estate · Puerto Rico</span>
           </p>
