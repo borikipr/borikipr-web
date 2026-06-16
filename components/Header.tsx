@@ -49,7 +49,7 @@ export default function Header({ transparent = false }: HeaderProps) {
       height={60}
       priority
       style={{ width: "auto", height: "auto" }}
-      className="w-[160px] sm:w-[165px] lg:w-[180px]"
+      className="w-[136px] sm:w-[165px] lg:w-[180px]"
     />
   );
 

@@ -92,7 +92,7 @@ export default function HomeHeroClient({
 
       <div className="section-shell relative z-10 flex min-h-screen flex-col items-center justify-center pt-32 pb-24 lg:pt-40 lg:pb-32">
         <div className="max-w-4xl w-full">
-          <p className="eyebrow mb-5 text-center !text-[1.7rem] sm:!text-[1.8rem]">
+          <p className="eyebrow mb-5 text-center !text-[1.7rem] !leading-tight !tracking-[0.15em] sm:!text-[1.8rem] sm:!leading-normal sm:!tracking-[0.25em]">
             <span className="block sm:hidden">
               Erickson Real Estate
               <span className="block">Puerto Rico</span>
