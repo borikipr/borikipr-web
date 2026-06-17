@@ -354,11 +354,10 @@ export default function NuevaPropiedadPage() {
                 >
                   <option value="propio">Listado propio</option>
                   <option value="co_broke">Propiedad en colaboración / Co-Broke</option>
-                  <option value="externo">Externo / referencia</option>
                 </select>
               </div>
 
-              {(origenListado === "co_broke" || origenListado === "externo") && (
+              {origenListado === "co_broke" && (
                 <div className="space-y-6 rounded-2xl border border-[#d4af37]/30 bg-[#fff9e6]/50 p-6">
                   <div className="flex items-start gap-3">
                     <div className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-[#d4af37] text-sm font-bold text-white">
@@ -375,7 +374,10 @@ export default function NuevaPropiedadPage() {
                         htmlFor="corredor_colaborador_nombre"
                         className="text-sm font-medium text-[#000000]"
                       >
-                        Nombre del corredor colaborador <span className="text-red-500">*</span>
+                        Nombre del corredor colaborador{" "}
+                        {origenListado === "co_broke" && (
+                          <span className="text-red-500">*</span>
+                        )}
                       </label>
                       <input
                         id="corredor_colaborador_nombre"
@@ -383,6 +385,7 @@ export default function NuevaPropiedadPage() {
                         type="text"
                         placeholder="Ej: Carlos Rodríguez"
                         className="input-premium"
+                        required={origenListado === "co_broke"}
                       />
                     </div>
 

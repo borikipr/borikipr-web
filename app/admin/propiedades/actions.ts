@@ -25,7 +25,8 @@ const estadosValidos = new Set([
   "vendida",
   "rentada",
 ]);
-const origenListadoValidos = new Set(["propio", "co_broke", "externo"]);
+const origenListadoValidos = new Set(["propio", "co_broke"]);
+const origenListadoLegacyValidos = new Set(["propio", "co_broke", "externo"]);
 
 function parsePositiveNumber(value: string) {
   const num = Number(value);
@@ -135,8 +136,8 @@ export async function createPropiedadAction(
     return { error: "Selecciona un origen de listado válido." };
   }
 
-  if ((origenListado === "co_broke" || origenListado === "externo") && !corredorNombre) {
-    return { error: "El nombre del corredor colaborador es requerido para co-broke o externo." };
+  if (origenListado === "co_broke" && !corredorNombre) {
+    return { error: "El nombre del corredor colaborador es requerido para co-broke." };
   }
 
   const precio = parsePositiveNumber(precioRaw);
@@ -359,12 +360,31 @@ export async function updatePropiedadAction(
     return { error: "Selecciona un estado válido." };
   }
 
-  if (!origenListadoValidos.has(origenListado as never)) {
+  if (!origenListadoLegacyValidos.has(origenListado as never)) {
     return { error: "Selecciona un origen de listado válido." };
   }
 
-  if ((origenListado === "co_broke" || origenListado === "externo") && !corredorNombre) {
-    return { error: "El nombre del corredor colaborador es requerido para co-broke o externo." };
+  const origenActualRows = await sql<{ origen_listado: string }[]>`
+    SELECT origen_listado
+    FROM propiedades
+    WHERE id = ${id}
+    LIMIT 1
+  `;
+  const origenActual = origenActualRows[0]?.origen_listado;
+
+  if (!origenActual) {
+    return { error: "No se encontró la propiedad a editar." };
+  }
+
+  if (origenListado === "externo" && origenActual !== "externo") {
+    return {
+      error:
+        "Externo / referencia es un origen legado y no está disponible para este listado.",
+    };
+  }
+
+  if (origenListado === "co_broke" && !corredorNombre) {
+    return { error: "El nombre del corredor colaborador es requerido para co-broke." };
   }
 
   const precio = parsePositiveNumber(precioRaw);

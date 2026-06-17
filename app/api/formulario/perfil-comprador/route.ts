@@ -84,7 +84,7 @@ export async function POST(req: Request) {
 
     let cartaUrl = "";
     let uploadNote = "";
-    let attachmentNote = "";
+    const attachmentNote = "";
     const attachments: {
       filename: string;
       content: string;

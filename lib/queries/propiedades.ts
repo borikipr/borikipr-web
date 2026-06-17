@@ -7,6 +7,26 @@ type EstadoPropiedad =
   | "vendida"
   | "rentada";
 
+function publicOriginExpression() {
+  return sql`
+    CASE
+      WHEN p.origen_listado IN ('co_broke', 'co-broke', 'co broke', 'colaboracion', 'colaboración')
+        THEN 'co_broke'
+      ELSE p.origen_listado
+    END
+  `;
+}
+
+function publicVisibilityCondition() {
+  return sql`(
+    p.origen_listado = 'propio'
+    OR (
+      p.origen_listado IN ('co_broke', 'co-broke', 'co broke', 'colaboracion', 'colaboración')
+      AND COALESCE(p.permiso_publicar_web, false) = true
+    )
+  )`;
+}
+
 export type PropiedadQueryRow = {
   id: string;
   slug: string;
@@ -66,7 +86,7 @@ export async function getPropiedadesDestacadas(limit = 3) {
       p.banos,
       p.estado,
       p.destacado,
-      p.origen_listado,
+      ${publicOriginExpression()} AS origen_listado,
       p.configuracion_formulario,
       p.requiere_precalificacion,
       p.fecha_showing,
@@ -80,7 +100,7 @@ export async function getPropiedadesDestacadas(limit = 3) {
     LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
     WHERE p.destacado = true
       AND p.estado IN ('disponible', 'bajo_contrato')
-      AND (p.origen_listado = 'propio' OR p.permiso_publicar_web = true)
+      AND ${publicVisibilityCondition()}
     GROUP BY p.id
     ORDER BY p.created_at DESC
     LIMIT ${limit}
@@ -106,7 +126,7 @@ export async function getPropiedades() {
       p.metros_cuadrados,
       p.estado,
       p.destacado,
-      p.origen_listado,
+      ${publicOriginExpression()} AS origen_listado,
       p.configuracion_formulario,
       p.requiere_precalificacion,
       p.fecha_showing,
@@ -119,7 +139,7 @@ export async function getPropiedades() {
     FROM propiedades p
     LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
     WHERE p.estado IN ('disponible', 'bajo_contrato')
-      AND (p.origen_listado = 'propio' OR p.permiso_publicar_web = true)
+      AND ${publicVisibilityCondition()}
     GROUP BY p.id
     ORDER BY p.created_at DESC
   `;
@@ -144,7 +164,7 @@ export async function getPropiedadBySlug(slug: string) {
       p.metros_cuadrados,
       p.estado,
       p.destacado,
-      p.origen_listado,
+      ${publicOriginExpression()} AS origen_listado,
       p.configuracion_formulario,
       p.requiere_precalificacion,
       p.fecha_showing,
@@ -157,7 +177,7 @@ export async function getPropiedadBySlug(slug: string) {
     FROM propiedades p
     LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
     WHERE p.slug = ${slug}
-      AND (p.origen_listado = 'propio' OR p.permiso_publicar_web = true)
+      AND ${publicVisibilityCondition()}
     GROUP BY p.id
     LIMIT 1
   `;
@@ -188,7 +208,7 @@ export async function getPropiedadesSimilares(
       p.metros_cuadrados,
       p.estado,
       p.destacado,
-      p.origen_listado,
+      ${publicOriginExpression()} AS origen_listado,
       p.configuracion_formulario,
       p.requiere_precalificacion,
       p.fecha_showing,
@@ -203,7 +223,7 @@ export async function getPropiedadesSimilares(
     WHERE p.slug <> ${slug}
       AND p.tipo_negocio = ${tipoNegocio}
       AND p.estado IN ('disponible', 'bajo_contrato')
-      AND (p.origen_listado = 'propio' OR p.permiso_publicar_web = true)
+      AND ${publicVisibilityCondition()}
       AND (
         p.municipio = ${municipio}
         OR p.tipo_propiedad = ${tipoPropiedad}
@@ -266,7 +286,7 @@ export async function getPropiedadesPaginadas(
     filtros.estado
       ? sql`p.estado = ${filtros.estado}`
       : sql`p.estado IN ('disponible', 'bajo_contrato')`,
-    sql`(p.origen_listado = 'propio' OR p.permiso_publicar_web = true)`,
+    publicVisibilityCondition(),
   ];
 
   if (qLike) {
@@ -334,7 +354,7 @@ export async function getPropiedadesPaginadas(
       p.metros_cuadrados,
       p.estado,
       p.destacado,
-      p.origen_listado,
+      ${publicOriginExpression()} AS origen_listado,
       p.configuracion_formulario,
       p.requiere_precalificacion,
       p.fecha_showing,

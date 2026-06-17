@@ -361,18 +361,29 @@ export default function EditarPropiedadForm({
             >
               Origen del listado <span className="text-red-500">*</span>
             </label>
+            {origenListado === "externo" && (
+              <input type="hidden" name="origen_listado" value="externo" />
+            )}
             <select
               id="origen_listado"
-              name="origen_listado"
+              name={origenListado === "externo" ? undefined : "origen_listado"}
               value={origenListado}
-              onChange={(e) => setOrigenListado(e.target.value as "propio" | "co_broke" | "externo")}
+              onChange={(e) => setOrigenListado(e.target.value as "propio" | "co_broke")}
               className="input-premium"
+              disabled={origenListado === "externo"}
               required
             >
               <option value="propio">Listado propio</option>
               <option value="co_broke">Propiedad en colaboración / Co-Broke</option>
-              <option value="externo">Externo / referencia</option>
+              {origenListado === "externo" && (
+                <option value="externo">Externo / referencia</option>
+              )}
             </select>
+            {origenListado === "externo" && (
+              <p className="text-sm text-[#4d4d4d]">
+                Origen legado. Esta opciÃ³n ya no estÃ¡ disponible para nuevos listados.
+              </p>
+            )}
           </div>
 
           {(origenListado === "co_broke" || origenListado === "externo") && (
@@ -392,7 +403,10 @@ export default function EditarPropiedadForm({
                     htmlFor="corredor_colaborador_nombre"
                     className="text-sm font-medium text-[#000000]"
                   >
-                    Nombre del corredor colaborador <span className="text-red-500">*</span>
+                    Nombre del corredor colaborador{" "}
+                    {origenListado === "co_broke" && (
+                      <span className="text-red-500">*</span>
+                    )}
                   </label>
                   <input
                     id="corredor_colaborador_nombre"
@@ -401,6 +415,7 @@ export default function EditarPropiedadForm({
                     defaultValue={propiedad.corredor_colaborador_nombre || ""}
                     placeholder="Ej: Carlos Rodríguez"
                     className="input-premium"
+                    required={origenListado === "co_broke"}
                   />
                 </div>
 
