@@ -89,24 +89,24 @@ export default function HomeHeroClient({
 
       <div className="absolute inset-0 bg-black/50" />
 
-      <div className="section-shell relative z-10 flex min-h-screen flex-col items-center justify-center pt-32 pb-24 lg:pt-40 lg:pb-32">
+      <div className="section-shell relative z-10 flex min-h-screen flex-col items-center justify-center pt-28 pb-16 sm:pt-32 sm:pb-24 lg:pt-40 lg:pb-32">
         <div className="w-full max-w-[calc(100vw-2.5rem)] sm:max-w-4xl">
-          <p className="eyebrow mb-6 text-center !leading-tight sm:mb-7 sm:!text-[1.8rem] sm:!leading-normal sm:!tracking-[0.25em]">
-            <span className="block !text-[1.05rem] !tracking-[0.05em] sm:hidden">
+          <p className="eyebrow mb-4 text-center !leading-tight sm:mb-7 sm:!text-[1.8rem] sm:!leading-normal sm:!tracking-[0.25em]">
+            <span className="block !text-[1.22rem] !tracking-[0.05em] sm:hidden">
               Erickson Real Estate
-              <span className="mt-1 block !text-[0.95rem] !font-bold !tracking-[0.05em]">Puerto Rico</span>
+              <span className="mt-1 block !text-[1.1rem] !font-bold !tracking-[0.05em]">Puerto Rico</span>
             </span>
             <span className="hidden sm:inline">Erickson Real Estate · Puerto Rico</span>
           </p>
 
-          <h1 className="mx-auto max-w-[17rem] text-center text-[1.08rem] font-bold leading-[1.08] text-white sm:max-w-4xl sm:text-[1.85rem] sm:leading-[1.02] md:text-[2.85rem] xl:text-[3.6rem]">
+          <h1 className="mx-auto max-w-[20rem] text-center text-[1.34rem] font-bold leading-[1.08] text-white sm:max-w-4xl sm:text-[1.85rem] sm:leading-[1.02] md:text-[2.85rem] xl:text-[3.6rem]">
             Propiedades con estrategia, intención y presencia.
           </h1>
 
           {/* Barra de búsqueda rectangular */}
           <form
             onSubmit={handleBuscar}
-            className="mx-auto mt-8 w-full min-w-0 max-w-5xl md:mt-11"
+            className="mx-auto mt-6 w-full min-w-0 max-w-5xl sm:mt-8 md:mt-11"
           >
             {/* Búsqueda principal - rectangular */}
             <div className="relative flex min-w-0 items-center overflow-hidden rounded-2xl border border-white/20 bg-white shadow-[0_22px_60px_rgba(0,0,0,0.28)]">
@@ -396,12 +396,12 @@ export default function HomeHeroClient({
             )}
           </form>
 
-          <p className="mx-auto mt-6 max-w-[17rem] text-center text-[0.95rem] leading-[1.7] text-white/90 sm:max-w-xl sm:text-base md:mt-8 md:max-w-2xl md:text-xl md:leading-relaxed">
+          <p className="mx-auto mt-4 max-w-[19rem] text-center text-[1.02rem] leading-[1.65] text-white/90 sm:mt-6 sm:max-w-xl sm:text-base md:mt-8 md:max-w-2xl md:text-xl md:leading-relaxed">
             Compra, vende o invierte con guía clara, estrategia y confianza desde el inicio.
           </p>
 
           {/* CTA Buttons */}
-          <div className="mx-auto mt-7 flex w-full max-w-xs flex-col gap-3 justify-center sm:max-w-none sm:flex-row sm:flex-wrap sm:gap-4 md:mt-9">
+          <div className="mx-auto mt-5 flex w-full max-w-xs flex-col gap-3 justify-center sm:mt-7 sm:max-w-none sm:flex-row sm:flex-wrap sm:gap-4 md:mt-9">
             <Link href="/listados" className="btn-primary min-h-[50px] w-full sm:w-auto">
               Explorar listados
             </Link>
