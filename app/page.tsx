@@ -140,7 +140,7 @@ export default async function Home() {
             <div className="text-center max-w-3xl mx-auto">
               <p className="eyebrow">¿Por qué Erickson Real Estate?</p>
 
-              <h2 className="heading-section mt-4">
+              <h2 className="heading-section mt-4 !text-[#11518B]">
                 Estrategia clara. Ejecución precisa. Resultados con intención.
               </h2>
 
