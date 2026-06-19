@@ -47,9 +47,9 @@ export default function Header({ transparent = false }: HeaderProps) {
         height={60}
         priority
         sizes={logoSizes}
-        className={`h-auto w-full transition-opacity duration-300 ${
+        className={`site-logo-primary h-auto w-full transition-opacity duration-300 ${
           isTransparent ? "opacity-0" : "opacity-100"
-        } [@media_(prefers-color-scheme:dark)_and_(max-width:1023px)]:opacity-0`}
+        }`}
       />
       <Image
         src="/logo-erickson-light.png"
@@ -59,9 +59,9 @@ export default function Header({ transparent = false }: HeaderProps) {
         height={60}
         priority
         sizes={logoSizes}
-        className={`absolute inset-0 h-auto w-full transition-opacity duration-300 ${
+        className={`site-logo-secondary absolute inset-0 h-auto w-full transition-opacity duration-300 ${
           isTransparent ? "opacity-100" : "opacity-0"
-        } [@media_(prefers-color-scheme:dark)_and_(max-width:1023px)]:opacity-100`}
+        }`}
       />
     </>
   );
@@ -71,6 +71,20 @@ export default function Header({ transparent = false }: HeaderProps) {
 
   return (
     <>
+      <style>
+        {`
+          @media (prefers-color-scheme: dark) and (max-width: 1023px) {
+            .site-logo-primary {
+              opacity: 0;
+            }
+
+            .site-logo-secondary {
+              opacity: 1;
+            }
+          }
+        `}
+      </style>
+
       <header
         className={`fixed left-0 top-0 z-50 w-full transition-all duration-300 ${
           isTransparent
