@@ -4,13 +4,38 @@ import Header from "@/components/Header";
 import ListadosClient from "@/components/ListadosClient";
 import PropiedadSkeleton from "@/components/PropiedadSkeleton";
 import { getPropiedadesPaginadas } from "@/lib/queries/propiedades";
+import {
+  DEFAULT_OG_IMAGE,
+  SITE_NAME,
+  absoluteUrl,
+  breadcrumbJsonLd,
+  jsonLdScript,
+} from "@/lib/seo";
+
+const pageTitle = "Listados de Propiedades";
+const pageDescription =
+  "Explora propiedades en venta y alquiler en Puerto Rico con información clara, filtros útiles y orientación profesional.";
+const pagePath = "/listados";
 
 export const metadata: Metadata = {
-  title: "Listados de Propiedades | Erickson Real Estate",
-  description:
-    "Explora propiedades en venta y alquiler en Puerto Rico con información clara, filtros útiles y orientación profesional.",
+  title: pageTitle,
+  description: pageDescription,
   alternates: {
-    canonical: "/listados",
+    canonical: pagePath,
+  },
+  openGraph: {
+    title: pageTitle,
+    description: pageDescription,
+    url: absoluteUrl(pagePath),
+    siteName: SITE_NAME,
+    type: "website",
+    images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: SITE_NAME }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: pageTitle,
+    description: pageDescription,
+    images: [DEFAULT_OG_IMAGE],
   },
 };
 
@@ -112,6 +137,15 @@ export default async function ListadosPage({
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={jsonLdScript(
+          breadcrumbJsonLd([
+            { name: "Inicio", url: "/" },
+            { name: "Listados", url: pagePath },
+          ])
+        )}
+      />
       <Header />
 
       <main className="bg-white pt-[96px] lg:pt-[128px]">

@@ -1,17 +1,54 @@
+import type { Metadata } from "next";
 import Header from "@/components/Header";
 import FormularioPerfilComprador from "@/components/FormularioPerfilComprador";
+import {
+  DEFAULT_OG_IMAGE,
+  SITE_NAME,
+  absoluteUrl,
+  breadcrumbJsonLd,
+  jsonLdScript,
+} from "@/lib/seo";
 
-export const metadata = {
-  title: "Perfil del Cliente Comprador | Erickson Real Estate",
-  description: "Formulario para clientes compradores interesados en continuar el proceso de orientación con Ivonne Erickson.",
+const pageTitle = "Perfil del Cliente Comprador";
+const pageDescription =
+  "Formulario para clientes compradores interesados en continuar el proceso de orientación con Ivonne Erickson.";
+const pagePath = "/contact/perfil-comprador";
+
+export const metadata: Metadata = {
+  title: pageTitle,
+  description: pageDescription,
   alternates: {
-    canonical: "/contact/perfil-comprador",
+    canonical: pagePath,
+  },
+  openGraph: {
+    title: pageTitle,
+    description: pageDescription,
+    url: absoluteUrl(pagePath),
+    siteName: SITE_NAME,
+    type: "website",
+    images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: SITE_NAME }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: pageTitle,
+    description: pageDescription,
+    images: [DEFAULT_OG_IMAGE],
   },
 };
 
 export default function PerfilCompradorPage() {
+  const breadcrumbSchema = breadcrumbJsonLd([
+    { name: "Inicio", url: "/" },
+    { name: "Contacto", url: "/contact" },
+    { name: pageTitle, url: pagePath },
+  ]);
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={jsonLdScript(breadcrumbSchema)}
+      />
       <Header />
       <main className="bg-white pt-[96px] lg:pt-[128px]">
         <section className="section-shell py-20">

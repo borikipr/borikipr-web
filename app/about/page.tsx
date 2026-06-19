@@ -2,19 +2,53 @@ import type { Metadata } from "next";
 import Header from "@/components/Header";
 import Image from "next/image";
 import Link from "next/link";
+import {
+  DEFAULT_OG_IMAGE,
+  SITE_NAME,
+  absoluteUrl,
+  breadcrumbJsonLd,
+  jsonLdScript,
+} from "@/lib/seo";
+
+const pageTitle = "Sobre Ivonne Erickson";
+const pageDescription =
+  "Conoce el enfoque de Ivonne Erickson para guiar decisiones inmobiliarias en Puerto Rico con estrategia, claridad y acompañamiento profesional.";
+const pagePath = "/about";
 
 export const metadata: Metadata = {
-  title: "Sobre Ivonne Erickson | Erickson Real Estate",
-  description:
-    "Conoce el enfoque de Ivonne Erickson para guiar decisiones inmobiliarias en Puerto Rico con estrategia, claridad y acompañamiento profesional.",
+  title: pageTitle,
+  description: pageDescription,
   alternates: {
-    canonical: "/about",
+    canonical: pagePath,
+  },
+  openGraph: {
+    title: pageTitle,
+    description: pageDescription,
+    url: absoluteUrl(pagePath),
+    siteName: SITE_NAME,
+    type: "website",
+    images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: SITE_NAME }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: pageTitle,
+    description: pageDescription,
+    images: [DEFAULT_OG_IMAGE],
   },
 };
 
 export default function About() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={jsonLdScript(
+          breadcrumbJsonLd([
+            { name: "Inicio", url: "/" },
+            { name: "Sobre Ivonne Erickson", url: pagePath },
+          ])
+        )}
+      />
       <Header />
 
       <main className="bg-white pt-[96px] lg:pt-[128px]">

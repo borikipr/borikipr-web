@@ -11,6 +11,12 @@ import {
 import { TipoPropiedad } from "@/data/listados";
 import WhatsAppTrackerButton from "@/components/WhatsAppTrackerButton";
 import TrackLinkButton from "@/components/TrackLinkButton";
+import {
+  SITE_NAME,
+  absoluteUrl,
+  breadcrumbJsonLd,
+  jsonLdScript,
+} from "@/lib/seo";
 
 type TipoNegocio = "venta" | "renta";
 type EstadoPropiedad =
@@ -103,7 +109,7 @@ export async function generateMetadata({
 
   if (!slug) {
     return {
-      title: "Propiedad no encontrada | Erickson Real Estate",
+      title: "Propiedad no encontrada",
       description: "La propiedad solicitada no está disponible.",
     };
   }
@@ -112,12 +118,12 @@ export async function generateMetadata({
 
   if (!row) {
     return {
-      title: "Propiedad no encontrada | Erickson Real Estate",
+      title: "Propiedad no encontrada",
       description: "La propiedad solicitada no está disponible.",
     };
   }
 
-  const titulo = `${row.titulo} | Erickson Real Estate`;
+  const titulo = row.titulo;
   const descripcion = row.descripcion?.trim()
     ? row.descripcion.trim().slice(0, 160)
     : `Propiedad en ${row.municipio}, Puerto Rico.`;
@@ -127,7 +133,7 @@ export async function generateMetadata({
       ? buildAbsoluteImageUrl(row.imagenes[0])
       : "https://borikipr.com/og-image.jpg";
 
-  const url = `https://borikipr.com/listados/${row.slug}`;
+  const url = absoluteUrl(`/listados/${row.slug}`);
 
   return {
     title: titulo,
@@ -139,7 +145,7 @@ export async function generateMetadata({
       title: titulo,
       description: descripcion,
       url,
-      siteName: "Erickson Real Estate",
+      siteName: SITE_NAME,
       type: "article",
       images: [
         {
@@ -231,9 +237,60 @@ ${propiedadUrl}`
   );
 
   const whatsappUrl = `https://wa.me/17876774900?text=${whatsappMensaje}`;
+  const breadcrumbSchema = breadcrumbJsonLd([
+    { name: "Inicio", url: "/" },
+    { name: "Listados", url: "/listados" },
+    { name: propiedad.titulo, url: `/listados/${propiedad.slug}` },
+  ]);
+  const propertySchema = {
+    "@context": "https://schema.org",
+    "@type": "Offer",
+    name: propiedad.titulo,
+    url: propiedadUrl,
+    price: propiedad.precio,
+    priceCurrency: "USD",
+    availability:
+      propiedad.estado === "disponible"
+        ? "https://schema.org/InStock"
+        : "https://schema.org/LimitedAvailability",
+    businessFunction:
+      propiedad.tipoNegocio === "renta"
+        ? "https://schema.org/LeaseOut"
+        : "https://schema.org/Sell",
+    itemOffered: {
+      "@type": "Residence",
+      name: propiedad.titulo,
+      description: propiedad.descripcion,
+      image: propiedad.imagenes.map(buildAbsoluteImageUrl),
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: propiedad.municipio,
+        addressRegion: "PR",
+        addressCountry: "US",
+      },
+      numberOfBedrooms: propiedad.habitaciones || undefined,
+      numberOfBathroomsTotal: propiedad.banos || undefined,
+      floorSize: propiedad.metrosCuadrados
+        ? {
+            "@type": "QuantitativeValue",
+            value: propiedad.metrosCuadrados,
+            unitCode: "MTK",
+          }
+        : undefined,
+    },
+    seller: {
+      "@type": "RealEstateAgent",
+      name: SITE_NAME,
+      url: "https://borikipr.com",
+    },
+  };
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={jsonLdScript([breadcrumbSchema, propertySchema])}
+      />
       <Header />
 
       <main className="bg-white pt-[96px] lg:pt-[128px]">

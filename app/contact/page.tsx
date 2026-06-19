@@ -1,13 +1,38 @@
 import type { Metadata } from "next";
 import Header from "@/components/Header";
 import Link from "next/link";
+import {
+  DEFAULT_OG_IMAGE,
+  SITE_NAME,
+  absoluteUrl,
+  breadcrumbJsonLd,
+  jsonLdScript,
+} from "@/lib/seo";
+
+const pageTitle = "Contacto";
+const pageDescription =
+  "Comunícate con Erickson Real Estate para recibir orientación sobre comprar, alquilar, vender o invertir en Puerto Rico.";
+const pagePath = "/contact";
 
 export const metadata: Metadata = {
-  title: "Contacto | Erickson Real Estate",
-  description:
-    "Comunícate con Erickson Real Estate para recibir orientación sobre comprar, alquilar, vender o invertir en Puerto Rico.",
+  title: pageTitle,
+  description: pageDescription,
   alternates: {
-    canonical: "/contact",
+    canonical: pagePath,
+  },
+  openGraph: {
+    title: pageTitle,
+    description: pageDescription,
+    url: absoluteUrl(pagePath),
+    siteName: SITE_NAME,
+    type: "website",
+    images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: SITE_NAME }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: pageTitle,
+    description: pageDescription,
+    images: [DEFAULT_OG_IMAGE],
   },
 };
 
@@ -57,6 +82,15 @@ function ContactOptionCard({
 export default function ContactPage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={jsonLdScript(
+          breadcrumbJsonLd([
+            { name: "Inicio", url: "/" },
+            { name: "Contacto", url: pagePath },
+          ])
+        )}
+      />
       <Header />
 
       <main className="bg-white pt-[96px] lg:pt-[128px]">

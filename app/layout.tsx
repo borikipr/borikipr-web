@@ -1,39 +1,46 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Footer from "@/components/footer";
+import {
+  DEFAULT_OG_IMAGE,
+  SITE_NAME,
+  SITE_URL,
+  jsonLdScript,
+  realEstateAgentJsonLd,
+} from "@/lib/seo";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://borikipr.com"),
 
   title: {
-    default: "Erickson Real Estate | Puerto Rico Real Estate",
-    template: "%s | Erickson Real Estate",
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
   },
 
   description:
     "Explora propiedades en venta y alquiler en Puerto Rico. Encuentra casas, apartamentos y oportunidades comerciales con asesoría profesional.",
 
   openGraph: {
-    title: "Erickson Real Estate | Puerto Rico Real Estate",
+    title: SITE_NAME,
     description:
       "Explora propiedades en venta y alquiler en Puerto Rico con una experiencia moderna y profesional.",
-    url: "https://borikipr.com",
-    siteName: "Erickson Real Estate",
+    url: SITE_URL,
+    siteName: SITE_NAME,
     locale: "es_PR",
     type: "website",
     images: [
       {
-        url: "https://borikipr.com/og-image.jpg", // puedes cambiar luego
+        url: DEFAULT_OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: "Erickson Real Estate Puerto Rico",
+        alt: `${SITE_NAME} Puerto Rico`,
       },
     ],
   },
 
   twitter: {
     card: "summary_large_image",
-    title: "Erickson Real Estate | Puerto Rico Real Estate",
+    title: SITE_NAME,
     description:
       "Propiedades en venta y alquiler en Puerto Rico con asesoría profesional.",
     images: ["https://borikipr.com/og-image.jpg"],
@@ -48,6 +55,10 @@ export default function RootLayout({
   return (
     <html lang="es" data-scroll-behavior="smooth">
       <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={jsonLdScript(realEstateAgentJsonLd)}
+        />
         {children}
         <Footer />
       </body>
