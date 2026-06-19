@@ -4,6 +4,18 @@ import Image from "next/image";
 import Link from "next/link";
 import HomeHeroClient from "@/components/HomeHeroClient";
 import {
+  Building2,
+  Camera,
+  HeartHandshake,
+  Mountain,
+  Sun,
+  Sunset,
+  Trees,
+  TrendingUp,
+  UserCheck,
+  Waves,
+} from "lucide-react";
+import {
   getPropiedades,
   getPropiedadesDestacadas,
   type PropiedadHomeDestacada,
@@ -11,9 +23,9 @@ import {
 import { getTestimoniosPublicos, type TestimonioPublico } from "@/lib/queries/testimonios";
 
 export const metadata: Metadata = {
-  title: "Erickson Real Estate | Bienes Raices en Puerto Rico",
+  title: "Erickson Real Estate | Bienes Raíces en Puerto Rico",
   description:
-    "Compra, vende o invierte en Puerto Rico con orientacion clara, estrategia y acompanamiento profesional.",
+    "Compra, vende o invierte en Puerto Rico con orientación clara, estrategia y acompañamiento profesional.",
   alternates: {
     canonical: "/",
   },
@@ -65,32 +77,32 @@ const zonasHome = [
   {
     nombre: "Metropolitana",
     descripcion: "San Juan, Guaynabo, Carolina, Bayamón y más.",
-    icon: "🏙️",
+    Icon: Building2,
   },
   {
     nombre: "Norte",
     descripcion: "Dorado, Arecibo, Manatí, Vega Baja y más.",
-    icon: "🌊",
+    Icon: Waves,
   },
   {
     nombre: "Sur",
     descripcion: "Ponce, Guayama, Salinas, Coamo y más.",
-    icon: "☀️",
+    Icon: Sun,
   },
   {
     nombre: "Este",
     descripcion: "Fajardo, Río Grande, Luquillo, Vieques y más.",
-    icon: "🌴",
+    Icon: Trees,
   },
   {
     nombre: "Oeste",
     descripcion: "Mayagüez, Cabo Rojo, Rincón, Isabela y más.",
-    icon: "🌅",
+    Icon: Sunset,
   },
   {
     nombre: "Central",
     descripcion: "Cayey, Aibonito, Barranquitas, Orocovis y más.",
-    icon: "⛰️",
+    Icon: Mountain,
   },
 ];
 
@@ -151,8 +163,8 @@ export default async function Home() {
 
             <div className="mt-14 grid gap-8 md:grid-cols-4">
               <div className="text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#11518b]/10">
-                  <span className="text-2xl font-bold text-[#11518b]">✓</span>
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#11518B]">
+                  <UserCheck className="h-7 w-7 text-white" strokeWidth={1.9} aria-hidden="true" />
                 </div>
                 <h3 className="mt-5 text-lg font-semibold text-[#000000]">
                   Atención personalizada
@@ -163,8 +175,8 @@ export default async function Home() {
               </div>
 
               <div className="text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#11518b]/10">
-                  <span className="text-2xl font-bold text-[#11518b]">📊</span>
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#11518B]">
+                  <TrendingUp className="h-7 w-7 text-white" strokeWidth={1.9} aria-hidden="true" />
                 </div>
                 <h3 className="mt-5 text-lg font-semibold text-[#000000]">
                   Estrategia de mercado
@@ -175,8 +187,8 @@ export default async function Home() {
               </div>
 
               <div className="text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#11518b]/10">
-                  <span className="text-2xl font-bold text-[#11518b]">📸</span>
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#11518B]">
+                  <Camera className="h-7 w-7 text-white" strokeWidth={1.9} aria-hidden="true" />
                 </div>
                 <h3 className="mt-5 text-lg font-semibold text-[#000000]">
                   Presentación premium
@@ -187,8 +199,8 @@ export default async function Home() {
               </div>
 
               <div className="text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#11518b]/10">
-                  <span className="text-2xl font-bold text-[#11518b]">🤝</span>
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#11518B]">
+                  <HeartHandshake className="h-7 w-7 text-white" strokeWidth={1.9} aria-hidden="true" />
                 </div>
                 <h3 className="mt-5 text-lg font-semibold text-[#000000]">
                   Acompañamiento completo
@@ -202,17 +214,17 @@ export default async function Home() {
         </section>
 
         {/* Sección: Propiedades destacadas */}
-        <section className="bg-[#f8f8f8] py-24">
+        <section className="bg-[#f8f8f8] py-20">
           <div className="section-shell">
-            <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+            <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
               <div className="max-w-3xl">
                 <p className="eyebrow">Nuevos listados</p>
 
-                <h2 className="heading-section mt-4">
+                <h2 className="heading-section mt-4 !text-[#11518B]">
                   Conoce los nuevos listados disponibles.
                 </h2>
 
-                <p className="body-lg mt-6 max-w-2xl">
+                <p className="body-lg mt-5 max-w-2xl">
                   Descubre propiedades recientemente incorporadas al mercado en venta y alquiler. Explora nuevas oportunidades con información clara y actualizada para ayudarte a tomar decisiones con confianza.
                 </p>
               </div>
@@ -224,19 +236,19 @@ export default async function Home() {
               </div>
             </div>
 
-            <div className="mt-14">
+            <div className="mt-10">
               {destacadas.length === 0 ? (
-                <div className="rounded-2xl border border-[#e8e8e8] bg-white p-10 text-center shadow-sm">
+                <div className="mx-auto max-w-4xl rounded-2xl border border-[#e8e8e8] bg-white p-8 text-center shadow-sm sm:p-10">
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
                     Próximamente
                   </p>
-                  <h3 className="mt-4 text-2xl font-bold text-[#000000]">
+                  <h3 className="mt-3 text-2xl font-bold text-[#000000]">
                     Muy pronto habrá nuevos listados disponibles
                   </h3>
-                  <p className="mt-4 max-w-lg mx-auto text-[#4d4d4d] leading-relaxed">
+                  <p className="mt-3 max-w-lg mx-auto text-[#4d4d4d] leading-relaxed">
                     Esta sección se actualizará regularmente con nuevas propiedades en venta y alquiler. Vuelve pronto para descubrir las oportunidades más recientes disponibles.
                   </p>
-                  <div className="mt-8 flex flex-wrap gap-4 justify-center">
+                  <div className="mt-6 flex flex-wrap gap-4 justify-center">
                     <Link href="/listados" className="btn-primary">
                       Ver todos los listados
                     </Link>
@@ -335,7 +347,7 @@ export default async function Home() {
             <div className="text-center max-w-3xl mx-auto">
               <p className="eyebrow">Zonas</p>
 
-              <h2 className="heading-section mt-4">
+              <h2 className="heading-section mt-4 !text-[#11518B]">
                 Presencia en toda la isla de Puerto Rico.
               </h2>
 
@@ -352,7 +364,9 @@ export default async function Home() {
                   className="group rounded-2xl border border-[#e8e8e8] bg-white p-7 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-[#11518b]/30"
                 >
                   <div className="flex items-center gap-4">
-                    <span className="text-3xl">{zona.icon}</span>
+                    <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-[#11518B]">
+                      <zona.Icon className="h-6 w-6 text-white" strokeWidth={1.9} aria-hidden="true" />
+                    </span>
                     <div>
                       <h3 className="text-lg font-semibold text-[#11518b] group-hover:text-[#0d3a63] transition">
                         {zona.nombre}
@@ -376,7 +390,7 @@ export default async function Home() {
                 <div className="max-w-3xl">
                   <p className="eyebrow">Testimonios</p>
 
-                  <h2 className="heading-section mt-4">
+                  <h2 className="heading-section mt-4 !text-[#11518B]">
                     Experiencias reales que hablan por sí solas.
                   </h2>
 

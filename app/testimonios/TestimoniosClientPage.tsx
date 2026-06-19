@@ -50,7 +50,7 @@ function TestimonioCard({ item }: { item: TestimonioPublico }) {
         />
 
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#d4af37]">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white [text-shadow:0_2px_8px_rgba(0,0,0,.45)]">
             {item.etiqueta || "Experiencia real"}
           </p>
           <p className="mt-2 text-sm text-white/90">{item.lugar}</p>
@@ -168,7 +168,7 @@ export default function TestimoniosClientPage({
           <div className="max-w-4xl">
             <p className="eyebrow">Testimonios</p>
 
-            <h1 className="heading-display mt-4">
+            <h1 className="heading-display heading-display-blue mt-4">
               Experiencias reales. Resultados con confianza.
             </h1>
 
@@ -258,7 +258,7 @@ export default function TestimoniosClientPage({
 
                 <Link
                   href="/listados"
-                  className="inline-flex items-center justify-center rounded-full border-2 border-[#d4af37] bg-transparent px-8 py-4 text-sm font-bold tracking-normal text-[#d4af37] transition hover:bg-[#d4af37] hover:text-[#111111] focus:outline-none focus:ring-2 focus:ring-[#d4af37] focus:ring-offset-2 focus:ring-offset-[#11518b]"
+                  className="inline-flex items-center justify-center rounded-full border border-white/30 px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
                   Ver propiedades
                 </Link>

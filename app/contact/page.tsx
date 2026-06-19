@@ -5,7 +5,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Contacto | Erickson Real Estate",
   description:
-    "Comunicate con Erickson Real Estate para recibir orientacion sobre comprar, alquilar, vender o invertir en Puerto Rico.",
+    "Comunícate con Erickson Real Estate para recibir orientación sobre comprar, alquilar, vender o invertir en Puerto Rico.",
   alternates: {
     canonical: "/contact",
   },
@@ -64,7 +64,7 @@ export default function ContactPage() {
           <div className="max-w-4xl">
             <p className="eyebrow">Contacto</p>
 
-            <h1 className="heading-display mt-4">
+            <h1 className="heading-display mt-4 !text-[#11518B]">
               ¿Cómo puedo orientarte?
             </h1>
 

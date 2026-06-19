@@ -11,6 +11,8 @@ type HeaderProps = {
 export default function Header({ transparent = false }: HeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [prefersDarkMode, setPrefersDarkMode] = useState(false);
+  const [isCompactViewport, setIsCompactViewport] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -28,7 +30,28 @@ export default function Header({ transparent = false }: HeaderProps) {
     };
   }, [menuOpen]);
 
+  useEffect(() => {
+    const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const compactViewportQuery = window.matchMedia("(max-width: 1023px)");
+
+    const syncLogoPreferences = () => {
+      setPrefersDarkMode(darkModeQuery.matches);
+      setIsCompactViewport(compactViewportQuery.matches);
+    };
+
+    syncLogoPreferences();
+
+    darkModeQuery.addEventListener("change", syncLogoPreferences);
+    compactViewportQuery.addEventListener("change", syncLogoPreferences);
+
+    return () => {
+      darkModeQuery.removeEventListener("change", syncLogoPreferences);
+      compactViewportQuery.removeEventListener("change", syncLogoPreferences);
+    };
+  }, []);
+
   const isTransparent = transparent && !scrolled;
+  const useSecondaryLogo = isTransparent || (prefersDarkMode && isCompactViewport);
   const desktopText = isTransparent ? "text-white" : "text-[#4d4d4d]";
   const mobileButtonStyle = isTransparent
     ? "border-white/30 bg-black/10 text-white backdrop-blur-sm"
@@ -48,7 +71,7 @@ export default function Header({ transparent = false }: HeaderProps) {
         priority
         sizes={logoSizes}
         className={`h-auto w-full transition-opacity duration-300 ${
-          isTransparent ? "opacity-0" : "opacity-100"
+          useSecondaryLogo ? "opacity-0" : "opacity-100"
         }`}
       />
       <Image
@@ -60,7 +83,7 @@ export default function Header({ transparent = false }: HeaderProps) {
         priority
         sizes={logoSizes}
         className={`absolute inset-0 h-auto w-full transition-opacity duration-300 ${
-          isTransparent ? "opacity-100" : "opacity-0"
+          useSecondaryLogo ? "opacity-100" : "opacity-0"
         }`}
       />
     </>

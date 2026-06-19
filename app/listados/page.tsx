@@ -8,7 +8,7 @@ import { getPropiedadesPaginadas } from "@/lib/queries/propiedades";
 export const metadata: Metadata = {
   title: "Listados de Propiedades | Erickson Real Estate",
   description:
-    "Explora propiedades en venta y alquiler en Puerto Rico con informacion clara, filtros utiles y orientacion profesional.",
+    "Explora propiedades en venta y alquiler en Puerto Rico con información clara, filtros útiles y orientación profesional.",
   alternates: {
     canonical: "/listados",
   },
@@ -119,7 +119,7 @@ export default async function ListadosPage({
           <div className="max-w-3xl">
             <p className="eyebrow">Listados</p>
 
-            <h1 className="heading-section mt-4">
+            <h1 className="heading-section heading-section-blue mt-4">
             Propiedades en venta y alquiler
             </h1>
 

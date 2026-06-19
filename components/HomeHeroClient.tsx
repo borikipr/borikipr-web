@@ -91,15 +91,16 @@ export default function HomeHeroClient({
 
       <div className="section-shell relative z-10 flex min-h-screen flex-col items-center justify-center pt-28 pb-16 sm:pt-32 sm:pb-24 lg:pt-40 lg:pb-32">
         <div className="w-full max-w-[calc(100vw-2.5rem)] sm:max-w-4xl">
-          <p className="eyebrow mb-4 text-center !leading-tight sm:mb-7 sm:!text-[1.8rem] sm:!leading-normal sm:!tracking-[0.25em]">
-            <span className="block !text-[1.64rem] !font-bold !tracking-[0.05em] sm:hidden">
+          <p className="eyebrow mb-5 text-center !leading-tight sm:mb-8 sm:!leading-normal sm:!tracking-[0.25em]">
+            <span className="block !text-[1.82rem] !font-bold !tracking-[0.05em] sm:!text-[2.35rem] sm:!tracking-[0.25em] md:!text-[2.65rem] xl:!text-[2.95rem]">
               Erickson Real Estate
-              <span className="mt-1 block !text-[1.21rem] !font-bold !tracking-[0.05em]">Puerto Rico</span>
+              <span className="mt-1 block !text-[1.16rem] !font-bold !tracking-[0.05em] sm:!text-[1.75rem] sm:!tracking-[0.25em] md:!text-[1.95rem] xl:!text-[2.15rem]">
+                Puerto Rico
+              </span>
             </span>
-            <span className="hidden sm:inline">Erickson Real Estate · Puerto Rico</span>
           </p>
 
-          <h1 className="mx-auto max-w-[20rem] text-center text-[1.5rem] font-bold leading-[1.08] text-white sm:max-w-4xl sm:text-[1.85rem] sm:leading-[1.02] md:text-[2.85rem] xl:text-[3.6rem]">
+          <h1 className="mx-auto max-w-[20rem] text-center text-[1.24rem] font-bold leading-[1.08] text-white sm:max-w-4xl sm:text-[1.45rem] sm:leading-[1.04] md:text-[2.1rem] xl:text-[2.55rem]">
             Propiedades con estrategia, intención y presencia.
           </h1>
 

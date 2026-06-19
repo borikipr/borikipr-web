@@ -6,7 +6,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Sobre Ivonne Erickson | Erickson Real Estate",
   description:
-    "Conoce el enfoque de Ivonne Erickson para guiar decisiones inmobiliarias en Puerto Rico con estrategia, claridad y acompanamiento profesional.",
+    "Conoce el enfoque de Ivonne Erickson para guiar decisiones inmobiliarias en Puerto Rico con estrategia, claridad y acompañamiento profesional.",
   alternates: {
     canonical: "/about",
   },
@@ -36,7 +36,7 @@ export default function About() {
             <div className="order-1 xl:order-2">
               <p className="eyebrow">Sobre mí</p>
 
-              <h1 className="heading-display mt-4 max-w-3xl">
+              <h1 className="heading-display heading-display-blue mt-4 max-w-3xl">
                 Experiencia, estrategia y acompañamiento en cada decisión.
               </h1>
 
@@ -82,7 +82,7 @@ export default function About() {
     <div className="max-w-3xl">
       <p className="eyebrow">Filosofía de servicio</p>
 
-      <h2 className="heading-section mt-4">
+      <h2 className="heading-section mt-4 !text-[#11518B]">
         Cada propiedad merece una estrategia bien pensada
       </h2>
 
@@ -136,7 +136,7 @@ export default function About() {
             <div className="surface-muted card-hover p-8 md:p-10">
               <p className="eyebrow">Presencia profesional</p>
 
-<h2 className="mt-4 text-3xl font-bold leading-tight text-[#000000] md:text-4xl">
+<h2 className="mt-4 text-3xl font-bold leading-tight text-[#11518B] md:text-4xl">
   La forma en que se presenta una propiedad define su valor
 </h2>
 

@@ -103,7 +103,7 @@ export async function generateMetadata({
 
   if (!slug) {
     return {
-      title: "Propiedad no encontrada | Borikí",
+      title: "Propiedad no encontrada | Erickson Real Estate",
       description: "La propiedad solicitada no está disponible.",
     };
   }
@@ -112,12 +112,12 @@ export async function generateMetadata({
 
   if (!row) {
     return {
-      title: "Propiedad no encontrada | Borikí",
+      title: "Propiedad no encontrada | Erickson Real Estate",
       description: "La propiedad solicitada no está disponible.",
     };
   }
 
-  const titulo = `${row.titulo} | Borikí`;
+  const titulo = `${row.titulo} | Erickson Real Estate`;
   const descripcion = row.descripcion?.trim()
     ? row.descripcion.trim().slice(0, 160)
     : `Propiedad en ${row.municipio}, Puerto Rico.`;
@@ -139,7 +139,7 @@ export async function generateMetadata({
       title: titulo,
       description: descripcion,
       url,
-      siteName: "Borikí",
+      siteName: "Erickson Real Estate",
       type: "article",
       images: [
         {
@@ -276,7 +276,7 @@ ${propiedadUrl}`
                 {propiedad.tipoNegocio === "venta" ? "Venta" : "Alquiler"}
               </p>
 
-              <h1 className="mt-4 text-4xl font-bold leading-tight text-[#000000]">
+              <h1 className="mt-4 text-4xl font-bold leading-tight text-[#11518B]">
                 {propiedad.titulo}
               </h1>
 
@@ -430,7 +430,7 @@ ${propiedadUrl}`
             <div className="max-w-4xl">
               <p className="eyebrow">Descripción</p>
 
-              <h2 className="mt-4 text-3xl font-bold text-[#000000]">
+              <h2 className="mt-4 text-3xl font-bold text-[#11518B]">
                 Detalles de la propiedad
               </h2>
 
