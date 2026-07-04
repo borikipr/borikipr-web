@@ -99,6 +99,7 @@ export default async function ListadosPage({
     banos: params.banos ?? "",
     estado:
       params.estado === "disponible" ||
+      params.estado === "coming_soon" ||
       params.estado === "bajo_contrato" ||
       params.estado === "vendida" ||
       params.estado === "rentada"

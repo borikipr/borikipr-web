@@ -8,7 +8,7 @@ export type AdminPropiedadRow = {
   precio: string | number;
   tipo_negocio: "venta" | "renta";
   tipo_propiedad: "Casa" | "Apartamento" | "Condominio" | "Terreno";
-  estado: "disponible" | "bajo_contrato" | "vendida" | "rentada";
+  estado: "disponible" | "coming_soon" | "bajo_contrato" | "vendida" | "rentada";
   destacado: boolean;
   created_at: string;
   total_leads: number;
@@ -28,7 +28,7 @@ export type AdminPropiedadDetalle = {
   banos: number;
   estacionamientos: number;
   metros_cuadrados: number;
-  estado: "disponible" | "bajo_contrato" | "vendida" | "rentada";
+  estado: "disponible" | "coming_soon" | "bajo_contrato" | "vendida" | "rentada";
   destacado: boolean;
   imagenes: string[];
   origen_listado: "propio" | "co_broke" | "externo";

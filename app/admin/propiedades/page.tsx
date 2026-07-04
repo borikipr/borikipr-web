@@ -8,17 +8,23 @@ import AdminAlert from "@/components/admin/AdminAlert";
 import TipoFilter from "./TipoFilter";
 
 function formatoPrecio(precio: number, tipo: "venta" | "renta") {
+  if (!Number.isFinite(precio) || precio <= 0) {
+    return "Precio próximamente";
+  }
+
   return tipo === "renta"
     ? `$${precio.toLocaleString("en-US")}/mes`
     : `$${precio.toLocaleString("en-US")}`;
 }
 
 function estadoVariant(
-  estado: "disponible" | "bajo_contrato" | "vendida" | "rentada"
+  estado: "disponible" | "coming_soon" | "bajo_contrato" | "vendida" | "rentada"
 ) {
   switch (estado) {
     case "disponible":
       return "blue";
+    case "coming_soon":
+      return "gold";
     case "bajo_contrato":
       return "gold";
     case "vendida":
@@ -30,11 +36,13 @@ function estadoVariant(
 }
 
 function estadoLabel(
-  estado: "disponible" | "bajo_contrato" | "vendida" | "rentada"
+  estado: "disponible" | "coming_soon" | "bajo_contrato" | "vendida" | "rentada"
 ) {
   switch (estado) {
     case "disponible":
       return "Disponible";
+    case "coming_soon":
+      return "Próximamente";
     case "bajo_contrato":
       return "Bajo contrato";
     case "vendida":
@@ -115,18 +123,28 @@ export default async function AdminPropiedadesPage({
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse">
+            <div className="overflow-x-auto xl:overflow-visible">
+              <table className="w-full min-w-[980px] table-fixed border-collapse xl:min-w-0">
+                <colgroup>
+                  <col className="w-[16%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[21%]" />
+                </colgroup>
                 <thead className="bg-[#0d1b2a] text-left text-sm text-white">
                   <tr>
-                    <th className="px-6 py-4 font-semibold">Título</th>
-                    <th className="px-6 py-4 font-semibold">Municipio</th>
-                    <th className="px-6 py-4 font-semibold">Precio</th>
-                    <th className="px-6 py-4 font-semibold">Interés</th>
-                    <th className="px-6 py-4 font-semibold">Tipo</th>
-                    <th className="px-6 py-4 font-semibold">Origen</th>
-                    <th className="px-6 py-4 font-semibold">Estado</th>
-                    <th className="px-6 py-4 font-semibold">Acciones</th>
+                    <th className="px-4 py-4 font-semibold">Título</th>
+                    <th className="px-4 py-4 font-semibold">Municipio</th>
+                    <th className="px-4 py-4 font-semibold">Precio</th>
+                    <th className="px-4 py-4 font-semibold">Interés</th>
+                    <th className="px-4 py-4 font-semibold">Tipo</th>
+                    <th className="px-4 py-4 font-semibold">Origen</th>
+                    <th className="px-4 py-4 font-semibold">Estado</th>
+                    <th className="px-4 py-4 font-semibold">Acciones</th>
                   </tr>
                 </thead>
 
@@ -140,26 +158,26 @@ export default async function AdminPropiedadesPage({
                           : "bg-white"
                       }`}
                     >
-                      <td className="px-6 py-5">
+                      <td className="px-4 py-5">
                         <div>
-                          <p className="font-semibold text-[#000000]">
+                          <p className="break-words font-semibold text-[#000000]">
                             {item.titulo}
                           </p>
-                          <p className="mt-1 text-sm text-[#4d4d4d]">
+                          <p className="mt-1 break-words text-sm text-[#4d4d4d]">
                             /{item.slug}
                           </p>
                         </div>
                       </td>
 
-                      <td className="px-6 py-5 text-sm text-[#4d4d4d]">
+                      <td className="px-4 py-5 text-sm text-[#4d4d4d]">
                         {item.municipio}
                       </td>
 
-                      <td className="px-6 py-5 text-sm text-[#4d4d4d]">
+                      <td className="px-4 py-5 text-sm text-[#4d4d4d]">
                         {formatoPrecio(Number(item.precio), item.tipo_negocio)}
                       </td>
 
-                      <td className="px-6 py-5">
+                      <td className="px-4 py-5">
                         <div className="flex items-center gap-2">
                           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#25D366]/10 text-[#1f9d4c]">
                             <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
@@ -175,7 +193,7 @@ export default async function AdminPropiedadesPage({
                         </div>
                       </td>
 
-                      <td className="px-6 py-5 text-sm text-[#4d4d4d]">
+                      <td className="px-4 py-5 text-sm text-[#4d4d4d]">
                         <div className="space-y-2">
                           <div>
                             {item.tipo_negocio === "venta" ? "Venta" : "Alquiler"}
@@ -186,39 +204,22 @@ export default async function AdminPropiedadesPage({
                         </div>
                       </td>
 
-                      <td className="px-6 py-5">
+                      <td className="px-4 py-5">
                         <StatusBadge variant={item.origen_listado === "propio" ? "blue" : item.origen_listado === "co_broke" ? "gold" : "outline"}>
                           {item.origen_listado === "propio" ? "Propio" : item.origen_listado === "co_broke" ? "Co-Broke" : "Externo"}
                         </StatusBadge>
                       </td>
 
-                      <td className="px-6 py-5">
+                      <td className="px-4 py-5">
                         <StatusBadge variant={estadoVariant(item.estado)}>
                           {estadoLabel(item.estado)}
                         </StatusBadge>
                       </td>
 
-                      <td className="px-6 py-5">
-                        <div className="mb-3 flex flex-wrap gap-3">
-                          <Link
-                            href={`/listados/${item.slug}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm font-medium text-[#11518b] hover:text-[#0d406d]"
-                          >
-                            Ver web
-                          </Link>
-
-                          <Link
-                            href={`/admin/propiedades/${item.id}/editar`}
-                            className="text-sm font-medium text-[#11518b] hover:text-[#0d406d]"
-                          >
-                            Editar
-                          </Link>
-                        </div>
-
+                      <td className="px-4 py-5">
                         <PropiedadRowActions
                           id={item.id}
+                          slug={item.slug}
                           estadoActual={item.estado}
                           destacadoActual={item.destacado}
                         />

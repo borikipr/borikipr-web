@@ -52,11 +52,16 @@ export const metadata: Metadata = {
 type TipoNegocio = "venta" | "renta";
 type EstadoPropiedad =
   | "disponible"
+  | "coming_soon"
   | "bajo_contrato"
   | "vendida"
   | "rentada";
 
 function formatoPrecio(precio: number, tipo: TipoNegocio) {
+  if (!Number.isFinite(precio) || precio <= 0) {
+    return "Precio próximamente";
+  }
+
   return tipo === "renta"
     ? `$${precio.toLocaleString("en-US")}/mes`
     : `$${precio.toLocaleString("en-US")}`;
@@ -66,6 +71,8 @@ function estadoLabel(estado: EstadoPropiedad) {
   switch (estado) {
     case "disponible":
       return "Disponible";
+    case "coming_soon":
+      return "Próximamente";
     case "bajo_contrato":
       return "Bajo contrato";
     case "vendida":
@@ -81,6 +88,8 @@ function estadoClasses(estado: EstadoPropiedad) {
   switch (estado) {
     case "disponible":
       return "bg-[#11518b] text-white";
+    case "coming_soon":
+      return "bg-[#d4af37] text-black";
     case "bajo_contrato":
       return "bg-[#d4af37] text-black";
     case "vendida":

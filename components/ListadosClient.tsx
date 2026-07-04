@@ -22,6 +22,7 @@ type TipoPropiedad =
   | "Comercial";
 type EstadoPropiedad =
   | "disponible"
+  | "coming_soon"
   | "bajo_contrato"
   | "vendida"
   | "rentada";

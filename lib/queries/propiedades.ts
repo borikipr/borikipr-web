@@ -3,6 +3,7 @@ import { sql } from "@/lib/db";
 type TipoNegocio = "venta" | "renta";
 type EstadoPropiedad =
   | "disponible"
+  | "coming_soon"
   | "bajo_contrato"
   | "vendida"
   | "rentada";
@@ -99,7 +100,7 @@ export async function getPropiedadesDestacadas(limit = 3) {
     FROM propiedades p
     LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
     WHERE p.destacado = true
-      AND p.estado IN ('disponible', 'bajo_contrato')
+      AND p.estado IN ('disponible', 'coming_soon', 'bajo_contrato')
       AND ${publicVisibilityCondition()}
     GROUP BY p.id
     ORDER BY p.created_at DESC
@@ -138,7 +139,7 @@ export async function getPropiedades() {
       ) AS imagenes
     FROM propiedades p
     LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
-    WHERE p.estado IN ('disponible', 'bajo_contrato')
+    WHERE p.estado IN ('disponible', 'coming_soon', 'bajo_contrato')
       AND ${publicVisibilityCondition()}
     GROUP BY p.id
     ORDER BY p.created_at DESC
@@ -222,7 +223,7 @@ export async function getPropiedadesSimilares(
     LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
     WHERE p.slug <> ${slug}
       AND p.tipo_negocio = ${tipoNegocio}
-      AND p.estado IN ('disponible', 'bajo_contrato')
+      AND p.estado IN ('disponible', 'coming_soon', 'bajo_contrato')
       AND ${publicVisibilityCondition()}
       AND (
         p.municipio = ${municipio}
@@ -285,7 +286,7 @@ export async function getPropiedadesPaginadas(
   const conditions = [
     filtros.estado
       ? sql`p.estado = ${filtros.estado}`
-      : sql`p.estado IN ('disponible', 'bajo_contrato')`,
+      : sql`p.estado IN ('disponible', 'coming_soon', 'bajo_contrato')`,
     publicVisibilityCondition(),
   ];
 

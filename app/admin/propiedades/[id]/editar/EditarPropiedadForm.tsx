@@ -21,7 +21,7 @@ type EditarPropiedadFormProps = {
     banos: number;
     estacionamientos: number;
     metros_cuadrados: number;
-    estado: "disponible" | "bajo_contrato" | "vendida" | "rentada";
+    estado: "disponible" | "coming_soon" | "bajo_contrato" | "vendida" | "rentada";
     destacado: boolean;
     imagenes: string[];
     origen_listado: "propio" | "co_broke" | "externo";
@@ -172,7 +172,7 @@ export default function EditarPropiedadForm({
 
             <div className="space-y-2">
               <label htmlFor="precio" className="text-sm font-medium text-[#000000]">
-                Precio <span className="text-red-500">*</span>
+                Precio
               </label>
               <input
                 id="precio"
@@ -180,9 +180,8 @@ export default function EditarPropiedadForm({
                 type="number"
                 min="0"
                 step="0.01"
-                defaultValue={Number(propiedad.precio)}
+                defaultValue={Number(propiedad.precio) > 0 ? Number(propiedad.precio) : ""}
                 className="input-premium"
-                required
               />
               <p className="text-xs text-[#4d4d4d]">
                 Ej: 350000 (sin comas ni símbolos).
@@ -309,6 +308,7 @@ export default function EditarPropiedadForm({
                 required
               >
                 <option value="disponible">Disponible</option>
+                <option value="coming_soon">Coming Soon (Próximamente)</option>
                 <option value="bajo_contrato">Bajo contrato</option>
                 <option value="vendida">Vendida</option>
                 <option value="rentada">Alquilada</option>

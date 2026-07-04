@@ -21,6 +21,7 @@ const tiposPropiedadValidos = new Set([
 ]);
 const estadosValidos = new Set([
   "disponible",
+  "coming_soon",
   "bajo_contrato",
   "vendida",
   "rentada",
@@ -108,7 +109,6 @@ export async function createPropiedadAction(
     !titulo ||
     !descripcion ||
     !municipio ||
-    !precioRaw ||
     !tipoNegocio ||
     !tipoPropiedad ||
     !estado
@@ -140,13 +140,15 @@ export async function createPropiedadAction(
     return { error: "El nombre del corredor colaborador es requerido para co-broke." };
   }
 
-  const precio = parsePositiveNumber(precioRaw);
+  const precio = estado === "coming_soon" && !precioRaw
+    ? 0
+    : parsePositiveNumber(precioRaw);
   const habitaciones = parsePositiveNumber(habitacionesRaw || "0");
   const banos = parsePositiveNumber(banosRaw || "0");
   const estacionamientos = parsePositiveNumber(estacionamientosRaw || "0");
   const metrosCuadrados = parsePositiveNumber(metrosRaw || "0");
 
-  if (precio === null) {
+  if (precio === null || (estado !== "coming_soon" && !precioRaw)) {
     return { error: "El precio debe ser un número válido." };
   }
 
@@ -336,7 +338,6 @@ export async function updatePropiedadAction(
     !titulo ||
     !descripcion ||
     !municipio ||
-    !precioRaw ||
     !tipoNegocio ||
     !tipoPropiedad ||
     !estado
@@ -387,13 +388,15 @@ export async function updatePropiedadAction(
     return { error: "El nombre del corredor colaborador es requerido para co-broke." };
   }
 
-  const precio = parsePositiveNumber(precioRaw);
+  const precio = estado === "coming_soon" && !precioRaw
+    ? 0
+    : parsePositiveNumber(precioRaw);
   const habitaciones = parsePositiveNumber(habitacionesRaw || "0");
   const banos = parsePositiveNumber(banosRaw || "0");
   const estacionamientos = parsePositiveNumber(estacionamientosRaw || "0");
   const metrosCuadrados = parsePositiveNumber(metrosRaw || "0");
 
-  if (precio === null) {
+  if (precio === null || (estado !== "coming_soon" && !precioRaw)) {
     return { error: "El precio debe ser un número válido." };
   }
 

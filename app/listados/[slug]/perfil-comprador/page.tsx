@@ -11,7 +11,13 @@ type PageProps = {
 };
 
 function formatoPrecio(precio: string | number) {
-  return `$${Number(precio).toLocaleString("en-US")}`;
+  const numericPrice = Number(precio);
+
+  if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+    return "Precio próximamente";
+  }
+
+  return `$${numericPrice.toLocaleString("en-US")}`;
 }
 
 function formatoFechaShowing(value: string | Date | null | undefined) {

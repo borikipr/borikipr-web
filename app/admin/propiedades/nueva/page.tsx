@@ -150,7 +150,7 @@ export default function NuevaPropiedadPage() {
                     htmlFor="precio"
                     className="text-sm font-medium text-[#000000]"
                   >
-                    Precio <span className="text-red-500">*</span>
+                    Precio
                   </label>
                   <input
                     id="precio"
@@ -160,7 +160,6 @@ export default function NuevaPropiedadPage() {
                     step="0.01"
                     placeholder="350000"
                     className="input-premium"
-                    required
                   />
                   <p className="text-xs text-[#4d4d4d]">
                     Ej: 350000 (sin comas ni símbolos).
@@ -292,6 +291,7 @@ export default function NuevaPropiedadPage() {
                     required
                   >
                     <option value="disponible">Disponible</option>
+                    <option value="coming_soon">Coming Soon (Próximamente)</option>
                     <option value="bajo_contrato">Bajo contrato</option>
                     <option value="vendida">Vendida</option>
                     <option value="rentada">Alquilada</option>

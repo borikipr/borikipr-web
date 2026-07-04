@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import {
   deletePropiedadAction,
@@ -9,18 +10,21 @@ import {
 
 type EstadoPropiedad =
   | "disponible"
+  | "coming_soon"
   | "bajo_contrato"
   | "vendida"
   | "rentada";
 
 type Props = {
   id: string;
+  slug: string;
   estadoActual: EstadoPropiedad;
   destacadoActual: boolean;
 };
 
 export default function PropiedadRowActions({
   id,
+  slug,
   estadoActual,
   destacadoActual,
 }: Props) {
@@ -73,8 +77,26 @@ export default function PropiedadRowActions({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="w-48 max-w-full space-y-3">
       <div className="flex flex-wrap items-center gap-3">
+        <Link
+          href={`/listados/${slug}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm font-medium text-[#11518b] transition hover:text-[#0d406d]"
+        >
+          Ver web
+        </Link>
+
+        <Link
+          href={`/admin/propiedades/${id}/editar`}
+          className="text-sm font-medium text-[#11518b] transition hover:text-[#0d406d]"
+        >
+          Editar
+        </Link>
+      </div>
+
+      <div>
         <button
           type="button"
           onClick={handleToggleDestacado}
@@ -99,34 +121,37 @@ export default function PropiedadRowActions({
             />
           </svg>
         </button>
+      </div>
 
-        <select
-          defaultValue={estadoActual}
-          onChange={(e) => handleEstadoChange(e.target.value)}
+      <select
+        defaultValue={estadoActual}
+        onChange={(e) => handleEstadoChange(e.target.value)}
+        disabled={isPending}
+        className="w-full rounded-xl border border-[#d9d9d9] bg-white px-3 py-2 text-sm text-[#4d4d4d] disabled:opacity-60"
+      >
+        <option value="disponible">Disponible</option>
+        <option value="coming_soon">Próximamente</option>
+        <option value="bajo_contrato">Bajo contrato</option>
+        <option value="vendida">Vendida</option>
+        <option value="rentada">Alquilada</option>
+      </select>
+
+      {!confirmandoBorrado ? (
+        <button
+          type="button"
+          onClick={() => setConfirmandoBorrado(true)}
           disabled={isPending}
-          className="rounded-xl border border-[#d9d9d9] bg-white px-3 py-2 text-sm text-[#4d4d4d] disabled:opacity-60"
+          className="text-sm font-medium text-red-600 transition hover:text-red-700 disabled:opacity-60"
         >
-          <option value="disponible">Disponible</option>
-          <option value="bajo_contrato">Bajo contrato</option>
-          <option value="vendida">Vendida</option>
-          <option value="rentada">Alquilada</option>
-        </select>
+          {isPending ? "Procesando..." : "Borrar"}
+        </button>
+      ) : (
+        <div className="space-y-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-3">
+          <span className="text-sm text-red-700">
+            ¿Seguro que quieres borrarla?
+          </span>
 
-        {!confirmandoBorrado ? (
-          <button
-            type="button"
-            onClick={() => setConfirmandoBorrado(true)}
-            disabled={isPending}
-            className="text-sm font-medium text-red-600 transition hover:text-red-700 disabled:opacity-60"
-          >
-            {isPending ? "Procesando..." : "Borrar"}
-          </button>
-        ) : (
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2">
-            <span className="text-sm text-red-700">
-              ¿Seguro que quieres borrarla?
-            </span>
-
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={handleDelete}
@@ -145,8 +170,8 @@ export default function PropiedadRowActions({
               Cancelar
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

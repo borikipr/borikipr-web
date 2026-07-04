@@ -8,6 +8,7 @@ export type TipoPropiedad =
 
 export type EstadoPropiedad =
   | "disponible"
+  | "coming_soon"
   | "bajo_contrato"
   | "vendida"
   | "rentada";
