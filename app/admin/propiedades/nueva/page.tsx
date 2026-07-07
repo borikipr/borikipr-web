@@ -11,6 +11,43 @@ const initialState: CreatePropiedadState = {
   error: "",
 };
 
+function previewSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function buildDescriptionTemplate({
+  municipio,
+  tipoNegocio,
+  tipoPropiedad,
+  estado,
+}: {
+  municipio: string;
+  tipoNegocio: string;
+  tipoPropiedad: string;
+  estado: string;
+}) {
+  const location = municipio ? `${municipio}, Puerto Rico` : "Puerto Rico";
+  const propertyType = tipoPropiedad ? `${tipoPropiedad.toLowerCase()} ` : "";
+
+  if (estado === "coming_soon") {
+    return `Propiedad próximamente disponible en ${location}. Actualmente se encuentra en proceso de preparación para salir al mercado. Para más información o para registrar tu interés, comunícate con Erickson Real Estate.`;
+  }
+
+  if (tipoNegocio === "renta") {
+    return `${propertyType}disponible para alquiler en ${location}. Ideal para quienes buscan una opción cómoda y bien ubicada. Para más información o coordinar una visita, comunícate con Erickson Real Estate.`;
+  }
+
+  return `Excelente oportunidad de compra en ${location}. Esta ${propertyType || "propiedad "}ofrece una alternativa ideal para quienes buscan comodidad, ubicación y potencial. Para más información o coordinar una visita, comunícate con Erickson Real Estate.`;
+}
+
 export default function NuevaPropiedadPage() {
   const [state, formAction, pending] = useActionState(
     createPropiedadAction,
@@ -20,6 +57,12 @@ export default function NuevaPropiedadPage() {
   const [destacado, setDestacado] = useState(false);
   const [origenListado, setOrigenListado] = useState<"propio" | "co_broke" | "externo">("propio");
   const [showingActivo, setShowingActivo] = useState(false);
+  const [titulo, setTitulo] = useState("");
+  const [municipio, setMunicipio] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [tipoNegocio, setTipoNegocio] = useState("");
+  const [tipoPropiedad, setTipoPropiedad] = useState("");
+  const [estado, setEstado] = useState("disponible");
 
   const imagenesPreview = useMemo(
     () =>
@@ -40,6 +83,27 @@ export default function NuevaPropiedadPage() {
       const merged = [...current, ...urls];
       return merged.join(", ");
     });
+  };
+
+  const slugPreview =
+    previewSlug(`${titulo} ${municipio}`) || "slug-generado-automaticamente";
+
+  const handleDescriptionTemplate = () => {
+    if (
+      descripcion.trim() &&
+      !window.confirm("Esto reemplazará la descripción actual. ¿Deseas continuar?")
+    ) {
+      return;
+    }
+
+    setDescripcion(
+      buildDescriptionTemplate({
+        municipio,
+        tipoNegocio,
+        tipoPropiedad,
+        estado,
+      })
+    );
   };
 
   return (
@@ -68,20 +132,12 @@ export default function NuevaPropiedadPage() {
             <form action={formAction} className="space-y-8">
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label
-                    htmlFor="slug"
-                    className="text-sm font-medium text-[#000000]"
-                  >
-                    Slug <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="slug"
-                    name="slug"
-                    type="text"
-                    placeholder="casa-moderna-guaynabo"
-                    className="input-premium"
-                    required
-                  />
+                  <p className="text-sm font-medium text-[#000000]">
+                    URL Preview
+                  </p>
+                  <div className="flex min-h-[46px] items-center rounded-xl border border-[#d9d9d9] bg-[#f8f8f8] px-4 py-3 text-sm text-[#4d4d4d]">
+                    borikipr.com/listados/{slugPreview}
+                  </div>
                   <p className="text-xs text-[#4d4d4d]">
                     Identificador único para la URL (solo letras, números y guiones).
                   </p>
@@ -99,6 +155,8 @@ export default function NuevaPropiedadPage() {
                     name="titulo"
                     type="text"
                     placeholder="Residencia moderna con piscina"
+                    value={titulo}
+                    onChange={(e) => setTitulo(e.target.value)}
                     className="input-premium"
                     required
                   />
@@ -106,17 +164,28 @@ export default function NuevaPropiedadPage() {
               </div>
 
               <div className="space-y-2">
-                <label
-                  htmlFor="descripcion"
-                  className="text-sm font-medium text-[#000000]"
-                >
-                  Descripción <span className="text-red-500">*</span>
-                </label>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <label
+                    htmlFor="descripcion"
+                    className="text-sm font-medium text-[#000000]"
+                  >
+                    Descripción <span className="text-red-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleDescriptionTemplate}
+                    className="inline-flex items-center justify-center rounded-full border border-[#11518b] px-4 py-2 text-xs font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
+                  >
+                    {descripcion.trim() ? "Reemplazar con plantilla" : "Generar descripción base"}
+                  </button>
+                </div>
                 <textarea
                   id="descripcion"
                   name="descripcion"
                   rows={6}
                   placeholder="Describe la propiedad con claridad y enfoque comercial..."
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
                   className="input-premium"
                   required
                 />
@@ -133,6 +202,8 @@ export default function NuevaPropiedadPage() {
                   <select
                     id="municipio"
                     name="municipio"
+                    value={municipio}
+                    onChange={(e) => setMunicipio(e.target.value)}
                     className="input-premium"
                     required
                   >
@@ -176,6 +247,8 @@ export default function NuevaPropiedadPage() {
                   <select
                     id="tipo_negocio"
                     name="tipo_negocio"
+                    value={tipoNegocio}
+                    onChange={(e) => setTipoNegocio(e.target.value)}
                     className="input-premium"
                     required
                   >
@@ -195,6 +268,8 @@ export default function NuevaPropiedadPage() {
                   <select
                     id="tipo_propiedad"
                     name="tipo_propiedad"
+                    value={tipoPropiedad}
+                    onChange={(e) => setTipoPropiedad(e.target.value)}
                     className="input-premium"
                     required
                   >
@@ -287,6 +362,8 @@ export default function NuevaPropiedadPage() {
                   <select
                     id="estado"
                     name="estado"
+                    value={estado}
+                    onChange={(e) => setEstado(e.target.value)}
                     className="input-premium"
                     required
                   >

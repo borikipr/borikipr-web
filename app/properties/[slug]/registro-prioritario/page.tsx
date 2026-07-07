@@ -19,16 +19,6 @@ type PageProps = {
 const pageDescription =
   "Completa este formulario para recibir información de esta propiedad tan pronto esté disponible y ser de las primeras personas en coordinar una visita.";
 
-function formatoPrecio(precio: string | number) {
-  const numericPrice = Number(precio);
-
-  if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
-    return "Precio próximamente";
-  }
-
-  return `$${numericPrice.toLocaleString("en-US")}`;
-}
-
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const propiedad = await getPropiedadBySlug(slug);
@@ -113,24 +103,13 @@ export default async function RegistroPrioritarioPage({ params }: PageProps) {
           <div className="mt-8 grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
             <aside className="lg:sticky lg:top-[112px]">
               <div className="rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-sm">
-                <p className="eyebrow">Propiedad próximamente</p>
+                <p className="eyebrow">PRÓXIMAMENTE EN EL MERCADO</p>
                 <h1 className="mt-3 text-3xl font-bold leading-tight text-[#11518B]">
                   {propiedad.titulo}
                 </h1>
-                <div className="mt-6 grid gap-3 text-sm text-[#4d4d4d] sm:grid-cols-2 lg:grid-cols-1">
-                  <p>
-                    <span className="font-semibold text-[#000000]">Municipio:</span>{" "}
-                    {propiedad.municipio}
-                  </p>
-                  <p>
-                    <span className="font-semibold text-[#000000]">Precio:</span>{" "}
-                    {formatoPrecio(propiedad.precio)}
-                  </p>
-                  <p>
-                    <span className="font-semibold text-[#000000]">Estado:</span>{" "}
-                    Próximamente
-                  </p>
-                </div>
+                <p className="mt-3 text-[#4d4d4d]">
+                  {propiedad.municipio}
+                </p>
               </div>
             </aside>
 

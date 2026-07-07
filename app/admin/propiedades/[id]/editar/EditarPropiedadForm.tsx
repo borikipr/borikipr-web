@@ -48,6 +48,31 @@ const initialState: UpdatePropiedadState = {
   error: "",
 };
 
+function buildDescriptionTemplate({
+  municipio,
+  tipoNegocio,
+  tipoPropiedad,
+  estado,
+}: {
+  municipio: string;
+  tipoNegocio: string;
+  tipoPropiedad: string;
+  estado: string;
+}) {
+  const location = municipio ? `${municipio}, Puerto Rico` : "Puerto Rico";
+  const propertyType = tipoPropiedad ? `${tipoPropiedad.toLowerCase()} ` : "";
+
+  if (estado === "coming_soon") {
+    return `Propiedad próximamente disponible en ${location}. Actualmente se encuentra en proceso de preparación para salir al mercado. Para más información o para registrar tu interés, comunícate con Erickson Real Estate.`;
+  }
+
+  if (tipoNegocio === "renta") {
+    return `${propertyType}disponible para alquiler en ${location}. Ideal para quienes buscan una opción cómoda y bien ubicada. Para más información o coordinar una visita, comunícate con Erickson Real Estate.`;
+  }
+
+  return `Excelente oportunidad de compra en ${location}. Esta ${propertyType || "propiedad "}ofrece una alternativa ideal para quienes buscan comodidad, ubicación y potencial. Para más información o coordinar una visita, comunícate con Erickson Real Estate.`;
+}
+
 export default function EditarPropiedadForm({
   propiedad,
 }: EditarPropiedadFormProps) {
@@ -60,6 +85,11 @@ export default function EditarPropiedadForm({
   const [origenListado, setOrigenListado] = useState<"propio" | "co_broke" | "externo">(propiedad.origen_listado);
   const [showingActivo, setShowingActivo] = useState(propiedad.formulario_showing_activo);
   const [tienePlacas, setTienePlacas] = useState(Boolean(propiedad.tiene_placas_solares));
+  const [descripcion, setDescripcion] = useState(propiedad.descripcion);
+  const [municipio, setMunicipio] = useState(propiedad.municipio);
+  const [tipoNegocio, setTipoNegocio] = useState(propiedad.tipo_negocio);
+  const [tipoPropiedad, setTipoPropiedad] = useState(propiedad.tipo_propiedad);
+  const [estado, setEstado] = useState(propiedad.estado);
 
   const fechaShowing = propiedad.fecha_showing ? new Date(propiedad.fecha_showing) : null;
   const fechaShowingValue = fechaShowing && !Number.isNaN(fechaShowing.getTime())
@@ -94,6 +124,24 @@ export default function EditarPropiedadForm({
     });
   };
 
+  const handleDescriptionTemplate = () => {
+    if (
+      descripcion.trim() &&
+      !window.confirm("Esto reemplazará la descripción actual. ¿Deseas continuar?")
+    ) {
+      return;
+    }
+
+    setDescripcion(
+      buildDescriptionTemplate({
+        municipio,
+        tipoNegocio,
+        tipoPropiedad,
+        estado,
+      })
+    );
+  };
+
   return (
     <div className="space-y-6">
       <ImagenesUploader onUploaded={handleUploaded} />
@@ -101,20 +149,16 @@ export default function EditarPropiedadForm({
       <div className="surface-card p-8 md:p-10">
         <form action={formAction} className="space-y-8">
           <input type="hidden" name="id" value={propiedad.id} />
+          <input type="hidden" name="slug" value={propiedad.slug} />
 
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-2">
-              <label htmlFor="slug" className="text-sm font-medium text-[#000000]">
-                Slug <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="slug"
-                name="slug"
-                type="text"
-                defaultValue={propiedad.slug}
-                className="input-premium"
-                required
-              />
+              <p className="text-sm font-medium text-[#000000]">
+                URL actual
+              </p>
+              <div className="flex min-h-[46px] items-center rounded-xl border border-[#d9d9d9] bg-[#f8f8f8] px-4 py-3 text-sm text-[#4d4d4d]">
+                borikipr.com/listados/{propiedad.slug}
+              </div>
               <p className="text-xs text-[#4d4d4d]">
                 Identificador único para la URL (solo letras, números y guiones).
               </p>
@@ -136,14 +180,24 @@ export default function EditarPropiedadForm({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="descripcion" className="text-sm font-medium text-[#000000]">
-              Descripción <span className="text-red-500">*</span>
-            </label>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <label htmlFor="descripcion" className="text-sm font-medium text-[#000000]">
+                Descripción <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={handleDescriptionTemplate}
+                className="inline-flex items-center justify-center rounded-full border border-[#11518b] px-4 py-2 text-xs font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
+              >
+                {descripcion.trim() ? "Reemplazar con plantilla" : "Generar descripción base"}
+              </button>
+            </div>
             <textarea
               id="descripcion"
               name="descripcion"
               rows={6}
-              defaultValue={propiedad.descripcion}
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
               className="input-premium"
               required
             />
@@ -157,7 +211,8 @@ export default function EditarPropiedadForm({
               <select
                 id="municipio"
                 name="municipio"
-                defaultValue={propiedad.municipio}
+                value={municipio}
+                onChange={(e) => setMunicipio(e.target.value)}
                 className="input-premium"
                 required
               >
@@ -198,7 +253,8 @@ export default function EditarPropiedadForm({
               <select
                 id="tipo_negocio"
                 name="tipo_negocio"
-                defaultValue={propiedad.tipo_negocio}
+                value={tipoNegocio}
+                onChange={(e) => setTipoNegocio(e.target.value as "venta" | "renta")}
                 className="input-premium"
                 required
               >
@@ -217,7 +273,8 @@ export default function EditarPropiedadForm({
               <select
                 id="tipo_propiedad"
                 name="tipo_propiedad"
-                defaultValue={propiedad.tipo_propiedad}
+                value={tipoPropiedad}
+                onChange={(e) => setTipoPropiedad(e.target.value as typeof tipoPropiedad)}
                 className="input-premium"
                 required
               >
@@ -303,7 +360,8 @@ export default function EditarPropiedadForm({
               <select
                 id="estado"
                 name="estado"
-                defaultValue={propiedad.estado}
+                value={estado}
+                onChange={(e) => setEstado(e.target.value as typeof estado)}
                 className="input-premium"
                 required
               >

@@ -49,6 +49,36 @@ function normalizeSlug(value: string) {
     .replace(/^-|-$/g, "");
 }
 
+async function buildUniqueSlug(baseValue: string) {
+  const baseSlug = normalizeSlug(baseValue);
+
+  if (!baseSlug) {
+    return "";
+  }
+
+  const existingRows = await sql<{ slug: string }[]>`
+    SELECT slug
+    FROM propiedades
+    WHERE slug = ${baseSlug}
+      OR slug LIKE ${`${baseSlug}-%`}
+  `;
+  const existingSlugs = new Set(existingRows.map((row) => row.slug));
+
+  if (!existingSlugs.has(baseSlug)) {
+    return baseSlug;
+  }
+
+  let suffix = 2;
+  let candidate = `${baseSlug}-${suffix}`;
+
+  while (existingSlugs.has(candidate)) {
+    suffix += 1;
+    candidate = `${baseSlug}-${suffix}`;
+  }
+
+  return candidate;
+}
+
 function buildShowingDateTime(dateValue: string, timeValue: string) {
   if (!dateValue || !timeValue) return null;
   return `${dateValue} ${timeValue}:00`;
@@ -223,7 +253,6 @@ export async function createPropiedadAction(
 ): Promise<CreatePropiedadState> {
   await requireAdminSession();
 
-  const slugRaw = String(formData.get("slug") || "");
   const titulo = String(formData.get("titulo") || "").trim();
   const descripcion = String(formData.get("descripcion") || "").trim();
   const municipio = String(formData.get("municipio") || "").trim();
@@ -260,10 +289,7 @@ export async function createPropiedadAction(
   const aceptaCdbg = formData.get("acepta_cdbg") === "on";
   const notasCompradores = String(formData.get("notas_compradores") || "").trim();
 
-  const slug = normalizeSlug(slugRaw);
-
   if (
-    !slug ||
     !titulo ||
     !descripcion ||
     !municipio ||
@@ -276,6 +302,12 @@ export async function createPropiedadAction(
 
   if (!municipiosValidos.has(municipio as never)) {
     return { error: "Selecciona un municipio válido." };
+  }
+
+  const slug = await buildUniqueSlug(`${titulo} ${municipio}`);
+
+  if (!slug) {
+    return { error: "No se pudo generar el slug de la propiedad." };
   }
 
   if (!tiposNegocioValidos.has(tipoNegocio as never)) {
@@ -328,17 +360,6 @@ export async function createPropiedadAction(
       error:
         "Habitaciones, baños, estacionamientos y metros deben ser válidos.",
     };
-  }
-
-  const slugExistente = await sql`
-    SELECT 1
-    FROM propiedades
-    WHERE slug = ${slug}
-    LIMIT 1
-  `;
-
-  if (slugExistente.length > 0) {
-    return { error: "Ya existe una propiedad con ese slug." };
   }
 
   const imagenes = imagenesRaw
