@@ -14,7 +14,6 @@ const propertySizeOptions = [
   "2 habitaciones",
   "3 habitaciones",
   "4 o más habitaciones",
-  "Estoy abierto(a) a opciones",
 ];
 const yesNoOptions = ["Sí", "No"];
 
@@ -185,7 +184,7 @@ export default function RegistroPrioritarioForm({
       />
 
       <Field
-        label="¿Alguna información adicional que quiera compartir?"
+        label="¿Alguna información adicional que quieras compartir?"
         htmlFor="additionalInfo"
       >
         <textarea

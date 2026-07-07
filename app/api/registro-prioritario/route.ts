@@ -11,7 +11,6 @@ const propertySizeOptions = new Set([
   "2 habitaciones",
   "3 habitaciones",
   "4 o más habitaciones",
-  "Estoy abierto(a) a opciones",
 ]);
 const wantsVisitOptions = new Set(["Sí", "No"]);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
