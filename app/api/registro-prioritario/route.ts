@@ -40,7 +40,8 @@ export async function POST(req: Request) {
     const name = String(body?.name || "").trim();
     const phone = String(body?.phone || "").trim();
     const email = String(body?.email || "").trim().toLowerCase();
-    const purchaseType = String(body?.purchaseType || "").trim();
+    const rawPurchaseType = String(body?.purchaseType || "").trim();
+    const purchaseType = normalizePurchaseType(rawPurchaseType);
     const purchaseOther = String(body?.purchaseOther || "").trim();
     const prequalifiedStatus = String(body?.prequalifiedStatus || "").trim();
     const propertySize = String(body?.propertySize || "").trim();
@@ -49,6 +50,14 @@ export async function POST(req: Request) {
     const additionalInfo = String(body?.additionalInfo || "").trim();
 
     if (!propertyId || !propertySlug || !name || !phone || !email) {
+      console.warn("Priority registration validation failed", {
+        reason: "missing_required_contact_fields",
+        propertyId,
+        propertySlug,
+        hasName: Boolean(name),
+        hasPhone: Boolean(phone),
+        hasEmail: Boolean(email),
+      });
       return Response.json(
         { ok: false, error: "Completa los campos requeridos." },
         { status: 400 }
@@ -56,6 +65,11 @@ export async function POST(req: Request) {
     }
 
     if (!EMAIL_PATTERN.test(email)) {
+      console.warn("Priority registration validation failed", {
+        reason: "invalid_email",
+        propertyId,
+        propertySlug,
+      });
       return Response.json(
         { ok: false, error: "Ingresa un email válido." },
         { status: 400 }
@@ -71,6 +85,16 @@ export async function POST(req: Request) {
       !wantsVisitOptions.has(wantsVisit) ||
       !searchRange
     ) {
+      console.warn("Priority registration validation failed", {
+        reason: "invalid_required_questions",
+        propertyId,
+        propertySlug,
+        rawPurchaseType,
+        purchaseType,
+        propertySize,
+        wantsVisit,
+        hasSearchRange: Boolean(searchRange),
+      });
       return Response.json(
         { ok: false, error: "Completa las preguntas requeridas." },
         { status: 400 }
@@ -78,6 +102,13 @@ export async function POST(req: Request) {
     }
 
     if (requiresPrequalifiedStatus && !prequalifiedStatuses.has(prequalifiedStatus)) {
+      console.warn("Priority registration validation failed", {
+        reason: "missing_prequalification_status",
+        propertyId,
+        propertySlug,
+        purchaseType,
+        prequalifiedStatus,
+      });
       return Response.json(
         { ok: false, error: "Indica si ya estás pre-calificado." },
         { status: 400 }
@@ -85,6 +116,12 @@ export async function POST(req: Request) {
     }
 
     if (requiresPurchaseOther && !purchaseOther) {
+      console.warn("Priority registration validation failed", {
+        reason: "missing_purchase_other",
+        propertyId,
+        propertySlug,
+        purchaseType,
+      });
       return Response.json(
         { ok: false, error: "Especifica cómo planeas realizar la compra." },
         { status: 400 }
@@ -101,6 +138,11 @@ export async function POST(req: Request) {
     const property = properties[0];
 
     if (!property) {
+      console.warn("Priority registration property lookup failed", {
+        reason: "property_not_found",
+        propertyId,
+        propertySlug,
+      });
       return Response.json(
         { ok: false, error: "No encontramos la propiedad seleccionada." },
         { status: 404 }
@@ -108,6 +150,11 @@ export async function POST(req: Request) {
     }
 
     if (property.estado !== "coming_soon") {
+      console.warn("Priority registration property not active", {
+        propertyId: property.id,
+        propertySlug: property.slug,
+        estado: property.estado,
+      });
       return Response.json(
         { ok: false, error: "El registro prioritario no está activo para esta propiedad." },
         { status: 403 }
@@ -229,17 +276,21 @@ export async function POST(req: Request) {
           throw fallbackError;
         }
       } else {
+        if (isCheckViolation(error)) {
+          logPriorityRegistrationError("Priority registration insert check constraint failed", error);
+        }
         logPriorityRegistrationError("Priority registration insert failed", error);
         throw error;
       }
     }
 
     if (!process.env.RESEND_API_KEY) {
-      console.error("Missing RESEND_API_KEY");
-      return Response.json(
-        { ok: false, error: "Falta configuración del servidor." },
-        { status: 500 }
-      );
+      console.error("Priority registration email skipped: Missing RESEND_API_KEY", {
+        insertedId,
+        propertyId: property.id,
+        propertySlug: property.slug,
+      });
+      return successResponse();
     }
 
     const resend = new Resend(process.env.RESEND_API_KEY);
@@ -311,11 +362,8 @@ export async function POST(req: Request) {
     });
 
     if (error) {
-      console.error("RESEND REGISTRO PRIORITARIO ERROR:", error);
-      return Response.json(
-        { ok: false, error: "No se pudo enviar la notificación." },
-        { status: 500 }
-      );
+      logPriorityRegistrationError("RESEND REGISTRO PRIORITARIO ERROR", error);
+      return successResponse();
     }
 
     if (email) {
@@ -340,24 +388,28 @@ export async function POST(req: Request) {
       });
 
       if (confirmation.error) {
-        console.error("RESEND REGISTRO PRIORITARIO CONFIRMATION ERROR:", confirmation.error);
+        logPriorityRegistrationError(
+          "RESEND REGISTRO PRIORITARIO CONFIRMATION ERROR",
+          confirmation.error
+        );
       } else if (insertedId) {
-        await sql`
-          UPDATE property_priority_registrations
-          SET confirmation_sent_at = now()
-          WHERE id = ${insertedId}
-            AND confirmation_sent_at IS NULL
-        `;
+        try {
+          await sql`
+            UPDATE property_priority_registrations
+            SET confirmation_sent_at = now()
+            WHERE id = ${insertedId}
+              AND confirmation_sent_at IS NULL
+          `;
+        } catch (updateError) {
+          logPriorityRegistrationError(
+            "Priority registration confirmation_sent_at update failed",
+            updateError
+          );
+        }
       }
     }
 
-    return Response.json({
-      ok: true,
-      success: true,
-      duplicate: false,
-      message:
-        "Gracias. Recibimos tu registro prioritario para esta propiedad.",
-    });
+    return successResponse();
   } catch (error) {
     logPriorityRegistrationError("REGISTRO PRIORITARIO ERROR", error);
     return Response.json(
@@ -374,6 +426,27 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function normalizePurchaseType(value: string) {
+  switch (value) {
+    case "Financiado":
+      return "Financiamiento";
+    case "Otro (especifique)":
+      return "Otros (especifique)";
+    default:
+      return value;
+  }
+}
+
+function successResponse() {
+  return Response.json({
+    ok: true,
+    success: true,
+    duplicate: false,
+    message:
+      "Gracias. Recibimos tu registro prioritario para esta propiedad.",
+  });
 }
 
 function isUniqueViolation(error: unknown) {
@@ -394,11 +467,22 @@ function isUndefinedColumn(error: unknown) {
   );
 }
 
+function isCheckViolation(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "23514"
+  );
+}
+
 function logPriorityRegistrationError(message: string, error: unknown) {
   if (typeof error === "object" && error !== null) {
     const details = error as {
       code?: unknown;
       column?: unknown;
+      constraint_name?: unknown;
+      constraint?: unknown;
       table?: unknown;
       message?: unknown;
     };
@@ -406,6 +490,7 @@ function logPriorityRegistrationError(message: string, error: unknown) {
     console.error(message, {
       code: details.code,
       column: details.column,
+      constraint: details.constraint_name ?? details.constraint,
       table: details.table,
       message: details.message,
     });
