@@ -8,7 +8,7 @@ type RegistroPrioritarioFormProps = {
   propertyTitle: string;
 };
 
-const purchaseTypes = ["Cash", "Financiado"];
+const purchaseTypes = ["Cash", "Financiamiento", "Otros (especifique)"];
 const prequalifiedStatuses = ["Sí", "No", "En proceso"];
 const propertySizeOptions = [
   "2 habitaciones",
@@ -31,12 +31,17 @@ export default function RegistroPrioritarioForm({
   } | null>(null);
   const [error, setError] = useState("");
   const [purchaseType, setPurchaseType] = useState("");
+  const [purchaseOther, setPurchaseOther] = useState("");
   const [prequalifiedStatus, setPrequalifiedStatus] = useState("");
-  const showPrequalifiedQuestion = purchaseType === "Financiado";
+  const showPrequalifiedQuestion = purchaseType === "Financiamiento";
+  const showPurchaseOtherQuestion = purchaseType === "Otros (especifique)";
 
   const handlePurchaseTypeChange = (value: string) => {
     setPurchaseType(value);
-    if (value === "Cash") {
+    if (value !== "Otros (especifique)") {
+      setPurchaseOther("");
+    }
+    if (value !== "Financiamiento") {
       setPrequalifiedStatus("");
     }
   };
@@ -65,6 +70,7 @@ export default function RegistroPrioritarioForm({
       phone: String(formData.get("phone") || "").trim(),
       email,
       purchaseType,
+      purchaseOther: showPurchaseOtherQuestion ? purchaseOther.trim() : "",
       prequalifiedStatus: showPrequalifiedQuestion ? prequalifiedStatus : "",
       propertySize: String(formData.get("propertySize") || "").trim(),
       searchRange: String(formData.get("searchRange") || "").trim(),
@@ -99,6 +105,7 @@ export default function RegistroPrioritarioForm({
             "Te contactaré tan pronto tenga todos los detalles de esta propiedad disponibles.",
         });
         setPurchaseType("");
+        setPurchaseOther("");
         setPrequalifiedStatus("");
         form.reset();
       }
@@ -135,6 +142,29 @@ export default function RegistroPrioritarioForm({
         required
         columns="sm:grid-cols-2"
       />
+
+      <div
+        className={`overflow-hidden transition-all duration-300 ease-out ${
+          showPurchaseOtherQuestion
+            ? "max-h-40 opacity-100"
+            : "max-h-0 opacity-0"
+        }`}
+        aria-hidden={!showPurchaseOtherQuestion}
+      >
+        <Field label="Especifique" htmlFor="purchaseOther" required={showPurchaseOtherQuestion}>
+          <input
+            id="purchaseOther"
+            name="purchaseOther"
+            type="text"
+            required={showPurchaseOtherQuestion}
+            disabled={!showPurchaseOtherQuestion}
+            value={purchaseOther}
+            onChange={(event) => setPurchaseOther(event.target.value)}
+            className="input-premium"
+            placeholder="Escriba cómo planea realizar la compra."
+          />
+        </Field>
+      </div>
 
       <div
         className={`overflow-hidden transition-all duration-300 ease-out ${

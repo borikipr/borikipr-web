@@ -5,7 +5,7 @@ import { absoluteUrl } from "@/lib/seo";
 
 export const runtime = "nodejs";
 
-const purchaseTypes = new Set(["Cash", "Financiado"]);
+const purchaseTypes = new Set(["Cash", "Financiamiento", "Otros (especifique)"]);
 const prequalifiedStatuses = new Set(["Sí", "No", "En proceso"]);
 const propertySizeOptions = new Set([
   "2 habitaciones",
@@ -41,6 +41,7 @@ export async function POST(req: Request) {
     const phone = String(body?.phone || "").trim();
     const email = String(body?.email || "").trim().toLowerCase();
     const purchaseType = String(body?.purchaseType || "").trim();
+    const purchaseOther = String(body?.purchaseOther || "").trim();
     const prequalifiedStatus = String(body?.prequalifiedStatus || "").trim();
     const propertySize = String(body?.propertySize || "").trim();
     const searchRange = String(body?.searchRange || "").trim();
@@ -61,7 +62,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const requiresPrequalifiedStatus = purchaseType === "Financiado";
+    const requiresPrequalifiedStatus = purchaseType === "Financiamiento";
+    const requiresPurchaseOther = purchaseType === "Otros (especifique)";
 
     if (
       !purchaseTypes.has(purchaseType) ||
@@ -78,6 +80,13 @@ export async function POST(req: Request) {
     if (requiresPrequalifiedStatus && !prequalifiedStatuses.has(prequalifiedStatus)) {
       return Response.json(
         { ok: false, error: "Indica si ya estás pre-calificado." },
+        { status: 400 }
+      );
+    }
+
+    if (requiresPurchaseOther && !purchaseOther) {
+      return Response.json(
+        { ok: false, error: "Especifica cómo planeas realizar la compra." },
         { status: 400 }
       );
     }
@@ -137,6 +146,7 @@ export async function POST(req: Request) {
           phone,
           email,
           purchase_type,
+          purchase_other,
           prequalified_status,
           property_size,
           search_range,
@@ -151,6 +161,7 @@ export async function POST(req: Request) {
           ${phone},
           ${email},
           ${purchaseType},
+          ${requiresPurchaseOther ? purchaseOther : null},
           ${requiresPrequalifiedStatus ? prequalifiedStatus : null},
           ${propertySize},
           ${searchRange},
@@ -213,6 +224,11 @@ export async function POST(req: Request) {
             <p style="margin: 0 0 12px;"><strong>Teléfono:</strong> ${escapeHtml(phone)}</p>
             <p style="margin: 0 0 12px;"><strong>Email:</strong> ${escapeHtml(email)}</p>
             <p style="margin: 0 0 12px;"><strong>Compra cash o financiado:</strong> ${escapeHtml(purchaseType)}</p>
+            ${
+              requiresPurchaseOther
+                ? `<p style="margin: 0 0 12px;"><strong>Especifique:</strong> ${escapeHtml(purchaseOther)}</p>`
+                : ""
+            }
             ${
               requiresPrequalifiedStatus
                 ? `<p style="margin: 0 0 12px;"><strong>Pre-calificado:</strong> ${escapeHtml(prequalifiedStatus)}</p>`
