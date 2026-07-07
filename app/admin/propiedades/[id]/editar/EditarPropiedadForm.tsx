@@ -6,6 +6,7 @@ import Image from "next/image";
 import { municipiosPR } from "@/data/municipios";
 import { updatePropiedadAction, type UpdatePropiedadState } from "../../actions";
 import ImagenesUploader from "../../ImagenesUploader";
+import { formatPropertyLocation, getSectoresForMunicipio } from "@/lib/puerto-rico-sectores";
 
 type EditarPropiedadFormProps = {
   propiedad: {
@@ -14,6 +15,7 @@ type EditarPropiedadFormProps = {
     titulo: string;
     descripcion: string;
     municipio: string;
+    sector_comunidad?: string | null;
     precio: string | number;
     tipo_negocio: "venta" | "renta";
     tipo_propiedad: "Casa" | "Apartamento" | "Condominio" | "Terreno" | "Comercial";
@@ -50,16 +52,18 @@ const initialState: UpdatePropiedadState = {
 
 function buildDescriptionTemplate({
   municipio,
+  sectorComunidad,
   tipoNegocio,
   tipoPropiedad,
   estado,
 }: {
   municipio: string;
+  sectorComunidad: string;
   tipoNegocio: string;
   tipoPropiedad: string;
   estado: string;
 }) {
-  const location = municipio ? `${municipio}, Puerto Rico` : "Puerto Rico";
+  const location = municipio ? formatPropertyLocation(municipio, sectorComunidad) : "Puerto Rico";
   const propertyType = tipoPropiedad ? `${tipoPropiedad.toLowerCase()} ` : "";
 
   if (estado === "coming_soon") {
@@ -87,6 +91,7 @@ export default function EditarPropiedadForm({
   const [tienePlacas, setTienePlacas] = useState(Boolean(propiedad.tiene_placas_solares));
   const [descripcion, setDescripcion] = useState(propiedad.descripcion);
   const [municipio, setMunicipio] = useState(propiedad.municipio);
+  const [sectorComunidad, setSectorComunidad] = useState(propiedad.sector_comunidad || "");
   const [tipoNegocio, setTipoNegocio] = useState(propiedad.tipo_negocio);
   const [tipoPropiedad, setTipoPropiedad] = useState(propiedad.tipo_propiedad);
   const [estado, setEstado] = useState(propiedad.estado);
@@ -102,6 +107,7 @@ export default function EditarPropiedadForm({
     typeof propiedad.configuracion_formulario?.notas_compradores === "string"
       ? propiedad.configuracion_formulario.notas_compradores
       : "";
+  const sectoresDisponibles = getSectoresForMunicipio(municipio);
 
   const imagenesPreview = useMemo(
     () =>
@@ -135,6 +141,7 @@ export default function EditarPropiedadForm({
     setDescripcion(
       buildDescriptionTemplate({
         municipio,
+        sectorComunidad,
         tipoNegocio,
         tipoPropiedad,
         estado,
@@ -179,30 +186,6 @@ export default function EditarPropiedadForm({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <label htmlFor="descripcion" className="text-sm font-medium text-[#000000]">
-                Descripción <span className="text-red-500">*</span>
-              </label>
-              <button
-                type="button"
-                onClick={handleDescriptionTemplate}
-                className="inline-flex items-center justify-center rounded-full border border-[#11518b] px-4 py-2 text-xs font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
-              >
-                {descripcion.trim() ? "Reemplazar con plantilla" : "Generar descripción base"}
-              </button>
-            </div>
-            <textarea
-              id="descripcion"
-              name="descripcion"
-              rows={6}
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              className="input-premium"
-              required
-            />
-          </div>
-
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
             <div className="space-y-2">
               <label htmlFor="municipio" className="text-sm font-medium text-[#000000]">
@@ -212,7 +195,13 @@ export default function EditarPropiedadForm({
                 id="municipio"
                 name="municipio"
                 value={municipio}
-                onChange={(e) => setMunicipio(e.target.value)}
+                onChange={(e) => {
+                  const nextMunicipio = e.target.value;
+                  setMunicipio(nextMunicipio);
+                  if (!getSectoresForMunicipio(nextMunicipio).includes(sectorComunidad)) {
+                    setSectorComunidad("");
+                  }
+                }}
                 className="input-premium"
                 required
               >
@@ -224,6 +213,28 @@ export default function EditarPropiedadForm({
                 ))}
               </select>
             </div>
+
+            {sectoresDisponibles.length > 0 && (
+              <div className="space-y-2">
+                <label htmlFor="sector_comunidad" className="text-sm font-medium text-[#000000]">
+                  Sector / Comunidad
+                </label>
+                <select
+                  id="sector_comunidad"
+                  name="sector_comunidad"
+                  value={sectorComunidad}
+                  onChange={(e) => setSectorComunidad(e.target.value)}
+                  className="input-premium"
+                >
+                  <option value="">Opcional</option>
+                  {sectoresDisponibles.map((sector) => (
+                    <option key={sector} value={sector}>
+                      {sector}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="space-y-2">
               <label htmlFor="precio" className="text-sm font-medium text-[#000000]">
@@ -730,6 +741,30 @@ export default function EditarPropiedadForm({
                 />
               </div>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <label htmlFor="descripcion" className="text-sm font-medium text-[#000000]">
+                Descripción <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={handleDescriptionTemplate}
+                className="inline-flex items-center justify-center rounded-full border border-[#11518b] px-4 py-2 text-xs font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
+              >
+                {descripcion.trim() ? "Reemplazar con plantilla" : "Generar descripción base"}
+              </button>
+            </div>
+            <textarea
+              id="descripcion"
+              name="descripcion"
+              rows={6}
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              className="input-premium"
+              required
+            />
           </div>
 
           <div className="space-y-3">

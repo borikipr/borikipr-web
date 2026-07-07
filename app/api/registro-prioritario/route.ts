@@ -7,6 +7,12 @@ export const runtime = "nodejs";
 
 const purchaseTypes = new Set(["Cash", "Financiado"]);
 const prequalifiedStatuses = new Set(["Sí", "No", "En proceso"]);
+const propertySizeOptions = new Set([
+  "2 habitaciones",
+  "3 habitaciones",
+  "4 o más habitaciones",
+  "Estoy abierto(a) a opciones",
+]);
 const wantsVisitOptions = new Set(["Sí", "No"]);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -37,8 +43,10 @@ export async function POST(req: Request) {
     const email = String(body?.email || "").trim().toLowerCase();
     const purchaseType = String(body?.purchaseType || "").trim();
     const prequalifiedStatus = String(body?.prequalifiedStatus || "").trim();
+    const propertySize = String(body?.propertySize || "").trim();
     const searchRange = String(body?.searchRange || "").trim();
     const wantsVisit = String(body?.wantsVisit || "").trim();
+    const additionalInfo = String(body?.additionalInfo || "").trim();
 
     if (!propertyId || !propertySlug || !name || !phone || !email) {
       return Response.json(
@@ -56,7 +64,12 @@ export async function POST(req: Request) {
 
     const requiresPrequalifiedStatus = purchaseType === "Financiado";
 
-    if (!purchaseTypes.has(purchaseType) || !wantsVisitOptions.has(wantsVisit) || !searchRange) {
+    if (
+      !purchaseTypes.has(purchaseType) ||
+      !propertySizeOptions.has(propertySize) ||
+      !wantsVisitOptions.has(wantsVisit) ||
+      !searchRange
+    ) {
       return Response.json(
         { ok: false, error: "Completa las preguntas requeridas." },
         { status: 400 }
@@ -126,8 +139,10 @@ export async function POST(req: Request) {
           email,
           purchase_type,
           prequalified_status,
+          property_size,
           search_range,
           wants_visit,
+          additional_info,
           source
         ) VALUES (
           ${property.id},
@@ -138,10 +153,12 @@ export async function POST(req: Request) {
           ${email},
           ${purchaseType},
           ${requiresPrequalifiedStatus ? prequalifiedStatus : null},
-        ${searchRange},
-        ${wantsVisitBoolean},
-        'registro_prioritario'
-      )
+          ${propertySize},
+          ${searchRange},
+          ${wantsVisitBoolean},
+          ${additionalInfo || null},
+          'registro_prioritario'
+        )
         RETURNING id::text
       `;
       insertedId = inserted[0]?.id || "";
@@ -202,8 +219,14 @@ export async function POST(req: Request) {
                 ? `<p style="margin: 0 0 12px;"><strong>Pre-calificado:</strong> ${escapeHtml(prequalifiedStatus)}</p>`
                 : ""
             }
+            <p style="margin: 0 0 12px;"><strong>Tamaño de propiedad:</strong> ${escapeHtml(propertySize)}</p>
             <p style="margin: 0 0 12px;"><strong>Rango de búsqueda:</strong> ${escapeHtml(searchRange)}</p>
-            <p style="margin: 0;"><strong>Interés en visita:</strong> ${escapeHtml(wantsVisit)}</p>
+            <p style="margin: 0 0 12px;"><strong>Interés en visita:</strong> ${escapeHtml(wantsVisit)}</p>
+            ${
+              additionalInfo
+                ? `<p style="margin: 0;"><strong>Información adicional:</strong> ${escapeHtml(additionalInfo)}</p>`
+                : ""
+            }
           </div>
 
           <div style="background: #f8f8f8; padding: 20px 24px; border-top: 1px solid #e8e8e8;">

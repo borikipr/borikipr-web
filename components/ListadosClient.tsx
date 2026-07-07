@@ -12,6 +12,7 @@ import {
   estadoLabel,
   Orden,
 } from "@/lib/propiedades";
+import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
 
 type TipoNegocio = "venta" | "renta";
 type TipoPropiedad =
@@ -35,6 +36,7 @@ type PropiedadDB = {
   titulo: string;
   descripcion: string;
   municipio: string;
+  sector_comunidad?: string | null;
   precio: number;
   tipo_negocio: TipoNegocio;
   tipo_propiedad: TipoPropiedad;
@@ -396,6 +398,7 @@ export default function ListadosClient({
         titulo: p.titulo,
         descripcion: p.descripcion,
         municipio: p.municipio,
+        sectorComunidad: p.sector_comunidad,
         precio: Number(p.precio),
         tipoNegocio: p.tipo_negocio,
         tipoPropiedad: p.tipo_propiedad,
@@ -950,6 +953,13 @@ export default function ListadosClient({
                     <h3 className="mb-2 text-lg font-bold text-[#000000] line-clamp-2">
                       {propiedad.titulo}
                     </h3>
+
+                    <p className="mb-3 text-sm text-[#4d4d4d]">
+                      {formatPropertyLocation(
+                        propiedad.municipio,
+                        propiedad.sectorComunidad
+                      )}
+                    </p>
 
                     <p className="mb-4 text-sm text-[#4d4d4d] line-clamp-2">
                       {propiedad.descripcion}

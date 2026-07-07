@@ -11,6 +11,7 @@ import {
   breadcrumbJsonLd,
   jsonLdScript,
 } from "@/lib/seo";
+import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -108,7 +109,10 @@ export default async function RegistroPrioritarioPage({ params }: PageProps) {
                   {propiedad.titulo}
                 </h1>
                 <p className="mt-3 text-[#4d4d4d]">
-                  {propiedad.municipio}
+                  {formatPropertyLocation(
+                    propiedad.municipio,
+                    propiedad.sector_comunidad
+                  )}
                 </p>
               </div>
             </aside>

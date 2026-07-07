@@ -6,6 +6,7 @@ import Image from "next/image";
 import { municipiosPR } from "@/data/municipios";
 import { createPropiedadAction, type CreatePropiedadState } from "../actions";
 import ImagenesUploader from "../ImagenesUploader";
+import { formatPropertyLocation, getSectoresForMunicipio } from "@/lib/puerto-rico-sectores";
 
 const initialState: CreatePropiedadState = {
   error: "",
@@ -23,18 +24,31 @@ function previewSlug(value: string) {
     .replace(/^-|-$/g, "");
 }
 
+function buildPreviewSlugBase(titulo: string, sectorComunidad: string, municipio: string) {
+  const normalizedTitle = previewSlug(titulo);
+  const normalizedSector = previewSlug(sectorComunidad);
+
+  if (normalizedSector && !normalizedTitle.includes(normalizedSector)) {
+    return `${titulo} ${sectorComunidad} ${municipio}`;
+  }
+
+  return `${titulo} ${municipio}`;
+}
+
 function buildDescriptionTemplate({
   municipio,
+  sectorComunidad,
   tipoNegocio,
   tipoPropiedad,
   estado,
 }: {
   municipio: string;
+  sectorComunidad: string;
   tipoNegocio: string;
   tipoPropiedad: string;
   estado: string;
 }) {
-  const location = municipio ? `${municipio}, Puerto Rico` : "Puerto Rico";
+  const location = municipio ? formatPropertyLocation(municipio, sectorComunidad) : "Puerto Rico";
   const propertyType = tipoPropiedad ? `${tipoPropiedad.toLowerCase()} ` : "";
 
   if (estado === "coming_soon") {
@@ -59,6 +73,7 @@ export default function NuevaPropiedadPage() {
   const [showingActivo, setShowingActivo] = useState(false);
   const [titulo, setTitulo] = useState("");
   const [municipio, setMunicipio] = useState("");
+  const [sectorComunidad, setSectorComunidad] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [tipoNegocio, setTipoNegocio] = useState("");
   const [tipoPropiedad, setTipoPropiedad] = useState("");
@@ -85,8 +100,10 @@ export default function NuevaPropiedadPage() {
     });
   };
 
+  const sectoresDisponibles = getSectoresForMunicipio(municipio);
   const slugPreview =
-    previewSlug(`${titulo} ${municipio}`) || "slug-generado-automaticamente";
+    previewSlug(buildPreviewSlugBase(titulo, sectorComunidad, municipio)) ||
+    "slug-generado-automaticamente";
 
   const handleDescriptionTemplate = () => {
     if (
@@ -99,6 +116,7 @@ export default function NuevaPropiedadPage() {
     setDescripcion(
       buildDescriptionTemplate({
         municipio,
+        sectorComunidad,
         tipoNegocio,
         tipoPropiedad,
         estado,
@@ -163,34 +181,6 @@ export default function NuevaPropiedadPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <label
-                    htmlFor="descripcion"
-                    className="text-sm font-medium text-[#000000]"
-                  >
-                    Descripción <span className="text-red-500">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleDescriptionTemplate}
-                    className="inline-flex items-center justify-center rounded-full border border-[#11518b] px-4 py-2 text-xs font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
-                  >
-                    {descripcion.trim() ? "Reemplazar con plantilla" : "Generar descripción base"}
-                  </button>
-                </div>
-                <textarea
-                  id="descripcion"
-                  name="descripcion"
-                  rows={6}
-                  placeholder="Describe la propiedad con claridad y enfoque comercial..."
-                  value={descripcion}
-                  onChange={(e) => setDescripcion(e.target.value)}
-                  className="input-premium"
-                  required
-                />
-              </div>
-
               <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
                 <div className="space-y-2">
                   <label
@@ -203,7 +193,13 @@ export default function NuevaPropiedadPage() {
                     id="municipio"
                     name="municipio"
                     value={municipio}
-                    onChange={(e) => setMunicipio(e.target.value)}
+                    onChange={(e) => {
+                      const nextMunicipio = e.target.value;
+                      setMunicipio(nextMunicipio);
+                      if (!getSectoresForMunicipio(nextMunicipio).includes(sectorComunidad)) {
+                        setSectorComunidad("");
+                      }
+                    }}
                     className="input-premium"
                     required
                   >
@@ -215,6 +211,31 @@ export default function NuevaPropiedadPage() {
                     ))}
                   </select>
                 </div>
+
+                {sectoresDisponibles.length > 0 && (
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="sector_comunidad"
+                      className="text-sm font-medium text-[#000000]"
+                    >
+                      Sector / Comunidad
+                    </label>
+                    <select
+                      id="sector_comunidad"
+                      name="sector_comunidad"
+                      value={sectorComunidad}
+                      onChange={(e) => setSectorComunidad(e.target.value)}
+                      className="input-premium"
+                    >
+                      <option value="">Opcional</option>
+                      {sectoresDisponibles.map((sector) => (
+                        <option key={sector} value={sector}>
+                          {sector}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <label
@@ -654,6 +675,34 @@ export default function NuevaPropiedadPage() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <label
+                    htmlFor="descripcion"
+                    className="text-sm font-medium text-[#000000]"
+                  >
+                    Descripción <span className="text-red-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleDescriptionTemplate}
+                    className="inline-flex items-center justify-center rounded-full border border-[#11518b] px-4 py-2 text-xs font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
+                  >
+                    {descripcion.trim() ? "Reemplazar con plantilla" : "Generar descripción base"}
+                  </button>
+                </div>
+                <textarea
+                  id="descripcion"
+                  name="descripcion"
+                  rows={6}
+                  placeholder="Describe la propiedad con claridad y enfoque comercial..."
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                  className="input-premium"
+                  required
+                />
               </div>
 
               <div className="space-y-3">

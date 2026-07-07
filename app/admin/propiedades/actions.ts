@@ -7,6 +7,7 @@ import { municipiosPR } from "@/data/municipios";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import { Resend } from "resend";
 import { absoluteUrl } from "@/lib/seo";
+import { normalizeSectorForMunicipio } from "@/lib/puerto-rico-sectores";
 
 export type CreatePropiedadState = {
   error: string;
@@ -77,6 +78,17 @@ async function buildUniqueSlug(baseValue: string) {
   }
 
   return candidate;
+}
+
+function buildSlugBase(titulo: string, sectorComunidad: string, municipio: string) {
+  const normalizedTitle = normalizeSlug(titulo);
+  const normalizedSector = normalizeSlug(sectorComunidad);
+
+  if (normalizedSector && !normalizedTitle.includes(normalizedSector)) {
+    return `${titulo} ${sectorComunidad} ${municipio}`;
+  }
+
+  return `${titulo} ${municipio}`;
 }
 
 function buildShowingDateTime(dateValue: string, timeValue: string) {
@@ -256,6 +268,7 @@ export async function createPropiedadAction(
   const titulo = String(formData.get("titulo") || "").trim();
   const descripcion = String(formData.get("descripcion") || "").trim();
   const municipio = String(formData.get("municipio") || "").trim();
+  const sectorComunidadRaw = String(formData.get("sector_comunidad") || "").trim();
   const precioRaw = String(formData.get("precio") || "").trim();
   const tipoNegocio = String(formData.get("tipo_negocio") || "").trim();
   const tipoPropiedad = String(formData.get("tipo_propiedad") || "").trim();
@@ -304,7 +317,8 @@ export async function createPropiedadAction(
     return { error: "Selecciona un municipio válido." };
   }
 
-  const slug = await buildUniqueSlug(`${titulo} ${municipio}`);
+  const sectorComunidad = normalizeSectorForMunicipio(municipio, sectorComunidadRaw);
+  const slug = await buildUniqueSlug(buildSlugBase(titulo, sectorComunidad, municipio));
 
   if (!slug) {
     return { error: "No se pudo generar el slug de la propiedad." };
@@ -376,6 +390,7 @@ export async function createPropiedadAction(
         titulo,
         descripcion,
         municipio,
+        sector_comunidad,
         precio,
         tipo_negocio,
         tipo_propiedad,
@@ -407,6 +422,7 @@ export async function createPropiedadAction(
         ${titulo},
         ${descripcion},
         ${municipio},
+        ${sectorComunidad || null},
         ${precio},
         ${tipoNegocio},
         ${tipoPropiedad},
@@ -473,6 +489,7 @@ export async function updatePropiedadAction(
   const titulo = String(formData.get("titulo") || "").trim();
   const descripcion = String(formData.get("descripcion") || "").trim();
   const municipio = String(formData.get("municipio") || "").trim();
+  const sectorComunidadRaw = String(formData.get("sector_comunidad") || "").trim();
   const precioRaw = String(formData.get("precio") || "").trim();
   const tipoNegocio = String(formData.get("tipo_negocio") || "").trim();
   const tipoPropiedad = String(formData.get("tipo_propiedad") || "").trim();
@@ -527,6 +544,8 @@ export async function updatePropiedadAction(
   if (!municipiosValidos.has(municipio as never)) {
     return { error: "Selecciona un municipio válido." };
   }
+
+  const sectorComunidad = normalizeSectorForMunicipio(municipio, sectorComunidadRaw);
 
   if (!tiposNegocioValidos.has(tipoNegocio as never)) {
     return { error: "Selecciona un tipo de negocio válido." };
@@ -629,6 +648,7 @@ export async function updatePropiedadAction(
         titulo = ${titulo},
         descripcion = ${descripcion},
         municipio = ${municipio},
+        sector_comunidad = ${sectorComunidad || null},
         precio = ${precio},
         tipo_negocio = ${tipoNegocio},
         tipo_propiedad = ${tipoPropiedad},

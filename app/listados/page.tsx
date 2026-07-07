@@ -120,6 +120,7 @@ export default async function ListadosPage({
     titulo: p.titulo,
     descripcion: p.descripcion,
     municipio: p.municipio,
+    sector_comunidad: p.sector_comunidad,
     precio: Number(p.precio),
     tipo_negocio: p.tipo_negocio,
     tipo_propiedad: p.tipo_propiedad as TipoPropiedad,

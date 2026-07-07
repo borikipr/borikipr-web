@@ -34,6 +34,7 @@ export type PropiedadQueryRow = {
   titulo: string;
   descripcion: string;
   municipio: string;
+  sector_comunidad?: string | null;
   precio: string | number;
   tipo_negocio: TipoNegocio;
   tipo_propiedad: string;
@@ -57,6 +58,7 @@ export type PropiedadHomeDestacada = {
   slug: string;
   titulo: string;
   municipio: string;
+  sector_comunidad?: string | null;
   precio: string | number;
   tipo_negocio: TipoNegocio;
   tipo_propiedad: string;
@@ -80,6 +82,7 @@ export async function getPropiedadesDestacadas(limit = 3) {
       p.slug,
       p.titulo,
       p.municipio,
+      to_jsonb(p)->>'sector_comunidad' AS sector_comunidad,
       p.precio,
       p.tipo_negocio,
       p.tipo_propiedad,
@@ -118,6 +121,7 @@ export async function getPropiedades() {
       p.titulo,
       p.descripcion,
       p.municipio,
+      to_jsonb(p)->>'sector_comunidad' AS sector_comunidad,
       p.precio,
       p.tipo_negocio,
       p.tipo_propiedad,
@@ -156,6 +160,7 @@ export async function getPropiedadBySlug(slug: string) {
       p.titulo,
       p.descripcion,
       p.municipio,
+      to_jsonb(p)->>'sector_comunidad' AS sector_comunidad,
       p.precio,
       p.tipo_negocio,
       p.tipo_propiedad,
@@ -200,6 +205,7 @@ export async function getPropiedadesSimilares(
       p.titulo,
       p.descripcion,
       p.municipio,
+      to_jsonb(p)->>'sector_comunidad' AS sector_comunidad,
       p.precio,
       p.tipo_negocio,
       p.tipo_propiedad,
@@ -295,6 +301,7 @@ export async function getPropiedadesPaginadas(
       p.titulo ILIKE ${qLike}
       OR p.descripcion ILIKE ${qLike}
       OR p.municipio ILIKE ${qLike}
+      OR (to_jsonb(p)->>'sector_comunidad') ILIKE ${qLike}
       OR p.tipo_propiedad ILIKE ${qLike}
     )`);
   }
@@ -346,6 +353,7 @@ export async function getPropiedadesPaginadas(
       p.titulo,
       p.descripcion,
       p.municipio,
+      to_jsonb(p)->>'sector_comunidad' AS sector_comunidad,
       p.precio,
       p.tipo_negocio,
       p.tipo_propiedad,

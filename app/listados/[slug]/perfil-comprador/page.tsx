@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { getPropiedadBySlug } from "@/lib/queries/propiedades";
 import { isR2Configured } from "@/lib/r2";
 import PerfilCompradorPropiedadForm from "@/components/PerfilCompradorPropiedadForm";
+import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -83,7 +84,10 @@ export default async function PerfilCompradorPage({ params }: PageProps) {
                   <div className="grid gap-3 text-sm text-[#4d4d4d] sm:grid-cols-2">
                     <p>
                       <span className="font-semibold text-[#000000]">Municipio:</span>{" "}
-                      {propiedad.municipio}
+                      {formatPropertyLocation(
+                        propiedad.municipio,
+                        propiedad.sector_comunidad
+                      )}
                     </p>
                     <p>
                       <span className="font-semibold text-[#000000]">Precio:</span>{" "}

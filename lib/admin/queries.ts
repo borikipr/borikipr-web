@@ -5,6 +5,7 @@ export type AdminPropiedadRow = {
   slug: string;
   titulo: string;
   municipio: string;
+  sector_comunidad?: string | null;
   precio: string | number;
   tipo_negocio: "venta" | "renta";
   tipo_propiedad: "Casa" | "Apartamento" | "Condominio" | "Terreno";
@@ -21,6 +22,7 @@ export type AdminPropiedadDetalle = {
   titulo: string;
   descripcion: string;
   municipio: string;
+  sector_comunidad?: string | null;
   precio: string | number;
   tipo_negocio: "venta" | "renta";
   tipo_propiedad: "Casa" | "Apartamento" | "Condominio" | "Terreno";
@@ -93,6 +95,7 @@ export async function getAdminPropiedades(tipo?: string) {
       p.slug,
       p.titulo,
       p.municipio,
+      to_jsonb(p)->>'sector_comunidad' AS sector_comunidad,
       p.precio,
       p.tipo_negocio,
       p.tipo_propiedad,
@@ -120,6 +123,7 @@ export async function getAdminPropiedadById(id: string) {
       p.titulo,
       p.descripcion,
       p.municipio,
+      to_jsonb(p)->>'sector_comunidad' AS sector_comunidad,
       p.precio,
       p.tipo_negocio,
       p.tipo_propiedad,

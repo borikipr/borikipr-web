@@ -170,7 +170,16 @@ export default async function AdminPropiedadesPage({
                       </td>
 
                       <td className="px-4 py-5 text-sm text-[#4d4d4d]">
-                        {item.municipio}
+                        {item.sector_comunidad ? (
+                          <span>
+                            <span className="block font-semibold text-[#000000]">
+                              {item.sector_comunidad}
+                            </span>
+                            <span>{item.municipio}</span>
+                          </span>
+                        ) : (
+                          item.municipio
+                        )}
                       </td>
 
                       <td className="px-4 py-5 text-sm text-[#4d4d4d]">

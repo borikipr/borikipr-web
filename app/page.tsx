@@ -21,6 +21,7 @@ import {
   type PropiedadHomeDestacada,
 } from "@/lib/queries/propiedades";
 import { getTestimoniosPublicos, type TestimonioPublico } from "@/lib/queries/testimonios";
+import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
 import { DEFAULT_OG_IMAGE, SITE_NAME, SITE_URL } from "@/lib/seo";
 
 const pageTitle = "Bienes Raíces en Puerto Rico";
@@ -330,7 +331,10 @@ export default async function Home() {
                             </span>
 
                             <span className="text-sm text-[#4d4d4d]">
-                              {item.municipio}
+                              {formatPropertyLocation(
+                                item.municipio,
+                                item.sector_comunidad
+                              )}
                             </span>
                           </div>
 

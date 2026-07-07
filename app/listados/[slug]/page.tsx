@@ -17,6 +17,7 @@ import {
   breadcrumbJsonLd,
   jsonLdScript,
 } from "@/lib/seo";
+import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
 
 type TipoNegocio = "venta" | "renta";
 type EstadoPropiedad =
@@ -32,6 +33,7 @@ type PropiedadDB = {
   titulo: string;
   descripcion: string;
   municipio: string;
+  sector_comunidad?: string | null;
   precio: string | number;
   tipo_negocio: TipoNegocio;
   tipo_propiedad: TipoPropiedad;
@@ -133,9 +135,10 @@ export async function generateMetadata({
   }
 
   const titulo = row.titulo;
+  const locationLabel = formatPropertyLocation(row.municipio, row.sector_comunidad);
   const descripcion = row.descripcion?.trim()
     ? row.descripcion.trim().slice(0, 160)
-    : `Propiedad en ${row.municipio}, Puerto Rico.`;
+    : `Propiedad en ${locationLabel}.`;
 
   const imagen =
     Array.isArray(row.imagenes) && row.imagenes.length > 0
@@ -205,6 +208,7 @@ export default async function DetallePropiedadPage({
     titulo: row.titulo,
     descripcion: row.descripcion,
     municipio: row.municipio,
+    sectorComunidad: row.sector_comunidad,
     precio: Number(row.precio),
     tipoNegocio: row.tipo_negocio,
     tipoPropiedad: row.tipo_propiedad,
@@ -227,6 +231,10 @@ export default async function DetallePropiedadPage({
   };
 
   const propiedadUrl = `https://borikipr.com/listados/${propiedad.slug}`;
+  const propiedadLocation = formatPropertyLocation(
+    propiedad.municipio,
+    propiedad.sectorComunidad
+  );
 
   const tipoLinea = propiedad.origenListado === "co_broke"
     ? "Tipo: Propiedad en colaboración"
@@ -238,7 +246,7 @@ export default async function DetallePropiedadPage({
     `Hola, me interesa esta propiedad:
 
 ${propiedad.titulo}
-${propiedad.municipio}, Puerto Rico
+${propiedadLocation}
 Precio: ${formatoPrecio(propiedad.precio, propiedad.tipoNegocio)}${tipoLinea ? "\n" + tipoLinea : ""}
 
 Link:
@@ -347,7 +355,7 @@ ${propiedadUrl}`
               </h1>
 
               <p className="mt-4 text-lg text-[#4d4d4d]">
-                {propiedad.municipio}, Puerto Rico
+                {propiedadLocation}
               </p>
 
               <p className="mt-6 text-3xl font-bold tracking-tight text-[#11518b]">
@@ -578,7 +586,10 @@ ${propiedadUrl}`
                           </span>
 
                           <span className="text-sm text-[#4d4d4d]">
-                            {item.municipio}
+                            {formatPropertyLocation(
+                              item.municipio,
+                              item.sector_comunidad
+                            )}
                           </span>
                         </div>
 

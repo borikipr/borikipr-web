@@ -10,6 +10,12 @@ type RegistroPrioritarioFormProps = {
 
 const purchaseTypes = ["Cash", "Financiado"];
 const prequalifiedStatuses = ["Sí", "No", "En proceso"];
+const propertySizeOptions = [
+  "2 habitaciones",
+  "3 habitaciones",
+  "4 o más habitaciones",
+  "Estoy abierto(a) a opciones",
+];
 const yesNoOptions = ["Sí", "No"];
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -61,8 +67,10 @@ export default function RegistroPrioritarioForm({
       email,
       purchaseType,
       prequalifiedStatus: showPrequalifiedQuestion ? prequalifiedStatus : "",
+      propertySize: String(formData.get("propertySize") || "").trim(),
       searchRange: String(formData.get("searchRange") || "").trim(),
       wantsVisit: String(formData.get("wantsVisit") || "").trim(),
+      additionalInfo: String(formData.get("additionalInfo") || "").trim(),
     };
 
     try {
@@ -105,7 +113,7 @@ export default function RegistroPrioritarioForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       <div className="grid gap-5 md:grid-cols-2">
-        <Field label="Nombre" htmlFor="name" required>
+        <Field label="Nombre completo" htmlFor="name" required>
           <input id="name" name="name" type="text" required className="input-premium" />
         </Field>
 
@@ -117,16 +125,6 @@ export default function RegistroPrioritarioForm({
           <input id="email" name="email" type="email" required className="input-premium" />
         </Field>
 
-        <Field label="¿En qué rango de precio estás buscando?" htmlFor="searchRange" required>
-          <input
-            id="searchRange"
-            name="searchRange"
-            type="text"
-            required
-            className="input-premium"
-            placeholder="Ejemplo: $250,000 - $350,000"
-          />
-        </Field>
       </div>
 
       <ChoiceGroup
@@ -148,7 +146,7 @@ export default function RegistroPrioritarioForm({
         aria-hidden={!showPrequalifiedQuestion}
       >
         <ChoiceGroup
-          legend="¿Ya estás pre-calificado?"
+          legend="¿Te encuentras pre-calificado(a)?"
           name="prequalifiedStatus"
           options={prequalifiedStatuses}
           value={prequalifiedStatus}
@@ -160,12 +158,44 @@ export default function RegistroPrioritarioForm({
       </div>
 
       <ChoiceGroup
+        legend="¿Qué tamaño de propiedad estás buscando?"
+        name="propertySize"
+        options={propertySizeOptions}
+        required
+        columns="sm:grid-cols-2"
+      />
+
+      <Field label="¿En qué rango de precio estás buscando?" htmlFor="searchRange" required>
+        <input
+          id="searchRange"
+          name="searchRange"
+          type="text"
+          required
+          className="input-premium"
+          placeholder="Ejemplo: $250,000 - $350,000"
+        />
+      </Field>
+
+      <ChoiceGroup
         legend="¿Te interesa coordinar una visita tan pronto esté disponible?"
         name="wantsVisit"
         options={yesNoOptions}
         required
         columns="sm:grid-cols-2"
       />
+
+      <Field
+        label="¿Alguna información adicional que quiera compartir?"
+        htmlFor="additionalInfo"
+      >
+        <textarea
+          id="additionalInfo"
+          name="additionalInfo"
+          rows={4}
+          className="input-premium"
+          placeholder="Tu respuesta"
+        />
+      </Field>
 
       {success && (
         <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
@@ -259,3 +289,4 @@ function ChoiceGroup({
     </fieldset>
   );
 }
+
