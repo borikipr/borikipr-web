@@ -127,7 +127,7 @@ export default async function RegistroPrioritarioPage({ params }: PageProps) {
                       </p>
                       <p>Esta propiedad estará disponible próximamente.</p>
                       <p>
-                        Completa este formulario para recibir la información antes que el público general y ser una de las primeras personas en coordinar una visita.
+                        Completa este formulario para recibir la información primero.
                       </p>
                     </div>
                   </div>
