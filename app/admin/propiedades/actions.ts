@@ -5,6 +5,8 @@ import { sql } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { municipiosPR } from "@/data/municipios";
 import { getAdminSessionUser } from "@/lib/admin/auth";
+import { Resend } from "resend";
+import { absoluteUrl } from "@/lib/seo";
 
 export type CreatePropiedadState = {
   error: string;
@@ -52,11 +54,167 @@ function buildShowingDateTime(dateValue: string, timeValue: string) {
   return `${dateValue} ${timeValue}:00`;
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 async function requireAdminSession() {
   const user = await getAdminSessionUser();
   if (!user) {
     throw new Error("No autorizado.");
   }
+}
+
+type PriorityRegistration = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+async function notifyPriorityRegistrationsForAvailableProperty({
+  propertyId,
+  propertyTitle,
+  propertySlug,
+}: {
+  propertyId: string;
+  propertyTitle: string;
+  propertySlug: string;
+}) {
+  console.info("AVAILABILITY NOTIFICATION FUNCTION STARTED", {
+    propertyId,
+    propertySlug,
+    propertyTitle,
+  });
+
+  const registrations = await sql<PriorityRegistration[]>`
+    SELECT id::text, name, email
+    FROM property_priority_registrations
+    WHERE property_id = ${propertyId}
+      AND notified_at IS NULL
+    ORDER BY created_at ASC
+  `;
+
+  console.info("PRIORITY REGISTRATION AVAILABILITY LOOKUP:", {
+    propertyId,
+    propertySlug,
+    propertyTitle,
+    pendingRegistrations: registrations.length,
+  });
+
+  if (registrations.length === 0) {
+    return;
+  }
+
+  if (!process.env.RESEND_API_KEY) {
+    console.error(
+      "PRIORITY REGISTRATION NOTIFICATION ERROR: Missing RESEND_API_KEY"
+    );
+    return;
+  }
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const fromEmail =
+    process.env.CONTACT_FROM_EMAIL?.trim() || "onboarding@resend.dev";
+  const propertyUrl = absoluteUrl(`/listados/${propertySlug}`);
+  let attempted = 0;
+  let sent = 0;
+  let failed = 0;
+
+  for (const registration of registrations) {
+    try {
+      attempted += 1;
+      console.info("PRIORITY REGISTRATION RESEND ATTEMPT:", {
+        propertyId,
+        registrationId: registration.id,
+        email: registration.email,
+      });
+      const { error } = await resend.emails.send({
+        from: `Erickson Real Estate <${fromEmail}>`,
+        to: [registration.email],
+        subject: "La propiedad que te interesó ya está disponible",
+        html: `
+          <div style="font-family: Arial, Helvetica, sans-serif; color: #111; line-height: 1.6; padding: 24px;">
+            <div style="max-width: 640px; margin: 0 auto; border: 1px solid #e8e8e8; border-radius: 18px; overflow: hidden;">
+              <div style="background: #11518b; padding: 20px 24px;">
+                <h2 style="margin: 0; color: #d4af37; font-size: 22px;">La propiedad ya está disponible</h2>
+              </div>
+              <div style="padding: 24px;">
+                <p style="margin: 0 0 12px;">Hola ${escapeHtml(registration.name)},</p>
+                <p style="margin: 0 0 12px;">
+                  La propiedad que te interesó ya está disponible. Como completaste el registro prioritario, estás recibiendo esta información antes que el público general.
+                </p>
+                <p style="margin: 0 0 12px;"><strong>Propiedad:</strong> ${escapeHtml(propertyTitle)}</p>
+                <p style="margin: 0 0 18px;">
+                  <strong>Enlace:</strong>
+                  <a href="${propertyUrl}" style="color: #11518b;">${propertyUrl}</a>
+                </p>
+                <div style="border-top: 1px solid #e8e8e8; border-bottom: 1px solid #e8e8e8; margin: 22px 0; padding: 18px 0;">
+                  <p style="margin: 0 0 8px; color: #11518b; font-weight: 700;">Próximo paso</p>
+                  <p style="margin: 0 0 10px;">
+                    Si deseas avanzar con el proceso o coordinar una visita, completa tu perfil de comprador aquí:
+                  </p>
+                  <p style="margin: 0;">
+                    <a href="https://borikipr.com/contact/perfil-comprador" style="color: #11518b; font-weight: 700;">
+                      https://borikipr.com/contact/perfil-comprador
+                    </a>
+                  </p>
+                </div>
+                <p style="margin: 0 0 18px;">
+                  Si deseas coordinar una visita, comunícate con Erickson Real Estate / Ivonne para confirmar disponibilidad y próximos pasos.
+                </p>
+                <p style="margin: 0;">
+                  Gracias por tu interés,<br />
+                  Ivonne Erickson<br />
+                  Erickson Real Estate
+                </p>
+              </div>
+            </div>
+          </div>
+        `,
+      });
+
+      if (error) {
+        console.error("PRIORITY REGISTRATION EMAIL ERROR:", {
+          registrationId: registration.id,
+          email: registration.email,
+          error,
+        });
+        failed += 1;
+        continue;
+      }
+
+      await sql`
+        UPDATE property_priority_registrations
+        SET notified_at = now()
+        WHERE id = ${registration.id}
+          AND notified_at IS NULL
+      `;
+      sent += 1;
+      console.info(`AVAILABILITY EMAIL SENT TO: ${registration.email}`);
+    } catch (error) {
+      console.error("PRIORITY REGISTRATION EMAIL ERROR:", {
+        registrationId: registration.id,
+        email: registration.email,
+        error,
+      });
+      failed += 1;
+    }
+  }
+
+  console.info("PRIORITY REGISTRATION AVAILABILITY SUMMARY:", {
+    propertyId,
+    propertySlug,
+    propertyTitle,
+    pendingRegistrations: registrations.length,
+    attempted,
+    sent,
+    failed,
+  });
 }
 
 export async function createPropiedadAction(
@@ -365,13 +523,18 @@ export async function updatePropiedadAction(
     return { error: "Selecciona un origen de listado válido." };
   }
 
-  const origenActualRows = await sql<{ origen_listado: string }[]>`
-    SELECT origen_listado
+  const propiedadActualRows = await sql<{
+    origen_listado: string;
+    estado: string;
+  }[]>`
+    SELECT origen_listado, estado
     FROM propiedades
     WHERE id = ${id}
     LIMIT 1
   `;
-  const origenActual = origenActualRows[0]?.origen_listado;
+  const propiedadActual = propiedadActualRows[0];
+  const origenActual = propiedadActual?.origen_listado;
+  const estadoActual = propiedadActual?.estado;
 
   if (!origenActual) {
     return { error: "No se encontró la propiedad a editar." };
@@ -493,6 +656,23 @@ export async function updatePropiedadAction(
       `;
     }
 
+    console.info("PROPERTY STATUS TRANSITION CHECK:", {
+      flow: "full_edit",
+      propertyId: id,
+      propertySlug: slug,
+      propertyTitle: titulo,
+      previousStatus: estadoActual,
+      newStatus: estado,
+    });
+
+    if (estadoActual === "coming_soon" && estado === "disponible") {
+      await notifyPriorityRegistrationsForAvailableProperty({
+        propertyId: id,
+        propertyTitle: titulo,
+        propertySlug: slug,
+      });
+    }
+
     revalidatePath("/admin/propiedades");
     revalidatePath(`/admin/propiedades/${id}/editar`);
     revalidatePath("/listados");
@@ -519,11 +699,44 @@ export async function updatePropiedadEstadoAction(formData: FormData) {
     throw new Error("Estado inválido.");
   }
 
+  const propiedadActualRows = await sql<{
+    estado: string;
+    titulo: string;
+    slug: string;
+  }[]>`
+    SELECT estado, titulo, slug
+    FROM propiedades
+    WHERE id = ${id}
+    LIMIT 1
+  `;
+  const propiedadActual = propiedadActualRows[0];
+
+  if (!propiedadActual) {
+    throw new Error("No se encontrÃ³ la propiedad.");
+  }
+
   await sql`
     UPDATE propiedades
     SET estado = ${estado}
     WHERE id = ${id}
   `;
+
+  console.info("PROPERTY STATUS TRANSITION CHECK:", {
+    flow: "inline_status",
+    propertyId: id,
+    propertySlug: propiedadActual.slug,
+    propertyTitle: propiedadActual.titulo,
+    previousStatus: propiedadActual.estado,
+    newStatus: estado,
+  });
+
+  if (propiedadActual.estado === "coming_soon" && estado === "disponible") {
+    await notifyPriorityRegistrationsForAvailableProperty({
+      propertyId: id,
+      propertyTitle: propiedadActual.titulo,
+      propertySlug: propiedadActual.slug,
+    });
+  }
 
   revalidatePath("/admin/propiedades");
   revalidatePath("/listados");

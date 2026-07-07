@@ -450,6 +450,15 @@ ${propiedadUrl}`
                   </p>
 
                   <div className="mt-6 space-y-3">
+                    {propiedad.estado === "coming_soon" && (
+                      <Link
+                        href={`/properties/${propiedad.slug}/registro-prioritario`}
+                        className="inline-flex w-full items-center justify-center rounded-full bg-[#d4af37] px-6 py-3 text-sm font-semibold text-[#111111] transition hover:bg-[#c19d2f]"
+                      >
+                        Unirme al registro prioritario
+                      </Link>
+                    )}
+
                     <TrackLinkButton
                       href="/contact"
                       slug={propiedad.slug}
