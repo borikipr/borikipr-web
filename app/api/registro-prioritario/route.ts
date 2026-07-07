@@ -182,7 +182,56 @@ export async function POST(req: Request) {
         });
       }
 
-      throw error;
+      if (isUndefinedColumn(error)) {
+        logPriorityRegistrationError("Missing priority registration migration columns", error);
+
+        try {
+          const inserted = await sql<{ id: string }[]>`
+            INSERT INTO property_priority_registrations (
+              property_id,
+              property_slug,
+              property_title,
+              name,
+              phone,
+              email,
+              purchase_type,
+              prequalified_status,
+              search_range,
+              wants_visit,
+              source
+            ) VALUES (
+              ${property.id},
+              ${property.slug},
+              ${property.titulo},
+              ${name},
+              ${phone},
+              ${email},
+              ${purchaseType},
+              ${requiresPrequalifiedStatus ? prequalifiedStatus : null},
+              ${searchRange},
+              ${wantsVisitBoolean},
+              'registro_prioritario'
+            )
+            RETURNING id::text
+          `;
+          insertedId = inserted[0]?.id || "";
+        } catch (fallbackError) {
+          if (isUniqueViolation(fallbackError)) {
+            return Response.json({
+              ok: true,
+              success: true,
+              duplicate: true,
+              message: "Ya tenemos tu registro para esta propiedad.",
+            });
+          }
+
+          logPriorityRegistrationError("Legacy priority registration insert failed", fallbackError);
+          throw fallbackError;
+        }
+      } else {
+        logPriorityRegistrationError("Priority registration insert failed", error);
+        throw error;
+      }
     }
 
     if (!process.env.RESEND_API_KEY) {
@@ -310,7 +359,7 @@ export async function POST(req: Request) {
         "Gracias. Recibimos tu registro prioritario para esta propiedad.",
     });
   } catch (error) {
-    console.error("REGISTRO PRIORITARIO ERROR:", error);
+    logPriorityRegistrationError("REGISTRO PRIORITARIO ERROR", error);
     return Response.json(
       { ok: false, error: "No se pudo completar el registro prioritario." },
       { status: 500 }
@@ -334,4 +383,34 @@ function isUniqueViolation(error: unknown) {
     "code" in error &&
     error.code === "23505"
   );
+}
+
+function isUndefinedColumn(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "42703"
+  );
+}
+
+function logPriorityRegistrationError(message: string, error: unknown) {
+  if (typeof error === "object" && error !== null) {
+    const details = error as {
+      code?: unknown;
+      column?: unknown;
+      table?: unknown;
+      message?: unknown;
+    };
+
+    console.error(message, {
+      code: details.code,
+      column: details.column,
+      table: details.table,
+      message: details.message,
+    });
+    return;
+  }
+
+  console.error(message, error);
 }
