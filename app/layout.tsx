@@ -8,6 +8,7 @@ import {
   jsonLdScript,
   realEstateAgentJsonLd,
 } from "@/lib/seo";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://borikipr.com"),
@@ -61,6 +62,7 @@ export default function RootLayout({
         />
         {children}
         <Footer />
+        <Analytics />
       </body>
     </html>
   );
