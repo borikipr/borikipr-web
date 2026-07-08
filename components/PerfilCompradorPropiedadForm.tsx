@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 
 export default function PerfilCompradorPropiedadForm({
   propiedadId,
@@ -39,6 +40,14 @@ export default function PerfilCompradorPropiedadForm({
       if (!response.ok) {
         throw new Error(result.error || "No se pudo enviar el formulario.");
       }
+
+      const cartaFile = formData.get("carta_precalificacion");
+      trackAnalyticsEvent("property_showing_profile_submit_success", {
+        property_id: propiedadId,
+        metodo_compra: metodoCompra,
+        has_prequalification_upload:
+          cartaFile instanceof File && cartaFile.size > 0,
+      });
 
       setMessage("Gracias. Tu perfil fue enviado correctamente.");
       formRef.current?.reset();

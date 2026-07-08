@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Header from "@/components/Header";
+import AnalyticsLink from "@/components/AnalyticsLink";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -98,14 +99,16 @@ export default function About() {
                   Agendar una consulta
                 </Link>
 
-                <Link
+                <AnalyticsLink
                   href="https://wa.me/17876774900"
                   target="_blank"
                   rel="noopener noreferrer"
+                  eventName="whatsapp_click"
+                  eventParams={{ source_route: "/about" }}
                   className="btn-secondary"
                 >
                   Escribir por WhatsApp
-                </Link>
+                </AnalyticsLink>
               </div>
             </div>
           </div>

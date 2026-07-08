@@ -1,6 +1,7 @@
 import { sql } from "@/lib/db";
 
 export type LeadRange = "today" | "7d" | "30d" | "all";
+export type LeadEventFilter = "all" | "whatsapp_click" | "contact_click";
 
 export type LeadResumen = {
   propiedadId: string | null;
@@ -44,6 +45,36 @@ type LeadActividadRow = {
   created_at: string | Date;
 };
 
+export type LeadRouteOrigin = {
+  rutaOrigen: string;
+  total: number;
+  totalWhatsapp: number;
+  totalContact: number;
+  ultimaInteraccion: string | null;
+};
+
+type LeadRouteOriginRow = {
+  ruta_origen: string | null;
+  total: number | string;
+  total_whatsapp: number | string;
+  total_contact: number | string;
+  ultima_interaccion: string | Date | null;
+};
+
+export type LeadDailyTotal = {
+  day: string;
+  total: number;
+  totalWhatsapp: number;
+  totalContact: number;
+};
+
+type LeadDailyTotalRow = {
+  day: string | Date;
+  total: number | string;
+  total_whatsapp: number | string;
+  total_contact: number | string;
+};
+
 function buildRangeCondition(range: LeadRange) {
   switch (range) {
     case "today":
@@ -58,10 +89,20 @@ function buildRangeCondition(range: LeadRange) {
   }
 }
 
+function buildEventTypeCondition(eventType: LeadEventFilter) {
+  if (eventType === "whatsapp_click" || eventType === "contact_click") {
+    return sql`AND le.tipo_evento = ${eventType}`;
+  }
+
+  return sql``;
+}
+
 export async function getLeadsResumen(
-  range: LeadRange = "all"
+  range: LeadRange = "all",
+  eventType: LeadEventFilter = "all"
 ): Promise<LeadResumen[]> {
   const rangeCondition = buildRangeCondition(range);
+  const eventTypeCondition = buildEventTypeCondition(eventType);
 
   const rows = await sql<LeadResumenRow[]>`
     SELECT
@@ -78,6 +119,7 @@ export async function getLeadsResumen(
       ON p.slug = le.propiedad_slug
     WHERE le.propiedad_slug IS NOT NULL
     ${rangeCondition}
+    ${eventTypeCondition}
     GROUP BY p.id, le.propiedad_slug, p.titulo
     ORDER BY COUNT(*) DESC, MAX(le.created_at) DESC
   `;
@@ -100,9 +142,11 @@ export async function getLeadsResumen(
 
 export async function getLeadsActividadReciente(
   limit = 20,
-  range: LeadRange = "all"
+  range: LeadRange = "all",
+  eventType: LeadEventFilter = "all"
 ): Promise<LeadActividadItem[]> {
   const rangeCondition = buildRangeCondition(range);
+  const eventTypeCondition = buildEventTypeCondition(eventType);
 
   const rows = await sql<LeadActividadRow[]>`
     SELECT
@@ -118,6 +162,7 @@ export async function getLeadsActividadReciente(
       ON p.slug = le.propiedad_slug
     WHERE 1=1
     ${rangeCondition}
+    ${eventTypeCondition}
     ORDER BY le.created_at DESC
     LIMIT ${limit}
   `;
@@ -130,5 +175,69 @@ export async function getLeadsActividadReciente(
     tipoEvento: row.tipo_evento,
     rutaOrigen: row.ruta_origen,
     createdAt: new Date(row.created_at).toISOString(),
+  }));
+}
+
+export async function getLeadRouteOrigins(
+  range: LeadRange = "all",
+  eventType: LeadEventFilter = "all",
+  limit = 8
+): Promise<LeadRouteOrigin[]> {
+  const rangeCondition = buildRangeCondition(range);
+  const eventTypeCondition = buildEventTypeCondition(eventType);
+
+  const rows = await sql<LeadRouteOriginRow[]>`
+    SELECT
+      COALESCE(NULLIF(le.ruta_origen, ''), 'Sin ruta') AS ruta_origen,
+      COUNT(*) AS total,
+      COUNT(*) FILTER (WHERE le.tipo_evento = 'whatsapp_click') AS total_whatsapp,
+      COUNT(*) FILTER (WHERE le.tipo_evento = 'contact_click') AS total_contact,
+      MAX(le.created_at) AS ultima_interaccion
+    FROM lead_events le
+    WHERE 1=1
+    ${rangeCondition}
+    ${eventTypeCondition}
+    GROUP BY COALESCE(NULLIF(le.ruta_origen, ''), 'Sin ruta')
+    ORDER BY COUNT(*) DESC, MAX(le.created_at) DESC
+    LIMIT ${limit}
+  `;
+
+  return rows.map((row) => ({
+    rutaOrigen: row.ruta_origen ?? "Sin ruta",
+    total: Number(row.total),
+    totalWhatsapp: Number(row.total_whatsapp),
+    totalContact: Number(row.total_contact),
+    ultimaInteraccion: row.ultima_interaccion
+      ? new Date(row.ultima_interaccion).toISOString()
+      : null,
+  }));
+}
+
+export async function getLeadDailyTotals(
+  range: LeadRange = "all",
+  eventType: LeadEventFilter = "all"
+): Promise<LeadDailyTotal[]> {
+  const rangeCondition = buildRangeCondition(range);
+  const eventTypeCondition = buildEventTypeCondition(eventType);
+
+  const rows = await sql<LeadDailyTotalRow[]>`
+    SELECT
+      date_trunc('day', le.created_at) AS day,
+      COUNT(*) AS total,
+      COUNT(*) FILTER (WHERE le.tipo_evento = 'whatsapp_click') AS total_whatsapp,
+      COUNT(*) FILTER (WHERE le.tipo_evento = 'contact_click') AS total_contact
+    FROM lead_events le
+    WHERE 1=1
+    ${rangeCondition}
+    ${eventTypeCondition}
+    GROUP BY date_trunc('day', le.created_at)
+    ORDER BY date_trunc('day', le.created_at) ASC
+  `;
+
+  return rows.map((row) => ({
+    day: new Date(row.day).toISOString(),
+    total: Number(row.total),
+    totalWhatsapp: Number(row.total_whatsapp),
+    totalContact: Number(row.total_contact),
   }));
 }

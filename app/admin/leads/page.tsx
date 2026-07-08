@@ -3,8 +3,13 @@ import { redirect } from "next/navigation";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import {
   getLeadsActividadReciente,
+  getLeadDailyTotals,
+  getLeadRouteOrigins,
   getLeadsResumen,
+  type LeadDailyTotal,
+  type LeadEventFilter,
   type LeadRange,
+  type LeadRouteOrigin,
 } from "@/lib/admin/queries/leads";
 
 function StatCard({
@@ -47,6 +52,9 @@ type ActividadItem = {
   rutaOrigen: string | null;
   createdAt: string;
 };
+
+type DailyItem = LeadDailyTotal;
+type RouteOriginItem = LeadRouteOrigin;
 
 function formatDate(value: string | null) {
   if (!value) return "—";
@@ -108,24 +116,82 @@ function rangeLabel(range: LeadRange) {
   }
 }
 
+function eventFilterLabel(eventType: LeadEventFilter) {
+  switch (eventType) {
+    case "whatsapp_click":
+      return "WhatsApp";
+    case "contact_click":
+      return "Contacto";
+    case "all":
+    default:
+      return "Todos";
+  }
+}
+
 function isValidRange(value: string | undefined): value is LeadRange {
   return value === "today" || value === "7d" || value === "30d" || value === "all";
+}
+
+function isValidEventFilter(value: string | undefined): value is LeadEventFilter {
+  return value === "all" || value === "whatsapp_click" || value === "contact_click";
+}
+
+function leadsHref({
+  range,
+  eventType,
+}: {
+  range: LeadRange;
+  eventType: LeadEventFilter;
+}) {
+  const params = new URLSearchParams();
+  params.set("range", range);
+  params.set("event", eventType);
+  return `/admin/leads?${params.toString()}`;
 }
 
 function RangeLink({
   range,
   currentRange,
+  currentEventType,
   label,
 }: {
   range: LeadRange;
   currentRange: LeadRange;
+  currentEventType: LeadEventFilter;
   label: string;
 }) {
   const active = range === currentRange;
 
   return (
     <Link
-      href={`/admin/leads?range=${range}`}
+      href={leadsHref({ range, eventType: currentEventType })}
+      className={
+        active
+          ? "inline-flex items-center rounded-full bg-[#11518b] px-4 py-2 text-sm font-semibold text-white"
+          : "inline-flex items-center rounded-full border border-[#d9d9d9] bg-white px-4 py-2 text-sm font-semibold text-[#4d4d4d] transition hover:border-[#11518b] hover:text-[#11518b]"
+      }
+    >
+      {label}
+    </Link>
+  );
+}
+
+function EventFilterLink({
+  eventType,
+  currentEventType,
+  currentRange,
+  label,
+}: {
+  eventType: LeadEventFilter;
+  currentEventType: LeadEventFilter;
+  currentRange: LeadRange;
+  label: string;
+}) {
+  const active = eventType === currentEventType;
+
+  return (
+    <Link
+      href={leadsHref({ range: currentRange, eventType })}
       className={
         active
           ? "inline-flex items-center rounded-full bg-[#11518b] px-4 py-2 text-sm font-semibold text-white"
@@ -251,10 +317,120 @@ function TopPropertiesChart({ items }: { items: LeadItem[] }) {
   );
 }
 
+function DailyInteractionsChart({ items }: { items: DailyItem[] }) {
+  const max = items.length > 0 ? Math.max(...items.map((item) => item.total)) : 0;
+
+  return (
+    <div className="surface-card p-6">
+      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
+        Tendencia diaria
+      </p>
+      <h2 className="mt-3 text-2xl font-semibold text-[#000000]">
+        Interacciones por día
+      </h2>
+
+      {items.length === 0 ? (
+        <div className="mt-6 rounded-2xl border border-dashed border-[#d9d9d9] bg-[#fafafa] p-6 text-sm text-[#4d4d4d]">
+          No hay interacciones registradas para el rango y canal seleccionados.
+        </div>
+      ) : (
+        <div className="mt-6 space-y-4">
+          {items.map((item) => {
+            const width = max > 0 ? (item.total / max) * 100 : 0;
+
+            return (
+              <div key={item.day}>
+                <div className="mb-2 flex items-center justify-between gap-4">
+                  <p className="text-sm font-medium text-[#000000]">
+                    {new Intl.DateTimeFormat("es-PR", {
+                      month: "short",
+                      day: "numeric",
+                    }).format(new Date(item.day))}
+                  </p>
+                  <p className="text-sm font-semibold text-[#11518b]">
+                    {item.total}
+                  </p>
+                </div>
+
+                <div className="h-3 overflow-hidden rounded-full bg-[#e9edf2]">
+                  <div
+                    className="h-full rounded-full bg-[#11518b]"
+                    style={{ width: `${width}%` }}
+                  />
+                </div>
+
+                <p className="mt-1 text-xs text-[#4d4d4d]">
+                  WhatsApp: {item.totalWhatsapp} · Contacto: {item.totalContact}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RouteOriginBreakdown({ items }: { items: RouteOriginItem[] }) {
+  const max = items.length > 0 ? Math.max(...items.map((item) => item.total)) : 0;
+
+  return (
+    <div className="surface-card p-6">
+      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
+        Origen de interacción
+      </p>
+      <h2 className="mt-3 text-2xl font-semibold text-[#000000]">
+        Rutas que generan interés
+      </h2>
+
+      {items.length === 0 ? (
+        <div className="mt-6 rounded-2xl border border-dashed border-[#d9d9d9] bg-[#fafafa] p-6 text-sm text-[#4d4d4d]">
+          Aún no hay rutas de origen para mostrar en esta vista.
+        </div>
+      ) : (
+        <div className="mt-6 space-y-4">
+          {items.map((item) => {
+            const width = max > 0 ? (item.total / max) * 100 : 0;
+
+            return (
+              <div key={item.rutaOrigen}>
+                <div className="mb-2 flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-[#000000]">
+                      {item.rutaOrigen}
+                    </p>
+                    <p className="mt-1 text-xs text-[#4d4d4d]">
+                      Última: {formatDate(item.ultimaInteraccion)}
+                    </p>
+                  </div>
+                  <p className="text-sm font-semibold text-[#11518b]">
+                    {item.total}
+                  </p>
+                </div>
+
+                <div className="h-3 overflow-hidden rounded-full bg-[#e9edf2]">
+                  <div
+                    className="h-full rounded-full bg-[#d4af37]"
+                    style={{ width: `${width}%` }}
+                  />
+                </div>
+
+                <p className="mt-1 text-xs text-[#4d4d4d]">
+                  WhatsApp: {item.totalWhatsapp} · Contacto: {item.totalContact}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default async function AdminLeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; event?: string }>;
 }) {
   const user = await getAdminSessionUser();
 
@@ -264,14 +440,21 @@ export default async function AdminLeadsPage({
 
   const params = await searchParams;
   const currentRange: LeadRange = isValidRange(params.range) ? params.range : "all";
+  const currentEventType: LeadEventFilter = isValidEventFilter(params.event)
+    ? params.event
+    : "all";
 
-  const [leads, actividad] = await Promise.all([
-    getLeadsResumen(currentRange),
-    getLeadsActividadReciente(20, currentRange),
+  const [leads, actividad, rutasOrigen, interaccionesPorDia] = await Promise.all([
+    getLeadsResumen(currentRange, currentEventType),
+    getLeadsActividadReciente(20, currentRange, currentEventType),
+    getLeadRouteOrigins(currentRange, currentEventType),
+    getLeadDailyTotals(currentRange, currentEventType),
   ]);
 
   const resumen = leads as LeadItem[];
   const actividadReciente = actividad as ActividadItem[];
+  const origenes = rutasOrigen as RouteOriginItem[];
+  const diarios = interaccionesPorDia as DailyItem[];
 
   const totalInteracciones = resumen.reduce((acc, item) => acc + item.total, 0);
   const totalWhatsapp = resumen.reduce(
@@ -302,8 +485,8 @@ export default async function AdminLeadsPage({
                 Interacciones del website
               </h1>
               <p className="body-base mt-3 max-w-3xl">
-                Aquí puedes ver qué propiedades están generando más interés
-                desde el website y qué actividad reciente está ocurriendo.
+                Monitorea los clics internos registrados desde las propiedades:
+                WhatsApp, contacto, rutas de origen y actividad reciente.
               </p>
             </div>
 
@@ -318,15 +501,61 @@ export default async function AdminLeadsPage({
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
-            <RangeLink range="today" currentRange={currentRange} label="Hoy" />
-            <RangeLink range="7d" currentRange={currentRange} label="7 días" />
-            <RangeLink range="30d" currentRange={currentRange} label="30 días" />
-            <RangeLink range="all" currentRange={currentRange} label="Todo" />
+            <RangeLink
+              range="today"
+              currentRange={currentRange}
+              currentEventType={currentEventType}
+              label="Hoy"
+            />
+            <RangeLink
+              range="7d"
+              currentRange={currentRange}
+              currentEventType={currentEventType}
+              label="7 días"
+            />
+            <RangeLink
+              range="30d"
+              currentRange={currentRange}
+              currentEventType={currentEventType}
+              label="30 días"
+            />
+            <RangeLink
+              range="all"
+              currentRange={currentRange}
+              currentEventType={currentEventType}
+              label="Todo"
+            />
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <EventFilterLink
+              eventType="all"
+              currentEventType={currentEventType}
+              currentRange={currentRange}
+              label="Todos"
+            />
+            <EventFilterLink
+              eventType="whatsapp_click"
+              currentEventType={currentEventType}
+              currentRange={currentRange}
+              label="WhatsApp"
+            />
+            <EventFilterLink
+              eventType="contact_click"
+              currentEventType={currentEventType}
+              currentRange={currentRange}
+              label="Contacto"
+            />
           </div>
 
           <p className="mt-4 text-sm text-[#4d4d4d]">
             Vista actual:{" "}
             <span className="font-medium">{rangeLabel(currentRange)}</span>
+            {" · "}
+            Canal:{" "}
+            <span className="font-medium">
+              {eventFilterLabel(currentEventType)}
+            </span>
           </p>
         </div>
 
@@ -370,6 +599,11 @@ export default async function AdminLeadsPage({
         <div className="grid gap-6 xl:grid-cols-2">
           <ChannelBar whatsapp={totalWhatsapp} contact={totalContact} />
           <TopPropertiesChart items={topFive} />
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <DailyInteractionsChart items={diarios} />
+          <RouteOriginBreakdown items={origenes} />
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">

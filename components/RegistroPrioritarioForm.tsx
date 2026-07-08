@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 
 type RegistroPrioritarioFormProps = {
   propertyId: string;
@@ -93,12 +94,21 @@ export default function RegistroPrioritarioForm({
       }
 
       if (result.duplicate) {
+        trackAnalyticsEvent("priority_registration_duplicate", {
+          property_slug: propertySlug,
+        });
         setSuccess({
           title: "Ya tenemos tu registro",
           message:
             "Este Email ya está registrado para esta propiedad. Te contactaremos tan pronto tengamos los detalles disponibles.",
         });
       } else {
+        trackAnalyticsEvent("priority_registration_submit_success", {
+          property_slug: propertySlug,
+          purchase_type: payload.purchaseType,
+          property_size: payload.propertySize,
+          wants_visit: payload.wantsVisit,
+        });
         setSuccess({
           title: "¡Gracias por tu registro!",
           message:
@@ -110,6 +120,10 @@ export default function RegistroPrioritarioForm({
         form.reset();
       }
     } catch (err) {
+      trackAnalyticsEvent("priority_registration_submit_error", {
+        property_slug: propertySlug,
+        error_type: "submit_error",
+      });
       setError(err instanceof Error ? err.message : "Error desconocido.");
     } finally {
       setLoading(false);

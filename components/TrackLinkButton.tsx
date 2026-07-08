@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 
 type Props = {
   href: string;
@@ -9,6 +10,8 @@ type Props = {
   tipo: string;
   className?: string;
   target?: string;
+  analyticsEventName?: string;
+  analyticsParams?: Record<string, string | number | boolean | null | undefined>;
   children: React.ReactNode;
 };
 
@@ -18,11 +21,17 @@ export default function TrackLinkButton({
   tipo,
   className,
   target,
+  analyticsEventName,
+  analyticsParams,
   children,
 }: Props) {
   const pathname = usePathname();
 
   const handleClick = async () => {
+    if (analyticsEventName) {
+      trackAnalyticsEvent(analyticsEventName, analyticsParams);
+    }
+
     try {
       await fetch("/api/track", {
         method: "POST",

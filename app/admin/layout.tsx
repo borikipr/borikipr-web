@@ -47,6 +47,7 @@ export default async function AdminLayout({
               <NavLink href="/admin/propiedades" label="Propiedades" />
               <NavLink href="/admin/testimonios" label="Testimonios" />
               <NavLink href="/admin/leads" label="Leads" />
+              <NavLink href="/admin/analytics" label="Analytics" />
               <NavLink href="/" label="Ver website" />
             </nav>
 

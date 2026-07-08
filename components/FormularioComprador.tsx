@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 
 const tiposPropiedad = [
   "Casa",
@@ -65,6 +66,11 @@ export default function FormularioComprador() {
         const result = await response.json();
         throw new Error(result.error || "Error al enviar el formulario");
       }
+
+      trackAnalyticsEvent("buyer_tenant_form_submit_success", {
+        interes_principal: String(data.interesPrincipal || ""),
+        has_qualification: Boolean(data.cualificacionCompra),
+      });
 
       setSuccess(true);
       setInteresPrincipal("");

@@ -2,6 +2,8 @@ import Header from "@/components/Header";
 import Image from "next/image";
 import Link from "next/link";
 import GaleriaPropiedad from "@/components/GaleriaPropiedad";
+import AnalyticsEventOnView from "@/components/AnalyticsEventOnView";
+import AnalyticsLink from "@/components/AnalyticsLink";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import {
@@ -308,6 +310,16 @@ ${propiedadUrl}`
         type="application/ld+json"
         dangerouslySetInnerHTML={jsonLdScript([breadcrumbSchema, propertySchema])}
       />
+      <AnalyticsEventOnView
+        eventName="property_view"
+        params={{
+          property_slug: propiedad.slug,
+          status: propiedad.estado,
+          tipo_negocio: propiedad.tipoNegocio,
+          municipio: propiedad.municipio,
+          sector_comunidad: propiedad.sectorComunidad,
+        }}
+      />
       <Header />
 
       <main className="bg-white pt-[96px] lg:pt-[128px]">
@@ -459,18 +471,28 @@ ${propiedadUrl}`
 
                   <div className="mt-6 space-y-3">
                     {propiedad.estado === "coming_soon" && (
-                      <Link
+                      <AnalyticsLink
                         href={`/properties/${propiedad.slug}/registro-prioritario`}
+                        eventName="priority_registration_cta_click"
+                        eventParams={{
+                          property_slug: propiedad.slug,
+                          status: propiedad.estado,
+                        }}
                         className="inline-flex w-full items-center justify-center rounded-full bg-[#d4af37] px-6 py-3 text-sm font-semibold text-[#111111] transition hover:bg-[#c19d2f]"
                       >
                         Unirme al registro prioritario
-                      </Link>
+                      </AnalyticsLink>
                     )}
 
                     <TrackLinkButton
                       href="/contact"
                       slug={propiedad.slug}
                       tipo="contact_click"
+                      analyticsEventName="property_contact_click"
+                      analyticsParams={{
+                        property_slug: propiedad.slug,
+                        cta_location: "property_detail",
+                      }}
                       className="inline-flex w-full items-center justify-center rounded-full bg-[#11518b] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#0d406d]"
                     >
                       Solicitar información
@@ -485,12 +507,14 @@ ${propiedadUrl}`
                     </WhatsAppTrackerButton>
 
                     {propiedad.formularioShowingActivo && propiedad.fechaShowing && (
-                      <Link
+                      <AnalyticsLink
                         href={`/listados/${propiedad.slug}/perfil-comprador`}
+                        eventName="showing_profile_cta_click"
+                        eventParams={{ property_slug: propiedad.slug }}
                         className="inline-flex w-full items-center justify-center rounded-full border border-[#d4af37] px-6 py-3 text-sm font-semibold text-[#111111] transition hover:bg-[#d4af37]"
                       >
                         Completar perfil para showing
-                      </Link>
+                      </AnalyticsLink>
                     )}
                   </div>
                   <div className="mt-6 border-t border-[#dddddd] pt-6 text-sm text-[#4d4d4d]">

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 
 type HeaderProps = {
   transparent?: boolean;
@@ -115,6 +116,11 @@ export default function Header({ transparent = false }: HeaderProps) {
                 href="https://wa.me/17876774900"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() =>
+                  trackAnalyticsEvent("whatsapp_click", {
+                    source_route: "header_desktop",
+                  })
+                }
                 className="font-medium text-white transition hover:text-[#d4af37]"
               >
                 WhatsApp: (787) 677-4900
@@ -280,7 +286,12 @@ export default function Header({ transparent = false }: HeaderProps) {
             href="https://wa.me/17876774900"
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => setMenuOpen(false)}
+            onClick={() => {
+              trackAnalyticsEvent("whatsapp_click", {
+                source_route: "header_mobile_menu",
+              });
+              setMenuOpen(false);
+            }}
             className="btn-secondary mt-6 justify-center"
           >
             WhatsApp

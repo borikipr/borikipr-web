@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 
 export default function WhatsAppButton() {
   return (
@@ -9,6 +10,11 @@ export default function WhatsAppButton() {
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Escribir por WhatsApp"
+      onClick={() =>
+        trackAnalyticsEvent("whatsapp_click", {
+          source_route: "floating_button",
+        })
+      }
       className="fixed bottom-6 right-6 z-50 inline-flex items-center gap-3 rounded-full bg-[#11518b] px-5 py-3 text-white shadow-lg transition hover:bg-[#0d406d] hover:shadow-xl"
     >
       <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">

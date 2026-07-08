@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 
 const metodosCompra = ["Financiamiento", "Efectivo", "Otro"];
 const evidenciaFondos = ["Sí", "No"];
@@ -45,6 +46,12 @@ export default function FormularioPerfilComprador() {
       if (!response.ok) {
         throw new Error(result.error || "Error al enviar el formulario");
       }
+
+      trackAnalyticsEvent("buyer_profile_form_submit_success", {
+        metodo_compra: metodoCompra,
+        trabaja_con_corredor: trabajaConCorredor,
+        has_upload: cartaFile instanceof File && cartaFile.size > 0,
+      });
 
       setSuccess(true);
       setMetodoCompra("");

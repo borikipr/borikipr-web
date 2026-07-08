@@ -13,6 +13,7 @@ import {
   Orden,
 } from "@/lib/propiedades";
 import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 
 type TipoNegocio = "venta" | "renta";
 type TipoPropiedad =
@@ -866,6 +867,11 @@ export default function ListadosClient({
                 href="https://wa.me/17876774900"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() =>
+                  trackAnalyticsEvent("whatsapp_click", {
+                    source_route: "/listados_empty_state",
+                  })
+                }
                 className="btn-secondary px-8 py-3"
               >
                 Escribir por WhatsApp

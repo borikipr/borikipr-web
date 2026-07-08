@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 
 const municipiosPR = [
   "Adjuntas",
@@ -127,6 +128,11 @@ export default function FormularioVendedor() {
         const result = await response.json();
         throw new Error(result.error || "Error al enviar el formulario");
       }
+
+      trackAnalyticsEvent("seller_landlord_form_submit_success", {
+        interes_principal: String(data.razonVenta || ""),
+        tipo_propiedad: String(data.tipoPropiedad || ""),
+      });
 
       setSuccess(true);
       formRef.current?.reset();

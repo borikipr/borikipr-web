@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Header from "@/components/Header";
+import AnalyticsEventOnView from "@/components/AnalyticsEventOnView";
 import RegistroPrioritarioForm from "@/components/RegistroPrioritarioForm";
 import { getPropiedadBySlug } from "@/lib/queries/propiedades";
 import {
@@ -90,6 +91,15 @@ export default async function RegistroPrioritarioPage({ params }: PageProps) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={jsonLdScript(breadcrumbSchema)}
+      />
+      <AnalyticsEventOnView
+        eventName="priority_registration_view"
+        params={{
+          property_slug: propiedad.slug,
+          status: propiedad.estado,
+          municipio: propiedad.municipio,
+          sector_comunidad: propiedad.sector_comunidad,
+        }}
       />
       <Header />
       <main className="bg-white pt-[96px] lg:pt-[128px]">

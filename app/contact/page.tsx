@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Header from "@/components/Header";
-import Link from "next/link";
+import AnalyticsLink from "@/components/AnalyticsLink";
 import {
   DEFAULT_OG_IMAGE,
   SITE_NAME,
@@ -66,14 +66,24 @@ function ContactOptionCard({
       </p>
 
       <div className="mt-8">
-        <Link
+        <AnalyticsLink
           href={href}
           target={href.startsWith("http") ? "_blank" : undefined}
           rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
+          eventName={
+            href.startsWith("https://wa.me/")
+              ? "whatsapp_click"
+              : "contact_option_click"
+          }
+          eventParams={
+            href.startsWith("https://wa.me/")
+              ? { source_route: "/contact" }
+              : { option: eyebrow.toLowerCase(), destination: href }
+          }
           className={variant === "primary" ? "btn-primary" : "btn-secondary"}
         >
           {label}
-        </Link>
+        </AnalyticsLink>
       </div>
     </article>
   );

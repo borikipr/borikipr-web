@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 
 type Props = {
   url: string;
   slug: string;
   className?: string;
+  ctaLocation?: string;
   children: React.ReactNode;
 };
 
@@ -14,11 +16,17 @@ export default function WhatsAppTrackerButton({
   url,
   slug,
   className,
+  ctaLocation = "property_detail",
   children,
 }: Props) {
   const pathname = usePathname();
 
   const handleClick = async () => {
+    trackAnalyticsEvent("property_whatsapp_click", {
+      property_slug: slug,
+      cta_location: ctaLocation,
+    });
+
     try {
       await fetch("/api/track", {
         method: "POST",
