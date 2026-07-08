@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Footer from "@/components/footer";
+import AnalyticsScripts from "@/components/AnalyticsScripts";
 import {
   DEFAULT_OG_IMAGE,
   SITE_NAME,
@@ -61,6 +62,7 @@ export default function RootLayout({
         />
         {children}
         <Footer />
+        <AnalyticsScripts />
       </body>
     </html>
   );
