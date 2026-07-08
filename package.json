@@ -12,6 +12,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1020.0",
     "@heroicons/react": "^2.2.0",
+    "@microsoft/clarity": "^1.0.2",
     "@next/third-parties": "^16.2.10",
     "@tabler/icons-react": "^3.44.0",
     "@vercel/analytics": "^2.0.1",
