@@ -39,6 +39,24 @@ function statusLabel(status: AnalyticsProviderStatus["status"]) {
   switch (status) {
     case "connected":
       return "Connected";
+    case "missing_credentials":
+      return "Missing credentials";
+    case "permission_denied":
+      return "Permission denied";
+    case "invalid_property_id":
+      return "Invalid GA4 property ID";
+    case "invalid_private_key":
+      return "Invalid private key";
+    case "invalid_property":
+      return "Invalid GA4 property";
+    case "api_not_enabled":
+      return "API not enabled";
+    case "api_error":
+      return "Google API unavailable";
+    case "timeout":
+      return "Timeout contacting Google";
+    case "unknown_error":
+      return "Unknown error";
     case "unavailable":
       return "Unavailable";
     case "rate_limited":

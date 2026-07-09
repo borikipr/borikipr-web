@@ -5,6 +5,15 @@ export type AnalyticsProviderId = "ga4" | "clarity" | "vercel" | "cloudflare";
 export type ProviderConnectionStatus =
   | "not_configured"
   | "connected"
+  | "missing_credentials"
+  | "invalid_property_id"
+  | "permission_denied"
+  | "invalid_private_key"
+  | "invalid_property"
+  | "api_not_enabled"
+  | "api_error"
+  | "timeout"
+  | "unknown_error"
   | "unavailable"
   | "rate_limited"
   | "planned";

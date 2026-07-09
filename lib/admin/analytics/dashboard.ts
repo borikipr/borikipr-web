@@ -1,4 +1,4 @@
-import { logAnalyticsProviderError } from "./errors";
+import { AnalyticsProviderError, logAnalyticsProviderError } from "./errors";
 import { analyticsProviders } from "./registry";
 import {
   combineDevices,
@@ -53,6 +53,33 @@ async function settleProviderValue<T>({
   return fallback;
 }
 
+async function settleProviderCall<T>({
+  providerId,
+  call,
+  fallback,
+}: {
+  providerId: AnalyticsProviderId;
+  call: () => Promise<T> | T;
+  fallback: T;
+}) {
+  try {
+    return await call();
+  } catch (error) {
+    logAnalyticsProviderError(providerId, error);
+
+    return fallback;
+  }
+}
+
+async function captureProviderCall<T>(call: () => Promise<T> | T) {
+  try {
+    const value = await call();
+    return { status: "fulfilled" as const, value };
+  } catch (reason) {
+    return { status: "rejected" as const, reason };
+  }
+}
+
 async function getProviderDashboardData(provider: AnalyticsProvider, range: AnalyticsRange) {
   const status = await settleProviderValue({
     providerId: provider.id,
@@ -66,13 +93,13 @@ async function getProviderDashboardData(provider: AnalyticsProvider, range: Anal
   });
 
   const [overview, realtime, topPages, trafficSources, devices, events] =
-    await Promise.allSettled([
-      Promise.resolve(provider.getOverview(range)),
-      Promise.resolve(provider.getRealtime()),
-      Promise.resolve(provider.getTopPages(range)),
-      Promise.resolve(provider.getTrafficSources(range)),
-      Promise.resolve(provider.getDevices(range)),
-      Promise.resolve(provider.getEvents(range)),
+    await Promise.all([
+      captureProviderCall(() => provider.getOverview(range)),
+      captureProviderCall(() => provider.getRealtime()),
+      captureProviderCall(() => provider.getTopPages(range)),
+      captureProviderCall(() => provider.getTrafficSources(range)),
+      captureProviderCall(() => provider.getDevices(range)),
+      captureProviderCall(() => provider.getEvents(range)),
     ]);
 
   const failures = [
@@ -90,12 +117,26 @@ async function getProviderDashboardData(provider: AnalyticsProvider, range: Anal
     }
   });
 
+  const providerError = failures.find(
+    (failure) =>
+      failure.status === "rejected" &&
+      failure.reason instanceof AnalyticsProviderError
+  );
+
   const providerStatus: AnalyticsProviderStatus =
     failures.length > 0 && status.status === "connected"
       ? {
           ...status,
-          status: "unavailable",
-          description: "No se pudieron cargar las metricas de este proveedor.",
+          status:
+            providerError?.status === "rejected" &&
+            providerError.reason instanceof AnalyticsProviderError
+              ? providerError.reason.status
+              : "api_error",
+          description:
+            providerError?.status === "rejected" &&
+            providerError.reason instanceof AnalyticsProviderError
+              ? providerError.reason.message
+              : "No se pudieron cargar las metricas de este proveedor.",
         }
       : status;
 
@@ -114,33 +155,30 @@ async function getProviderDashboardData(provider: AnalyticsProvider, range: Anal
 export async function getAdminAnalyticsDashboard(
   range: AnalyticsRange
 ): Promise<AdminAnalyticsDashboard> {
-  const providerResults = await Promise.allSettled(
-    analyticsProviders.map((provider) => getProviderDashboardData(provider, range))
+  const providerResults = await Promise.all(
+    analyticsProviders.map((provider) =>
+      settleProviderCall({
+        providerId: provider.id,
+        call: () => getProviderDashboardData(provider, range),
+        fallback: {
+          status: {
+            id: provider.id,
+            name: provider.name,
+            status: "unavailable" as const,
+            description: provider.description,
+          },
+          overview: null as AnalyticsOverview | null,
+          realtime: null as AnalyticsRealtime | null,
+          topPages: [] as AnalyticsTopPage[],
+          trafficSources: [] as AnalyticsTrafficSource[],
+          devices: [] as AnalyticsDevice[],
+          events: [] as AnalyticsEventSummary[],
+        },
+      })
+    )
   );
 
-  const safeProviderResults = providerResults.map((result, index) => {
-    if (result.status === "fulfilled") {
-      return result.value;
-    }
-
-    const provider = analyticsProviders[index];
-    logAnalyticsProviderError(provider.id, result.reason);
-
-    return {
-      status: {
-        id: provider.id,
-        name: provider.name,
-        status: "unavailable" as const,
-        description: provider.description,
-      },
-      overview: null as AnalyticsOverview | null,
-      realtime: null as AnalyticsRealtime | null,
-      topPages: [] as AnalyticsTopPage[],
-      trafficSources: [] as AnalyticsTrafficSource[],
-      devices: [] as AnalyticsDevice[],
-      events: [] as AnalyticsEventSummary[],
-    };
-  });
+  const safeProviderResults = providerResults;
 
   const providerStatuses = safeProviderResults.map((result) => result.status);
   const overviewItems = safeProviderResults.map((result) => result.overview);

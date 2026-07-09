@@ -1,4 +1,5 @@
 import { BetaAnalyticsDataClient } from "@google-analytics/data";
+import { AnalyticsProviderError } from "../errors";
 import type {
   AnalyticsDevice,
   AnalyticsEventSummary,
@@ -7,6 +8,7 @@ import type {
   AnalyticsRealtime,
   AnalyticsTopPage,
   AnalyticsTrafficSource,
+  ProviderConnectionStatus,
 } from "../types";
 
 const propertyId = process.env.GA4_PROPERTY_ID?.trim();
@@ -50,6 +52,122 @@ function metricValue(value: string | null | undefined) {
   return Number(value ?? 0);
 }
 
+function configuredIdLooksLikeWebStreamId() {
+  return Boolean(propertyId && /^\d{10,}$/.test(propertyId));
+}
+
+function classifyGa4Error(error: unknown): {
+  status: ProviderConnectionStatus;
+  message: string;
+} {
+  const errorWithCode = error as Error & { code?: number | string; details?: string };
+  const code = String(errorWithCode.code ?? "");
+  const message = `${errorWithCode.message ?? ""} ${errorWithCode.details ?? ""}`;
+  const normalized = message.toLowerCase();
+
+  if (configuredIdLooksLikeWebStreamId()) {
+    return {
+      status: "invalid_property_id",
+      message:
+        "Configured GA4_PROPERTY_ID appears to be a Web Data Stream ID. The Analytics Data API requires the numeric GA4 Property ID.",
+    };
+  }
+
+  if (
+    normalized.includes("api has not been used") ||
+    normalized.includes("disabled") ||
+    normalized.includes("service disabled") ||
+    normalized.includes("access not configured")
+  ) {
+    return {
+      status: "api_not_enabled",
+      message: "Google Analytics Data API is not enabled for this Google Cloud project.",
+    };
+  }
+
+  if (
+    code === "7" ||
+    normalized.includes("permission denied") ||
+    normalized.includes("permission_denied")
+  ) {
+    return {
+      status: "permission_denied",
+      message: "Verify that the Service Account has Viewer access to the GA4 Property.",
+    };
+  }
+
+  if (
+    normalized.includes("private key") ||
+    normalized.includes("pem") ||
+    normalized.includes("decoder routines") ||
+    normalized.includes("bad decrypt")
+  ) {
+    return {
+      status: "invalid_private_key",
+      message: "Invalid private key",
+    };
+  }
+
+  if (
+    code === "5" ||
+    (code === "3" && normalized.includes("property")) ||
+    normalized.includes("property not found") ||
+    normalized.includes("invalid property")
+  ) {
+    return {
+      status: "invalid_property_id",
+      message: "Invalid GA4 property ID.",
+    };
+  }
+
+  if (
+    code === "4" ||
+    normalized.includes("deadline") ||
+    normalized.includes("timeout") ||
+    normalized.includes("timed out")
+  ) {
+    return {
+      status: "timeout",
+      message: "Timeout contacting Google",
+    };
+  }
+
+  if (
+    code === "14" ||
+    normalized.includes("unavailable") ||
+    normalized.includes("service unavailable") ||
+    normalized.includes("google api")
+  ) {
+    return {
+      status: "api_error",
+      message: "Google API unavailable",
+    };
+  }
+
+  return {
+    status: "unknown_error",
+    message: "Unknown error",
+  };
+}
+
+function throwGa4Error(error: unknown): never {
+  const classified = classifyGa4Error(error);
+  const errorWithCode = error as Error & { code?: unknown; details?: unknown };
+
+  throw new AnalyticsProviderError(classified.message, "ga4", classified.status, {
+    code: errorWithCode.code,
+    details: errorWithCode.details,
+  });
+}
+
+async function runGa4Request<T>(request: () => Promise<T>) {
+  try {
+    return await request();
+  } catch (error) {
+    throwGa4Error(error);
+  }
+}
+
 export const ga4Provider: AnalyticsProvider = {
   id: "ga4",
   name: "Google Analytics 4",
@@ -62,23 +180,25 @@ export const ga4Provider: AnalyticsProvider = {
       status: this.isConfigured() ? "connected" : "not_configured",
       description: this.isConfigured()
         ? "Conectado al GA4 Data API para metricas agregadas."
-        : this.description,
+        : "GA4 server credentials are not configured.",
     };
   },
   async getOverview(range) {
     const client = getClient();
     if (!client) return null;
 
-    const [response] = await client.runReport({
-      property: getPropertyName(),
-      dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
-      metrics: [
-        { name: "totalUsers" },
-        { name: "screenPageViews" },
-        { name: "sessions" },
-        { name: "eventCount" },
-      ],
-    });
+    const [response] = await runGa4Request(() =>
+      client.runReport({
+        property: getPropertyName(),
+        dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
+        metrics: [
+          { name: "totalUsers" },
+          { name: "screenPageViews" },
+          { name: "sessions" },
+          { name: "eventCount" },
+        ],
+      })
+    );
 
     const values = response.rows?.[0]?.metricValues ?? [];
 
@@ -93,10 +213,12 @@ export const ga4Provider: AnalyticsProvider = {
     const client = getClient();
     if (!client) return null;
 
-    const [response] = await client.runRealtimeReport({
-      property: getPropertyName(),
-      metrics: [{ name: "activeUsers" }],
-    });
+    const [response] = await runGa4Request(() =>
+      client.runRealtimeReport({
+        property: getPropertyName(),
+        metrics: [{ name: "activeUsers" }],
+      })
+    );
 
     return {
       activeUsers: metricValue(response.rows?.[0]?.metricValues?.[0]?.value),
@@ -107,14 +229,16 @@ export const ga4Provider: AnalyticsProvider = {
     const client = getClient();
     if (!client) return [];
 
-    const [response] = await client.runReport({
-      property: getPropertyName(),
-      dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
-      dimensions: [{ name: "pagePath" }, { name: "pageTitle" }],
-      metrics: [{ name: "screenPageViews" }, { name: "totalUsers" }],
-      limit: 8,
-      orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
-    });
+    const [response] = await runGa4Request(() =>
+      client.runReport({
+        property: getPropertyName(),
+        dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
+        dimensions: [{ name: "pagePath" }, { name: "pageTitle" }],
+        metrics: [{ name: "screenPageViews" }, { name: "totalUsers" }],
+        limit: 8,
+        orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
+      })
+    );
 
     return (
       response.rows?.map((row) => ({
@@ -129,14 +253,16 @@ export const ga4Provider: AnalyticsProvider = {
     const client = getClient();
     if (!client) return [];
 
-    const [response] = await client.runReport({
-      property: getPropertyName(),
-      dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
-      dimensions: [{ name: "sessionSource" }, { name: "sessionMedium" }],
-      metrics: [{ name: "totalUsers" }],
-      limit: 8,
-      orderBys: [{ metric: { metricName: "totalUsers" }, desc: true }],
-    });
+    const [response] = await runGa4Request(() =>
+      client.runReport({
+        property: getPropertyName(),
+        dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
+        dimensions: [{ name: "sessionSource" }, { name: "sessionMedium" }],
+        metrics: [{ name: "totalUsers" }],
+        limit: 8,
+        orderBys: [{ metric: { metricName: "totalUsers" }, desc: true }],
+      })
+    );
 
     return (
       response.rows?.map((row) => ({
@@ -150,13 +276,15 @@ export const ga4Provider: AnalyticsProvider = {
     const client = getClient();
     if (!client) return [];
 
-    const [response] = await client.runReport({
-      property: getPropertyName(),
-      dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
-      dimensions: [{ name: "deviceCategory" }],
-      metrics: [{ name: "totalUsers" }],
-      orderBys: [{ metric: { metricName: "totalUsers" }, desc: true }],
-    });
+    const [response] = await runGa4Request(() =>
+      client.runReport({
+        property: getPropertyName(),
+        dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
+        dimensions: [{ name: "deviceCategory" }],
+        metrics: [{ name: "totalUsers" }],
+        orderBys: [{ metric: { metricName: "totalUsers" }, desc: true }],
+      })
+    );
 
     return (
       response.rows?.map((row) => {
@@ -176,14 +304,16 @@ export const ga4Provider: AnalyticsProvider = {
     const client = getClient();
     if (!client) return [];
 
-    const [response] = await client.runReport({
-      property: getPropertyName(),
-      dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
-      dimensions: [{ name: "eventName" }],
-      metrics: [{ name: "eventCount" }, { name: "totalUsers" }],
-      limit: 12,
-      orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
-    });
+    const [response] = await runGa4Request(() =>
+      client.runReport({
+        property: getPropertyName(),
+        dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
+        dimensions: [{ name: "eventName" }],
+        metrics: [{ name: "eventCount" }, { name: "totalUsers" }],
+        limit: 12,
+        orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
+      })
+    );
 
     return (
       response.rows?.map((row) => ({
