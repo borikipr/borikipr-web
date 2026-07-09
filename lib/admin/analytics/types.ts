@@ -32,6 +32,7 @@ export type AnalyticsRealtime = {
     path: string;
     users: number;
   }>;
+  recentEvents?: AnalyticsEventSummary[];
 };
 
 export type AnalyticsTopPage = {

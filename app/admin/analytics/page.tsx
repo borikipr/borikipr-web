@@ -16,8 +16,20 @@ type AnalyticsPlaceholderMetric = {
   description: string;
 };
 
+type AnalyticsDisplayRow = {
+  label: string;
+  value?: string | number;
+  description?: string;
+};
+
 function formatMetric(value: number | undefined) {
   return typeof value === "number" ? value.toLocaleString("es-PR") : "Pendiente";
+}
+
+function formatOptionalMetric(value: number | undefined) {
+  return typeof value === "number"
+    ? value.toLocaleString("es-PR")
+    : "Not available from GA4 Realtime API";
 }
 
 function rangeLabel(range: AnalyticsRange) {
@@ -92,11 +104,13 @@ function EmptyAnalyticsCard({
   title,
   description,
   rows,
+  emptyMessage = "No data available for the selected date range.",
 }: {
   eyebrow: string;
   title: string;
   description: string;
-  rows?: string[];
+  rows?: AnalyticsDisplayRow[];
+  emptyMessage?: string;
 }) {
   return (
     <section className="surface-card p-6">
@@ -113,20 +127,30 @@ function EmptyAnalyticsCard({
           <div className="space-y-3">
             {rows.map((row) => (
               <div
-                key={row}
+                key={`${row.label}-${row.value ?? ""}`}
                 className="flex items-center justify-between gap-4 rounded-xl border border-[#e8e8e8] bg-white px-4 py-3"
               >
-                <span className="text-sm font-medium text-[#000000]">{row}</span>
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[#11518b]">
-                  Pendiente
+                <span className="min-w-0 text-sm font-medium text-[#000000]">
+                  {row.label}
+                  {row.description && (
+                    <span className="mt-1 block truncate text-xs font-normal text-[#4d4d4d]">
+                      {row.description}
+                    </span>
+                  )}
                 </span>
+                {row.value !== undefined && (
+                  <span className="shrink-0 text-sm font-semibold text-[#11518b]">
+                    {typeof row.value === "number"
+                      ? row.value.toLocaleString("es-PR")
+                      : row.value}
+                  </span>
+                )}
               </div>
             ))}
           </div>
         ) : (
           <p className="text-sm text-[#4d4d4d]">
-            Esta seccion esta lista para recibir datos externos cuando se conecte
-            el proveedor correspondiente.
+            {emptyMessage}
           </p>
         )}
       </div>
@@ -216,32 +240,63 @@ export default async function AdminAnalyticsPage({
     },
   ];
 
-  const topPageRows =
+  const realtimeRows: AnalyticsDisplayRow[] = [
+    {
+      label: "Active users",
+      value: formatOptionalMetric(dashboard.realtime.activeUsers),
+    },
+    ...dashboard.realtime.activePages.map((page) => ({
+      label: page.path,
+      value: page.users,
+      description: "Top active page or screen",
+    })),
+    ...(dashboard.realtime.recentEvents ?? []).map((event) => ({
+      label: event.name,
+      value: event.count,
+      description: "Recent realtime event",
+    })),
+  ];
+
+  const topPageRows: AnalyticsDisplayRow[] =
     dashboard.topPages.length > 0
-      ? dashboard.topPages.map((page) => page.path)
-      : ["/", "/listados", "/contact", "/testimonios"];
+      ? dashboard.topPages.map((page) => ({
+          label: page.path,
+          value: page.pageviews,
+          description: page.title,
+        }))
+      : [];
 
-  const trafficRows =
+  const trafficRows: AnalyticsDisplayRow[] =
     dashboard.trafficSources.length > 0
-      ? dashboard.trafficSources.map((source) =>
-          source.medium ? `${source.source} / ${source.medium}` : source.source
-        )
-      : ["Organic search", "Direct", "Social", "Referral"];
+      ? dashboard.trafficSources.map((source) => ({
+          label: source.medium
+            ? `${source.source} / ${source.medium}`
+            : source.source,
+          value: source.visitors,
+          description: "Visitors",
+        }))
+      : [];
 
-  const deviceRows =
+  const deviceRows: AnalyticsDisplayRow[] =
     dashboard.devices.length > 0
-      ? dashboard.devices.map((device) => device.device)
-      : ["Mobile", "Desktop", "Tablet"];
+      ? dashboard.devices.map((device) => ({
+          label: device.device,
+          value: device.visitors,
+          description: "Visitors",
+        }))
+      : [];
 
-  const eventRows =
+  const eventRows: AnalyticsDisplayRow[] =
     dashboard.events.length > 0
-      ? dashboard.events.map((event) => event.name)
-      : [
-          "property_view",
-          "whatsapp_click",
-          "priority_registration_submit_success",
-          "buyer_tenant_form_submit_success",
-        ];
+      ? dashboard.events.map((event) => ({
+          label: event.name,
+          value: event.count,
+          description:
+            event.visitors !== undefined
+              ? `${event.visitors.toLocaleString("es-PR")} visitors`
+              : undefined,
+        }))
+      : [];
 
   return (
     <main className="px-6 py-10">
@@ -297,7 +352,8 @@ export default async function AdminAnalyticsPage({
             eyebrow="Realtime"
             title="Actividad en tiempo real"
             description="Espacio reservado para sesiones activas, usuarios actuales y paginas vistas recientes."
-            rows={["Usuarios activos", "Paginas vistas recientes", "Eventos recientes"]}
+            rows={realtimeRows}
+            emptyMessage="Not available from GA4 Realtime API"
           />
 
           <EmptyAnalyticsCard

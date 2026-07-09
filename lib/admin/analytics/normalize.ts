@@ -29,6 +29,7 @@ export function mergeRealtime(items: Array<AnalyticsRealtime | null>) {
       return {
         activeUsers: (acc.activeUsers ?? 0) + (item.activeUsers ?? 0),
         activePages: [...acc.activePages, ...item.activePages],
+        recentEvents: [...(acc.recentEvents ?? []), ...(item.recentEvents ?? [])],
       };
     },
     { activePages: [] }

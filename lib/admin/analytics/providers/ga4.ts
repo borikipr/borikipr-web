@@ -213,16 +213,51 @@ export const ga4Provider: AnalyticsProvider = {
     const client = getClient();
     if (!client) return null;
 
-    const [response] = await runGa4Request(() =>
-      client.runRealtimeReport({
-        property: getPropertyName(),
-        metrics: [{ name: "activeUsers" }],
-      })
-    );
+    const [activeUsersResult, activePagesResult, recentEventsResult] =
+      await Promise.all([
+        runGa4Request(() =>
+          client.runRealtimeReport({
+            property: getPropertyName(),
+            metrics: [{ name: "activeUsers" }],
+          })
+        ),
+        runGa4Request(() =>
+          client.runRealtimeReport({
+            property: getPropertyName(),
+            dimensions: [{ name: "unifiedScreenName" }],
+            metrics: [{ name: "activeUsers" }],
+            limit: 5,
+            orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
+          })
+        ),
+        runGa4Request(() =>
+          client.runRealtimeReport({
+            property: getPropertyName(),
+            dimensions: [{ name: "eventName" }],
+            metrics: [{ name: "eventCount" }],
+            limit: 5,
+            orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
+          })
+        ),
+      ]);
+    const [activeUsersResponse] = activeUsersResult;
+    const [activePagesResponse] = activePagesResult;
+    const [recentEventsResponse] = recentEventsResult;
 
     return {
-      activeUsers: metricValue(response.rows?.[0]?.metricValues?.[0]?.value),
-      activePages: [],
+      activeUsers: metricValue(
+        activeUsersResponse.rows?.[0]?.metricValues?.[0]?.value
+      ),
+      activePages:
+        activePagesResponse.rows?.map((row) => ({
+          path: row.dimensionValues?.[0]?.value || "Unknown page",
+          users: metricValue(row.metricValues?.[0]?.value),
+        })) ?? [],
+      recentEvents:
+        recentEventsResponse.rows?.map((row) => ({
+          name: row.dimensionValues?.[0]?.value || "unknown",
+          count: metricValue(row.metricValues?.[0]?.value),
+        })) ?? [],
     } satisfies AnalyticsRealtime;
   },
   async getTopPages(range) {
