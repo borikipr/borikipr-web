@@ -66,6 +66,18 @@ export type AnalyticsProviderStatus = {
   description: string;
 };
 
+export type AnalyticsProviderDashboardData = {
+  id: AnalyticsProviderId;
+  name: string;
+  status: AnalyticsProviderStatus;
+  overview: AnalyticsOverview | null;
+  realtime: AnalyticsRealtime | null;
+  topPages: AnalyticsTopPage[];
+  trafficSources: AnalyticsTrafficSource[];
+  devices: AnalyticsDevice[];
+  events: AnalyticsEventSummary[];
+};
+
 export type AdminAnalyticsDashboard = {
   range: AnalyticsRange;
   overview: AnalyticsOverview;
@@ -75,6 +87,7 @@ export type AdminAnalyticsDashboard = {
   devices: AnalyticsDevice[];
   events: AnalyticsEventSummary[];
   providers: AnalyticsProviderStatus[];
+  providerData: AnalyticsProviderDashboardData[];
 };
 
 export type AnalyticsProvider = {

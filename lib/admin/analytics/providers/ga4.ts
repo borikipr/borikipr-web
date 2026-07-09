@@ -216,6 +216,7 @@ export const ga4Provider: AnalyticsProvider = {
           { name: "screenPageViews" },
           { name: "sessions" },
           { name: "eventCount" },
+          { name: "keyEvents" },
         ],
       })
     );
@@ -227,6 +228,7 @@ export const ga4Provider: AnalyticsProvider = {
       pageviews: metricValue(values[1]?.value),
       sessions: metricValue(values[2]?.value),
       events: metricValue(values[3]?.value),
+      conversions: metricValue(values[4]?.value),
     } satisfies AnalyticsOverview;
   },
   async getRealtime() {

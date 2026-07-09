@@ -156,6 +156,14 @@ export default async function AdminPage() {
           />
 
           <ActionCard
+            eyebrow="Analytics"
+            title="Ver estadísticas"
+            description="Consulta tráfico, páginas vistas, eventos, dispositivos y señales de comportamiento del website."
+            primaryHref="/admin/analytics"
+            primaryLabel="Ver analytics"
+          />
+
+          <ActionCard
             eyebrow="Website"
             title="Vista pública"
             description="Revisa rápidamente cómo se ve el contenido publicado para los clientes."

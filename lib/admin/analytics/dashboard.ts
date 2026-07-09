@@ -14,6 +14,7 @@ import type {
   AnalyticsEventSummary,
   AnalyticsOverview,
   AnalyticsProvider,
+  AnalyticsProviderDashboardData,
   AnalyticsProviderId,
   AnalyticsProviderStatus,
   AnalyticsRange,
@@ -141,6 +142,8 @@ async function getProviderDashboardData(provider: AnalyticsProvider, range: Anal
       : status;
 
   return {
+    id: provider.id,
+    name: provider.name,
     status: providerStatus,
     overview: overview.status === "fulfilled" ? overview.value : null,
     realtime: realtime.status === "fulfilled" ? realtime.value : null,
@@ -161,6 +164,8 @@ export async function getAdminAnalyticsDashboard(
         providerId: provider.id,
         call: () => getProviderDashboardData(provider, range),
         fallback: {
+          id: provider.id,
+          name: provider.name,
           status: {
             id: provider.id,
             name: provider.name,
@@ -173,7 +178,7 @@ export async function getAdminAnalyticsDashboard(
           trafficSources: [] as AnalyticsTrafficSource[],
           devices: [] as AnalyticsDevice[],
           events: [] as AnalyticsEventSummary[],
-        },
+        } satisfies AnalyticsProviderDashboardData,
       })
     )
   );
@@ -199,5 +204,6 @@ export async function getAdminAnalyticsDashboard(
     devices: combineDevices(deviceItems),
     events: combineEvents(eventItems),
     providers: providerStatuses,
+    providerData: safeProviderResults,
   };
 }

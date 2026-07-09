@@ -6,6 +6,7 @@ import {
   parseAnalyticsRange,
 } from "@/lib/admin/analytics/dashboard";
 import type {
+  AnalyticsProviderDashboardData,
   AnalyticsProviderStatus,
   AnalyticsRange,
 } from "@/lib/admin/analytics/types";
@@ -24,12 +25,6 @@ type AnalyticsDisplayRow = {
 
 function formatMetric(value: number | undefined) {
   return typeof value === "number" ? value.toLocaleString("es-PR") : "Pendiente";
-}
-
-function formatOptionalMetric(value: number | undefined) {
-  return typeof value === "number"
-    ? value.toLocaleString("es-PR")
-    : "Not available from GA4 Realtime API";
 }
 
 function rangeLabel(range: AnalyticsRange) {
@@ -125,9 +120,9 @@ function EmptyAnalyticsCard({
       <div className="mt-6 rounded-2xl border border-dashed border-[#d9d9d9] bg-[#fafafa] p-6">
         {rows && rows.length > 0 ? (
           <div className="space-y-3">
-            {rows.map((row) => (
+            {rows.map((row, index) => (
               <div
-                key={`${row.label}-${row.value ?? ""}`}
+                key={`${row.label}-${row.value ?? ""}-${index}`}
                 className="flex items-center justify-between gap-4 rounded-xl border border-[#e8e8e8] bg-white px-4 py-3"
               >
                 <span className="min-w-0 text-sm font-medium text-[#000000]">
@@ -202,6 +197,118 @@ function ProviderStatusCard({
   );
 }
 
+function toRealtimeRows(
+  provider: AnalyticsProviderDashboardData | undefined,
+  unavailableMessage: string
+) {
+  if (!provider?.realtime) {
+    return [{ label: unavailableMessage }];
+  }
+
+  return [
+    {
+      label: "Active users",
+      value:
+        typeof provider.realtime.activeUsers === "number"
+          ? provider.realtime.activeUsers
+          : unavailableMessage,
+    },
+    ...provider.realtime.activePages.map((page) => ({
+      label: page.path,
+      value: page.users,
+      description: "Top active page or screen",
+    })),
+    ...(provider.realtime.recentEvents ?? []).map((event) => ({
+      label: event.name,
+      value: event.count,
+      description: "Recent realtime event",
+    })),
+  ] satisfies AnalyticsDisplayRow[];
+}
+
+function toTopPageRows(provider: AnalyticsProviderDashboardData | undefined) {
+  return (
+    provider?.topPages.map((page) => ({
+      label: page.path,
+      value: page.pageviews,
+      description: page.title,
+    })) ?? []
+  ) satisfies AnalyticsDisplayRow[];
+}
+
+function toTrafficRows(provider: AnalyticsProviderDashboardData | undefined) {
+  return (
+    provider?.trafficSources.map((source) => ({
+      label: source.medium ? `${source.source} / ${source.medium}` : source.source,
+      value: source.visitors,
+      description: "Visitors",
+    })) ?? []
+  ) satisfies AnalyticsDisplayRow[];
+}
+
+function toDeviceRows(provider: AnalyticsProviderDashboardData | undefined) {
+  return (
+    provider?.devices.map((device) => ({
+      label: device.device,
+      value: device.visitors,
+      description: "Visitors",
+    })) ?? []
+  ) satisfies AnalyticsDisplayRow[];
+}
+
+function toEventRows(provider: AnalyticsProviderDashboardData | undefined) {
+  return (
+    provider?.events.map((event) => ({
+      label: event.name,
+      value: event.count,
+      description:
+        event.visitors !== undefined
+          ? `${event.visitors.toLocaleString("es-PR")} visitors`
+          : undefined,
+    })) ?? []
+  ) satisfies AnalyticsDisplayRow[];
+}
+
+function ProviderSection({
+  eyebrow,
+  title,
+  description,
+  cards,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  cards: Array<{
+    eyebrow: string;
+    title: string;
+    description: string;
+    rows?: AnalyticsDisplayRow[];
+    emptyMessage?: string;
+  }>;
+}) {
+  return (
+    <section className="space-y-5">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
+          {eyebrow}
+        </p>
+        <h2 className="mt-2 text-2xl font-semibold text-[#000000]">
+          {title}
+        </h2>
+        <p className="body-base mt-2 max-w-3xl">{description}</p>
+      </div>
+      <div className="grid gap-6 xl:grid-cols-2">
+        {cards.map((card) => (
+          <EmptyAnalyticsCard
+            key={`${eyebrow}-${card.eyebrow}-${card.title}`}
+            {...card}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default async function AdminAnalyticsPage({
   searchParams,
 }: {
@@ -216,87 +323,42 @@ export default async function AdminAnalyticsPage({
   const params = await searchParams;
   const currentRange = parseAnalyticsRange(params.range);
   const dashboard = await getAdminAnalyticsDashboard(currentRange);
+  const ga4Data = dashboard.providerData.find((provider) => provider.id === "ga4");
+  const vercelData = dashboard.providerData.find(
+    (provider) => provider.id === "vercel"
+  );
+  const clarityData = dashboard.providerData.find(
+    (provider) => provider.id === "clarity"
+  );
+  const visibleProviders = dashboard.providers.filter(
+    (provider) => provider.id !== "cloudflare"
+  );
 
   const overviewMetrics: AnalyticsPlaceholderMetric[] = [
     {
       label: "Visitantes",
-      value: formatMetric(dashboard.overview.visitors),
-      description: "Se conectara con datos agregados de trafico.",
+      value: formatMetric(ga4Data?.overview?.visitors),
+      description: "Fuente principal: Google Analytics 4.",
     },
     {
       label: "Paginas vistas",
-      value: formatMetric(dashboard.overview.pageviews),
-      description: "Mostrara volumen de navegacion del website.",
+      value: formatMetric(ga4Data?.overview?.pageviews),
+      description: "Fuente principal: Google Analytics 4.",
     },
     {
       label: "Conversiones",
-      value: formatMetric(dashboard.overview.conversions),
-      description: "Resumira eventos clave cuando las APIs esten conectadas.",
+      value: (ga4Data?.overview?.conversions ?? 0).toLocaleString("es-PR"),
+      description:
+        ga4Data?.overview?.conversions && ga4Data.overview.conversions > 0
+          ? "Fuente principal: Google Analytics 4."
+          : "No hay eventos marcados como Key Events en Google Analytics 4.",
     },
     {
       label: "Sesiones activas",
-      value: formatMetric(dashboard.realtime.activeUsers),
-      description: "Espacio reservado para actividad en tiempo real.",
+      value: formatMetric(ga4Data?.realtime?.activeUsers),
+      description: "Actividad en tiempo real desde Google Analytics 4.",
     },
   ];
-
-  const realtimeRows: AnalyticsDisplayRow[] = [
-    {
-      label: "Active users",
-      value: formatOptionalMetric(dashboard.realtime.activeUsers),
-    },
-    ...dashboard.realtime.activePages.map((page) => ({
-      label: page.path,
-      value: page.users,
-      description: "Top active page or screen",
-    })),
-    ...(dashboard.realtime.recentEvents ?? []).map((event) => ({
-      label: event.name,
-      value: event.count,
-      description: "Recent realtime event",
-    })),
-  ];
-
-  const topPageRows: AnalyticsDisplayRow[] =
-    dashboard.topPages.length > 0
-      ? dashboard.topPages.map((page) => ({
-          label: page.path,
-          value: page.pageviews,
-          description: page.title,
-        }))
-      : [];
-
-  const trafficRows: AnalyticsDisplayRow[] =
-    dashboard.trafficSources.length > 0
-      ? dashboard.trafficSources.map((source) => ({
-          label: source.medium
-            ? `${source.source} / ${source.medium}`
-            : source.source,
-          value: source.visitors,
-          description: "Visitors",
-        }))
-      : [];
-
-  const deviceRows: AnalyticsDisplayRow[] =
-    dashboard.devices.length > 0
-      ? dashboard.devices.map((device) => ({
-          label: device.device,
-          value: device.visitors,
-          description: "Visitors",
-        }))
-      : [];
-
-  const eventRows: AnalyticsDisplayRow[] =
-    dashboard.events.length > 0
-      ? dashboard.events.map((event) => ({
-          label: event.name,
-          value: event.count,
-          description:
-            event.visitors !== undefined
-              ? `${event.visitors.toLocaleString("es-PR")} visitors`
-              : undefined,
-        }))
-      : [];
 
   return (
     <main className="px-6 py-10">
@@ -347,45 +409,149 @@ export default async function AdminAnalyticsPage({
           </div>
         </section>
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          <EmptyAnalyticsCard
-            eyebrow="Realtime"
-            title="Actividad en tiempo real"
-            description="Espacio reservado para sesiones activas, usuarios actuales y paginas vistas recientes."
-            rows={realtimeRows}
-            emptyMessage="Not available from GA4 Realtime API"
-          />
+        <ProviderSection
+          eyebrow="Google Analytics 4"
+          title="Trafico principal del website"
+          description="GA4 es la fuente principal para visitantes, paginas, adquisicion, dispositivos y eventos."
+          cards={[
+            {
+              eyebrow: "Realtime",
+              title: "Actividad en tiempo real",
+              description:
+                "Usuarios activos, paginas activas y eventos recientes reportados por GA4.",
+              rows: toRealtimeRows(
+                ga4Data,
+                "Not available from GA4 Realtime API"
+              ),
+              emptyMessage: "Not available from GA4 Realtime API",
+            },
+            {
+              eyebrow: "Top Pages",
+              title: "Paginas principales",
+              description: "Rutas publicas con mayor trafico en GA4.",
+              rows: toTopPageRows(ga4Data),
+            },
+            {
+              eyebrow: "Traffic Sources",
+              title: "Fuentes de trafico",
+              description: "Origen y medio de las sesiones reportadas por GA4.",
+              rows: toTrafficRows(ga4Data),
+            },
+            {
+              eyebrow: "Devices",
+              title: "Dispositivos",
+              description: "Distribucion por mobile, desktop y tablet en GA4.",
+              rows: toDeviceRows(ga4Data),
+            },
+            {
+              eyebrow: "Events",
+              title: "Eventos principales",
+              description: "Eventos principales capturados por GA4.",
+              rows: toEventRows(ga4Data),
+            },
+          ]}
+        />
 
-          <EmptyAnalyticsCard
-            eyebrow="Top Pages"
-            title="Paginas principales"
-            description="Mostrara las rutas publicas con mayor trafico cuando la fuente externa este conectada."
-            rows={topPageRows}
-          />
+        <ProviderSection
+          eyebrow="Vercel Analytics"
+          title="Web Analytics de infraestructura"
+          description="Vercel muestra trafico agregado de rutas, referidos y dispositivos sin mezclarse con GA4."
+          cards={[
+            {
+              eyebrow: "Overview",
+              title: "Resumen de Vercel",
+              description: "Pageviews y visitantes disponibles desde Vercel.",
+              rows: [
+                {
+                  label: "Pageviews",
+                  value:
+                    vercelData?.overview?.pageviews !== undefined
+                      ? vercelData.overview.pageviews
+                      : "No data available for the selected date range.",
+                },
+                {
+                  label: "Visitors",
+                  value:
+                    vercelData?.overview?.visitors !== undefined
+                      ? vercelData.overview.visitors
+                      : "No data available for the selected date range.",
+                },
+              ],
+            },
+            {
+              eyebrow: "Top Routes",
+              title: "Rutas principales",
+              description: "Rutas con mas pageviews segun Vercel.",
+              rows: toTopPageRows(vercelData),
+            },
+            {
+              eyebrow: "Referrers",
+              title: "Referidos",
+              description: "Dominios de referencia reportados por Vercel.",
+              rows: toTrafficRows(vercelData),
+            },
+            {
+              eyebrow: "Devices",
+              title: "Dispositivos",
+              description: "Distribucion por dispositivo segun Vercel.",
+              rows: toDeviceRows(vercelData),
+            },
+            {
+              eyebrow: "Realtime",
+              title: "Tiempo real",
+              description:
+                "Vercel Web Analytics API no ofrece datos realtime en este panel.",
+              rows: toRealtimeRows(
+                vercelData,
+                "Not available from Vercel Web Analytics API."
+              ),
+            },
+            {
+              eyebrow: "Events",
+              title: "Eventos",
+              description:
+                "Si los eventos personalizados no estan disponibles en el plan actual, se mostrara como no disponible.",
+              rows: toEventRows(vercelData),
+              emptyMessage:
+                "Custom events are not available from the current Vercel Web Analytics API response.",
+            },
+          ]}
+        />
 
-          <EmptyAnalyticsCard
-            eyebrow="Traffic Sources"
-            title="Fuentes de trafico"
-            description="Preparado para agrupar visitas por origen, medio, campana o referido."
-            rows={trafficRows}
-          />
+        <ProviderSection
+          eyebrow="Microsoft Clarity"
+          title="Insights de comportamiento"
+          description="Clarity se usa para senales de experiencia como clics de frustracion, scroll y errores."
+          cards={[
+            {
+              eyebrow: "Popular Pages",
+              title: "Paginas populares",
+              description: "URLs con actividad capturada por Clarity.",
+              rows: toTopPageRows(clarityData),
+            },
+            {
+              eyebrow: "Devices",
+              title: "Dispositivos",
+              description: "Distribucion por dispositivo en Clarity.",
+              rows: toDeviceRows(clarityData),
+            },
+            {
+              eyebrow: "Sources",
+              title: "Fuentes",
+              description: "Fuentes y medios disponibles desde Clarity.",
+              rows: toTrafficRows(clarityData),
+            },
+            {
+              eyebrow: "Behavior",
+              title: "Senales de comportamiento",
+              description:
+                "Rage clicks, dead clicks, quick backs, scroll y errores agregados.",
+              rows: toEventRows(clarityData),
+            },
+          ]}
+        />
 
-          <EmptyAnalyticsCard
-            eyebrow="Devices"
-            title="Dispositivos"
-            description="Mostrara la distribucion de visitas por mobile, desktop y tablet."
-            rows={deviceRows}
-          />
-
-          <EmptyAnalyticsCard
-            eyebrow="Events"
-            title="Eventos principales"
-            description="Preparado para resumir eventos de contacto, formularios y actividad de propiedades."
-            rows={eventRows}
-          />
-
-          <ProviderStatusCard providers={dashboard.providers} />
-        </div>
+        <ProviderStatusCard providers={visibleProviders} />
       </div>
     </main>
   );
