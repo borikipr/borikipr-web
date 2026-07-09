@@ -14,6 +14,18 @@ import type {
 const propertyId = process.env.GA4_PROPERTY_ID?.trim();
 const clientEmail = process.env.GA4_CLIENT_EMAIL?.trim();
 const privateKey = process.env.GA4_PRIVATE_KEY?.replace(/\\n/g, "\n");
+const excludeAdminPagePathFilter = {
+  notExpression: {
+    filter: {
+      fieldName: "pagePath",
+      stringFilter: {
+        matchType: "BEGINS_WITH",
+        value: "/admin",
+        caseSensitive: false,
+      },
+    },
+  },
+} as const;
 
 function isGa4Configured() {
   return Boolean(propertyId && clientEmail && privateKey);
@@ -50,6 +62,13 @@ function getStartDate(range: "today" | "7d" | "30d" | "90d") {
 
 function metricValue(value: string | null | undefined) {
   return Number(value ?? 0);
+}
+
+function isAdminLikeRealtimeLabel(value: string | undefined) {
+  if (!value) return false;
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === "/admin" || normalized.startsWith("/admin/");
 }
 
 function configuredIdLooksLikeWebStreamId() {
@@ -191,6 +210,7 @@ export const ga4Provider: AnalyticsProvider = {
       client.runReport({
         property: getPropertyName(),
         dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
+        dimensionFilter: excludeAdminPagePathFilter,
         metrics: [
           { name: "totalUsers" },
           { name: "screenPageViews" },
@@ -249,10 +269,12 @@ export const ga4Provider: AnalyticsProvider = {
         activeUsersResponse.rows?.[0]?.metricValues?.[0]?.value
       ),
       activePages:
-        activePagesResponse.rows?.map((row) => ({
-          path: row.dimensionValues?.[0]?.value || "Unknown page",
-          users: metricValue(row.metricValues?.[0]?.value),
-        })) ?? [],
+        activePagesResponse.rows
+          ?.map((row) => ({
+            path: row.dimensionValues?.[0]?.value || "Unknown page",
+            users: metricValue(row.metricValues?.[0]?.value),
+          }))
+          .filter((page) => !isAdminLikeRealtimeLabel(page.path)) ?? [],
       recentEvents:
         recentEventsResponse.rows?.map((row) => ({
           name: row.dimensionValues?.[0]?.value || "unknown",
@@ -269,6 +291,7 @@ export const ga4Provider: AnalyticsProvider = {
         property: getPropertyName(),
         dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
         dimensions: [{ name: "pagePath" }, { name: "pageTitle" }],
+        dimensionFilter: excludeAdminPagePathFilter,
         metrics: [{ name: "screenPageViews" }, { name: "totalUsers" }],
         limit: 8,
         orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
@@ -293,6 +316,7 @@ export const ga4Provider: AnalyticsProvider = {
         property: getPropertyName(),
         dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
         dimensions: [{ name: "sessionSource" }, { name: "sessionMedium" }],
+        dimensionFilter: excludeAdminPagePathFilter,
         metrics: [{ name: "totalUsers" }],
         limit: 8,
         orderBys: [{ metric: { metricName: "totalUsers" }, desc: true }],
@@ -316,6 +340,7 @@ export const ga4Provider: AnalyticsProvider = {
         property: getPropertyName(),
         dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
         dimensions: [{ name: "deviceCategory" }],
+        dimensionFilter: excludeAdminPagePathFilter,
         metrics: [{ name: "totalUsers" }],
         orderBys: [{ metric: { metricName: "totalUsers" }, desc: true }],
       })
@@ -344,6 +369,7 @@ export const ga4Provider: AnalyticsProvider = {
         property: getPropertyName(),
         dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
         dimensions: [{ name: "eventName" }],
+        dimensionFilter: excludeAdminPagePathFilter,
         metrics: [{ name: "eventCount" }, { name: "totalUsers" }],
         limit: 12,
         orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
