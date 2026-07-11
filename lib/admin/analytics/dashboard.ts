@@ -12,6 +12,7 @@ import type {
   AdminAnalyticsDashboard,
   AnalyticsDevice,
   AnalyticsEventSummary,
+  AnalyticsFunnel,
   AnalyticsOverview,
   AnalyticsProvider,
   AnalyticsProviderDashboardData,
@@ -93,7 +94,7 @@ async function getProviderDashboardData(provider: AnalyticsProvider, range: Anal
     },
   });
 
-  const [overview, realtime, topPages, trafficSources, devices, events] =
+  const [overview, realtime, topPages, trafficSources, devices, events, funnel] =
     await Promise.all([
       captureProviderCall(() => provider.getOverview(range)),
       captureProviderCall(() => provider.getRealtime()),
@@ -101,6 +102,7 @@ async function getProviderDashboardData(provider: AnalyticsProvider, range: Anal
       captureProviderCall(() => provider.getTrafficSources(range)),
       captureProviderCall(() => provider.getDevices(range)),
       captureProviderCall(() => provider.getEvents(range)),
+      captureProviderCall(() => provider.getFunnel?.(range) ?? null),
     ]);
 
   const failures = [
@@ -110,6 +112,7 @@ async function getProviderDashboardData(provider: AnalyticsProvider, range: Anal
     trafficSources,
     devices,
     events,
+    funnel,
   ].filter((result) => result.status === "rejected");
 
   failures.forEach((failure) => {
@@ -123,21 +126,20 @@ async function getProviderDashboardData(provider: AnalyticsProvider, range: Anal
       failure.status === "rejected" &&
       failure.reason instanceof AnalyticsProviderError
   );
+  const analyticsError =
+    providerError?.status === "rejected" &&
+    providerError.reason instanceof AnalyticsProviderError
+      ? providerError.reason
+      : null;
 
   const providerStatus: AnalyticsProviderStatus =
     failures.length > 0 && status.status === "connected"
       ? {
           ...status,
-          status:
-            providerError?.status === "rejected" &&
-            providerError.reason instanceof AnalyticsProviderError
-              ? providerError.reason.status
-              : "api_error",
+          status: analyticsError?.status ?? "api_error",
           description:
-            providerError?.status === "rejected" &&
-            providerError.reason instanceof AnalyticsProviderError
-              ? providerError.reason.message
-              : "No se pudieron cargar las metricas de este proveedor.",
+            analyticsError?.message ??
+            "No se pudieron cargar las metricas de este proveedor.",
         }
       : status;
 
@@ -152,6 +154,7 @@ async function getProviderDashboardData(provider: AnalyticsProvider, range: Anal
       trafficSources.status === "fulfilled" ? trafficSources.value : [],
     devices: devices.status === "fulfilled" ? devices.value : [],
     events: events.status === "fulfilled" ? events.value : [],
+    funnel: funnel.status === "fulfilled" ? funnel.value : null,
   };
 }
 
@@ -178,6 +181,7 @@ export async function getAdminAnalyticsDashboard(
           trafficSources: [] as AnalyticsTrafficSource[],
           devices: [] as AnalyticsDevice[],
           events: [] as AnalyticsEventSummary[],
+          funnel: null as AnalyticsFunnel | null,
         } satisfies AnalyticsProviderDashboardData,
       })
     )
@@ -194,6 +198,8 @@ export async function getAdminAnalyticsDashboard(
   );
   const deviceItems = safeProviderResults.map((result) => result.devices);
   const eventItems = safeProviderResults.map((result) => result.events);
+  const funnel =
+    safeProviderResults.find((result) => result.id === "ga4")?.funnel ?? null;
 
   return {
     range,
@@ -203,7 +209,57 @@ export async function getAdminAnalyticsDashboard(
     trafficSources: combineTrafficSources(trafficSourceItems),
     devices: combineDevices(deviceItems),
     events: combineEvents(eventItems),
+    funnel,
     providers: providerStatuses,
     providerData: safeProviderResults,
   };
+}
+
+export async function getAdminAnalyticsProviderDashboard(
+  providerId: AnalyticsProviderId,
+  range: AnalyticsRange
+): Promise<AnalyticsProviderDashboardData> {
+  const provider = analyticsProviders.find((item) => item.id === providerId);
+
+  if (!provider) {
+    return {
+      id: providerId,
+      name: providerId,
+      status: {
+        id: providerId,
+        name: providerId,
+        status: "unavailable",
+        description: "Analytics provider is not registered.",
+      },
+      overview: null,
+      realtime: null,
+      topPages: [],
+      trafficSources: [],
+      devices: [],
+      events: [],
+      funnel: null,
+    };
+  }
+
+  return settleProviderCall({
+    providerId: provider.id,
+    call: () => getProviderDashboardData(provider, range),
+    fallback: {
+      id: provider.id,
+      name: provider.name,
+      status: {
+        id: provider.id,
+        name: provider.name,
+        status: "unavailable",
+        description: provider.description,
+      },
+      overview: null,
+      realtime: null,
+      topPages: [],
+      trafficSources: [],
+      devices: [],
+      events: [],
+      funnel: null,
+    } satisfies AnalyticsProviderDashboardData,
+  });
 }

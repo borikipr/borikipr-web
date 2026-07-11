@@ -3,6 +3,7 @@ import { AnalyticsProviderError } from "../errors";
 import type {
   AnalyticsDevice,
   AnalyticsEventSummary,
+  AnalyticsFunnel,
   AnalyticsOverview,
   AnalyticsProvider,
   AnalyticsRealtime,
@@ -26,6 +27,60 @@ const excludeAdminPagePathFilter = {
     },
   },
 } as const;
+
+const awarenessEvents = ["page_view"];
+const propertyViewEvents = ["property_view"];
+const intentEvents = [
+  "priority_registration_view",
+  "priority_registration_cta_click",
+  "showing_profile_cta_click",
+  "contact_option_click",
+  "whatsapp_click",
+  "property_whatsapp_click",
+  "property_contact_click",
+];
+const leadSubmissionEvents = [
+  "priority_registration_submit_success",
+  "buyer_tenant_form_submit_success",
+  "seller_landlord_form_submit_success",
+  "buyer_profile_form_submit_success",
+  "property_showing_profile_submit_success",
+];
+const duplicateEvents = ["priority_registration_duplicate"];
+const errorEvents = ["priority_registration_submit_error"];
+const propertyDigitalInterestEvents = [
+  "property_view",
+  "priority_registration_view",
+  "priority_registration_cta_click",
+  "property_contact_click",
+  "property_whatsapp_click",
+  "showing_profile_cta_click",
+  "priority_registration_submit_success",
+  "property_showing_profile_submit_success",
+];
+const funnelEvents = [
+  ...awarenessEvents,
+  ...propertyViewEvents,
+  ...intentEvents,
+  ...leadSubmissionEvents,
+  ...duplicateEvents,
+  ...errorEvents,
+];
+
+export type Ga4PropertyDigitalInterestRange = "today" | "7d" | "30d" | "all";
+
+export type Ga4PropertyDigitalInterest = {
+  propertySlug: string;
+  views: number;
+  priorityPageViews: number;
+  registrationCtaClicks: number;
+  whatsappClicks: number;
+  contactClicks: number;
+  showingCtaClicks: number;
+  priorityRegistrationsSubmitted: number;
+  showingProfilesSubmitted: number;
+  total: number;
+};
 
 function isGa4Configured() {
   return Boolean(propertyId && clientEmail && privateKey);
@@ -60,8 +115,34 @@ function getStartDate(range: "today" | "7d" | "30d" | "90d") {
   }
 }
 
+function getPropertyDigitalInterestStartDate(
+  range: Ga4PropertyDigitalInterestRange
+) {
+  switch (range) {
+    case "today":
+      return "today";
+    case "7d":
+      return "7daysAgo";
+    case "30d":
+      return "30daysAgo";
+    case "all":
+    default:
+      return "2020-01-01";
+  }
+}
+
 function metricValue(value: string | null | undefined) {
   return Number(value ?? 0);
+}
+
+function sumEventCounts(
+  eventCounts: Map<string, number>,
+  eventNames: string[]
+) {
+  return eventNames.reduce(
+    (total, eventName) => total + (eventCounts.get(eventName) ?? 0),
+    0
+  );
 }
 
 function isAdminLikeRealtimeLabel(value: string | undefined) {
@@ -184,6 +265,116 @@ async function runGa4Request<T>(request: () => Promise<T>) {
     return await request();
   } catch (error) {
     throwGa4Error(error);
+  }
+}
+
+export async function getGa4PropertyDigitalInterest(
+  range: Ga4PropertyDigitalInterestRange
+): Promise<Ga4PropertyDigitalInterest[]> {
+  const client = getClient();
+  if (!client) return [];
+
+  try {
+    const [response] = await runGa4Request(() =>
+      client.runReport({
+        property: getPropertyName(),
+        dateRanges: [
+          {
+            startDate: getPropertyDigitalInterestStartDate(range),
+            endDate: "today",
+          },
+        ],
+        dimensions: [
+          { name: "customEvent:property_slug" },
+          { name: "eventName" },
+        ],
+        dimensionFilter: {
+          andGroup: {
+            expressions: [
+              excludeAdminPagePathFilter,
+              {
+                filter: {
+                  fieldName: "eventName",
+                  inListFilter: {
+                    values: propertyDigitalInterestEvents,
+                    caseSensitive: true,
+                  },
+                },
+              },
+            ],
+          },
+        },
+        metrics: [{ name: "eventCount" }],
+        limit: 1000,
+      })
+    );
+
+    const grouped = new Map<string, Ga4PropertyDigitalInterest>();
+
+    for (const row of response.rows ?? []) {
+      const propertySlug = row.dimensionValues?.[0]?.value?.trim();
+      const eventName = row.dimensionValues?.[1]?.value?.trim();
+      const count = metricValue(row.metricValues?.[0]?.value);
+
+      if (!propertySlug || propertySlug === "(not set)" || !eventName) {
+        continue;
+      }
+
+      const current =
+        grouped.get(propertySlug) ??
+        ({
+          propertySlug,
+          views: 0,
+          priorityPageViews: 0,
+          registrationCtaClicks: 0,
+          whatsappClicks: 0,
+          contactClicks: 0,
+          showingCtaClicks: 0,
+          priorityRegistrationsSubmitted: 0,
+          showingProfilesSubmitted: 0,
+          total: 0,
+        } satisfies Ga4PropertyDigitalInterest);
+
+      switch (eventName) {
+        case "property_view":
+          current.views += count;
+          break;
+        case "priority_registration_view":
+          current.priorityPageViews += count;
+          break;
+        case "priority_registration_cta_click":
+          current.registrationCtaClicks += count;
+          break;
+        case "property_whatsapp_click":
+          current.whatsappClicks += count;
+          break;
+        case "property_contact_click":
+          current.contactClicks += count;
+          break;
+        case "showing_profile_cta_click":
+          current.showingCtaClicks += count;
+          break;
+        case "priority_registration_submit_success":
+          current.priorityRegistrationsSubmitted += count;
+          break;
+        case "property_showing_profile_submit_success":
+          current.showingProfilesSubmitted += count;
+          break;
+      }
+
+      current.total += count;
+      grouped.set(propertySlug, current);
+    }
+
+    return [...grouped.values()].sort((a, b) => b.total - a.total);
+  } catch (error) {
+    console.error("[admin leads] GA4 property digital interest unavailable", {
+      message: error instanceof Error ? error.message : "Unknown error",
+      status:
+        error instanceof AnalyticsProviderError ? error.status : "unknown_error",
+    });
+
+    return [];
   }
 }
 
@@ -385,5 +576,73 @@ export const ga4Provider: AnalyticsProvider = {
         visitors: metricValue(row.metricValues?.[1]?.value),
       })) ?? []
     ) satisfies AnalyticsEventSummary[];
+  },
+  async getFunnel(range) {
+    const client = getClient();
+    if (!client) return null;
+
+    const [response] = await runGa4Request(() =>
+      client.runReport({
+        property: getPropertyName(),
+        dateRanges: [{ startDate: getStartDate(range), endDate: "today" }],
+        dimensions: [{ name: "eventName" }],
+        dimensionFilter: {
+          andGroup: {
+            expressions: [
+              excludeAdminPagePathFilter,
+              {
+                filter: {
+                  fieldName: "eventName",
+                  inListFilter: {
+                    values: funnelEvents,
+                    caseSensitive: true,
+                  },
+                },
+              },
+            ],
+          },
+        },
+        metrics: [{ name: "eventCount" }],
+        limit: funnelEvents.length,
+      })
+    );
+
+    const eventCounts = new Map(
+      response.rows?.map((row) => [
+        row.dimensionValues?.[0]?.value || "unknown",
+        metricValue(row.metricValues?.[0]?.value),
+      ]) ?? []
+    );
+
+    return {
+      stages: [
+        {
+          id: "website_visits",
+          label: "Website visits",
+          count: sumEventCounts(eventCounts, awarenessEvents),
+          eventNames: awarenessEvents,
+        },
+        {
+          id: "property_views",
+          label: "Property views",
+          count: sumEventCounts(eventCounts, propertyViewEvents),
+          eventNames: propertyViewEvents,
+        },
+        {
+          id: "intent_actions",
+          label: "Contact / intent actions",
+          count: sumEventCounts(eventCounts, intentEvents),
+          eventNames: intentEvents,
+        },
+        {
+          id: "lead_submissions",
+          label: "Successful form submissions",
+          count: sumEventCounts(eventCounts, leadSubmissionEvents),
+          eventNames: leadSubmissionEvents,
+        },
+      ],
+      duplicateCount: sumEventCounts(eventCounts, duplicateEvents),
+      errorCount: sumEventCounts(eventCounts, errorEvents),
+    } satisfies AnalyticsFunnel;
   },
 };

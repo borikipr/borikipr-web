@@ -115,16 +115,46 @@ function isAdminPath(path: string) {
 }
 
 function normalizePath(value: string) {
-  if (!value) return "/";
+  const trimmed = value.trim();
+  if (!trimmed) return "Unknown page";
 
   try {
-    const parsed = value.startsWith("http")
-      ? new URL(value)
-      : new URL(value, "https://borikipr.com");
-    return parsed.pathname || "/";
+    const parsed = trimmed.startsWith("http")
+      ? new URL(trimmed)
+      : new URL(trimmed, "https://borikipr.com");
+    return parsed.pathname || "Unknown page";
   } catch {
-    return value.startsWith("/") ? value : `/${value}`;
+    const withoutFragment = trimmed.split("#")[0]?.split("?")[0]?.trim();
+
+    if (!withoutFragment || withoutFragment === "Unknown page") {
+      return "Unknown page";
+    }
+
+    return withoutFragment.startsWith("/")
+      ? withoutFragment
+      : `/${withoutFragment}`;
   }
+}
+
+function groupTopPages(rows: AnalyticsTopPage[]) {
+  const grouped = new Map<string, AnalyticsTopPage>();
+
+  rows.forEach((row) => {
+    const key = row.path || "Unknown page";
+    const existing = grouped.get(key);
+
+    if (existing) {
+      existing.pageviews += row.pageviews;
+      existing.visitors = (existing.visitors ?? 0) + (row.visitors ?? 0);
+      return;
+    }
+
+    grouped.set(key, { ...row });
+  });
+
+  return Array.from(grouped.values())
+    .sort((a, b) => b.pageviews - a.pageviews)
+    .slice(0, 8);
 }
 
 function classifyClarityError(status: number): {
@@ -276,7 +306,7 @@ export const clarityProvider: AnalyticsProvider = {
     const metric = getUrlMetric(report.url);
     if (!metric) return [];
 
-    return getRows(metric)
+    const rows = (getRows(metric)
       .map((row) => {
         const path = normalizePath(
           getDimensionValue(row, 0, ["url", "URL", "pageUrl"])
@@ -287,9 +317,9 @@ export const clarityProvider: AnalyticsProvider = {
           pageviews: getRowCount(row),
         };
       })
-      .filter((row) => row.pageviews > 0 && !isAdminPath(row.path))
-      .sort((a, b) => b.pageviews - a.pageviews)
-      .slice(0, 8) satisfies AnalyticsTopPage[];
+      .filter((row) => row.pageviews > 0 && !isAdminPath(row.path))) satisfies AnalyticsTopPage[];
+
+    return groupTopPages(rows);
   },
   async getTrafficSources() {
     const report = await fetchClarityReport();

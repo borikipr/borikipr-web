@@ -24,6 +24,7 @@
     "postgres": "^3.4.8",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "recharts": "^3.9.2",
     "resend": "^6.9.3"
   },
   "devDependencies": {

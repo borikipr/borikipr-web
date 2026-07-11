@@ -112,7 +112,7 @@ function classifyVercelError(status: number): {
   if (status === 429) {
     return {
       status: "rate_limited",
-      message: "Vercel Analytics API rate limit reached.",
+      message: "Vercel Analytics API rate limit reached. Try again later.",
     };
   }
 

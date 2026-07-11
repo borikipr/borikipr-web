@@ -5,11 +5,13 @@ import { trackAnalyticsEvent } from "@/lib/analytics";
 
 export default function PerfilCompradorPropiedadForm({
   propiedadId,
+  propiedadSlug,
   requierePrecalificacion,
   preguntaPersonalizada,
   r2Configured,
 }: {
   propiedadId: string;
+  propiedadSlug: string;
   requierePrecalificacion: boolean;
   preguntaPersonalizada?: string | null;
   r2Configured: boolean;
@@ -44,6 +46,7 @@ export default function PerfilCompradorPropiedadForm({
       const cartaFile = formData.get("carta_precalificacion");
       trackAnalyticsEvent("property_showing_profile_submit_success", {
         property_id: propiedadId,
+        property_slug: propiedadSlug,
         metodo_compra: metodoCompra,
         has_prequalification_upload:
           cartaFile instanceof File && cartaFile.size > 0,

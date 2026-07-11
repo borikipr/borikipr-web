@@ -1,15 +1,31 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import CopyLeadValueButton from "@/components/admin/CopyLeadValueButton";
+import {
+  getGa4PropertyDigitalInterest,
+  type Ga4PropertyDigitalInterest,
+} from "@/lib/admin/analytics/providers/ga4";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import {
+  getActionRequiredSummary,
+  getComingSoonPropertiesWithRegistrations,
+  getHighRecentDirectInterest,
+  getLeadSubmissionSummary,
   getLeadsActividadReciente,
   getLeadDailyTotals,
+  getLeadPropertyFilterInfo,
+  getPriorityRegistrationLeads,
   getLeadRouteOrigins,
   getLeadsResumen,
+  getShowingProfileLeads,
   type LeadDailyTotal,
   type LeadEventFilter,
   type LeadRange,
   type LeadRouteOrigin,
+  type ComingSoonRegistrationItem,
+  type HighRecentDirectInterestItem,
+  type PriorityRegistrationLead,
+  type ShowingProfileLead,
 } from "@/lib/admin/queries/leads";
 
 function StatCard({
@@ -32,10 +48,81 @@ function StatCard({
   );
 }
 
+function ActionCard({
+  label,
+  value,
+  description,
+  meta,
+  href,
+  linkLabel,
+}: {
+  label: string;
+  value: string | number;
+  description: string;
+  meta?: string;
+  href?: string;
+  linkLabel?: string;
+}) {
+  return (
+    <div className="surface-card p-6">
+      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#d4af37]">
+        {label}
+      </p>
+      <p className="mt-3 text-3xl font-bold text-[#000000]">{value}</p>
+      <p className="mt-2 text-sm text-[#4d4d4d]">{description}</p>
+      {meta && <p className="mt-3 text-xs text-[#6b7280]">{meta}</p>}
+      {href && linkLabel && (
+        <Link
+          href={href}
+          className="mt-4 inline-flex text-sm font-semibold text-[#11518b] transition hover:text-[#0d406d]"
+        >
+          {linkLabel}
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function ActionRequiredCard({
+  title,
+  value,
+  description,
+  meta,
+  href,
+  linkLabel,
+}: {
+  title: string;
+  value: string | number;
+  description: string;
+  meta: string;
+  href?: string;
+  linkLabel?: string;
+}) {
+  return (
+    <div className="surface-card border-l-4 border-[#d4af37] p-6">
+      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#d4af37]">
+        {title}
+      </p>
+      <p className="mt-3 text-3xl font-bold text-[#000000]">{value}</p>
+      <p className="mt-2 text-sm text-[#4d4d4d]">{description}</p>
+      <p className="mt-3 text-xs text-[#6b7280]">{meta}</p>
+      {href && linkLabel && (
+        <Link
+          href={href}
+          className="mt-4 inline-flex text-sm font-semibold text-[#11518b] transition hover:text-[#0d406d]"
+        >
+          {linkLabel}
+        </Link>
+      )}
+    </div>
+  );
+}
+
 type LeadItem = {
   propiedadId: string | null;
   propiedadSlug: string;
   titulo: string;
+  municipio: string | null;
   total: number;
   ultimaInteraccion: string | null;
   primeraInteraccion: string | null;
@@ -94,12 +181,24 @@ function eventLabel(tipo: string) {
 function eventBadgeClasses(tipo: string) {
   switch (tipo) {
     case "whatsapp_click":
-      return "bg-[#25D366]/10 text-[#1f9d4c]";
+      return "border border-[#d9d9d9] bg-[#f8f8f8] text-[#4d4d4d]";
     case "contact_click":
-      return "bg-[#11518b]/10 text-[#11518b]";
+      return "border border-[#d9d9d9] bg-[#f8f8f8] text-[#4d4d4d]";
     default:
-      return "bg-[#4d4d4d]/10 text-[#4d4d4d]";
+      return "border border-[#d9d9d9] bg-[#f8f8f8] text-[#4d4d4d]";
   }
+}
+
+function CrmStatusBadge({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <span className="inline-flex rounded-full border border-[#d9d9d9] bg-[#f8f8f8] px-3 py-1 text-xs font-semibold text-[#4d4d4d]">
+      {children}
+    </span>
+  );
 }
 
 function rangeLabel(range: LeadRange) {
@@ -139,32 +238,53 @@ function isValidEventFilter(value: string | undefined): value is LeadEventFilter
 function leadsHref({
   range,
   eventType,
+  propertySlug,
 }: {
   range: LeadRange;
   eventType: LeadEventFilter;
+  propertySlug?: string | null;
 }) {
   const params = new URLSearchParams();
   params.set("range", range);
   params.set("event", eventType);
+  if (propertySlug) {
+    params.set("property", propertySlug);
+  }
   return `/admin/leads?${params.toString()}`;
+}
+
+function clearPropertyHref({
+  range,
+  eventType,
+}: {
+  range: LeadRange;
+  eventType: LeadEventFilter;
+}) {
+  return leadsHref({ range, eventType });
 }
 
 function RangeLink({
   range,
   currentRange,
   currentEventType,
+  currentPropertySlug,
   label,
 }: {
   range: LeadRange;
   currentRange: LeadRange;
   currentEventType: LeadEventFilter;
+  currentPropertySlug?: string | null;
   label: string;
 }) {
   const active = range === currentRange;
 
   return (
     <Link
-      href={leadsHref({ range, eventType: currentEventType })}
+      href={leadsHref({
+        range,
+        eventType: currentEventType,
+        propertySlug: currentPropertySlug,
+      })}
       className={
         active
           ? "inline-flex items-center rounded-full bg-[#11518b] px-4 py-2 text-sm font-semibold text-white"
@@ -180,18 +300,24 @@ function EventFilterLink({
   eventType,
   currentEventType,
   currentRange,
+  currentPropertySlug,
   label,
 }: {
   eventType: LeadEventFilter;
   currentEventType: LeadEventFilter;
   currentRange: LeadRange;
+  currentPropertySlug?: string | null;
   label: string;
 }) {
   const active = eventType === currentEventType;
 
   return (
     <Link
-      href={leadsHref({ range: currentRange, eventType })}
+      href={leadsHref({
+        range: currentRange,
+        eventType,
+        propertySlug: currentPropertySlug,
+      })}
       className={
         active
           ? "inline-flex items-center rounded-full bg-[#11518b] px-4 py-2 text-sm font-semibold text-white"
@@ -217,10 +343,10 @@ function ChannelBar({
   return (
     <div className="surface-card p-6">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-        Conversión por canal
+        Canales de contacto directo
       </p>
       <h2 className="mt-3 text-2xl font-semibold text-[#000000]">
-        WhatsApp vs Contacto
+        WhatsApp y solicitudes de contacto
       </h2>
 
       <div className="mt-6 overflow-hidden rounded-full bg-[#e9edf2]">
@@ -271,15 +397,15 @@ function TopPropertiesChart({ items }: { items: LeadItem[] }) {
   return (
     <div className="surface-card p-6">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-        Visual rápido
+        Seguimiento por propiedad
       </p>
       <h2 className="mt-3 text-2xl font-semibold text-[#000000]">
-        Top propiedades
+        Propiedades más contactadas
       </h2>
 
       {items.length === 0 ? (
         <p className="mt-4 text-sm text-[#4d4d4d]">
-          Aún no hay datos para graficar.
+          No direct interactions were recorded during the selected period.
         </p>
       ) : (
         <div className="mt-6 space-y-4">
@@ -323,15 +449,15 @@ function DailyInteractionsChart({ items }: { items: DailyItem[] }) {
   return (
     <div className="surface-card p-6">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-        Tendencia diaria
+        Actividad diaria de leads
       </p>
       <h2 className="mt-3 text-2xl font-semibold text-[#000000]">
-        Interacciones por día
+        Contactos directos por día
       </h2>
 
       {items.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-[#d9d9d9] bg-[#fafafa] p-6 text-sm text-[#4d4d4d]">
-          No hay interacciones registradas para el rango y canal seleccionados.
+          No direct interactions were recorded during the selected period.
         </div>
       ) : (
         <div className="mt-6 space-y-4">
@@ -377,15 +503,15 @@ function RouteOriginBreakdown({ items }: { items: RouteOriginItem[] }) {
   return (
     <div className="surface-card p-6">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-        Origen de interacción
+        Fuentes de leads
       </p>
       <h2 className="mt-3 text-2xl font-semibold text-[#000000]">
-        Rutas que generan interés
+        Rutas que generan contacto directo
       </h2>
 
       {items.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-[#d9d9d9] bg-[#fafafa] p-6 text-sm text-[#4d4d4d]">
-          Aún no hay rutas de origen para mostrar en esta vista.
+          No lead source activity was recorded during the selected period.
         </div>
       ) : (
         <div className="mt-6 space-y-4">
@@ -427,10 +553,545 @@ function RouteOriginBreakdown({ items }: { items: RouteOriginItem[] }) {
   );
 }
 
+function PriorityRegistrationsTable({
+  items,
+}: {
+  items: PriorityRegistrationLead[];
+}) {
+  return (
+    <section id="priority-registrations" className="surface-card overflow-hidden">
+      <div className="border-b border-[#eeeeee] px-6 py-5">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
+          Priority Registrations
+        </p>
+        <h2 className="mt-2 text-2xl font-semibold text-[#000000]">
+          Coming Soon buyer interest
+        </h2>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="px-6 py-12 text-center">
+          <p className="text-lg font-medium text-[#000000]">
+            No priority registrations yet.
+          </p>
+          <p className="mt-2 text-sm text-[#4d4d4d]">
+            Registrations from Coming Soon properties will appear here.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-[#fafafa]">
+              <tr className="text-left">
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Date</th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Property</th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Buyer Name</th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Purchase Type</th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Phone</th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Email</th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Status</th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id} className="border-t border-[#f0f0f0]">
+                  <td className="px-6 py-4 text-sm text-[#4d4d4d]">
+                    {formatDate(item.createdAt)}
+                  </td>
+                  <td className="px-6 py-4">
+                    <p className="text-sm font-medium text-[#000000]">
+                      {item.propertyTitle}
+                    </p>
+                    <p className="mt-1 text-xs text-[#4d4d4d]">
+                      {item.propertySlug}
+                    </p>
+                  </td>
+                  <td className="px-6 py-4 text-sm font-medium text-[#000000]">
+                    {item.buyerName || "No disponible"}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-[#4d4d4d]">
+                    {item.purchaseType || "No disponible"}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-[#4d4d4d]">
+                    {item.phone || "No disponible"}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-[#4d4d4d]">
+                    {item.email || "No disponible"}
+                  </td>
+                  <td className="px-6 py-4">
+                    <CrmStatusBadge>Priority Registration</CrmStatusBadge>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap gap-3">
+                      <Link
+                        href={`/listados/${item.propertySlug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-[#11518b] transition hover:text-[#0d406d]"
+                      >
+                        View Property
+                      </Link>
+                      <CopyLeadValueButton value={item.email} label="Copy Email" />
+                      <CopyLeadValueButton value={item.phone} label="Copy Phone" />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ShowingProfilesTable({ items }: { items: ShowingProfileLead[] }) {
+  return (
+    <section id="showing-profiles" className="surface-card overflow-hidden">
+      <div className="border-b border-[#eeeeee] px-6 py-5">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
+          Showing Profiles
+        </p>
+        <h2 className="mt-2 text-2xl font-semibold text-[#000000]">
+          Property buyer profiles received
+        </h2>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="px-6 py-12 text-center">
+          <p className="text-lg font-medium text-[#000000]">
+            No showing profiles received.
+          </p>
+          <p className="mt-2 text-sm text-[#4d4d4d]">
+            Property-specific buyer profiles will appear here after submission.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-[#fafafa]">
+              <tr className="text-left">
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Date</th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Property</th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Buyer Name</th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Purchase Method</th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Prequalified</th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Status</th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id} className="border-t border-[#f0f0f0]">
+                  <td className="px-6 py-4 text-sm text-[#4d4d4d]">
+                    {formatDate(item.createdAt)}
+                  </td>
+                  <td className="px-6 py-4">
+                    <p className="text-sm font-medium text-[#000000]">
+                      {item.propertyTitle ?? "Property not linked"}
+                    </p>
+                    {item.propertySlug && (
+                      <p className="mt-1 text-xs text-[#4d4d4d]">
+                        {item.propertySlug}
+                      </p>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-sm font-medium text-[#000000]">
+                    {item.buyerName || "No disponible"}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-[#4d4d4d]">
+                    {item.purchaseMethod || "No disponible"}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-[#4d4d4d]">
+                    {item.prequalified}
+                  </td>
+                  <td className="px-6 py-4">
+                    <CrmStatusBadge>Showing Profile</CrmStatusBadge>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap gap-3">
+                      {item.propertySlug ? (
+                        <Link
+                          href={`/listados/${item.propertySlug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-[#11518b] transition hover:text-[#0d406d]"
+                        >
+                          View Property
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-[#8a8a8a]">
+                          Property unavailable
+                        </span>
+                      )}
+                      <CopyLeadValueButton value={item.email} label="Copy Email" />
+                      <CopyLeadValueButton value={item.phone} label="Copy Phone" />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function digitalCtaTotal(item: Ga4PropertyDigitalInterest) {
+  return (
+    item.registrationCtaClicks +
+    item.whatsappClicks +
+    item.contactClicks +
+    item.showingCtaClicks
+  );
+}
+
+function digitalSubmissionTotal(item: Ga4PropertyDigitalInterest) {
+  return item.priorityRegistrationsSubmitted + item.showingProfilesSubmitted;
+}
+
+function DigitalActivityCard({
+  label,
+  item,
+  value,
+  description,
+}: {
+  label: string;
+  item?: Ga4PropertyDigitalInterest;
+  value: number;
+  description: string;
+}) {
+  return (
+    <div className="surface-card border-l-4 border-[#11518b] p-6">
+      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#11518b]">
+        {label}
+      </p>
+      <p className="mt-3 text-3xl font-bold text-[#000000]">{value}</p>
+      <p className="mt-2 text-sm text-[#4d4d4d]">{description}</p>
+      <p className="mt-3 truncate text-xs font-medium text-[#11518b]">
+        {item?.propertySlug ?? "No GA4 data yet"}
+      </p>
+    </div>
+  );
+}
+
+function DigitalInterestDetails({
+  item,
+}: {
+  item?: Ga4PropertyDigitalInterest;
+}) {
+  if (!item) {
+    return (
+      <p className="mt-3 text-xs text-[#4d4d4d]">
+        Digital property reporting is still populating from Google Analytics.
+      </p>
+    );
+  }
+
+  const rows = [
+    ["Website views", item.views],
+    ["Priority page views", item.priorityPageViews],
+    ["Registration CTA clicks", item.registrationCtaClicks],
+    ["WhatsApp clicks", item.whatsappClicks],
+    ["Contact clicks", item.contactClicks],
+    ["Showing CTA clicks", item.showingCtaClicks],
+    ["Priority registrations submitted", item.priorityRegistrationsSubmitted],
+    ["Showing profiles submitted", item.showingProfilesSubmitted],
+  ];
+
+  return (
+    <details className="mt-3 rounded-2xl border border-[#e8e8e8] bg-[#fafafa] p-3">
+      <summary className="cursor-pointer text-xs font-semibold text-[#11518b]">
+        View GA4 details
+      </summary>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {rows.map(([label, value]) => (
+          <div
+            key={label}
+            className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-xs"
+          >
+            <span className="text-[#4d4d4d]">{label}</span>
+            <span className="font-semibold text-[#000000]">{value}</span>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function HotListingsTable({
+  items,
+}: {
+  items: Array<{
+    propertySlug: string;
+    propertyTitle: string;
+    views: number;
+    ctaClicks: number;
+    submissions: number;
+    total: number;
+  }>;
+}) {
+  return (
+    <div className="surface-card overflow-hidden">
+      <div className="border-b border-[#eeeeee] px-6 py-5">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#11518b]">
+          Top 5 Hot Listings
+        </p>
+        <h2 className="mt-2 text-2xl font-semibold text-[#000000]">
+          GA4 digital activity ranking
+        </h2>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="px-6 py-10 text-sm text-[#4d4d4d]">
+          Digital property reporting is still populating from Google Analytics.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-[#fafafa]">
+              <tr className="text-left">
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">
+                  Property
+                </th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">
+                  Digital actions
+                </th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">
+                  Trend
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.propertySlug} className="border-t border-[#f0f0f0]">
+                  <td className="px-6 py-4">
+                    <p className="text-sm font-medium text-[#000000]">
+                      {item.propertyTitle}
+                    </p>
+                    <p className="mt-1 text-xs text-[#4d4d4d]">
+                      {item.propertySlug}
+                    </p>
+                  </td>
+                  <td className="px-6 py-4 text-sm font-semibold text-[#11518b]">
+                    {item.total} digital actions
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="inline-flex rounded-full border border-[#d9d9d9] bg-[#f8f8f8] px-3 py-1 text-xs font-semibold text-[#4d4d4d]">
+                      Views {item.views} · CTA {item.ctaClicks} · Submissions{" "}
+                      {item.submissions}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MunicipalityDigitalTable({
+  items,
+}: {
+  items: Array<{
+    municipio: string;
+    views: number;
+    ctaClicks: number;
+    submissions: number;
+  }>;
+}) {
+  return (
+    <div className="surface-card overflow-hidden">
+      <div className="border-b border-[#eeeeee] px-6 py-5">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#11518b]">
+          Municipalities
+        </p>
+        <h2 className="mt-2 text-2xl font-semibold text-[#000000]">
+          Digital interest by municipality
+        </h2>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="px-6 py-10 text-sm text-[#4d4d4d]">
+          Digital property reporting is still populating from Google Analytics.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-[#fafafa]">
+              <tr className="text-left">
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">
+                  Municipality
+                </th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">
+                  Views
+                </th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">
+                  CTA
+                </th>
+                <th className="px-6 py-4 text-sm font-semibold text-[#000000]">
+                  Submissions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.municipio} className="border-t border-[#f0f0f0]">
+                  <td className="px-6 py-4 text-sm font-medium text-[#000000]">
+                    {item.municipio}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-[#4d4d4d]">
+                    {item.views}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-[#4d4d4d]">
+                    {item.ctaClicks}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-[#4d4d4d]">
+                    {item.submissions}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ComingSoonRegistrationsList({
+  items,
+}: {
+  items: ComingSoonRegistrationItem[];
+}) {
+  return (
+    <div className="surface-card p-6">
+      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
+        Coming Soon With Registrations
+      </p>
+      <h2 className="mt-3 text-2xl font-semibold text-[#000000]">
+        Follow-up opportunities
+      </h2>
+
+      {items.length === 0 ? (
+        <p className="mt-4 text-sm text-[#4d4d4d]">
+          No Coming Soon properties currently have registrations.
+        </p>
+      ) : (
+        <div className="mt-6 space-y-4">
+          {items.map((item) => (
+            <div
+              key={item.propertySlug}
+              className="rounded-2xl border border-[#ececec] bg-[#fafafa] px-4 py-4"
+            >
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-[#000000]">
+                    {item.propertyTitle}
+                  </p>
+                  <p className="mt-1 truncate text-xs text-[#4d4d4d]">
+                    {item.propertySlug}
+                  </p>
+                  <p className="mt-2 text-xs text-[#4d4d4d]">
+                    Latest registration: {formatDate(item.latestAt)}
+                  </p>
+                </div>
+                <div className="shrink-0 text-left md:text-right">
+                  <p className="text-2xl font-bold text-[#11518b]">
+                    {item.total}
+                  </p>
+                  <p className="text-xs text-[#4d4d4d]">registrations</p>
+                </div>
+              </div>
+              <div className="mt-4">
+                <Link
+                  href={`/admin/leads?range=all&event=all&property=${encodeURIComponent(
+                    item.propertySlug
+                  )}`}
+                  className="text-sm font-medium text-[#11518b] transition hover:text-[#0d406d]"
+                >
+                  Open filtered lead view
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HighRecentDirectInterestList({
+  items,
+}: {
+  items: HighRecentDirectInterestItem[];
+}) {
+  return (
+    <div className="surface-card p-6">
+      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
+        High Recent Direct Interest
+      </p>
+      <h2 className="mt-3 text-2xl font-semibold text-[#000000]">
+        Last 7 days
+      </h2>
+
+      {items.length === 0 ? (
+        <p className="mt-4 text-sm text-[#4d4d4d]">
+          No properties have high recent direct interest in the last 7 days.
+        </p>
+      ) : (
+        <div className="mt-6 space-y-4">
+          {items.map((item) => (
+            <div
+              key={item.propertySlug}
+              className="rounded-2xl border border-[#ececec] bg-[#fafafa] px-4 py-4"
+            >
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-[#000000]">
+                    {item.propertyTitle}
+                  </p>
+                  <p className="mt-1 truncate text-xs text-[#4d4d4d]">
+                    {item.propertySlug}
+                  </p>
+                  <p className="mt-2 text-xs text-[#4d4d4d]">
+                    WhatsApp: {item.totalWhatsapp} · Contact:{" "}
+                    {item.totalContact} · Latest: {formatDate(item.latestAt)}
+                  </p>
+                </div>
+                <div className="shrink-0 text-left md:text-right">
+                  <p className="text-2xl font-bold text-[#11518b]">
+                    {item.total}
+                  </p>
+                  <p className="text-xs text-[#4d4d4d]">direct interactions</p>
+                </div>
+              </div>
+              <div className="mt-4">
+                <Link
+                  href={`/admin/leads?range=7d&event=all&property=${encodeURIComponent(
+                    item.propertySlug
+                  )}`}
+                  className="text-sm font-medium text-[#11518b] transition hover:text-[#0d406d]"
+                >
+                  Open filtered lead view
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default async function AdminLeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string; event?: string }>;
+  searchParams: Promise<{ range?: string; event?: string; property?: string }>;
 }) {
   const user = await getAdminSessionUser();
 
@@ -443,18 +1104,105 @@ export default async function AdminLeadsPage({
   const currentEventType: LeadEventFilter = isValidEventFilter(params.event)
     ? params.event
     : "all";
+  const currentPropertySlug =
+    typeof params.property === "string" && params.property.trim()
+      ? params.property.trim()
+      : null;
 
-  const [leads, actividad, rutasOrigen, interaccionesPorDia] = await Promise.all([
-    getLeadsResumen(currentRange, currentEventType),
-    getLeadsActividadReciente(20, currentRange, currentEventType),
-    getLeadRouteOrigins(currentRange, currentEventType),
-    getLeadDailyTotals(currentRange, currentEventType),
+  const [
+    leads,
+    actividad,
+    rutasOrigen,
+    interaccionesPorDia,
+    propertyFilterInfo,
+    submissionSummary,
+    priorityRegistrations,
+    showingProfiles,
+    digitalInterest,
+    actionRequired,
+    comingSoonWithRegistrations,
+    highRecentDirectInterest,
+  ] = await Promise.all([
+    getLeadsResumen(currentRange, currentEventType, currentPropertySlug),
+    getLeadsActividadReciente(20, currentRange, currentEventType, currentPropertySlug),
+    getLeadRouteOrigins(currentRange, currentEventType, currentPropertySlug),
+    getLeadDailyTotals(currentRange, currentEventType, currentPropertySlug),
+    getLeadPropertyFilterInfo(currentPropertySlug),
+    getLeadSubmissionSummary(),
+    getPriorityRegistrationLeads(25),
+    getShowingProfileLeads(25),
+    getGa4PropertyDigitalInterest(currentRange),
+    getActionRequiredSummary(),
+    getComingSoonPropertiesWithRegistrations(5),
+    getHighRecentDirectInterest(5),
   ]);
 
   const resumen = leads as LeadItem[];
   const actividadReciente = actividad as ActividadItem[];
   const origenes = rutasOrigen as RouteOriginItem[];
   const diarios = interaccionesPorDia as DailyItem[];
+  const propertyFilterLabel =
+    propertyFilterInfo?.titulo ?? currentPropertySlug ?? null;
+  const digitalInterestBySlug = new Map(
+    digitalInterest.map((item) => [item.propertySlug, item])
+  );
+  const propertyMetaBySlug = new Map(
+    resumen.map((item) => [
+      item.propiedadSlug,
+      { title: item.titulo, municipio: item.municipio },
+    ])
+  );
+  const mostViewed = [...digitalInterest].sort((a, b) => b.views - a.views)[0];
+  const mostCta = [...digitalInterest].sort(
+    (a, b) => digitalCtaTotal(b) - digitalCtaTotal(a)
+  )[0];
+  const mostRegistrations = [...digitalInterest].sort(
+    (a, b) =>
+      b.priorityRegistrationsSubmitted - a.priorityRegistrationsSubmitted
+  )[0];
+  const mostShowingProfiles = [...digitalInterest].sort(
+    (a, b) => b.showingProfilesSubmitted - a.showingProfilesSubmitted
+  )[0];
+  const highestDigitalActivity = digitalInterest[0];
+  const hotListings = digitalInterest.slice(0, 5).map((item) => ({
+    propertySlug: item.propertySlug,
+    propertyTitle: propertyMetaBySlug.get(item.propertySlug)?.title ?? item.propertySlug,
+    views: item.views,
+    ctaClicks: digitalCtaTotal(item),
+    submissions: digitalSubmissionTotal(item),
+    total: item.total,
+  }));
+  const municipalityMap = new Map<
+    string,
+    { municipio: string; views: number; ctaClicks: number; submissions: number }
+  >();
+
+  for (const item of digitalInterest) {
+    const municipio =
+      propertyMetaBySlug.get(item.propertySlug)?.municipio ?? "Sin municipio";
+    const current =
+      municipalityMap.get(municipio) ?? {
+        municipio,
+        views: 0,
+        ctaClicks: 0,
+        submissions: 0,
+      };
+
+    current.views += item.views;
+    current.ctaClicks += digitalCtaTotal(item);
+    current.submissions += digitalSubmissionTotal(item);
+    municipalityMap.set(municipio, current);
+  }
+
+  const municipalityRows = [...municipalityMap.values()]
+    .sort(
+      (a, b) =>
+        b.views +
+        b.ctaClicks +
+        b.submissions -
+        (a.views + a.ctaClicks + a.submissions)
+    )
+    .slice(0, 10);
 
   const totalInteracciones = resumen.reduce((acc, item) => acc + item.total, 0);
   const totalWhatsapp = resumen.reduce(
@@ -482,11 +1230,11 @@ export default async function AdminLeadsPage({
             <div>
               <p className="eyebrow">Admin · Leads</p>
               <h1 className="mt-3 text-3xl font-bold text-[#000000]">
-                Interacciones del website
+                Lead Management
               </h1>
               <p className="body-base mt-3 max-w-3xl">
-                Monitorea los clics internos registrados desde las propiedades:
-                WhatsApp, contacto, rutas de origen y actividad reciente.
+                Track direct customer interactions and identify which properties
+                require broker follow-up.
               </p>
             </div>
 
@@ -505,24 +1253,28 @@ export default async function AdminLeadsPage({
               range="today"
               currentRange={currentRange}
               currentEventType={currentEventType}
+              currentPropertySlug={currentPropertySlug}
               label="Hoy"
             />
             <RangeLink
               range="7d"
               currentRange={currentRange}
               currentEventType={currentEventType}
+              currentPropertySlug={currentPropertySlug}
               label="7 días"
             />
             <RangeLink
               range="30d"
               currentRange={currentRange}
               currentEventType={currentEventType}
+              currentPropertySlug={currentPropertySlug}
               label="30 días"
             />
             <RangeLink
               range="all"
               currentRange={currentRange}
               currentEventType={currentEventType}
+              currentPropertySlug={currentPropertySlug}
               label="Todo"
             />
           </div>
@@ -531,18 +1283,21 @@ export default async function AdminLeadsPage({
             <EventFilterLink
               eventType="all"
               currentEventType={currentEventType}
+              currentPropertySlug={currentPropertySlug}
               currentRange={currentRange}
               label="Todos"
             />
             <EventFilterLink
               eventType="whatsapp_click"
               currentEventType={currentEventType}
+              currentPropertySlug={currentPropertySlug}
               currentRange={currentRange}
               label="WhatsApp"
             />
             <EventFilterLink
               eventType="contact_click"
               currentEventType={currentEventType}
+              currentPropertySlug={currentPropertySlug}
               currentRange={currentRange}
               label="Contacto"
             />
@@ -557,44 +1312,305 @@ export default async function AdminLeadsPage({
               {eventFilterLabel(currentEventType)}
             </span>
           </p>
+
+          {currentPropertySlug && (
+            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-[#e8e8e8] bg-[#fafafa] px-4 py-3">
+              <p className="text-sm text-[#4d4d4d]">
+                Propiedad:{" "}
+                <span className="font-semibold text-[#000000]">
+                  {propertyFilterLabel}
+                </span>
+                {!propertyFilterInfo && (
+                  <span className="ml-2 text-[#8a8a8a]">(no encontrada)</span>
+                )}
+              </p>
+              <Link
+                href={clearPropertyHref({
+                  range: currentRange,
+                  eventType: currentEventType,
+                })}
+                className="text-sm font-semibold text-[#11518b] transition hover:text-[#0d406d]"
+              >
+                Limpiar propiedad
+              </Link>
+            </div>
+          )}
         </div>
+
+        <div className="surface-card flex flex-col gap-4 border-l-4 border-[#11518b] p-6 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#d4af37]">
+              Alcance del dashboard
+            </p>
+            <p className="mt-2 text-sm text-[#4d4d4d]">
+              Only direct interactions are shown here. Website traffic,
+              behavior and digital engagement are available under Analytics.
+            </p>
+          </div>
+          <Link href="/admin/analytics" className="btn-secondary shrink-0">
+            Open Analytics
+          </Link>
+        </div>
+
+        <section className="space-y-5">
+          <div>
+            <p className="eyebrow">Action Required</p>
+            <h2 className="mt-3 text-2xl font-semibold text-[#000000]">
+              Recent lead activity that may require broker follow-up.
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm text-[#4d4d4d]">
+              New items use the last 24 hours. High direct interest uses the
+              last 7 days. No workflow status has been added yet.
+            </p>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
+            <ActionRequiredCard
+              title="New Priority Registrations"
+              value={actionRequired.newPriorityRegistrations.total}
+              description={
+                actionRequired.newPriorityRegistrations.total > 0
+                  ? `Latest: ${
+                      actionRequired.newPriorityRegistrations.latestPropertyTitle ??
+                      "Property unavailable"
+                    }`
+                  : "No new priority registrations in the last 24 hours."
+              }
+              meta={`Latest timestamp: ${formatDate(
+                actionRequired.newPriorityRegistrations.latestAt
+              )}`}
+              href="#priority-registrations"
+              linkLabel="View Priority Registrations"
+            />
+            <ActionRequiredCard
+              title="New Showing Profiles"
+              value={actionRequired.newShowingProfiles.total}
+              description={
+                actionRequired.newShowingProfiles.total > 0
+                  ? `Latest: ${
+                      actionRequired.newShowingProfiles.latestPropertyTitle ??
+                      "Property unavailable"
+                    }`
+                  : "No new showing profiles in the last 24 hours."
+              }
+              meta={`Latest timestamp: ${formatDate(
+                actionRequired.newShowingProfiles.latestAt
+              )}`}
+              href="#showing-profiles"
+              linkLabel="View Showing Profiles"
+            />
+            <ActionRequiredCard
+              title="Recent Direct Contacts"
+              value={actionRequired.recentDirectContacts.total}
+              description={
+                actionRequired.recentDirectContacts.total > 0
+                  ? `WhatsApp: ${actionRequired.recentDirectContacts.totalWhatsapp} · Contact: ${actionRequired.recentDirectContacts.totalContact}`
+                  : "No direct contacts recorded in the last 24 hours."
+              }
+              meta={
+                actionRequired.recentDirectContacts.latestPropertyTitle
+                  ? `Latest property: ${actionRequired.recentDirectContacts.latestPropertyTitle}`
+                  : "Latest property: none"
+              }
+              href="#recent-direct-activity"
+              linkLabel="View Recent Activity"
+            />
+            <ActionRequiredCard
+              title="Coming Soon With Registrations"
+              value={comingSoonWithRegistrations.length}
+              description={
+                comingSoonWithRegistrations.length > 0
+                  ? "Coming Soon listings with active priority registrations."
+                  : "No Coming Soon properties currently have registrations."
+              }
+              meta="Top 5 shown below"
+              href="#coming-soon-registrations"
+              linkLabel="Review Listings"
+            />
+            <ActionRequiredCard
+              title="High Recent Direct Interest"
+              value={highRecentDirectInterest.length}
+              description={
+                highRecentDirectInterest.length > 0
+                  ? "Properties with the most direct interactions in the last 7 days."
+                  : "No high recent direct interest in the last 7 days."
+              }
+              meta="Top 5 shown below"
+              href="#high-recent-direct-interest"
+              linkLabel="Review Activity"
+            />
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <div id="coming-soon-registrations">
+              <ComingSoonRegistrationsList items={comingSoonWithRegistrations} />
+            </div>
+            <div id="high-recent-direct-interest">
+              <HighRecentDirectInterestList items={highRecentDirectInterest} />
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-5">
+          <div>
+            <p className="eyebrow">Lead Submissions</p>
+            <h2 className="mt-3 text-2xl font-semibold text-[#000000]">
+              Existing successful submissions
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm text-[#4d4d4d]">
+              These cards surface existing successful submissions already saved
+              in Neon. No pipeline status or workflow has been added yet.
+            </p>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <ActionCard
+              label="Priority registrations"
+              value={`${submissionSummary.priorityRegistrations.total} waiting`}
+              description="Coming Soon buyers ready for follow-up."
+              meta={`Last received: ${formatDate(
+                submissionSummary.priorityRegistrations.lastReceived
+              )}`}
+              href="#priority-registrations"
+              linkLabel="View registrations"
+            />
+            <ActionCard
+              label="Showing profiles"
+              value={`${submissionSummary.propertyBuyerProfiles.total} received`}
+              description="Property-specific buyer profiles submitted."
+              meta={`Last received: ${formatDate(
+                submissionSummary.propertyBuyerProfiles.lastReceived
+              )}`}
+            />
+            <ActionCard
+              label="Buyer profiles"
+              value="Email only"
+              description="General buyer profile records are not persisted yet."
+              meta="Current general buyer profile flow sends email only."
+            />
+            <ActionCard
+              label="Seller forms"
+              value="Email only"
+              description="Buyer and seller request records are not persisted yet."
+              meta="Current buyer and seller flows send email only."
+            />
+          </div>
+        </section>
+
+        <PriorityRegistrationsTable items={priorityRegistrations} />
+        <ShowingProfilesTable items={showingProfiles} />
+
+        <section className="space-y-5">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#11518b]">
+              Digital Interest (GA4)
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold text-[#000000]">
+              Digital Property Activity
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm text-[#4d4d4d]">
+              GA4 website views, CTA clicks and successful property actions are
+              shown separately from Neon direct interest.
+            </p>
+          </div>
+
+          {digitalInterest.length === 0 ? (
+            <div className="surface-card border-l-4 border-[#11518b] p-6 text-sm text-[#4d4d4d]">
+              Digital property reporting is still populating from Google
+              Analytics.
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
+                <DigitalActivityCard
+                  label="Most viewed property"
+                  item={mostViewed}
+                  value={mostViewed?.views ?? 0}
+                  description="Property views recorded by GA4."
+                />
+                <DigitalActivityCard
+                  label="Most CTA clicks"
+                  item={mostCta}
+                  value={mostCta ? digitalCtaTotal(mostCta) : 0}
+                  description="Priority, contact, WhatsApp and showing CTA clicks."
+                />
+                <DigitalActivityCard
+                  label="Most registrations"
+                  item={mostRegistrations}
+                  value={mostRegistrations?.priorityRegistrationsSubmitted ?? 0}
+                  description="Priority registrations submitted."
+                />
+                <DigitalActivityCard
+                  label="Most showing profiles"
+                  item={mostShowingProfiles}
+                  value={mostShowingProfiles?.showingProfilesSubmitted ?? 0}
+                  description="Showing profiles submitted."
+                />
+                <DigitalActivityCard
+                  label="Highest digital activity"
+                  item={highestDigitalActivity}
+                  value={highestDigitalActivity?.total ?? 0}
+                  description="Total GA4 digital actions."
+                />
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-2">
+                <HotListingsTable items={hotListings} />
+                <MunicipalityDigitalTable items={municipalityRows} />
+              </div>
+            </>
+          )}
+        </section>
+
+        <section className="space-y-5">
+          <div>
+            <p className="eyebrow">Direct Interest (Neon)</p>
+            <h2 className="mt-3 text-2xl font-semibold text-[#000000]">
+              Direct contact activity
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm text-[#4d4d4d]">
+              These metrics come from internal lead_events only: WhatsApp and
+              contact CTA clicks.
+            </p>
+          </div>
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-6">
           <StatCard
-            label="Total"
+            label="Direct interactions"
             value={totalInteracciones}
-            description="Interacciones registradas"
+            description="Direct lead actions recorded"
           />
           <StatCard
-            label="WhatsApp"
+            label="WhatsApp contacts"
             value={totalWhatsapp}
-            description="Clicks a WhatsApp"
+            description="Direct WhatsApp intent"
           />
           <StatCard
-            label="Contacto"
+            label="Contact requests"
             value={totalContact}
-            description="Clicks a contacto"
+            description="Contact CTA actions"
           />
           <StatCard
-            label="Listings con interés"
+            label="Properties with direct interest"
             value={totalPropiedadesConInteres}
-            description="Propiedades con actividad"
+            description="Listings with direct lead activity"
           />
           <StatCard
-            label="Última actividad"
+            label="Latest activity"
             value={formatDate(ultimaActividadGlobal ?? null)}
-            description="Interacción más reciente"
+            description="Most recent direct interaction"
           />
           <StatCard
-            label="Top actual"
+            label="Most contacted"
             value={clicksTop}
             description={
               propiedadTopTitulo === "Sin datos"
-                ? "Sin datos suficientes"
-                : `Más interés en: ${propiedadTopTitulo}`
+                ? "No direct activity yet"
+                : `Top property: ${propiedadTopTitulo}`
             }
           />
         </div>
+        </section>
 
         <div className="grid gap-6 xl:grid-cols-2">
           <ChannelBar whatsapp={totalWhatsapp} contact={totalContact} />
@@ -607,17 +1623,17 @@ export default async function AdminLeadsPage({
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <div className="surface-card p-6">
+          <div id="recent-direct-activity" className="surface-card p-6">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-              Top 5
+              Seguimiento
             </p>
             <h2 className="mt-3 text-2xl font-semibold text-[#000000]">
-              Propiedades con más interés
+              Propiedades más contactadas
             </h2>
 
             {topFive.length === 0 ? (
               <p className="mt-4 text-sm text-[#4d4d4d]">
-                Aún no se han registrado interacciones.
+                No direct interactions were recorded during the selected period.
               </p>
             ) : (
               <div className="mt-6 space-y-4">
@@ -646,7 +1662,7 @@ export default async function AdminLeadsPage({
                         <p className="text-2xl font-bold text-[#11518b]">
                           {item.total}
                         </p>
-                        <p className="text-xs text-[#4d4d4d]">interacciones</p>
+                        <p className="text-xs text-[#4d4d4d]">directas</p>
                       </div>
                     </div>
 
@@ -677,15 +1693,15 @@ export default async function AdminLeadsPage({
 
           <div className="surface-card p-6">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-              Actividad en vivo
+              Actividad reciente
             </p>
             <h2 className="mt-3 text-2xl font-semibold text-[#000000]">
-              Eventos recientes
+              Contactos directos recientes
             </h2>
 
             {actividadReciente.length === 0 ? (
               <p className="mt-4 text-sm text-[#4d4d4d]">
-                Aún no hay actividad reciente.
+                No direct interactions were recorded during the selected period.
               </p>
             ) : (
               <div className="mt-6 space-y-4">
@@ -704,6 +1720,7 @@ export default async function AdminLeadsPage({
                           >
                             {eventLabel(item.tipoEvento)}
                           </span>
+                          <CrmStatusBadge>Direct Contact</CrmStatusBadge>
 
                           <span className="text-xs text-[#4d4d4d]">
                             {formatRelative(item.createdAt)}
@@ -761,21 +1778,21 @@ export default async function AdminLeadsPage({
         <div className="surface-card overflow-hidden">
           <div className="border-b border-[#eeeeee] px-6 py-5">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-              Detalle completo
+              Detalle operativo
             </p>
             <h2 className="mt-2 text-2xl font-semibold text-[#000000]">
-              Resumen por propiedad
+              Resumen CRM por propiedad
             </h2>
           </div>
 
           {resumen.length === 0 ? (
             <div className="px-6 py-12 text-center">
               <p className="text-lg font-medium text-[#000000]">
-                Aún no hay interacciones registradas.
+                No direct interactions were recorded during the selected period.
               </p>
               <p className="mt-2 text-sm text-[#4d4d4d]">
-                Cuando alguien haga clic desde una propiedad, se verá reflejado
-                aquí.
+                When someone clicks WhatsApp or a contact CTA from a property,
+                it will appear here for broker follow-up.
               </p>
             </div>
           ) : (
@@ -787,7 +1804,10 @@ export default async function AdminLeadsPage({
                       Propiedad
                     </th>
                     <th className="px-6 py-4 text-sm font-semibold text-[#000000]">
-                      Total
+                      Direct interest
+                    </th>
+                    <th className="px-6 py-4 text-sm font-semibold text-[#000000]">
+                      Digital Interest
                     </th>
                     <th className="px-6 py-4 text-sm font-semibold text-[#000000]">
                       WhatsApp
@@ -808,7 +1828,10 @@ export default async function AdminLeadsPage({
                 </thead>
 
                 <tbody>
-                  {resumen.map((item) => (
+                  {resumen.map((item) => {
+                    const digital = digitalInterestBySlug.get(item.propiedadSlug);
+
+                    return (
                     <tr
                       key={item.propiedadSlug}
                       className="border-t border-[#f0f0f0]"
@@ -828,6 +1851,18 @@ export default async function AdminLeadsPage({
                         <span className="inline-flex min-w-[56px] items-center justify-center rounded-full bg-[#11518b]/10 px-3 py-1.5 text-sm font-semibold text-[#11518b]">
                           {item.total}
                         </span>
+                      </td>
+
+                      <td className="px-6 py-4">
+                        <div className="min-w-[220px]">
+                          <span
+                            className="inline-flex min-w-[120px] items-center justify-center rounded-full bg-[#11518b]/10 px-3 py-1.5 text-sm font-semibold text-[#11518b]"
+                            title="Website views, CTA clicks and successful property actions recorded by Google Analytics."
+                          >
+                            {digital?.total ?? 0} digital actions
+                          </span>
+                          <DigitalInterestDetails item={digital} />
+                        </div>
                       </td>
 
                       <td className="px-6 py-4 text-sm text-[#4d4d4d]">
@@ -875,7 +1910,8 @@ export default async function AdminLeadsPage({
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

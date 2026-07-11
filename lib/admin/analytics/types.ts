@@ -59,6 +59,25 @@ export type AnalyticsEventSummary = {
   visitors?: number;
 };
 
+export type AnalyticsFunnelStageId =
+  | "website_visits"
+  | "property_views"
+  | "intent_actions"
+  | "lead_submissions";
+
+export type AnalyticsFunnelStage = {
+  id: AnalyticsFunnelStageId;
+  label: string;
+  count: number;
+  eventNames: string[];
+};
+
+export type AnalyticsFunnel = {
+  stages: AnalyticsFunnelStage[];
+  duplicateCount: number;
+  errorCount: number;
+};
+
 export type AnalyticsProviderStatus = {
   id: AnalyticsProviderId;
   name: string;
@@ -76,6 +95,7 @@ export type AnalyticsProviderDashboardData = {
   trafficSources: AnalyticsTrafficSource[];
   devices: AnalyticsDevice[];
   events: AnalyticsEventSummary[];
+  funnel: AnalyticsFunnel | null;
 };
 
 export type AdminAnalyticsDashboard = {
@@ -86,6 +106,7 @@ export type AdminAnalyticsDashboard = {
   trafficSources: AnalyticsTrafficSource[];
   devices: AnalyticsDevice[];
   events: AnalyticsEventSummary[];
+  funnel: AnalyticsFunnel | null;
   providers: AnalyticsProviderStatus[];
   providerData: AnalyticsProviderDashboardData[];
 };
@@ -112,4 +133,7 @@ export type AnalyticsProvider = {
   getEvents: (
     range: AnalyticsRange
   ) => Promise<AnalyticsEventSummary[]> | AnalyticsEventSummary[];
+  getFunnel?: (
+    range: AnalyticsRange
+  ) => Promise<AnalyticsFunnel | null> | AnalyticsFunnel | null;
 };

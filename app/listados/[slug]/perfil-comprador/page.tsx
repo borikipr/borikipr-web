@@ -126,6 +126,7 @@ export default async function PerfilCompradorPage({ params }: PageProps) {
 
                   <PerfilCompradorPropiedadForm
                     propiedadId={propiedad.id}
+                    propiedadSlug={propiedad.slug}
                     requierePrecalificacion={Boolean(propiedad.requiere_precalificacion)}
                     preguntaPersonalizada={propiedad.pregunta_personalizada}
                     r2Configured={isR2Configured()}
