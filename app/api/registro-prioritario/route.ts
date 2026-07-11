@@ -1,5 +1,10 @@
 import { Resend } from "resend";
 import { sql } from "@/lib/db";
+import {
+  isResendLimitError,
+  queueEmail,
+  serializeEmailError,
+} from "@/lib/email-queue";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { absoluteUrl } from "@/lib/seo";
 
@@ -353,25 +358,34 @@ export async function POST(req: Request) {
       </div>
     `;
 
+    const internalSubject = `Nuevo registro prioritario - ${property.titulo}`;
     const { error } = await resend.emails.send({
       from: `Erickson Real Estate <${fromEmail}>`,
       to: [toEmail],
       replyTo: email,
-      subject: `Nuevo registro prioritario - ${property.titulo}`,
+      subject: internalSubject,
       html,
     });
 
     if (error) {
       logPriorityRegistrationError("RESEND REGISTRO PRIORITARIO ERROR", error);
+      if (isResendLimitError(error)) {
+        await safelyQueuePriorityRegistrationEmail({
+          recipient: toEmail,
+          subject: internalSubject,
+          html,
+          emailType: "priority_registration_internal",
+          relatedPropertyId: property.id,
+          relatedLeadId: insertedId || null,
+          error,
+        });
+      }
       return successResponse();
     }
 
     if (email) {
-      const confirmation = await resend.emails.send({
-        from: `Erickson Real Estate <${fromEmail}>`,
-        to: [email],
-        subject: "Recibimos tu registro prioritario",
-        html: `
+      const confirmationSubject = "Recibimos tu registro prioritario";
+      const confirmationHtml = `
           <div style="font-family: Arial, Helvetica, sans-serif; color: #111; line-height: 1.6; padding: 24px;">
             <div style="max-width: 620px; margin: 0 auto; border: 1px solid #e8e8e8; border-radius: 18px; overflow: hidden;">
               <div style="background: #11518b; padding: 20px 24px;">
@@ -384,7 +398,12 @@ export async function POST(req: Request) {
               </div>
             </div>
           </div>
-        `,
+        `;
+      const confirmation = await resend.emails.send({
+        from: `Erickson Real Estate <${fromEmail}>`,
+        to: [email],
+        subject: confirmationSubject,
+        html: confirmationHtml,
       });
 
       if (confirmation.error) {
@@ -392,6 +411,17 @@ export async function POST(req: Request) {
           "RESEND REGISTRO PRIORITARIO CONFIRMATION ERROR",
           confirmation.error
         );
+        if (isResendLimitError(confirmation.error)) {
+          await safelyQueuePriorityRegistrationEmail({
+            recipient: email,
+            subject: confirmationSubject,
+            html: confirmationHtml,
+            emailType: "priority_registration_confirmation",
+            relatedPropertyId: property.id,
+            relatedLeadId: insertedId || null,
+            error: confirmation.error,
+          });
+        }
       } else if (insertedId) {
         try {
           await sql`
@@ -447,6 +477,41 @@ function successResponse() {
     message:
       "Gracias. Recibimos tu registro prioritario para esta propiedad.",
   });
+}
+
+async function safelyQueuePriorityRegistrationEmail({
+  recipient,
+  subject,
+  html,
+  emailType,
+  relatedPropertyId,
+  relatedLeadId,
+  error,
+}: {
+  recipient: string;
+  subject: string;
+  html: string;
+  emailType: string;
+  relatedPropertyId?: string | null;
+  relatedLeadId?: string | null;
+  error: unknown;
+}) {
+  try {
+    await queueEmail({
+      recipient,
+      subject,
+      html,
+      emailType,
+      relatedPropertyId,
+      relatedLeadId,
+      lastError: serializeEmailError(error),
+    });
+  } catch (queueError) {
+    logPriorityRegistrationError(
+      "Priority registration email queue insert failed",
+      queueError
+    );
+  }
 }
 
 function isUniqueViolation(error: unknown) {
