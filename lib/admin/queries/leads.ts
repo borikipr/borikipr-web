@@ -8,6 +8,20 @@ export type LeadPropertyFilterInfo = {
   titulo: string;
 };
 
+export type LeadPropertyMetadata = {
+  slug: string;
+  titulo: string;
+  municipio: string | null;
+  estado: string | null;
+};
+
+type LeadPropertyMetadataRow = {
+  slug: string;
+  titulo: string;
+  municipio: string | null;
+  estado: string | null;
+};
+
 export type LeadResumen = {
   propiedadId: string | null;
   propiedadSlug: string;
@@ -84,6 +98,28 @@ export type LeadSubmissionSummary = {
     total: number;
     lastReceived: string | null;
   };
+};
+
+export type LeadPersistedSubmissionCount = {
+  propertySlug: string;
+  priorityRegistrations: number;
+  showingProfiles: number;
+};
+
+export type LeadDirectInteractionCount = {
+  propertySlug: string;
+  directInteractions: number;
+};
+
+type LeadPersistedSubmissionCountRow = {
+  property_slug: string;
+  priority_registrations: number | string;
+  showing_profiles: number | string;
+};
+
+type LeadDirectInteractionCountRow = {
+  property_slug: string;
+  direct_interactions: number | string;
 };
 
 export type LeadSubmissionItem = {
@@ -270,6 +306,34 @@ function buildRangeCondition(range: LeadRange) {
   }
 }
 
+function buildPriorityRegistrationRangeCondition(range: LeadRange) {
+  switch (range) {
+    case "today":
+      return sql`AND created_at >= date_trunc('day', now())`;
+    case "7d":
+      return sql`AND created_at >= now() - interval '7 days'`;
+    case "30d":
+      return sql`AND created_at >= now() - interval '30 days'`;
+    case "all":
+    default:
+      return sql``;
+  }
+}
+
+function buildShowingProfileRangeCondition(range: LeadRange) {
+  switch (range) {
+    case "today":
+      return sql`AND cp.created_at >= date_trunc('day', now())`;
+    case "7d":
+      return sql`AND cp.created_at >= now() - interval '7 days'`;
+    case "30d":
+      return sql`AND cp.created_at >= now() - interval '30 days'`;
+    case "all":
+    default:
+      return sql``;
+  }
+}
+
 function buildEventTypeCondition(eventType: LeadEventFilter) {
   if (eventType === "whatsapp_click" || eventType === "contact_click") {
     return sql`AND le.tipo_evento = ${eventType}`;
@@ -301,6 +365,37 @@ export async function getLeadPropertyFilterInfo(
   const row = rows[0];
 
   return row ? { slug: row.slug, titulo: row.titulo } : null;
+}
+
+export async function getLeadPropertyMetadataBySlugs(
+  propertySlugs: string[]
+): Promise<LeadPropertyMetadata[]> {
+  const slugs = [
+    ...new Set(
+      propertySlugs
+        .map((slug) => slug.trim())
+        .filter((slug) => slug.length > 0 && slug !== "(not set)")
+    ),
+  ];
+
+  if (slugs.length === 0) return [];
+
+  const rows = await sql<LeadPropertyMetadataRow[]>`
+    SELECT
+      slug,
+      titulo,
+      municipio,
+      estado
+    FROM propiedades
+    WHERE slug = ANY(${slugs})
+  `;
+
+  return rows.map((row) => ({
+    slug: row.slug,
+    titulo: row.titulo,
+    municipio: row.municipio,
+    estado: row.estado,
+  }));
 }
 
 export async function getLeadsResumen(
@@ -494,6 +589,75 @@ export async function getLeadSubmissionSummary(): Promise<LeadSubmissionSummary>
         : null,
     },
   };
+}
+
+export async function getLeadPersistedSubmissionCountsByProperty(): Promise<
+  LeadPersistedSubmissionCount[]
+> {
+  return getLeadPersistedSubmissionCountsByPropertyRange("all");
+}
+
+export async function getLeadDirectInteractionCountsByPropertyRange(
+  range: LeadRange = "all"
+): Promise<LeadDirectInteractionCount[]> {
+  const rangeCondition = buildRangeCondition(range);
+  const rows = await sql<LeadDirectInteractionCountRow[]>`
+    SELECT
+      le.propiedad_slug AS property_slug,
+      COUNT(*) AS direct_interactions
+    FROM lead_events le
+    WHERE le.propiedad_slug IS NOT NULL
+      AND le.tipo_evento IN ('whatsapp_click', 'contact_click')
+      ${rangeCondition}
+    GROUP BY le.propiedad_slug
+  `;
+
+  return rows.map((row) => ({
+    propertySlug: row.property_slug,
+    directInteractions: Number(row.direct_interactions),
+  }));
+}
+
+export async function getLeadPersistedSubmissionCountsByPropertyRange(
+  range: LeadRange = "all"
+): Promise<LeadPersistedSubmissionCount[]> {
+  const priorityRangeCondition = buildPriorityRegistrationRangeCondition(range);
+  const showingRangeCondition = buildShowingProfileRangeCondition(range);
+  const rows = await sql<LeadPersistedSubmissionCountRow[]>`
+    SELECT
+      property_slug,
+      SUM(priority_registrations) AS priority_registrations,
+      SUM(showing_profiles) AS showing_profiles
+    FROM (
+      SELECT
+        property_slug,
+        COUNT(*) AS priority_registrations,
+        0 AS showing_profiles
+      FROM property_priority_registrations
+      WHERE property_slug IS NOT NULL
+      ${priorityRangeCondition}
+      GROUP BY property_slug
+
+      UNION ALL
+
+      SELECT
+        p.slug AS property_slug,
+        0 AS priority_registrations,
+        COUNT(*) AS showing_profiles
+      FROM consultas_propiedad cp
+      INNER JOIN propiedades p ON p.id = cp.propiedad_id
+      WHERE p.slug IS NOT NULL
+      ${showingRangeCondition}
+      GROUP BY p.slug
+    ) submissions
+    GROUP BY property_slug
+  `;
+
+  return rows.map((row) => ({
+    propertySlug: row.property_slug,
+    priorityRegistrations: Number(row.priority_registrations),
+    showingProfiles: Number(row.showing_profiles),
+  }));
 }
 
 export async function getRecentLeadSubmissions(

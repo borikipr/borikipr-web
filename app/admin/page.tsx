@@ -1,8 +1,9 @@
-import { getAdminSessionUser } from "@/lib/admin/auth";
-import { redirect } from "next/navigation";
-import { logoutAdmin } from "./actions";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
+import { getAdminSessionUser } from "@/lib/admin/auth";
 import { getAdminDashboardStats } from "@/lib/admin/queries";
+import { logoutAdmin } from "./actions";
 
 function StatCard({
   label,
@@ -42,7 +43,7 @@ function ActionCard({
   secondaryLabel?: string;
 }) {
   return (
-    <div className="surface-card p-6">
+    <div className="surface-card flex h-full flex-col p-6">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
         {eyebrow}
       </p>
@@ -50,7 +51,7 @@ function ActionCard({
       <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
         {description}
       </p>
-      <div className="mt-5 flex flex-wrap gap-3">
+      <div className="mt-auto flex flex-wrap gap-3 pt-5">
         <Link href={primaryHref} className="btn-primary">
           {primaryLabel}
         </Link>
@@ -75,28 +76,21 @@ export default async function AdminPage() {
   const stats = await getAdminDashboardStats();
 
   return (
-    <main className="px-6 py-10">
-      <div className="section-shell space-y-8">
-        <div className="surface-card p-8 md:p-10">
-          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="eyebrow">Dashboard</p>
-              <h1 className="mt-3 text-3xl font-bold text-[#000000]">
-                Bienvenido, {user}
-              </h1>
-              <p className="body-base mt-3">
-                Desde aquí puedes administrar contenido clave del website con una
-                vista clara y profesional.
-              </p>
-            </div>
-
+    <AdminPageShell>
+      <div className="space-y-8">
+        <AdminPageHeader
+          breadcrumbs={[{ label: "Admin" }]}
+          eyebrow="Dashboard"
+          title={`Bienvenido, ${user}`}
+          description="Desde aquí puedes administrar contenido clave del website con una vista clara y profesional."
+          actions={
             <form action={logoutAdmin}>
               <button type="submit" className="btn-secondary">
                 Cerrar sesión
               </button>
             </form>
-          </div>
-        </div>
+          }
+        />
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
           <StatCard
@@ -126,7 +120,7 @@ export default async function AdminPage() {
           />
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
           <ActionCard
             eyebrow="Propiedades"
             title="Administrar listados"
@@ -149,8 +143,8 @@ export default async function AdminPage() {
 
           <ActionCard
             eyebrow="Leads"
-            title="Ver interacciones"
-            description="Consulta qué propiedades están generando más interés a través de clics en WhatsApp."
+            title="Gestionar leads"
+            description="Revisa contactos directos, registros prioritarios, perfiles para visita e interés digital."
             primaryHref="/admin/leads"
             primaryLabel="Ver leads"
           />
@@ -164,7 +158,7 @@ export default async function AdminPage() {
           />
 
           <ActionCard
-            eyebrow="Website"
+            eyebrow="Sitio web"
             title="Vista pública"
             description="Revisa rápidamente cómo se ve el contenido publicado para los clientes."
             primaryHref="/"
@@ -174,6 +168,6 @@ export default async function AdminPage() {
           />
         </div>
       </div>
-    </main>
+    </AdminPageShell>
   );
 }

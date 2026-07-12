@@ -753,7 +753,7 @@ export async function updatePropiedadEstadoAction(formData: FormData) {
   const propiedadActual = propiedadActualRows[0];
 
   if (!propiedadActual) {
-    throw new Error("No se encontrÃ³ la propiedad.");
+    throw new Error("No se encontró la propiedad.");
   }
 
   await sql`

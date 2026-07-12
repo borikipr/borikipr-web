@@ -1,23 +1,6 @@
-import Link from "next/link";
 import { ReactNode } from "react";
+import AdminNav from "@/components/admin/AdminNav";
 import { getAdminSessionUser } from "@/lib/admin/auth";
-
-function NavLink({
-  href,
-  label,
-}: {
-  href: string;
-  label: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/85 transition hover:border-[#d4af37] hover:text-[#d4af37]"
-    >
-      {label}
-    </Link>
-  );
-}
 
 export default async function AdminLayout({
   children,
@@ -25,14 +8,13 @@ export default async function AdminLayout({
   children: ReactNode;
 }) {
   const user = await getAdminSessionUser();
-
   const isLoggedIn = Boolean(user);
 
   return (
     <div className="min-h-screen bg-[#f8f8f8]">
       {isLoggedIn && (
         <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0d1b2a]/95 backdrop-blur">
-          <div className="section-shell flex flex-col gap-4 py-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-5 md:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#d4af37]">
                 Borikí Admin
@@ -42,14 +24,7 @@ export default async function AdminLayout({
               </h1>
             </div>
 
-            <nav className="flex flex-wrap gap-3">
-              <NavLink href="/admin" label="Dashboard" />
-              <NavLink href="/admin/propiedades" label="Propiedades" />
-              <NavLink href="/admin/testimonios" label="Testimonios" />
-              <NavLink href="/admin/leads" label="Leads" />
-              <NavLink href="/admin/analytics" label="Analytics" />
-              <NavLink href="/" label="Ver website" />
-            </nav>
+            <AdminNav />
 
             <div className="text-sm text-white/70">
               Sesión: <span className="font-semibold text-white">{user}</span>

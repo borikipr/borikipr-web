@@ -20,7 +20,7 @@ import {
 
 export function AnalyticsLineChart({
   data,
-  emptyMessage = "Trend data is not available from the current provider payload.",
+  emptyMessage = "Los datos de tendencia no están disponibles en la respuesta actual del proveedor.",
   height = 260,
 }: {
   data: AnalyticsLineChartDatum[];
@@ -52,7 +52,7 @@ export function AnalyticsLineChart({
         <Line
           type="monotone"
           dataKey="visitors"
-          name="Visitors"
+          name="Visitantes"
           stroke={analyticsChartColors.blue}
           strokeWidth={3}
           dot={{ r: 3 }}
@@ -60,7 +60,7 @@ export function AnalyticsLineChart({
         <Line
           type="monotone"
           dataKey="pageviews"
-          name="Pageviews"
+          name="Páginas vistas"
           stroke={analyticsChartColors.gold}
           strokeWidth={3}
           dot={{ r: 3 }}
@@ -69,4 +69,3 @@ export function AnalyticsLineChart({
     </ResponsiveContainer>
   );
 }
-

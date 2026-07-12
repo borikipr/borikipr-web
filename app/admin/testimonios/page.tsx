@@ -1,11 +1,12 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import AdminAlert from "@/components/admin/AdminAlert";
+import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
+import StatusBadge from "@/components/admin/StatusBadge";
 import { getAdminSessionUser } from "@/lib/admin/auth";
-import Image from "next/image";
 import { getAdminTestimonios } from "@/lib/admin/testimonios-queries";
 import TestimonioRowActions from "./TestimonioRowActions";
-import StatusBadge from "@/components/admin/StatusBadge";
-import AdminAlert from "@/components/admin/AdminAlert";
 import TestimonioTipoFilter from "./TestimonioTipoFilter";
 
 export default async function AdminTestimoniosPage({
@@ -23,35 +24,25 @@ export default async function AdminTestimoniosPage({
   const testimonios = await getAdminTestimonios(params.tipo);
 
   return (
-    <main className="px-6 py-10">
-      <div className="section-shell space-y-6">
-        <div className="surface-card p-8 md:p-10">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="eyebrow">Admin · Testimonios</p>
-              <h1 className="mt-3 text-3xl font-bold text-[#000000]">
-                Listado de testimonios
-              </h1>
-              <p className="body-base mt-3">
-                Administra los testimonios que fortalecen la confianza del website.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-4">
+    <AdminPageShell>
+      <div className="space-y-6">
+        <AdminPageHeader
+          breadcrumbs={[
+            { href: "/admin", label: "Admin" },
+            { label: "Testimonios" },
+          ]}
+          eyebrow="Admin · Testimonios"
+          title="Listado de testimonios"
+          description="Administra los testimonios que fortalecen la confianza del website."
+          actions={
+            <>
               <TestimonioTipoFilter currentTipo={params.tipo} />
-
-              <div className="flex flex-wrap gap-3">
-                <Link href="/admin" className="btn-secondary">
-                  Volver al panel
-                </Link>
-
-                <Link href="/admin/testimonios/nuevo" className="btn-primary">
-                  Nuevo testimonio
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
+              <Link href="/admin/testimonios/nuevo" className="btn-primary">
+                Nuevo testimonio
+              </Link>
+            </>
+          }
+        />
 
         {params.ok && (
           <AdminAlert variant="success">
@@ -127,9 +118,7 @@ export default async function AdminTestimoniosPage({
 
                       <td className="px-6 py-5">
                         <StatusBadge
-                          variant={
-                            item.tipo === "comprador" ? "blue" : "gold"
-                          }
+                          variant={item.tipo === "comprador" ? "blue" : "gold"}
                         >
                           {item.tipo === "comprador" ? "Comprador" : "Vendedor"}
                         </StatusBadge>
@@ -187,6 +176,6 @@ export default async function AdminTestimoniosPage({
           )}
         </div>
       </div>
-    </main>
+    </AdminPageShell>
   );
 }

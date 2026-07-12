@@ -18,7 +18,7 @@ import {
 
 export function AnalyticsDonutChart({
   data,
-  emptyMessage = "No data available for the selected date range.",
+  emptyMessage = "No hay datos disponibles para el rango seleccionado.",
   height = 260,
 }: {
   data: AnalyticsChartDatum[];
