@@ -781,7 +781,7 @@ function ShowingProfilesTable({ items }: { items: ShowingProfileLead[] }) {
         <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Propiedad</th>
         <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Nombre del comprador</th>
         <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Método de compra</th>
-        <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Precalificado</th>
+        <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Precalificado(a)</th>
         <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Estado</th>
         <th className="px-6 py-4 text-sm font-semibold text-[#000000]">Acciones</th>
        </tr>

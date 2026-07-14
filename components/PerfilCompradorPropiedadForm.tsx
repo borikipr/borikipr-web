@@ -79,38 +79,51 @@ export default function PerfilCompradorPropiedadForm({
         <Field label="Telefono" name="telefono" type="tel" required />
         <Field label="Correo electronico" name="email" type="email" />
 
-        <div className="space-y-2">
-          <label className="text-sm font-semibold text-[#000000]">
-            Metodo de compra <span className="text-red-500">*</span>
-          </label>
-          <select
-            name="metodo_compra"
-            required
-            value={metodoCompra}
-            onChange={(event) => setMetodoCompra(event.target.value)}
-            className="input-premium"
-          >
-            <option value="">Selecciona</option>
-            <option value="Financiamiento">Financiamiento</option>
-            <option value="Efectivo">Efectivo</option>
-          </select>
-        </div>
+        <fieldset className="space-y-3">
+          <legend className="text-sm font-semibold text-[#000000]">
+            Método de compra <span className="text-red-500">*</span>
+          </legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[
+              { label: "Financiamiento", value: "Financiamiento" },
+              { label: "Cash", value: "Efectivo" },
+            ].map((option) => (
+              <label
+                key={option.value}
+                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-[#d9d9d9] bg-white px-4 py-2.5 text-sm text-[#333333] transition hover:border-[#11518b] hover:bg-[#f7fbff]"
+              >
+                <input
+                  type="radio"
+                  name="metodo_compra"
+                  value={option.value}
+                  required
+                  checked={metodoCompra === option.value}
+                  onChange={(event) => setMetodoCompra(event.target.value)}
+                  className="h-4 w-4 border-[#d9d9d9] accent-[#11518b]"
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2">
+      {metodoCompra === "Financiamiento" && (
         <UploadField
-          label="Carta de preaprobacion/precalificacion"
+          label="Carta de precalificación"
           name="carta_precalificacion"
           required={debeSubirPrecalificacion && r2Configured}
-          disabled={!r2Configured || metodoCompra === "Efectivo"}
+          disabled={!r2Configured}
         />
+      )}
 
+      {metodoCompra === "Efectivo" && (
         <UploadField
-          label="Evidencia de fondos si compra en efectivo"
+          label="Evidencia de fondos"
           name="evidencia_fondos_archivo"
-          disabled={!r2Configured || metodoCompra !== "Efectivo"}
+          disabled={!r2Configured}
         />
-      </div>
+      )}
 
       <div className="grid gap-5 md:grid-cols-2">
         <Field
@@ -126,34 +139,44 @@ export default function PerfilCompradorPropiedadForm({
         />
       </div>
 
-      <div className="grid gap-5 md:grid-cols-3">
-        <div className="space-y-2">
-          <label className="text-sm font-semibold text-[#000000]">
-            Trabaja con corredor/realtor
-          </label>
-          <select
-            name="trabajando_con_corredor"
-            value={trabajaCorredor}
-            onChange={(event) => setTrabajaCorredor(event.target.value)}
-            className="input-premium"
-          >
-            <option value="">Selecciona</option>
-            <option value="Si">Si</option>
-            <option value="No">No</option>
-          </select>
-        </div>
+      <div className="space-y-5">
+        <fieldset className="space-y-3">
+          <legend className="text-sm font-semibold text-[#000000]">
+            ¿Está trabajando actualmente con otro corredor/realtor?
+          </legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[
+              { label: "Sí", value: "Si" },
+              { label: "No", value: "No" },
+            ].map((option) => (
+              <label
+                key={option.value}
+                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-[#d9d9d9] bg-white px-4 py-2.5 text-sm text-[#333333] transition hover:border-[#11518b] hover:bg-[#f7fbff]"
+              >
+                <input
+                  type="radio"
+                  name="trabajando_con_corredor"
+                  value={option.value}
+                  checked={trabajaCorredor === option.value}
+                  onChange={(event) => setTrabajaCorredor(event.target.value)}
+                  className="h-4 w-4 border-[#d9d9d9] accent-[#11518b]"
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
-        <Field
-          label="Nombre del corredor"
-          name="nombre_corredor"
-          disabled={trabajaCorredor !== "Si"}
-        />
-        <Field
-          label="Telefono del corredor"
-          name="telefono_corredor"
-          type="tel"
-          disabled={trabajaCorredor !== "Si"}
-        />
+        {trabajaCorredor === "Si" && (
+          <div className="grid gap-5 md:grid-cols-2">
+            <Field label="Nombre del corredor" name="nombre_corredor" />
+            <Field
+              label="Telefono del corredor"
+              name="telefono_corredor"
+              type="tel"
+            />
+          </div>
+        )}
       </div>
 
       {preguntaPersonalizada && (

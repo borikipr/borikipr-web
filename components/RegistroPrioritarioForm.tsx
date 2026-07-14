@@ -189,7 +189,7 @@ export default function RegistroPrioritarioForm({
         aria-hidden={!showPrequalifiedQuestion}
       >
         <ChoiceGroup
-          legend="¿Te encuentras pre-calificado(a)?"
+          legend="¿Te encuentras precalificado(a)?"
           name="prequalifiedStatus"
           options={prequalifiedStatuses}
           value={prequalifiedStatus}

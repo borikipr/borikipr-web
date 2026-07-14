@@ -115,7 +115,7 @@ export async function POST(req: Request) {
         prequalifiedStatus,
       });
       return Response.json(
-        { ok: false, error: "Indica si ya estás pre-calificado." },
+        { ok: false, error: "Indica si ya estás precalificado(a)." },
         { status: 400 }
       );
     }

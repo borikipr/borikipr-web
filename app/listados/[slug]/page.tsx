@@ -506,14 +506,23 @@ ${propiedadUrl}`
                       Escribir por WhatsApp
                     </WhatsAppTrackerButton>
 
+                    {propiedad.estado === "disponible" && (
+                      <Link
+                        href={`/listados/${propiedad.slug}/perfil-comprador`}
+                        className="inline-flex w-full items-center justify-center rounded-full border border-[#11518b] px-6 py-3 text-sm font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
+                      >
+                        Completar perfil de comprador
+                      </Link>
+                    )}
+
                     {propiedad.formularioShowingActivo && propiedad.fechaShowing && (
                       <AnalyticsLink
-                        href={`/listados/${propiedad.slug}/perfil-comprador`}
+                        href={`/listados/${propiedad.slug}/registro-openhouse`}
                         eventName="showing_profile_cta_click"
                         eventParams={{ property_slug: propiedad.slug }}
                         className="inline-flex w-full items-center justify-center rounded-full border border-[#d4af37] px-6 py-3 text-sm font-semibold text-[#111111] transition hover:bg-[#d4af37]"
                       >
-                        Completar perfil para showing
+                        Registrarse para Open House
                       </AnalyticsLink>
                     )}
                   </div>

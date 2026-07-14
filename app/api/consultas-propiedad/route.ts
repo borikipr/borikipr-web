@@ -96,7 +96,7 @@ export async function POST(request: Request) {
 
     if (needsPreapproval && !cartaFile && isR2Configured()) {
       return NextResponse.json(
-        { ok: false, error: "La carta de preaprobacion es requerida para esta propiedad." },
+        { ok: false, error: "La carta de precalificación es requerida para esta propiedad." },
         { status: 400 }
       );
     }

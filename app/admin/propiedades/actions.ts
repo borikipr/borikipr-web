@@ -163,6 +163,9 @@ async function notifyPriorityRegistrationsForAvailableProperty({
   const fromEmail =
     process.env.CONTACT_FROM_EMAIL?.trim() || "onboarding@resend.dev";
   const propertyUrl = absoluteUrl(`/listados/${propertySlug}`);
+  const buyerProfileUrl = absoluteUrl(
+    `/listados/${propertySlug}/perfil-comprador`
+  );
   let attempted = 0;
   let sent = 0;
   let failed = 0;
@@ -192,22 +195,21 @@ async function notifyPriorityRegistrationsForAvailableProperty({
                 </p>
                 <p style="margin: 0 0 12px;"><strong>Propiedad:</strong> ${escapeHtml(propertyTitle)}</p>
                 <p style="margin: 0 0 18px;">
-                  <strong>Enlace:</strong>
+                  <strong>Ver la propiedad</strong><br />
                   <a href="${propertyUrl}" style="color: #11518b;">${propertyUrl}</a>
                 </p>
                 <div style="border-top: 1px solid #e8e8e8; border-bottom: 1px solid #e8e8e8; margin: 22px 0; padding: 18px 0;">
-                  <p style="margin: 0 0 8px; color: #11518b; font-weight: 700;">Próximo paso</p>
                   <p style="margin: 0 0 10px;">
-                    Si deseas avanzar con el proceso o coordinar una visita, completa tu perfil de comprador aquí:
+                    <strong>Completar perfil de comprador</strong>
                   </p>
                   <p style="margin: 0;">
-                    <a href="https://borikipr.com/contact/perfil-comprador" style="color: #11518b; font-weight: 700;">
-                      https://borikipr.com/contact/perfil-comprador
+                    <a href="${buyerProfileUrl}" style="color: #11518b; font-weight: 700;">
+                      ${buyerProfileUrl}
                     </a>
                   </p>
                 </div>
                 <p style="margin: 0 0 18px;">
-                  Si deseas coordinar una visita, comunícate con Erickson Real Estate / Ivonne para confirmar disponibilidad y próximos pasos.
+                  Si deseas coordinar una visita, te recomendamos completar primero tu perfil de comprador. Esto permitirá a Ivonne conocer mejor tu interés y ayudarte de una manera más ágil durante el proceso.
                 </p>
                 <p style="margin: 0;">
                   Gracias por tu interés,<br />

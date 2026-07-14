@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Header from "@/components/Header";
-import FormularioPerfilComprador from "@/components/FormularioPerfilComprador";
+import Link from "next/link";
 import {
   DEFAULT_OG_IMAGE,
   SITE_NAME,
@@ -11,7 +11,7 @@ import {
 
 const pageTitle = "Perfil del Cliente Comprador";
 const pageDescription =
-  "Formulario para clientes compradores interesados en continuar el proceso de orientación con Ivonne Erickson.";
+  "Selecciona una propiedad disponible antes de completar tu perfil de comprador.";
 const pagePath = "/contact/perfil-comprador";
 
 export const metadata: Metadata = {
@@ -52,21 +52,18 @@ export default function PerfilCompradorPage() {
       <Header />
       <main className="bg-white pt-[96px] lg:pt-[128px]">
         <section className="section-shell py-20">
-          <div className="max-w-3xl">
+          <div className="max-w-3xl surface-card p-6 md:p-10">
             <p className="eyebrow">Perfil del cliente comprador</p>
             <h1 className="heading-display mt-4">
-              Completa tu perfil para continuar el proceso de compra
+              Selecciona una propiedad
             </h1>
             <p className="body-lg mt-8 max-w-2xl">
-              Para poder brindarte más detalles y coordinar una posible visita, te invitamos a completar este breve formulario. La información que compartas nos ayudará a conocerte mejor como comprador y ofrecerte una orientación más personalizada durante el proceso.
+              Para completar tu perfil de comprador, primero selecciona una propiedad disponible.
             </p>
-          </div>
-        </section>
-
-        <section className="section-shell pb-24">
-          <div className="max-w-3xl">
-            <div className="surface-card p-6 md:p-10">
-              <FormularioPerfilComprador />
+            <div className="mt-8">
+              <Link href="/listados" className="btn-primary">
+                Ver propiedades disponibles
+              </Link>
             </div>
           </div>
         </section>

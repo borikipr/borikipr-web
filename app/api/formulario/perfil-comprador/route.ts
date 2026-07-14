@@ -1,6 +1,9 @@
 import { Resend } from "resend";
 import { isR2Configured, uploadImageToR2 } from "@/lib/r2";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
+import { getPropiedadBySlug } from "@/lib/queries/propiedades";
+import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
+import { absoluteUrl } from "@/lib/seo";
 
 export const runtime = "nodejs";
 
@@ -15,6 +18,12 @@ const ALLOWED_FILE_TYPES = new Set([
   "image/webp",
   "image/jpg",
 ]);
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SOLAR_CONTRACT_ACCEPTANCE_LABELS: Record<string, string> = {
+  yes: "Sí",
+  no: "No",
+};
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) || "").trim();
@@ -51,19 +60,81 @@ export async function POST(req: Request) {
 
     const formData = await req.formData();
 
+    const propertyId = getText(formData, "propertyId");
+    const propertySlug = getText(formData, "propertySlug");
+    const submittedPropertyTitle = getText(formData, "propertyTitle");
     const nombre = getText(formData, "nombre");
     const telefono = getText(formData, "telefono");
     const email = getText(formData, "email").toLowerCase();
     const metodoCompra = getText(formData, "metodoCompra");
     const metodoCompraOtro = getText(formData, "metodoCompraOtro");
     const institucionFinanciera = getText(formData, "institucionFinanciera");
-    const evidenciaFondos = getText(formData, "evidenciaFondos");
     const fondosCierre = getText(formData, "fondosCierre");
-    const trabajaConCorredor = getText(formData, "trabajaConCorredor");
-    const nombreCorredor = getText(formData, "nombreCorredor");
-    const telefonoCorredor = getText(formData, "telefonoCorredor");
     const comentarios = getText(formData, "comentarios");
-    const cartaFile = getFile(formData, "cartaPreaprobacion");
+    const solarContractAcceptance = getText(formData, "solarContractAcceptance");
+
+    if (
+      !propertyId ||
+      !propertySlug ||
+      !submittedPropertyTitle ||
+      !UUID_PATTERN.test(propertyId)
+    ) {
+      return Response.json(
+        { ok: false, error: "La información de la propiedad no es válida." },
+        { status: 400 }
+      );
+    }
+
+    const property = await getPropiedadBySlug(propertySlug);
+
+    if (!property || property.id !== propertyId) {
+      return Response.json(
+        { ok: false, error: "No encontramos la propiedad seleccionada." },
+        { status: 400 }
+      );
+    }
+
+    if (property.estado !== "disponible") {
+      return Response.json(
+        { ok: false, error: "El perfil de comprador no está disponible para esta propiedad." },
+        { status: 403 }
+      );
+    }
+
+    const requiresSolarContractAcceptance = property.placas_en_lease === true;
+    let solarContractAcceptanceLabel = "";
+
+    if (requiresSolarContractAcceptance) {
+      solarContractAcceptanceLabel =
+        SOLAR_CONTRACT_ACCEPTANCE_LABELS[solarContractAcceptance] || "";
+
+      if (!solarContractAcceptanceLabel) {
+        return Response.json(
+          {
+            ok: false,
+            error:
+              "Selecciona una respuesta válida sobre el contrato o leasing de las placas solares.",
+          },
+          { status: 400 }
+        );
+      }
+    } else if (solarContractAcceptance) {
+      return Response.json(
+        {
+          ok: false,
+          error: "La respuesta sobre placas solares no aplica a esta propiedad.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const canonicalPropertyLocation = formatPropertyLocation(
+      property.municipio,
+      property.sector_comunidad
+    );
+    const canonicalPropertyUrl = absoluteUrl(
+      `/listados/${property.slug}/perfil-comprador`
+    );
 
     if (!nombre || !telefono || !metodoCompra) {
       return Response.json(
@@ -81,6 +152,10 @@ export async function POST(req: Request) {
         );
       }
     }
+
+    const cartaFile = getFile(formData, "cartaPreaprobacion");
+    const uploadedDocumentLabel =
+      metodoCompra === "Efectivo" ? "Evidencia de fondos" : "Carta de precalificación";
 
     let cartaUrl = "";
     let uploadNote = "";
@@ -139,6 +214,11 @@ export async function POST(req: Request) {
           </div>
 
           <div style="padding: 24px;">
+            <h3 style="margin: 0 0 12px;">Propiedad</h3>
+            <p style="margin: 0 0 12px;"><strong>Título:</strong> ${escapeHtml(property.titulo)}</p>
+            <p style="margin: 0 0 12px;"><strong>Ubicación:</strong> ${escapeHtml(canonicalPropertyLocation)}</p>
+            <p style="margin: 0 0 20px;"><strong>Enlace:</strong> <a href="${escapeHtml(canonicalPropertyUrl)}">${escapeHtml(canonicalPropertyUrl)}</a></p>
+
             <h3 style="margin: 0 0 12px;">Información de contacto</h3>
             <p style="margin: 0 0 12px;"><strong>Nombre:</strong> ${escapeHtml(nombre)}</p>
             <p style="margin: 0 0 12px;"><strong>Teléfono:</strong> ${escapeHtml(telefono)}</p>
@@ -148,9 +228,11 @@ export async function POST(req: Request) {
             <p style="margin: 0 0 12px;"><strong>Método:</strong> ${escapeHtml(metodoCompra)}</p>
             <p style="margin: 0 0 12px;"><strong>Método/programa especificado:</strong> ${escapeHtml(metodoCompraOtro || "No especificado")}</p>
             <p style="margin: 0 0 12px;"><strong>Institución financiera:</strong> ${escapeHtml(institucionFinanciera || "No especificado")}</p>
-            <p style="margin: 0 0 12px;"><strong>Evidencia de fondos:</strong> ${escapeHtml(evidenciaFondos || "No especificado")}</p>
+            ${requiresSolarContractAcceptance ? `
+              <p style="margin: 0 0 12px;"><strong>Disposición para asumir contrato o leasing de placas solares:</strong> ${escapeHtml(solarContractAcceptanceLabel)}</p>
+            ` : ""}
             ${cartaFile ? `
-              <p style="margin: 0 0 12px;"><strong>Carta de precalificación:</strong> ${
+              <p style="margin: 0 0 12px;"><strong>${escapeHtml(uploadedDocumentLabel)}:</strong> ${
                 attachments.length > 0 ? "Adjunta en este correo." : escapeHtml(attachmentNote || "No adjunta.")
               }</p>
               ${attachmentNote ? `<p style="margin: 0 0 12px; color: #7a4a00;">${escapeHtml(attachmentNote)}</p>` : ""}
@@ -160,18 +242,13 @@ export async function POST(req: Request) {
                   : escapeHtml(uploadNote || "No disponible")
               }</p>
             ` : `
-              <p style="margin: 0 0 20px;"><strong>Carta de precalificación:</strong> No provista</p>
+              <p style="margin: 0 0 20px;"><strong>${escapeHtml(uploadedDocumentLabel)}:</strong> No provista</p>
             `}
 
             <h3 style="margin: 20px 0 12px;">Preparación financiera</h3>
             <p style="margin: 0 0 20px;"><strong>Fondos para pronto y cierre:</strong> ${escapeHtml(fondosCierre || "No especificado")}</p>
 
             <h3 style="margin: 20px 0 12px;">Información adicional</h3>
-            <p style="margin: 0 0 12px;"><strong>Trabaja con otro corredor/realtor:</strong> ${escapeHtml(trabajaConCorredor || "No especificado")}</p>
-            ${trabajaConCorredor === "Sí" ? `
-              <p style="margin: 0 0 12px;"><strong>Nombre del corredor/realtor:</strong> ${escapeHtml(nombreCorredor || "No especificado")}</p>
-              <p style="margin: 0 0 12px;"><strong>Teléfono del corredor/realtor:</strong> ${escapeHtml(telefonoCorredor || "No especificado")}</p>
-            ` : ""}
             ${comentarios ? `
               <p style="margin: 0 0 10px; font-weight: 700;">Comentarios adicionales:</p>
               <p style="margin: 0; color: #4d4d4d; white-space: pre-line;">${escapeHtml(comentarios)}</p>
@@ -180,7 +257,7 @@ export async function POST(req: Request) {
 
           <div style="background: #f8f8f8; padding: 20px 24px; border-top: 1px solid #e8e8e8;">
             <p style="margin: 0; font-size: 12px; color: #666;">
-              Este es un lead automático desde borikipr.com/contact/perfil-comprador
+              Este es un lead automático desde borikipr.com/listados/${escapeHtml(property.slug)}/perfil-comprador
             </p>
           </div>
         </div>
@@ -191,7 +268,7 @@ export async function POST(req: Request) {
       from: `Erickson Real Estate <${fromEmail}>`,
       to: [toEmail],
       replyTo: email || undefined,
-      subject: `Perfil del Cliente Comprador: ${nombre}`,
+      subject: `Perfil del Cliente Comprador - ${property.titulo}: ${nombre}`,
       html,
       attachments: attachments.length > 0 ? attachments : undefined,
     });

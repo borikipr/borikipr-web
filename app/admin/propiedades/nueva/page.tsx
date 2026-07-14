@@ -435,6 +435,23 @@ export default function NuevaPropiedadPage() {
                 </div>
               </div>
 
+              <div className="space-y-2 rounded-2xl border border-[#d9d9d9] p-5">
+                <div className="flex items-start gap-3">
+                  <input
+                    id="placas_en_lease"
+                    name="placas_en_lease"
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 rounded border-[#d9d9d9] accent-[#11518b]"
+                  />
+                  <label htmlFor="placas_en_lease" className="text-sm font-medium text-[#000000]">
+                    La propiedad tiene placas solares con contrato o leasing vigente
+                  </label>
+                </div>
+                <p className="pl-7 text-sm text-[#4d4d4d]">
+                  Activa esta opción para preguntar al comprador si estaría dispuesto(a) a asumir el contrato o leasing de las placas solares.
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <label
                   htmlFor="origen_listado"
@@ -643,7 +660,7 @@ export default function NuevaPropiedadPage() {
                           className="h-4 w-4 rounded border-[#d9d9d9] accent-[#11518b]"
                         />
                         <label htmlFor="requiere_precalificacion" className="text-sm text-[#4d4d4d]">
-                          Requiere carta de preaprobación
+                          Requiere carta de precalificación
                         </label>
                       </div>
                     </div>

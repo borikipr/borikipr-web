@@ -51,6 +51,7 @@ export type PropiedadQueryRow = {
   fecha_showing?: string | Date | null;
   pregunta_personalizada?: string | null;
   formulario_showing_activo?: boolean;
+  placas_en_lease?: boolean | null;
 };
 
 export type PropiedadHomeDestacada = {
@@ -176,6 +177,7 @@ export async function getPropiedadBySlug(slug: string) {
       p.fecha_showing,
       p.pregunta_personalizada,
       p.formulario_showing_activo,
+      p.placas_en_lease,
       COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'

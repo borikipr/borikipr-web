@@ -15,11 +15,11 @@ const habitaciones = ["1", "2", "3", "4+"];
 const banos = ["1", "2", "3+"];
 const interesesPrincipales = ["Comprar", "Alquilar"];
 const cualificacionCompra = [
-  "Cuento con carta de precalificación o preaprobación vigente.",
+  "Cuento con una carta de precalificación vigente.",
   "Estoy en proceso de obtener mi carta de precalificación.",
   "Aún no he iniciado el proceso con una institución financiera.",
   "La compra sería en efectivo.",
-  "Otro método o programa de ayuda.",
+  "Utilizaré otro método o programa de ayuda.",
 ];
 
 export default function FormularioComprador() {
