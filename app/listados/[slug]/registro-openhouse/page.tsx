@@ -3,9 +3,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPropiedadBySlug } from "@/lib/queries/propiedades";
-import { isR2Configured } from "@/lib/r2";
+import { isPrivateR2Configured, isR2Configured } from "@/lib/r2";
 import PerfilCompradorPropiedadForm from "@/components/PerfilCompradorPropiedadForm";
 import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
+import { isOpenHousePersistenceEnabled } from "@/lib/leads/open-house-registration";
+import { getCanonicalOpenHouseShowingAt } from "@/lib/leads/postgres-open-house-registration";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -21,7 +23,10 @@ function formatoPrecio(precio: string | number) {
   return `$${numericPrice.toLocaleString("en-US")}`;
 }
 
-function formatoFechaShowing(value: string | Date | null | undefined) {
+function formatoFechaShowing(
+  value: string | Date | null | undefined,
+  canonicalUtc = false
+) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -29,6 +34,7 @@ function formatoFechaShowing(value: string | Date | null | undefined) {
   return new Intl.DateTimeFormat("es-PR", {
     dateStyle: "full",
     timeStyle: "short",
+    ...(canonicalUtc ? { timeZone: "America/Puerto_Rico" } : {}),
   }).format(date);
 }
 
@@ -40,13 +46,21 @@ export default async function PerfilCompradorPage({ params }: PageProps) {
     notFound();
   }
 
+  const openHouseV2Enabled = isOpenHousePersistenceEnabled();
+  const canonicalShowingAt = openHouseV2Enabled
+    ? await getCanonicalOpenHouseShowingAt(propiedad.id)
+    : "";
+
   const imagenPrincipal =
     Array.isArray(propiedad.imagenes) && propiedad.imagenes.length > 0
       ? propiedad.imagenes[0]
       : "/og-image.jpg";
   const showingActivo =
     Boolean(propiedad.formulario_showing_activo) && Boolean(propiedad.fecha_showing);
-  const fechaShowing = formatoFechaShowing(propiedad.fecha_showing);
+  const fechaShowing = formatoFechaShowing(
+    canonicalShowingAt || propiedad.fecha_showing,
+    Boolean(canonicalShowingAt)
+  );
   const notasCompradores =
     typeof propiedad.configuracion_formulario?.notas_compradores === "string"
       ? propiedad.configuracion_formulario.notas_compradores
@@ -127,9 +141,18 @@ export default async function PerfilCompradorPage({ params }: PageProps) {
                   <PerfilCompradorPropiedadForm
                     propiedadId={propiedad.id}
                     propiedadSlug={propiedad.slug}
+                    showingAt={canonicalShowingAt || ""}
                     requierePrecalificacion={Boolean(propiedad.requiere_precalificacion)}
                     preguntaPersonalizada={propiedad.pregunta_personalizada}
-                    r2Configured={isR2Configured()}
+                    preguntaPersonalizadaRequerida={
+                      propiedad.configuracion_formulario
+                        ?.pregunta_personalizada_requerida === true
+                    }
+                    r2Configured={
+                      openHouseV2Enabled
+                        ? isPrivateR2Configured()
+                        : isR2Configured()
+                    }
                   />
                 </>
               ) : (

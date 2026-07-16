@@ -20,11 +20,12 @@ applies migrations to a remote database.
 Each migration file must include a matching rollback file. Rollbacks are
 manual review artifacts, not automatic deployment behavior.
 
-Migrations are validated in order. The Phase 2 validator applies `0001` as the
-canonical lead prerequisite, creates only a local `propiedades` fixture needed
-to exercise the approved foreign key, applies `0002`, verifies its catalog and
-constraints, and then verifies that the `0002` rollback preserves its baseline
-tables. No validation command connects to Neon.
+Migrations are validated in order through `0005`. The validator creates only
+ephemeral local fixtures for the pre-existing `propiedades`,
+`consultas_propiedad`, Priority Registration, and email queue structures needed
+to exercise the reviewed foreign keys and rollback behavior. It verifies each
+new catalog shape and preserves the baseline objects. No validation command
+connects to Neon.
 
 Document security: typed lead submissions persist the private R2 object key as
 the canonical document reference. They do not persist a public or permanent
@@ -36,3 +37,18 @@ submissions. Application code that uses those columns must remain disabled until
 the migration has been separately reviewed and applied to its target database.
 The legacy `related_lead_id` column and its Priority Registration foreign key are
 not changed or repurposed.
+
+Migration `0004` additively prepares `consultas_propiedad` for a future,
+feature-gated Open House / Showing V2 flow. Its canonical lead, idempotency,
+showing-event, source-path, and private document-key/status fields are nullable
+so the current legacy route remains compatible. It does not replace the typed
+Open House registration table or add uniqueness that would prevent corrected or
+later-event submissions.
+
+Migration `0005` may be applied only while `consultas_propiedad` is empty. Its
+transactional guard aborts before any alteration when a row exists. When safe,
+it changes the property foreign key from `ON DELETE CASCADE` to `ON DELETE
+RESTRICT`, makes `propiedad_id` required, and standardizes `created_at` as a
+required `timestamptz` with `now()` as its default. Its rollback has the same
+empty-table guard because reversing those semantics after registrations exist
+requires a separate data review.

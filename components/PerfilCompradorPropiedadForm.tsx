@@ -1,19 +1,23 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trackAnalyticsEvent } from "@/lib/analytics";
 
 export default function PerfilCompradorPropiedadForm({
   propiedadId,
   propiedadSlug,
+  showingAt,
   requierePrecalificacion,
   preguntaPersonalizada,
+  preguntaPersonalizadaRequerida,
   r2Configured,
 }: {
   propiedadId: string;
   propiedadSlug: string;
+  showingAt: string;
   requierePrecalificacion: boolean;
   preguntaPersonalizada?: string | null;
+  preguntaPersonalizadaRequerida?: boolean;
   r2Configured: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -22,6 +26,11 @@ export default function PerfilCompradorPropiedadForm({
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState("");
+
+  useEffect(() => {
+    setIdempotencyKey(crypto.randomUUID());
+  }, []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -31,6 +40,10 @@ export default function PerfilCompradorPropiedadForm({
 
     const formData = new FormData(event.currentTarget);
     formData.set("propiedad_id", propiedadId);
+    formData.set("propertyId", propiedadId);
+    formData.set("propertySlug", propiedadSlug);
+    formData.set("showingAt", showingAt);
+    formData.set("idempotencyKey", idempotencyKey || crypto.randomUUID());
 
     try {
       const response = await fetch("/api/consultas-propiedad", {
@@ -56,6 +69,7 @@ export default function PerfilCompradorPropiedadForm({
       formRef.current?.reset();
       setMetodoCompra("");
       setTrabajaCorredor("");
+      setIdempotencyKey(crypto.randomUUID());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido.");
     } finally {
@@ -86,7 +100,7 @@ export default function PerfilCompradorPropiedadForm({
           <div className="grid gap-2 sm:grid-cols-2">
             {[
               { label: "Financiamiento", value: "Financiamiento" },
-              { label: "Cash", value: "Efectivo" },
+              { label: "Cash", value: "Cash" },
             ].map((option) => (
               <label
                 key={option.value}
@@ -117,7 +131,7 @@ export default function PerfilCompradorPropiedadForm({
         />
       )}
 
-      {metodoCompra === "Efectivo" && (
+      {metodoCompra === "Cash" && (
         <UploadField
           label="Evidencia de fondos"
           name="evidencia_fondos_archivo"
@@ -146,7 +160,7 @@ export default function PerfilCompradorPropiedadForm({
           </legend>
           <div className="grid gap-2 sm:grid-cols-2">
             {[
-              { label: "Sí", value: "Si" },
+              { label: "Sí", value: "Sí" },
               { label: "No", value: "No" },
             ].map((option) => (
               <label
@@ -157,6 +171,7 @@ export default function PerfilCompradorPropiedadForm({
                   type="radio"
                   name="trabajando_con_corredor"
                   value={option.value}
+                  required
                   checked={trabajaCorredor === option.value}
                   onChange={(event) => setTrabajaCorredor(event.target.value)}
                   className="h-4 w-4 border-[#d9d9d9] accent-[#11518b]"
@@ -167,13 +182,14 @@ export default function PerfilCompradorPropiedadForm({
           </div>
         </fieldset>
 
-        {trabajaCorredor === "Si" && (
+        {trabajaCorredor === "Sí" && (
           <div className="grid gap-5 md:grid-cols-2">
-            <Field label="Nombre del corredor" name="nombre_corredor" />
+            <Field label="Nombre del corredor" name="nombre_corredor" required />
             <Field
               label="Telefono del corredor"
               name="telefono_corredor"
               type="tel"
+              required
             />
           </div>
         )}
@@ -188,6 +204,7 @@ export default function PerfilCompradorPropiedadForm({
             id="respuesta_personalizada"
             name="respuesta_personalizada"
             rows={4}
+            required={preguntaPersonalizadaRequerida}
             className="input-premium resize-none"
           />
         </div>

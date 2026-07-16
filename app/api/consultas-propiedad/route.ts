@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { isR2Configured, uploadImageToR2 } from "@/lib/r2";
 import { checkRateLimit, getClientIp, nextRateLimitResponse } from "@/lib/rate-limit";
+import { isOpenHousePersistenceEnabled } from "@/lib/leads/open-house-registration";
+import { handleOpenHouseRegistrationV2 } from "@/lib/leads/open-house-registration-handler";
 
 export const runtime = "nodejs";
 
@@ -36,6 +38,10 @@ function validateFile(file: File) {
 }
 
 export async function POST(request: Request) {
+  if (isOpenHousePersistenceEnabled()) {
+    return handleOpenHouseRegistrationV2(request);
+  }
+
   try {
     const rateLimit = checkRateLimit({
       key: `consultas-propiedad:${getClientIp(request)}`,

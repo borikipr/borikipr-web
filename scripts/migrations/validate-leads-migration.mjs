@@ -16,6 +16,10 @@ const [
   typedTablesRollbackSql,
   queueMigrationSql,
   queueRollbackSql,
+  openHouseMigrationSql,
+  openHouseRollbackSql,
+  hardeningMigrationSql,
+  hardeningRollbackSql,
 ] =
   await Promise.all([
     readMigration("0001_create_leads.sql"),
@@ -23,6 +27,10 @@ const [
     readMigration("0002_create_typed_lead_tables.rollback.sql"),
     readMigration("0003_extend_email_queue_for_canonical_leads.sql"),
     readMigration("0003_extend_email_queue_for_canonical_leads.rollback.sql"),
+    readMigration("0004_extend_consultas_propiedad_for_open_house_v2.sql"),
+    readMigration("0004_extend_consultas_propiedad_for_open_house_v2.rollback.sql"),
+    readMigration("0005_harden_consultas_propiedad.sql"),
+    readMigration("0005_harden_consultas_propiedad.rollback.sql"),
   ]);
 
 const typedTables = [
@@ -554,4 +562,269 @@ try {
   console.log("Verified 0003 preserves and rolls back without changing legacy Priority queue rows or relationships.");
 } finally {
   await db.close();
+}
+
+const openHouseDb = new PGlite();
+
+try {
+  await openHouseDb.exec(leadsMigrationSql);
+  await openHouseDb.exec(`
+    CREATE TABLE public.propiedades (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      validation_marker text NOT NULL DEFAULT 'unchanged'
+    );
+
+    CREATE TABLE public.consultas_propiedad (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      propiedad_id uuid NULL,
+      nombre text NOT NULL,
+      telefono text NOT NULL,
+      email text NULL,
+      metodo_compra text NULL,
+      carta_precalificacion_url text NULL,
+      evidencia_fondos text NULL,
+      fondos_gastos_cierre text NULL,
+      trabajando_con_corredor text NULL,
+      nombre_corredor text NULL,
+      telefono_corredor text NULL,
+      disponibilidad_visita text NULL,
+      respuestas_personalizadas jsonb NULL,
+      created_at timestamp without time zone NULL DEFAULT CURRENT_TIMESTAMP,
+      carta_precalificacion_key text NULL,
+      CONSTRAINT consultas_propiedad_propiedad_id_fkey
+        FOREIGN KEY (propiedad_id) REFERENCES public.propiedades(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE public.property_priority_registrations (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid()
+    );
+
+    CREATE TABLE public.email_queue (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      recipient text NOT NULL,
+      subject text NOT NULL,
+      html text NOT NULL,
+      email_type text NOT NULL,
+      related_property_id uuid NULL REFERENCES public.propiedades(id) ON DELETE SET NULL,
+      related_lead_id uuid NULL REFERENCES public.property_priority_registrations(id) ON DELETE SET NULL,
+      status text NOT NULL DEFAULT 'pending',
+      attempts integer NOT NULL DEFAULT 0,
+      last_error text NULL,
+      sent_at timestamptz NULL,
+      locked_at timestamptz NULL,
+      locked_by text NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+
+    CREATE INDEX email_queue_status_created_at_idx
+      ON public.email_queue (status, created_at);
+  `);
+  await openHouseDb.exec(typedTablesMigrationSql);
+  await openHouseDb.exec(queueMigrationSql);
+
+  const originalConsultasCatalog = await relationCatalog(openHouseDb, [
+    "consultas_propiedad",
+  ]);
+  const originalConsultasColumns = await openHouseDb.query(
+    `SELECT ordinal_position, column_name, data_type, udt_name, is_nullable,
+            column_default
+       FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'consultas_propiedad'
+      ORDER BY ordinal_position`
+  );
+  const unrelatedTables = [
+    "buyer_tenant_inquiries",
+    "email_queue",
+    "leads",
+    "property_buyer_profiles",
+    "property_priority_registrations",
+    "propiedades",
+    "seller_landlord_inquiries",
+  ];
+  const unrelatedCatalog = await relationCatalog(openHouseDb, unrelatedTables);
+
+  await openHouseDb.exec(openHouseMigrationSql);
+
+  const addedColumns = await openHouseDb.query(
+    `SELECT column_name, data_type, is_nullable, column_default
+       FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'consultas_propiedad'
+        AND column_name = ANY($1::text[])
+      ORDER BY ordinal_position`,
+    [[
+      "lead_id",
+      "idempotency_key",
+      "source_path",
+      "showing_at",
+      "showing_event_key",
+      "evidencia_fondos_key",
+      "carta_precalificacion_status",
+      "evidencia_fondos_status",
+    ]]
+  );
+  assert.deepEqual(addedColumns.rows, [
+    { column_name: "lead_id", data_type: "uuid", is_nullable: "YES", column_default: null },
+    { column_name: "idempotency_key", data_type: "uuid", is_nullable: "YES", column_default: null },
+    { column_name: "source_path", data_type: "text", is_nullable: "YES", column_default: null },
+    { column_name: "showing_at", data_type: "timestamp with time zone", is_nullable: "YES", column_default: null },
+    { column_name: "showing_event_key", data_type: "text", is_nullable: "YES", column_default: null },
+    { column_name: "evidencia_fondos_key", data_type: "text", is_nullable: "YES", column_default: null },
+    { column_name: "carta_precalificacion_status", data_type: "text", is_nullable: "YES", column_default: null },
+    { column_name: "evidencia_fondos_status", data_type: "text", is_nullable: "YES", column_default: null },
+  ]);
+  const originalColumnsAfter0004 = await openHouseDb.query(
+    `SELECT ordinal_position, column_name, data_type, udt_name, is_nullable,
+            column_default
+       FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'consultas_propiedad'
+        AND ordinal_position <= 16
+      ORDER BY ordinal_position`
+  );
+  assert.deepEqual(originalColumnsAfter0004.rows, originalConsultasColumns.rows);
+
+  const openHouseChecks = await openHouseDb.query(
+    `SELECT conname
+       FROM pg_constraint
+      WHERE conrelid = 'public.consultas_propiedad'::regclass
+        AND contype = 'c'
+      ORDER BY conname`
+  );
+  assert.deepEqual(openHouseChecks.rows.map((row) => row.conname), [
+    "consultas_propiedad_carta_precalificacion_key_check",
+    "consultas_propiedad_carta_precalificacion_status_check",
+    "consultas_propiedad_carta_precalificacion_status_key_check",
+    "consultas_propiedad_evidencia_fondos_key_check",
+    "consultas_propiedad_evidencia_fondos_status_check",
+    "consultas_propiedad_evidencia_fondos_status_key_check",
+    "consultas_propiedad_showing_event_key_check",
+    "consultas_propiedad_showing_identity_check",
+    "consultas_propiedad_source_path_check",
+  ]);
+
+  const leadFk = await openHouseDb.query(
+    `SELECT target.relname AS target_table, con.confdeltype
+       FROM pg_constraint con
+       JOIN pg_class target ON target.oid = con.confrelid
+      WHERE con.conrelid = 'public.consultas_propiedad'::regclass
+        AND con.conname = 'consultas_propiedad_lead_id_fkey'`
+  );
+  assert.deepEqual(leadFk.rows, [{ target_table: "leads", confdeltype: "r" }]);
+
+  const propertyFkBeforeHardening = await openHouseDb.query(
+    `SELECT confdeltype
+       FROM pg_constraint
+      WHERE conrelid = 'public.consultas_propiedad'::regclass
+        AND conname = 'consultas_propiedad_propiedad_id_fkey'`
+  );
+  assert.deepEqual(propertyFkBeforeHardening.rows, [{ confdeltype: "c" }]);
+
+  const openHouseIndexes = await openHouseDb.query(
+    `SELECT idx.relname AS index_name, i.indisunique AS is_unique,
+            pg_get_expr(i.indpred, i.indrelid) AS predicate
+       FROM pg_index i
+       JOIN pg_class rel ON rel.oid = i.indrelid
+       JOIN pg_namespace n ON n.oid = rel.relnamespace
+       JOIN pg_class idx ON idx.oid = i.indexrelid
+      WHERE n.nspname = 'public'
+        AND rel.relname = 'consultas_propiedad'
+        AND NOT i.indisprimary
+      ORDER BY idx.relname`
+  );
+  assert.deepEqual(
+    openHouseIndexes.rows.map((row) => [row.index_name, row.is_unique]),
+    [
+      ["consultas_propiedad_idempotency_key_uidx", true],
+      ["consultas_propiedad_lead_created_at_idx", false],
+      ["consultas_propiedad_lead_showing_event_created_at_idx", false],
+      ["consultas_propiedad_property_created_at_idx", false],
+      ["consultas_propiedad_showing_event_created_at_idx", false],
+    ]
+  );
+  assert.ok(openHouseIndexes.rows.every((row) => row.predicate));
+
+  const triggers = await openHouseDb.query(
+    `SELECT count(*)::int AS count
+       FROM pg_trigger
+      WHERE tgrelid = 'public.consultas_propiedad'::regclass
+        AND NOT tgisinternal`
+  );
+  assert.equal(triggers.rows[0].count, 0);
+  assert.deepEqual(await relationCatalog(openHouseDb, unrelatedTables), unrelatedCatalog);
+
+  await openHouseDb.query(
+    `INSERT INTO public.consultas_propiedad (nombre, telefono)
+     VALUES ('Migration guard fixture', '787-555-0199')`
+  );
+  await assert.rejects(
+    openHouseDb.exec(hardeningMigrationSql),
+    /requires public\.consultas_propiedad to be empty/
+  );
+  await openHouseDb.exec("ROLLBACK");
+  await openHouseDb.exec("DELETE FROM public.consultas_propiedad");
+
+  await openHouseDb.exec(hardeningMigrationSql);
+  const hardenedColumns = await openHouseDb.query(
+    `SELECT column_name, data_type, is_nullable, column_default
+       FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'consultas_propiedad'
+        AND column_name IN ('propiedad_id', 'created_at')
+      ORDER BY ordinal_position`
+  );
+  assert.deepEqual(hardenedColumns.rows, [
+    { column_name: "propiedad_id", data_type: "uuid", is_nullable: "NO", column_default: null },
+    { column_name: "created_at", data_type: "timestamp with time zone", is_nullable: "NO", column_default: "now()" },
+  ]);
+  const propertyFkAfterHardening = await openHouseDb.query(
+    `SELECT confdeltype
+       FROM pg_constraint
+      WHERE conrelid = 'public.consultas_propiedad'::regclass
+        AND conname = 'consultas_propiedad_propiedad_id_fkey'`
+  );
+  assert.deepEqual(propertyFkAfterHardening.rows, [{ confdeltype: "r" }]);
+  assert.deepEqual(await relationCatalog(openHouseDb, unrelatedTables), unrelatedCatalog);
+
+  const property = await openHouseDb.query(
+    `INSERT INTO public.propiedades DEFAULT VALUES RETURNING id::text`
+  );
+  await openHouseDb.query(
+    `INSERT INTO public.consultas_propiedad (propiedad_id, nombre, telefono)
+     VALUES ($1::uuid, 'Rollback guard fixture', '787-555-0188')`,
+    [property.rows[0].id]
+  );
+  await assert.rejects(
+    openHouseDb.exec(hardeningRollbackSql),
+    /rollback requires public\.consultas_propiedad to be empty/
+  );
+  await openHouseDb.exec("ROLLBACK");
+  await openHouseDb.exec("DELETE FROM public.consultas_propiedad");
+  await openHouseDb.exec(hardeningRollbackSql);
+
+  const restoredColumns = await openHouseDb.query(
+    `SELECT column_name, data_type, is_nullable, column_default
+       FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'consultas_propiedad'
+        AND column_name IN ('propiedad_id', 'created_at')
+      ORDER BY ordinal_position`
+  );
+  assert.deepEqual(restoredColumns.rows, [
+    { column_name: "propiedad_id", data_type: "uuid", is_nullable: "YES", column_default: null },
+    { column_name: "created_at", data_type: "timestamp without time zone", is_nullable: "YES", column_default: "CURRENT_TIMESTAMP" },
+  ]);
+
+  await openHouseDb.exec(openHouseRollbackSql);
+  assert.deepEqual(
+    await relationCatalog(openHouseDb, ["consultas_propiedad"]),
+    originalConsultasCatalog
+  );
+  assert.deepEqual(await relationCatalog(openHouseDb, unrelatedTables), unrelatedCatalog);
+
+  console.log("Validated the ordered 0001-0005 chain in an ephemeral local database.");
+  console.log("Verified 0004 adds eight nullable columns, one RESTRICT FK, nine checks, and five partial indexes.");
+  console.log("Verified 0004 rollback restores the original consultas_propiedad catalog only.");
+  console.log("Verified 0005 forward and rollback guards reject non-empty tables.");
+  console.log("Verified 0005 hardens and restores property FK, nullability, and created_at semantics.");
+} finally {
+  await openHouseDb.close();
 }
