@@ -14,8 +14,25 @@ function getR2Config() {
   return { accountId, accessKeyId, secretAccessKey, bucketName, publicBaseUrl };
 }
 
+function getPrivateR2Config() {
+  const accountId = process.env.R2_ACCOUNT_ID;
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const bucketName = process.env.R2_BUCKET_NAME;
+
+  if (!accountId || !accessKeyId || !secretAccessKey || !bucketName) {
+    return null;
+  }
+
+  return { accountId, accessKeyId, secretAccessKey, bucketName };
+}
+
 export function isR2Configured() {
   return Boolean(getR2Config());
+}
+
+export function isPrivateR2Configured() {
+  return Boolean(getPrivateR2Config());
 }
 
 function sanitizeFileName(fileName: string) {
@@ -67,4 +84,44 @@ export async function uploadImageToR2(file: File, folder = "propiedades") {
   );
 
   return `${config.publicBaseUrl}/${key}`;
+}
+
+export async function uploadFileToR2Key(file: File, key: string) {
+  const config = getPrivateR2Config();
+
+  if (!config) {
+    throw new Error("Cloudflare R2 no esta configurado.");
+  }
+
+  if (!isSafePrivateObjectKey(key)) {
+    throw new Error("Invalid private R2 object key.");
+  }
+
+  const r2 = new S3Client({
+    region: "auto",
+    endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+    },
+  });
+
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: config.bucketName,
+      Key: key,
+      Body: Buffer.from(await file.arrayBuffer()),
+      ContentType: file.type || "application/octet-stream",
+    })
+  );
+}
+
+function isSafePrivateObjectKey(key: string) {
+  return (
+    key.length > 0 &&
+    key.length <= 512 &&
+    !key.startsWith("/") &&
+    !key.includes("..") &&
+    /^[a-zA-Z0-9/_+.-]+$/.test(key)
+  );
 }

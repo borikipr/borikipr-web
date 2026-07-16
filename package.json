@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "tsx --test tests/lead-foundation.test.mjs tests/typed-lead-tables.test.mjs tests/property-buyer-profile.test.mjs",
+    "migration:validate": "node scripts/migrations/validate-leads-migration.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1020.0",
@@ -28,6 +30,7 @@
     "resend": "^6.9.3"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -35,6 +38,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   }
 }

@@ -15,6 +15,18 @@ export type QueuedEmailInput = {
   lastError?: string | null;
 };
 
+export type CanonicalLeadQueuedEmailInput = {
+  recipient: string;
+  subject: string;
+  html: string;
+  emailType: string;
+  relatedPropertyId?: string | null;
+  canonicalLeadId: string;
+  relatedSubmissionType: string;
+  relatedSubmissionId: string;
+  dedupeKey: string;
+};
+
 type PendingEmailRow = {
   id: string;
   recipient: string;
@@ -115,6 +127,47 @@ export async function queueEmail(input: QueuedEmailInput) {
       ${input.lastError || null}
     )
   `;
+}
+
+export async function queueCanonicalLeadEmail(
+  input: CanonicalLeadQueuedEmailInput
+) {
+  const inserted = await sql<{ id: string }[]>`
+    INSERT INTO email_queue (
+      recipient,
+      subject,
+      html,
+      email_type,
+      related_property_id,
+      related_lead_id,
+      canonical_lead_id,
+      related_submission_type,
+      related_submission_id,
+      dedupe_key,
+      status,
+      attempts,
+      last_error
+    ) VALUES (
+      ${input.recipient},
+      ${input.subject},
+      ${input.html},
+      ${input.emailType},
+      ${input.relatedPropertyId || null},
+      NULL,
+      ${input.canonicalLeadId},
+      ${input.relatedSubmissionType},
+      ${input.relatedSubmissionId},
+      ${input.dedupeKey},
+      'pending',
+      0,
+      NULL
+    )
+    ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL
+    DO NOTHING
+    RETURNING id::text
+  `;
+
+  return inserted.length > 0 ? "queued" : "already_queued";
 }
 
 export async function processPendingEmailQueue(limit = 20) {

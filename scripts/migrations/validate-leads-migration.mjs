@@ -1,0 +1,557 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { PGlite } from "@electric-sql/pglite";
+
+async function readMigration(name) {
+  return readFile(
+    fileURLToPath(new URL(`../../db/migrations/${name}`, import.meta.url)),
+    "utf8"
+  );
+}
+
+const [
+  leadsMigrationSql,
+  typedTablesMigrationSql,
+  typedTablesRollbackSql,
+  queueMigrationSql,
+  queueRollbackSql,
+] =
+  await Promise.all([
+    readMigration("0001_create_leads.sql"),
+    readMigration("0002_create_typed_lead_tables.sql"),
+    readMigration("0002_create_typed_lead_tables.rollback.sql"),
+    readMigration("0003_extend_email_queue_for_canonical_leads.sql"),
+    readMigration("0003_extend_email_queue_for_canonical_leads.rollback.sql"),
+  ]);
+
+const typedTables = [
+  "buyer_tenant_inquiries",
+  "property_buyer_profiles",
+  "seller_landlord_inquiries",
+];
+
+const expectedColumns = {
+  property_buyer_profiles: [
+    ["id", "uuid", false, "gen_random_uuid()"],
+    ["lead_id", "uuid", false, null],
+    ["property_id", "uuid", false, null],
+    ["name_snapshot", "text", false, null],
+    ["email_snapshot", "text", true, null],
+    ["phone_snapshot", "text", false, null],
+    ["purchase_method", "text", false, null],
+    ["purchase_method_other", "text", true, null],
+    ["financial_institution", "text", true, null],
+    ["closing_funds", "text", true, null],
+    ["solar_contract_acceptance", "text", true, null],
+    ["comments", "text", true, null],
+    ["document_type", "text", true, null],
+    ["document_object_key", "text", true, null],
+    ["document_original_name", "text", true, null],
+    ["document_content_type", "text", true, null],
+    ["document_size_bytes", "bigint", true, null],
+    ["document_status", "text", false, "'none'::text"],
+    ["idempotency_key", "uuid", false, null],
+    ["source_path", "text", false, null],
+    ["created_at", "timestamp with time zone", false, "now()"],
+  ],
+  seller_landlord_inquiries: [
+    ["id", "uuid", false, "gen_random_uuid()"],
+    ["lead_id", "uuid", false, null],
+    ["name_snapshot", "text", false, null],
+    ["email_snapshot", "text", false, null],
+    ["phone_snapshot", "text", false, null],
+    ["property_type", "text", true, null],
+    ["location", "text", true, null],
+    ["primary_reason", "text", true, null],
+    ["comments", "text", true, null],
+    ["idempotency_key", "uuid", false, null],
+    ["source_path", "text", false, null],
+    ["created_at", "timestamp with time zone", false, "now()"],
+  ],
+  buyer_tenant_inquiries: [
+    ["id", "uuid", false, "gen_random_uuid()"],
+    ["lead_id", "uuid", false, null],
+    ["name_snapshot", "text", false, null],
+    ["email_snapshot", "text", true, null],
+    ["phone_snapshot", "text", false, null],
+    ["primary_interest", "text", true, null],
+    ["purchase_qualification", "text", true, null],
+    ["budget", "text", true, null],
+    ["municipalities", "text", true, null],
+    ["property_types", "text[]", true, null],
+    ["bedrooms", "text", true, null],
+    ["bathrooms", "text", true, null],
+    ["comments", "text", true, null],
+    ["idempotency_key", "uuid", false, null],
+    ["source_path", "text", false, null],
+    ["created_at", "timestamp with time zone", false, "now()"],
+  ],
+};
+
+const expectedChecks = {
+  property_buyer_profiles: [
+    "property_buyer_profiles_document_size_bytes_check",
+    "property_buyer_profiles_document_status_check",
+    "property_buyer_profiles_document_type_check",
+    "property_buyer_profiles_purchase_method_check",
+    "property_buyer_profiles_solar_contract_acceptance_check",
+  ],
+  seller_landlord_inquiries: [
+    "seller_landlord_inquiries_primary_reason_check",
+    "seller_landlord_inquiries_property_type_check",
+  ],
+  buyer_tenant_inquiries: [
+    "buyer_tenant_inquiries_bathrooms_check",
+    "buyer_tenant_inquiries_bedrooms_check",
+    "buyer_tenant_inquiries_primary_interest_check",
+    "buyer_tenant_inquiries_property_types_check",
+  ],
+};
+
+const expectedIndexes = {
+  property_buyer_profiles: [
+    ["property_buyer_profiles_idempotency_key_uidx", true, "(idempotency_key)"],
+    [
+      "property_buyer_profiles_lead_created_at_idx",
+      false,
+      "(lead_id, created_at DESC)",
+    ],
+    [
+      "property_buyer_profiles_property_created_at_idx",
+      false,
+      "(property_id, created_at DESC)",
+    ],
+  ],
+  seller_landlord_inquiries: [
+    ["seller_landlord_inquiries_idempotency_key_uidx", true, "(idempotency_key)"],
+    [
+      "seller_landlord_inquiries_lead_created_at_idx",
+      false,
+      "(lead_id, created_at DESC)",
+    ],
+  ],
+  buyer_tenant_inquiries: [
+    ["buyer_tenant_inquiries_idempotency_key_uidx", true, "(idempotency_key)"],
+    [
+      "buyer_tenant_inquiries_lead_created_at_idx",
+      false,
+      "(lead_id, created_at DESC)",
+    ],
+  ],
+};
+
+async function publicTables(db) {
+  const result = await db.query(
+    `SELECT table_name
+       FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_type = 'BASE TABLE'
+      ORDER BY table_name`
+  );
+  return result.rows.map((row) => row.table_name);
+}
+
+async function baselineCatalog(db) {
+  const result = await db.query(
+    `SELECT 'column' AS object_type,
+            c.table_name AS relation_name,
+            concat_ws('|', c.ordinal_position, c.column_name, c.data_type,
+                      c.udt_name, c.is_nullable, coalesce(c.column_default, '')) AS definition
+       FROM information_schema.columns c
+      WHERE c.table_schema = 'public'
+        AND c.table_name IN ('leads', 'propiedades')
+      UNION ALL
+     SELECT 'constraint', rel.relname, concat_ws('|', con.conname, con.contype,
+                                                  pg_get_constraintdef(con.oid, true))
+       FROM pg_constraint con
+       JOIN pg_class rel ON rel.oid = con.conrelid
+       JOIN pg_namespace n ON n.oid = rel.relnamespace
+      WHERE n.nspname = 'public'
+        AND rel.relname IN ('leads', 'propiedades')
+      UNION ALL
+     SELECT 'index', tablename, concat_ws('|', indexname, indexdef)
+       FROM pg_indexes
+      WHERE schemaname = 'public'
+        AND tablename IN ('leads', 'propiedades')
+      ORDER BY object_type, relation_name, definition`
+  );
+  return result.rows;
+}
+
+async function relationCatalog(db, tableNames) {
+  const result = await db.query(
+    `SELECT 'column' AS object_type,
+            c.table_name AS relation_name,
+            concat_ws('|', c.ordinal_position, c.column_name, c.data_type,
+                      c.udt_name, c.is_nullable, coalesce(c.column_default, '')) AS definition
+       FROM information_schema.columns c
+      WHERE c.table_schema = 'public'
+        AND c.table_name = ANY($1::text[])
+      UNION ALL
+     SELECT 'constraint', rel.relname, concat_ws('|', con.conname, con.contype,
+                                                  pg_get_constraintdef(con.oid, true))
+       FROM pg_constraint con
+       JOIN pg_class rel ON rel.oid = con.conrelid
+       JOIN pg_namespace n ON n.oid = rel.relnamespace
+      WHERE n.nspname = 'public'
+        AND rel.relname = ANY($1::text[])
+      UNION ALL
+     SELECT 'index', tablename, concat_ws('|', indexname, indexdef)
+       FROM pg_indexes
+      WHERE schemaname = 'public'
+        AND tablename = ANY($1::text[])
+      ORDER BY object_type, relation_name, definition`,
+    [tableNames]
+  );
+  return result.rows;
+}
+
+async function validateColumns(db, tableName) {
+  const result = await db.query(
+    `SELECT a.attname AS column_name,
+            format_type(a.atttypid, a.atttypmod) AS data_type,
+            NOT a.attnotnull AS is_nullable,
+            pg_get_expr(ad.adbin, ad.adrelid) AS column_default
+       FROM pg_attribute a
+       JOIN pg_class rel ON rel.oid = a.attrelid
+       JOIN pg_namespace n ON n.oid = rel.relnamespace
+       LEFT JOIN pg_attrdef ad
+         ON ad.adrelid = a.attrelid AND ad.adnum = a.attnum
+      WHERE n.nspname = 'public'
+        AND rel.relname = $1
+        AND a.attnum > 0
+        AND NOT a.attisdropped
+      ORDER BY a.attnum`,
+    [tableName]
+  );
+  assert.deepEqual(
+    result.rows.map((row) => [
+      row.column_name,
+      row.data_type,
+      row.is_nullable,
+      row.column_default,
+    ]),
+    expectedColumns[tableName],
+    `Unexpected columns for ${tableName}`
+  );
+}
+
+async function validateConstraints(db, tableName) {
+  const checks = await db.query(
+    `SELECT conname
+       FROM pg_constraint
+      WHERE conrelid = $1::regclass
+        AND contype = 'c'
+      ORDER BY conname`,
+    [`public.${tableName}`]
+  );
+  assert.deepEqual(
+    checks.rows.map((row) => row.conname),
+    expectedChecks[tableName]
+  );
+
+  const foreignKeys = await db.query(
+    `SELECT con.conname,
+            target.relname AS target_table,
+            con.confdeltype
+       FROM pg_constraint con
+       JOIN pg_class target ON target.oid = con.confrelid
+      WHERE con.conrelid = $1::regclass
+        AND con.contype = 'f'
+      ORDER BY con.conname`,
+    [`public.${tableName}`]
+  );
+  const expectedTargets =
+    tableName === "property_buyer_profiles"
+      ? ["leads", "propiedades"]
+      : ["leads"];
+  assert.deepEqual(
+    foreignKeys.rows.map((row) => row.target_table).sort(),
+    expectedTargets
+  );
+  assert.ok(
+    foreignKeys.rows.every((row) => row.confdeltype === "r"),
+    `${tableName} foreign keys must use ON DELETE RESTRICT`
+  );
+}
+
+async function validateIndexes(db, tableName) {
+  const result = await db.query(
+    `SELECT idx.relname AS index_name, i.indisunique AS is_unique,
+            pg_get_indexdef(i.indexrelid) AS definition
+       FROM pg_index i
+       JOIN pg_class rel ON rel.oid = i.indrelid
+       JOIN pg_namespace n ON n.oid = rel.relnamespace
+       JOIN pg_class idx ON idx.oid = i.indexrelid
+      WHERE n.nspname = 'public'
+        AND rel.relname = $1
+        AND NOT i.indisprimary
+      ORDER BY idx.relname`,
+    [tableName]
+  );
+  assert.deepEqual(
+    result.rows.map((row) => [row.index_name, row.is_unique]),
+    expectedIndexes[tableName].map(([name, unique]) => [name, unique])
+  );
+  for (const [indexName, , expectedColumns] of expectedIndexes[tableName]) {
+    const index = result.rows.find((row) => row.index_name === indexName);
+    assert.ok(
+      index.definition.includes(expectedColumns),
+      `${indexName} must index ${expectedColumns}`
+    );
+  }
+}
+
+const db = new PGlite();
+
+try {
+  await db.exec(leadsMigrationSql);
+  await db.exec(
+    `CREATE TABLE public.propiedades (
+       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       validation_marker text NOT NULL DEFAULT 'unchanged'
+     );`
+  );
+
+  const baselineTables = await publicTables(db);
+  const baselineDefinition = await baselineCatalog(db);
+  assert.deepEqual(baselineTables, ["leads", "propiedades"]);
+
+  await db.exec(typedTablesMigrationSql);
+
+  assert.deepEqual(await publicTables(db), [
+    "buyer_tenant_inquiries",
+    "leads",
+    "property_buyer_profiles",
+    "propiedades",
+    "seller_landlord_inquiries",
+  ]);
+  assert.deepEqual(await baselineCatalog(db), baselineDefinition);
+
+  for (const tableName of typedTables) {
+    await validateColumns(db, tableName);
+    await validateConstraints(db, tableName);
+    await validateIndexes(db, tableName);
+  }
+
+  const lead = await db.query(
+    `INSERT INTO public.leads (name, email_normalized)
+     VALUES ('Local migration validation', 'local-validation@example.invalid')
+     RETURNING id::text`
+  );
+  const property = await db.query(
+    `INSERT INTO public.propiedades DEFAULT VALUES RETURNING id::text`
+  );
+  const leadId = lead.rows[0].id;
+  const propertyId = property.rows[0].id;
+
+  await db.query(
+    `INSERT INTO public.property_buyer_profiles (
+       lead_id, property_id, name_snapshot, phone_snapshot, purchase_method,
+       idempotency_key, source_path
+     ) VALUES ($1::uuid, $2::uuid, 'Local buyer', '787-555-0100',
+               'Financiamiento', gen_random_uuid(), '/local-validation')`,
+    [leadId, propertyId]
+  );
+  await db.query(
+    `INSERT INTO public.seller_landlord_inquiries (
+       lead_id, name_snapshot, email_snapshot, phone_snapshot,
+       idempotency_key, source_path
+     ) VALUES ($1::uuid, 'Local seller', 'seller@example.invalid',
+               '787-555-0101', gen_random_uuid(), '/local-validation')`,
+    [leadId]
+  );
+  await db.query(
+    `INSERT INTO public.buyer_tenant_inquiries (
+       lead_id, name_snapshot, phone_snapshot, idempotency_key, source_path
+     ) VALUES ($1::uuid, 'Local tenant', '787-555-0102',
+               gen_random_uuid(), '/local-validation')`,
+    [leadId]
+  );
+
+  for (const tableName of typedTables) {
+    const count = await db.query(`SELECT count(*)::int AS count FROM public.${tableName}`);
+    assert.equal(count.rows[0].count, 1);
+  }
+
+  await db.exec(`
+    CREATE TABLE public.property_priority_registrations (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      confirmation_sent_at timestamptz NULL
+    );
+    CREATE TABLE public.email_queue (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      recipient text NOT NULL,
+      subject text NOT NULL,
+      html text NOT NULL,
+      email_type text NOT NULL,
+      related_property_id uuid NULL REFERENCES public.propiedades(id) ON DELETE SET NULL,
+      related_lead_id uuid NULL REFERENCES public.property_priority_registrations(id) ON DELETE SET NULL,
+      status text NOT NULL DEFAULT 'pending',
+      attempts integer NOT NULL DEFAULT 0,
+      last_error text NULL,
+      sent_at timestamptz NULL,
+      locked_at timestamptz NULL,
+      locked_by text NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX email_queue_status_created_at_idx
+      ON public.email_queue (status, created_at);
+  `);
+
+  const priority = await db.query(
+    `INSERT INTO public.property_priority_registrations DEFAULT VALUES
+     RETURNING id::text`
+  );
+  const legacyQueue = await db.query(
+    `INSERT INTO public.email_queue (
+       recipient, subject, html, email_type, related_property_id,
+       related_lead_id, status, attempts
+     ) VALUES (
+       'priority@example.invalid', 'Priority', '<p>Priority</p>',
+       'priority_registration_confirmation', $1::uuid, $2::uuid,
+       'pending', 0
+     )
+     RETURNING id::text, created_at, updated_at`,
+    [propertyId, priority.rows[0].id]
+  );
+  const queueBaselineCatalog = await relationCatalog(db, [
+    "email_queue",
+    "property_priority_registrations",
+  ]);
+  const legacyQueueBefore = legacyQueue.rows[0];
+
+  await db.exec(queueMigrationSql);
+
+  const queueColumns = await db.query(
+    `SELECT column_name, data_type, is_nullable
+       FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'email_queue'
+        AND column_name IN (
+          'canonical_lead_id', 'related_submission_type',
+          'related_submission_id', 'dedupe_key'
+        )
+      ORDER BY ordinal_position`
+  );
+  assert.deepEqual(queueColumns.rows, [
+    { column_name: "canonical_lead_id", data_type: "uuid", is_nullable: "YES" },
+    { column_name: "related_submission_type", data_type: "text", is_nullable: "YES" },
+    { column_name: "related_submission_id", data_type: "uuid", is_nullable: "YES" },
+    { column_name: "dedupe_key", data_type: "text", is_nullable: "YES" },
+  ]);
+
+  const canonicalLeadFk = await db.query(
+    `SELECT target.relname AS target_table, con.confdeltype
+       FROM pg_constraint con
+       JOIN pg_class target ON target.oid = con.confrelid
+      WHERE con.conrelid = 'public.email_queue'::regclass
+        AND con.contype = 'f'
+        AND con.conname = 'email_queue_canonical_lead_id_fkey'`
+  );
+  assert.deepEqual(canonicalLeadFk.rows, [
+    { target_table: "leads", confdeltype: "n" },
+  ]);
+
+  const legacyLeadFk = await db.query(
+    `SELECT target.relname AS target_table, con.confdeltype
+       FROM pg_constraint con
+       JOIN pg_class target ON target.oid = con.confrelid
+      WHERE con.conrelid = 'public.email_queue'::regclass
+        AND con.contype = 'f'
+        AND con.conname = 'email_queue_related_lead_id_fkey'`
+  );
+  assert.deepEqual(legacyLeadFk.rows, [
+    { target_table: "property_priority_registrations", confdeltype: "n" },
+  ]);
+
+  const queueIndexes = await db.query(
+    `SELECT idx.relname AS index_name, i.indisunique AS is_unique,
+            pg_get_expr(i.indpred, i.indrelid) AS predicate,
+            pg_get_indexdef(i.indexrelid) AS definition
+       FROM pg_index i
+       JOIN pg_class rel ON rel.oid = i.indrelid
+       JOIN pg_namespace n ON n.oid = rel.relnamespace
+       JOIN pg_class idx ON idx.oid = i.indexrelid
+      WHERE n.nspname = 'public'
+        AND rel.relname = 'email_queue'
+        AND idx.relname IN (
+          'email_queue_dedupe_key_uidx',
+          'email_queue_canonical_lead_id_idx',
+          'email_queue_related_submission_idx'
+        )
+      ORDER BY idx.relname`
+  );
+  assert.equal(queueIndexes.rows.length, 3);
+  assert.equal(
+    queueIndexes.rows.find((row) => row.index_name === "email_queue_dedupe_key_uidx")
+      .is_unique,
+    true
+  );
+  assert.ok(queueIndexes.rows.every((row) => row.predicate));
+  assert.ok(
+    queueIndexes.rows.find(
+      (row) => row.index_name === "email_queue_related_submission_idx"
+    ).definition.includes("(related_submission_type, related_submission_id)")
+  );
+
+  const legacyQueueAfter = await db.query(
+    `SELECT id::text, created_at, updated_at, canonical_lead_id,
+            related_submission_type, related_submission_id, dedupe_key
+       FROM public.email_queue
+      WHERE id = $1::uuid`,
+    [legacyQueueBefore.id]
+  );
+  assert.equal(legacyQueueAfter.rows[0].created_at.getTime(), legacyQueueBefore.created_at.getTime());
+  assert.equal(legacyQueueAfter.rows[0].updated_at.getTime(), legacyQueueBefore.updated_at.getTime());
+  assert.equal(legacyQueueAfter.rows[0].canonical_lead_id, null);
+  assert.equal(legacyQueueAfter.rows[0].related_submission_type, null);
+  assert.equal(legacyQueueAfter.rows[0].related_submission_id, null);
+  assert.equal(legacyQueueAfter.rows[0].dedupe_key, null);
+
+  await db.query(
+    `INSERT INTO public.email_queue (
+       recipient, subject, html, email_type, related_property_id,
+       related_lead_id, status, attempts
+     ) VALUES (
+       'priority-2@example.invalid', 'Priority 2', '<p>Priority 2</p>',
+       'priority_registration_internal', $1::uuid, $2::uuid,
+       'pending', 0
+     )`,
+    [propertyId, priority.rows[0].id]
+  );
+
+  await db.exec(queueRollbackSql);
+  assert.deepEqual(
+    await relationCatalog(db, ["email_queue", "property_priority_registrations"]),
+    queueBaselineCatalog
+  );
+  const legacyRowsAfterRollback = await db.query(
+    `SELECT count(*)::int AS count FROM public.email_queue`
+  );
+  assert.equal(legacyRowsAfterRollback.rows[0].count, 2);
+  await db.exec(`
+    DROP TABLE public.email_queue;
+    DROP TABLE public.property_priority_registrations;
+  `);
+
+  await db.exec(typedTablesRollbackSql);
+
+  assert.deepEqual(await publicTables(db), baselineTables);
+  assert.deepEqual(await baselineCatalog(db), baselineDefinition);
+  const leadsStillExists = await db.query(
+    `SELECT to_regclass('public.leads') IS NOT NULL AS exists`
+  );
+  assert.equal(leadsStillExists.rows[0].exists, true);
+
+  console.log("Validated migrations 0001, 0002, and 0003 in an ephemeral local database.");
+  console.log(`Created and inspected typed tables: ${typedTables.join(", ")}`);
+  console.log("Verified 11 checks, 4 RESTRICT foreign keys, and 7 requested indexes.");
+  console.log("Verified 0002 rollback removes only its three tables and preserves leads.");
+  console.log("Verified 0003 adds four nullable queue columns, one SET NULL FK, and three partial indexes.");
+  console.log("Verified 0003 preserves and rolls back without changing legacy Priority queue rows or relationships.");
+} finally {
+  await db.close();
+}

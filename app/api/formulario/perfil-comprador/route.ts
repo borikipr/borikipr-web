@@ -4,6 +4,8 @@ import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit
 import { getPropiedadBySlug } from "@/lib/queries/propiedades";
 import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
 import { absoluteUrl } from "@/lib/seo";
+import { handlePersistedPropertyBuyerProfile } from "@/lib/leads/property-buyer-profile-handler";
+import { isPropertyBuyerProfilePersistenceEnabled } from "@/lib/leads/property-buyer-profile";
 
 export const runtime = "nodejs";
 
@@ -47,6 +49,10 @@ function validateFile(file: File) {
 }
 
 export async function POST(req: Request) {
+  if (isPropertyBuyerProfilePersistenceEnabled()) {
+    return handlePersistedPropertyBuyerProfile(req);
+  }
+
   try {
     const rateLimit = checkRateLimit({
       key: `perfil-comprador:${getClientIp(req)}`,
@@ -155,7 +161,9 @@ export async function POST(req: Request) {
 
     const cartaFile = getFile(formData, "cartaPreaprobacion");
     const uploadedDocumentLabel =
-      metodoCompra === "Efectivo" ? "Evidencia de fondos" : "Carta de precalificación";
+      metodoCompra === "Efectivo" || metodoCompra === "Cash"
+        ? "Evidencia de fondos"
+        : "Carta de precalificación";
 
     let cartaUrl = "";
     let uploadNote = "";

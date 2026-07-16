@@ -5,7 +5,7 @@ import { trackAnalyticsEvent } from "@/lib/analytics";
 
 const metodosCompra = [
   { label: "Financiamiento", value: "Financiamiento" },
-  { label: "Cash", value: "Efectivo" },
+  { label: "Cash", value: "Cash" },
   { label: "Otro", value: "Otro" },
 ];
 const fondosCierre = ["Sí", "Parcialmente", "Aún no"];
@@ -44,6 +44,7 @@ export default function FormularioPerfilComprador({
   const [error, setError] = useState("");
   const [metodoCompra, setMetodoCompra] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -56,6 +57,7 @@ export default function FormularioPerfilComprador({
     formData.set("propertyId", propertyId);
     formData.set("propertySlug", propertySlug);
     formData.set("propertyTitle", propertyTitle);
+    formData.set("idempotencyKey", idempotencyKeyRef.current);
     const cartaFile = formData.get("cartaPreaprobacion");
 
     if (cartaFile instanceof File && cartaFile.size > MAX_UPLOAD_SIZE_BYTES) {
@@ -88,6 +90,7 @@ export default function FormularioPerfilComprador({
       setSuccess(true);
       setMetodoCompra("");
       formRef.current?.reset();
+      idempotencyKeyRef.current = crypto.randomUUID();
       setTimeout(() => setSuccess(false), 6000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
@@ -157,7 +160,7 @@ export default function FormularioPerfilComprador({
         </div>
       )}
 
-      {metodoCompra === "Efectivo" && (
+      {metodoCompra === "Cash" && (
         <div className="rounded-2xl border border-[#e8e8e8] bg-[#f8f8f8] p-5">
           <UploadField
             label="Evidencia de fondos"
