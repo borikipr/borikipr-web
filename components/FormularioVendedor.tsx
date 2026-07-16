@@ -98,6 +98,7 @@ export default function FormularioVendedor() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -108,6 +109,7 @@ export default function FormularioVendedor() {
     const form = formRef.current!;
     const formData = new FormData(form);
     const data = {
+      idempotencyKey: idempotencyKeyRef.current,
       nombre: formData.get("nombre"),
       email: formData.get("email"),
       telefono: formData.get("telefono"),
@@ -136,6 +138,7 @@ export default function FormularioVendedor() {
 
       setSuccess(true);
       formRef.current?.reset();
+      idempotencyKeyRef.current = crypto.randomUUID();
       setTimeout(() => setSuccess(false), 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");

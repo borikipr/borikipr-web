@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "type-check": "tsc --noEmit",
-    "test": "tsx --test tests/lead-foundation.test.mjs tests/typed-lead-tables.test.mjs tests/property-buyer-profile.test.mjs",
+    "test": "tsx --test tests/lead-foundation.test.mjs tests/typed-lead-tables.test.mjs tests/property-buyer-profile.test.mjs tests/seller-landlord-inquiry.test.mjs",
     "migration:validate": "node scripts/migrations/validate-leads-migration.mjs"
   },
   "dependencies": {

@@ -1,9 +1,15 @@
 import { Resend } from "resend";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
+import { handlePersistedSellerLandlordInquiry } from "@/lib/leads/seller-landlord-inquiry-handler";
+import { isSellerLandlordPersistenceEnabled } from "@/lib/leads/seller-landlord-inquiry";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  if (isSellerLandlordPersistenceEnabled()) {
+    return handlePersistedSellerLandlordInquiry(req);
+  }
+
   try {
     const rateLimit = checkRateLimit({
       key: `formulario-vendedor:${getClientIp(req)}`,
