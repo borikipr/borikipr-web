@@ -28,6 +28,17 @@ export default function FormularioComprador() {
   const [error, setError] = useState("");
   const [interesPrincipal, setInteresPrincipal] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
+
+  const handleInterestChange = (value: string) => {
+    if (value === "Alquilar") {
+      const priorQualification = formRef.current?.querySelector<HTMLInputElement>(
+        'input[name="cualificacionCompra"]:checked'
+      );
+      if (priorQualification) priorQualification.checked = false;
+    }
+    setInteresPrincipal(value);
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -42,11 +53,15 @@ export default function FormularioComprador() {
     ).map((el) => (el as HTMLInputElement).value);
 
     const data = {
+      idempotencyKey: idempotencyKeyRef.current,
       nombre: formData.get("nombre"),
       telefono: formData.get("telefono"),
       email: formData.get("email"),
       interesPrincipal: formData.get("interesPrincipal"),
-      cualificacionCompra: formData.get("cualificacionCompra"),
+      cualificacionCompra:
+        interesPrincipal === "Comprar"
+          ? formData.get("cualificacionCompra")
+          : null,
       municipios: formData.get("municipios"),
       tipoPropiedad: tiposSeleccionados,
       presupuesto: formData.get("presupuesto"),
@@ -75,6 +90,7 @@ export default function FormularioComprador() {
       setSuccess(true);
       setInteresPrincipal("");
       formRef.current?.reset();
+      idempotencyKeyRef.current = crypto.randomUUID();
       setTimeout(() => setSuccess(false), 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
@@ -146,7 +162,7 @@ export default function FormularioComprador() {
         required
         columns="sm:grid-cols-2"
         value={interesPrincipal}
-        onChange={setInteresPrincipal}
+        onChange={handleInterestChange}
       />
 
       {interesPrincipal === "Comprar" && (

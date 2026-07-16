@@ -1,9 +1,15 @@
 import { Resend } from "resend";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
+import { handlePersistedBuyerTenantInquiry } from "@/lib/leads/buyer-tenant-inquiry-handler";
+import { isBuyerTenantPersistenceEnabled } from "@/lib/leads/buyer-tenant-inquiry";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  if (isBuyerTenantPersistenceEnabled()) {
+    return handlePersistedBuyerTenantInquiry(req);
+  }
+
   try {
     const rateLimit = checkRateLimit({
       key: `formulario-comprador:${getClientIp(req)}`,
