@@ -20,6 +20,8 @@ const [
   openHouseRollbackSql,
   hardeningMigrationSql,
   hardeningRollbackSql,
+  priorityRegistrationMigrationSql,
+  priorityRegistrationRollbackSql,
 ] =
   await Promise.all([
     readMigration("0001_create_leads.sql"),
@@ -31,6 +33,8 @@ const [
     readMigration("0004_extend_consultas_propiedad_for_open_house_v2.rollback.sql"),
     readMigration("0005_harden_consultas_propiedad.sql"),
     readMigration("0005_harden_consultas_propiedad.rollback.sql"),
+    readMigration("0006_link_priority_registrations_to_leads.sql"),
+    readMigration("0006_link_priority_registrations_to_leads.rollback.sql"),
   ]);
 
 const typedTables = [
@@ -827,4 +831,110 @@ try {
   console.log("Verified 0005 hardens and restores property FK, nullability, and created_at semantics.");
 } finally {
   await openHouseDb.close();
+}
+
+const priorityRegistrationDb = new PGlite();
+try {
+  await priorityRegistrationDb.exec(leadsMigrationSql);
+  await priorityRegistrationDb.exec(`
+    CREATE TABLE public.propiedades (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid()
+    );
+    CREATE TABLE public.property_priority_registrations (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      property_id uuid NOT NULL REFERENCES public.propiedades(id) ON DELETE CASCADE,
+      property_slug text NOT NULL,
+      property_title text NOT NULL,
+      name text NOT NULL,
+      phone text NOT NULL,
+      email text NOT NULL,
+      purchase_type text NOT NULL,
+      prequalified_status text NULL,
+      search_range text NOT NULL,
+      wants_visit boolean NOT NULL,
+      source text NOT NULL DEFAULT 'registro_prioritario',
+      notified_at timestamptz NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      confirmation_sent_at timestamptz NULL,
+      property_size text NULL,
+      additional_info text NULL,
+      purchase_other text NULL
+    );
+    CREATE UNIQUE INDEX property_priority_registrations_property_email_unique
+      ON public.property_priority_registrations (property_id, lower(email));
+  `);
+  const property = await priorityRegistrationDb.query(
+    `INSERT INTO public.propiedades DEFAULT VALUES RETURNING id::text`
+  );
+  await priorityRegistrationDb.query(
+    `INSERT INTO public.property_priority_registrations (
+       property_id, property_slug, property_title, name, phone, email,
+       purchase_type, search_range, wants_visit
+     ) VALUES ($1::uuid, 'fixture', 'Fixture', 'Person One', '787-555-0101',
+       'one@example.com', 'Cash', 'Puerto Rico', true)`,
+    [property.rows[0].id]
+  );
+  const baseline = await relationCatalog(priorityRegistrationDb, [
+    "property_priority_registrations",
+  ]);
+  const beforeCount = await priorityRegistrationDb.query(
+    `SELECT count(*)::int AS count FROM public.property_priority_registrations`
+  );
+
+  await priorityRegistrationDb.exec(priorityRegistrationMigrationSql);
+  const leadColumn = await priorityRegistrationDb.query(
+    `SELECT data_type, is_nullable, column_default
+       FROM information_schema.columns
+      WHERE table_schema='public'
+        AND table_name='property_priority_registrations'
+        AND column_name='lead_id'`
+  );
+  assert.deepEqual(leadColumn.rows, [
+    { data_type: "uuid", is_nullable: "YES", column_default: null },
+  ]);
+  const leadFk = await priorityRegistrationDb.query(
+    `SELECT target.relname AS target_table, con.confdeltype
+       FROM pg_constraint con
+       JOIN pg_class target ON target.oid=con.confrelid
+      WHERE con.conrelid='public.property_priority_registrations'::regclass
+        AND con.conname='property_priority_registrations_lead_id_fkey'`
+  );
+  assert.deepEqual(leadFk.rows, [{ target_table: "leads", confdeltype: "r" }]);
+  const leadIndex = await priorityRegistrationDb.query(
+    `SELECT i.indisunique AS is_unique,
+            pg_get_expr(i.indpred, i.indrelid) AS predicate
+       FROM pg_index i
+       JOIN pg_class idx ON idx.oid=i.indexrelid
+      WHERE idx.relname='property_priority_registrations_lead_id_idx'`
+  );
+  assert.equal(leadIndex.rows.length, 1);
+  assert.equal(leadIndex.rows[0].is_unique, false);
+  assert.match(leadIndex.rows[0].predicate, /lead_id IS NOT NULL/);
+  const afterCount = await priorityRegistrationDb.query(
+    `SELECT count(*)::int AS count FROM public.property_priority_registrations`
+  );
+  assert.deepEqual(afterCount.rows, beforeCount.rows);
+
+  await assert.rejects(
+    priorityRegistrationDb.query(
+      `UPDATE public.property_priority_registrations
+          SET lead_id='00000000-0000-4000-8000-000000000099'::uuid`
+    )
+  );
+  await priorityRegistrationDb.exec(priorityRegistrationRollbackSql);
+  assert.deepEqual(
+    await relationCatalog(priorityRegistrationDb, [
+      "property_priority_registrations",
+    ]),
+    baseline
+  );
+  const leadsRemain = await priorityRegistrationDb.query(
+    `SELECT to_regclass('public.leads') IS NOT NULL AS exists`
+  );
+  assert.equal(leadsRemain.rows[0].exists, true);
+
+  console.log("Validated the ordered migration chain through 0006.");
+  console.log("Verified 0006 preserves Priority rows, adds a nullable RESTRICT lead FK and partial index, and rolls back only its additions.");
+} finally {
+  await priorityRegistrationDb.close();
 }

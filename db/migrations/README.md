@@ -20,7 +20,7 @@ applies migrations to a remote database.
 Each migration file must include a matching rollback file. Rollbacks are
 manual review artifacts, not automatic deployment behavior.
 
-Migrations are validated in order through `0005`. The validator creates only
+Migrations are validated in order through `0006`. The validator creates only
 ephemeral local fixtures for the pre-existing `propiedades`,
 `consultas_propiedad`, Priority Registration, and email queue structures needed
 to exercise the reviewed foreign keys and rollback behavior. It verifies each
@@ -52,3 +52,8 @@ RESTRICT`, makes `propiedad_id` required, and standardizes `created_at` as a
 required `timestamptz` with `now()` as its default. Its rollback has the same
 empty-table guard because reversing those semantics after registrations exist
 requires a separate data review.
+
+Migration `0006` additively links Priority Registration to the canonical lead
+model. Its nullable `lead_id` preserves all historical registrations and legacy
+runtime behavior, uses `ON DELETE RESTRICT`, and is supported by a partial
+lookup index. Historical rows are not backfilled by the migration.
