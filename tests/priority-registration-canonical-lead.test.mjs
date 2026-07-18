@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
@@ -27,6 +28,10 @@ const [leadsSql, prioritySql, priorityRollbackSql] = await Promise.all([
   migration("0006_link_priority_registrations_to_leads.sql"),
   migration("0006_link_priority_registrations_to_leads.rollback.sql"),
 ]);
+const backfillScriptPath = fileURLToPath(
+  new URL("../scripts/leads/backfill-priority-registration-leads.ts", import.meta.url)
+);
+const backfillScriptSource = await readFile(backfillScriptPath, "utf8");
 
 function baseInput(overrides = {}) {
   return {
@@ -188,6 +193,47 @@ test("feature flag is disabled unless its value is exactly true", () => {
   assert.equal(isPriorityRegistrationCanonicalLeadEnabled("false"), false);
   assert.equal(isPriorityRegistrationCanonicalLeadEnabled("TRUE"), false);
   assert.equal(isPriorityRegistrationCanonicalLeadEnabled("true"), true);
+});
+
+test("backfill CLI uses an async entry point without top-level execution awaits", () => {
+  assert.match(backfillScriptSource, /async function main\(\): Promise<void>/);
+  assert.match(backfillScriptSource, /async function run\(\): Promise<void>/);
+  assert.match(backfillScriptSource, /void run\(\);\s*$/);
+  assert.doesNotMatch(backfillScriptSource, /^\s{0}await\s/m);
+  assert.doesNotMatch(backfillScriptSource, /^\s{0}const\s+\w+\s*=\s*await\s/m);
+});
+
+test("backfill CLI defaults to dry-run and keeps the exact apply safeguard", () => {
+  assert.match(
+    backfillScriptSource,
+    /const apply = process\.argv\.includes\("--apply"\)/
+  );
+  assert.match(
+    backfillScriptSource,
+    /process\.env\.PRIORITY_REGISTRATION_BACKFILL_APPLY !== "YES"/
+  );
+  assert.match(backfillScriptSource, /if \(!apply\)/);
+});
+
+test("backfill CLI reports startup failures safely and exits non-zero", () => {
+  const piiMarker = "SHOULD-NOT-APPEAR-IN-OUTPUT";
+  const result = spawnSync(
+    process.execPath,
+    ["--import", "tsx", backfillScriptPath, "--dry-run"],
+    {
+      cwd: fileURLToPath(new URL("..", import.meta.url)),
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        DATABASE_URL: `postgres://synthetic:${piiMarker}@127.0.0.1:1/neondb`,
+      },
+      timeout: 10_000,
+    }
+  );
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Priority Registration backfill failed\./);
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, new RegExp(piiMarker));
 });
 
 test("enabled persistence creates one canonical lead and registration", async () => {
