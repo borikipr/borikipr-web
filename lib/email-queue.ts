@@ -1,9 +1,13 @@
 import { Resend } from "resend";
 import { randomUUID } from "crypto";
 import { sql } from "@/lib/db";
+import { PROPERTY_AVAILABILITY_EMAIL_TYPE } from "@/lib/property-availability-notifications";
+import { deliverClaimedEmail } from "@/lib/email-queue-delivery";
 
 const MAX_EMAIL_ATTEMPTS = 5;
 const STALE_PROCESSING_TIMEOUT = "15 minutes";
+export const DEFAULT_EMAIL_QUEUE_BATCH_SIZE = 100;
+export const EMAIL_QUEUE_SEND_INTERVAL_MS = 250;
 
 export type QueuedEmailInput = {
   recipient: string;
@@ -34,6 +38,7 @@ type PendingEmailRow = {
   html: string;
   email_type: string;
   related_lead_id: string | null;
+  dedupe_key: string | null;
   attempts: number;
 };
 
@@ -170,7 +175,9 @@ export async function queueCanonicalLeadEmail(
   return inserted.length > 0 ? "queued" : "already_queued";
 }
 
-export async function processPendingEmailQueue(limit = 20) {
+export async function processPendingEmailQueue(
+  limit = DEFAULT_EMAIL_QUEUE_BATCH_SIZE
+) {
   if (!process.env.RESEND_API_KEY) {
     throw new Error("RESEND_API_KEY is not configured.");
   }
@@ -184,59 +191,47 @@ export async function processPendingEmailQueue(limit = 20) {
   let sent = 0;
   let failed = 0;
 
-  for (const row of rows) {
-    const { error } = await resend.emails.send({
-      from: `Erickson Real Estate <${fromEmail}>`,
-      to: [row.recipient],
-      subject: row.subject,
-      html: row.html,
+  for (let index = 0; index < rows.length; index++) {
+    const row = rows[index];
+    if (index > 0) await wait(EMAIL_QUEUE_SEND_INTERVAL_MS);
+
+    const outcome = await deliverClaimedEmail({
+      attempts: row.attempts,
+      maximumAttempts: MAX_EMAIL_ATTEMPTS,
+      async send() {
+        const result = await resend.emails.send(
+          {
+            from: `Erickson Real Estate <${fromEmail}>`,
+            to: [row.recipient],
+            subject: row.subject,
+            html: row.html,
+          },
+          row.dedupe_key ? { idempotencyKey: row.dedupe_key } : undefined
+        );
+        if (result.error) throw result.error;
+      },
+      async markFailure({ error, attempts, terminal }) {
+        await sql`
+          UPDATE email_queue
+          SET
+            attempts = ${attempts},
+            status = ${terminal ? "failed" : "pending"},
+            last_error = ${serializeEmailError(error)},
+            locked_at = NULL,
+            locked_by = NULL,
+            updated_at = now()
+          WHERE id = ${row.id}
+            AND status = 'processing'
+            AND locked_by = ${invocationId}
+        `;
+      },
+      async markSuccess() {
+        await finalizeSuccessfulEmail(row, invocationId);
+      },
     });
 
-    if (error) {
-      failed += 1;
-      const attempts = row.attempts + 1;
-      await sql`
-        UPDATE email_queue
-        SET
-          attempts = ${attempts},
-          status = ${attempts >= MAX_EMAIL_ATTEMPTS ? "failed" : "pending"},
-          last_error = ${serializeEmailError(error)},
-          locked_at = NULL,
-          locked_by = NULL,
-          updated_at = now()
-        WHERE id = ${row.id}
-          AND status = 'processing'
-          AND locked_by = ${invocationId}
-      `;
-      continue;
-    }
-
-    sent += 1;
-    await sql`
-      UPDATE email_queue
-      SET
-        status = 'sent',
-        sent_at = now(),
-        locked_at = NULL,
-        locked_by = NULL,
-        updated_at = now(),
-        last_error = NULL
-      WHERE id = ${row.id}
-        AND status = 'processing'
-        AND locked_by = ${invocationId}
-    `;
-
-    if (
-      row.email_type === "priority_registration_confirmation" &&
-      row.related_lead_id
-    ) {
-      await sql`
-        UPDATE property_priority_registrations
-        SET confirmation_sent_at = now()
-        WHERE id = ${row.related_lead_id}
-          AND confirmation_sent_at IS NULL
-      `;
-    }
+    if (outcome.status === "sent") sent += 1;
+    else failed += 1;
   }
 
   return {
@@ -244,6 +239,55 @@ export async function processPendingEmailQueue(limit = 20) {
     sent,
     failed,
   };
+}
+
+async function finalizeSuccessfulEmail(
+  row: PendingEmailRow,
+  invocationId: string
+) {
+  await sql.begin(async (transaction) => {
+    const finalized = await transaction.unsafe<{ id: string }[]>(
+      `UPDATE public.email_queue
+          SET status = 'sent',
+              sent_at = now(),
+              locked_at = NULL,
+              locked_by = NULL,
+              updated_at = now(),
+              last_error = NULL
+        WHERE id = $1::uuid
+          AND status = 'processing'
+          AND locked_by = $2
+        RETURNING id::text`,
+      [row.id, invocationId]
+    );
+    if (finalized.length === 0) return;
+
+    if (
+      row.email_type === "priority_registration_confirmation" &&
+      row.related_lead_id
+    ) {
+      await transaction.unsafe(
+        `UPDATE public.property_priority_registrations
+            SET confirmation_sent_at = now()
+          WHERE id = $1::uuid
+            AND confirmation_sent_at IS NULL`,
+        [row.related_lead_id]
+      );
+    }
+
+    if (
+      row.email_type === PROPERTY_AVAILABILITY_EMAIL_TYPE &&
+      row.related_lead_id
+    ) {
+      await transaction.unsafe(
+        `UPDATE public.property_priority_registrations
+            SET notified_at = now()
+          WHERE id = $1::uuid
+            AND notified_at IS NULL`,
+        [row.related_lead_id]
+      );
+    }
+  });
 }
 
 async function claimPendingEmails(invocationId: string, limit: number) {
@@ -287,9 +331,14 @@ async function claimPendingEmails(invocationId: string, limit: number) {
         email_queue.html,
         email_queue.email_type,
         email_queue.related_lead_id::text,
+        email_queue.dedupe_key,
         email_queue.attempts
     `,
       [MAX_EMAIL_ATTEMPTS, limit, invocationId]
     );
   });
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }

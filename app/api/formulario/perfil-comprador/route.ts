@@ -6,13 +6,13 @@ import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
 import { absoluteUrl } from "@/lib/seo";
 import { handlePersistedPropertyBuyerProfile } from "@/lib/leads/property-buyer-profile-handler";
 import { isPropertyBuyerProfilePersistenceEnabled } from "@/lib/leads/property-buyer-profile";
+import {
+  BUYER_PROFILE_FILE_TOO_LARGE_MESSAGE,
+  MAX_BUYER_PROFILE_DOCUMENT_BYTES,
+} from "@/lib/leads/property-buyer-profile-upload";
 
 export const runtime = "nodejs";
 
-const MAX_FILE_SIZE_MB = 10;
-const MAX_ATTACHMENT_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-const FILE_TOO_LARGE_MESSAGE =
-  "El archivo excede el tamaño máximo permitido de 10 MB. Por favor, selecciona un archivo más pequeño.";
 const ALLOWED_FILE_TYPES = new Set([
   "application/pdf",
   "image/jpeg",
@@ -37,8 +37,8 @@ function getFile(formData: FormData, key: string) {
 }
 
 function validateFile(file: File) {
-  if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-    return FILE_TOO_LARGE_MESSAGE;
+  if (file.size > MAX_BUYER_PROFILE_DOCUMENT_BYTES) {
+    return BUYER_PROFILE_FILE_TOO_LARGE_MESSAGE;
   }
 
   if (!ALLOWED_FILE_TYPES.has(file.type)) {

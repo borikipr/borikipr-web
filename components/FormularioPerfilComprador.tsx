@@ -2,6 +2,11 @@
 
 import { useRef, useState } from "react";
 import { trackAnalyticsEvent } from "@/lib/analytics";
+import {
+  BUYER_PROFILE_FILE_TOO_LARGE_MESSAGE,
+  BUYER_PROFILE_UPLOAD_HELPER,
+  MAX_BUYER_PROFILE_DOCUMENT_BYTES,
+} from "@/lib/leads/property-buyer-profile-upload";
 
 const metodosCompra = [
   { label: "Financiamiento", value: "Financiamiento" },
@@ -13,10 +18,6 @@ const solarContractOptions = [
   { label: "Sí", value: "yes" },
   { label: "No", value: "no" },
 ];
-
-const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
-const FILE_TOO_LARGE_MESSAGE =
-  "El archivo excede el tamaño máximo permitido de 10 MB. Por favor, selecciona un archivo más pequeño.";
 
 type FormularioPerfilCompradorProps = {
   propertyId: string;
@@ -60,8 +61,11 @@ export default function FormularioPerfilComprador({
     formData.set("idempotencyKey", idempotencyKeyRef.current);
     const cartaFile = formData.get("cartaPreaprobacion");
 
-    if (cartaFile instanceof File && cartaFile.size > MAX_UPLOAD_SIZE_BYTES) {
-      setError(FILE_TOO_LARGE_MESSAGE);
+    if (
+      cartaFile instanceof File &&
+      cartaFile.size > MAX_BUYER_PROFILE_DOCUMENT_BYTES
+    ) {
+      setError(BUYER_PROFILE_FILE_TOO_LARGE_MESSAGE);
       setLoading(false);
       return;
     }
@@ -137,7 +141,7 @@ export default function FormularioPerfilComprador({
           </Field>
           <UploadField
             label="Carta de precalificación"
-            helper="Opcional. PDF o imagen, máximo 10MB."
+            helper={BUYER_PROFILE_UPLOAD_HELPER}
             name="cartaPreaprobacion"
           />
         </div>
@@ -164,7 +168,7 @@ export default function FormularioPerfilComprador({
         <div className="rounded-2xl border border-[#e8e8e8] bg-[#f8f8f8] p-5">
           <UploadField
             label="Evidencia de fondos"
-            helper="Opcional. PDF o imagen, máximo 10MB."
+            helper={BUYER_PROFILE_UPLOAD_HELPER}
             name="cartaPreaprobacion"
           />
         </div>

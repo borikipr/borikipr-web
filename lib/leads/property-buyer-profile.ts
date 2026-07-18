@@ -1,9 +1,11 @@
 import { normalizeEmail, normalizePuertoRicoUsPhone } from "./normalization";
+import {
+  BUYER_PROFILE_FILE_TOO_LARGE_MESSAGE,
+  MAX_BUYER_PROFILE_DOCUMENT_BYTES,
+} from "./property-buyer-profile-upload";
 
 export const PROPERTY_BUYER_PROFILE_FEATURE_FLAG =
   "PROPERTY_BUYER_PROFILE_PERSISTENCE_V1";
-
-export const MAX_BUYER_PROFILE_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -150,7 +152,7 @@ export function parsePropertyBuyerProfileFormData(
   if (file) {
     if (file.size > MAX_BUYER_PROFILE_DOCUMENT_BYTES) {
       throw new BuyerProfileValidationError(
-        "El archivo excede el tamaÃ±o mÃ¡ximo permitido de 10 MB. Por favor, selecciona un archivo mÃ¡s pequeÃ±o.",
+        BUYER_PROFILE_FILE_TOO_LARGE_MESSAGE,
         400,
         "document_too_large"
       );
