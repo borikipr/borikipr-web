@@ -11,7 +11,7 @@ import {
 const metodosCompra = [
   { label: "Financiamiento", value: "Financiamiento" },
   { label: "Cash", value: "Cash" },
-  { label: "Otro", value: "Otro" },
+  { label: "Otros", value: "Otros" },
 ];
 const fondosCierre = ["Sí", "Parcialmente", "Aún no"];
 const solarContractOptions = [
