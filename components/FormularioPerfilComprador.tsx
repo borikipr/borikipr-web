@@ -147,7 +147,7 @@ export default function FormularioPerfilComprador({
         </div>
       )}
 
-      {metodoCompra === "Otro" && (
+      {metodoCompra === "Otros" && (
         <div className="rounded-2xl border border-[#e8e8e8] bg-[#f8f8f8] p-5">
           <Field
             label="Especifique el método de compra o ayuda que piensa utilizar"
