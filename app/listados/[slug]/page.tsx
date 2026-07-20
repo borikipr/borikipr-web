@@ -550,7 +550,7 @@ ${propiedadUrl}`
                 Detalles de la propiedad
               </h2>
 
-              <p className="mt-6 text-lg leading-relaxed text-[#4d4d4d]">
+              <p className="mt-6 whitespace-pre-line text-lg leading-relaxed text-[#4d4d4d]">
                 {propiedad.descripcion}
               </p>
             </div>
