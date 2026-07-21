@@ -11,7 +11,7 @@ import {
 const metodosCompra = [
   { label: "Financiamiento", value: "Financiamiento" },
   { label: "Cash", value: "Cash" },
-  { label: "Otros", value: "Otros" },
+  { label: "Otros", value: "Otro" },
 ];
 const fondosCierre = ["Sí", "Parcialmente", "Aún no"];
 const solarContractOptions = [
@@ -147,7 +147,7 @@ export default function FormularioPerfilComprador({
         </div>
       )}
 
-      {metodoCompra === "Otros" && (
+      {metodoCompra === "Otro" && (
         <div className="rounded-2xl border border-[#e8e8e8] bg-[#f8f8f8] p-5">
           <Field
             label="Especifique el método de compra o ayuda que piensa utilizar"
