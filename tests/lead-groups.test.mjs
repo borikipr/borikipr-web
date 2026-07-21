@@ -6,17 +6,20 @@ import { PGlite } from "@electric-sql/pglite";
 import {
   addLeadGroupMemberInTransaction,
   addLeadGroupNoteInTransaction,
+  changeLeadGroupPrimaryContactInTransaction,
   createLeadGroupInTransaction,
   removeLeadGroupMemberInTransaction,
+  updateLeadGroupMemberRoleInTransaction,
   updateLeadGroupInTransaction,
 } from "../lib/admin/lead-group-mutations.ts";
 
 const root = new URL("..", import.meta.url);
 const readRepo = (path) => readFile(new URL(path, root), "utf8");
-const [leadsSql, lead360Sql, groupsSql] = await Promise.all([
+const [leadsSql, lead360Sql, groupsSql, groupEventsSql] = await Promise.all([
   readRepo("db/migrations/0001_create_leads.sql"),
   readRepo("db/migrations/0007_create_lead_360.sql"),
   readRepo("db/migrations/0011_create_lead_groups.sql"),
+  readRepo("db/migrations/0012_extend_lead_group_events.sql"),
 ]);
 
 function adapter(transaction) {
@@ -32,11 +35,13 @@ async function setup() {
   );`);
   await db.exec(lead360Sql);
   await db.exec(groupsSql);
+  await db.exec(groupEventsSql);
   const propertyId = (await db.query("INSERT INTO public.propiedades (titulo, slug) VALUES ('Casa sintética', 'casa-sintetica') RETURNING id::text")).rows[0].id;
   const leads = [];
   for (const [name, email] of [["Persona Alfa", "alpha@example.test"], ["Persona Beta", "beta@example.test"], ["Persona Gamma", "gamma@example.test"]]) {
     leads.push((await db.query("INSERT INTO public.leads (name, email_original, email_normalized) VALUES ($1, $2, $2) RETURNING id::text", [name, email])).rows[0].id);
   }
+  await db.query("INSERT INTO public.lead_relationships (lead_id, related_lead_id, relationship_type, created_by) VALUES ($1::uuid,$2::uuid,'family','synthetic-admin'),($1::uuid,$3::uuid,'co_buyer','synthetic-admin'),($2::uuid,$3::uuid,'co_buyer','synthetic-admin')", leads);
   return { db, propertyId, leads };
 }
 
@@ -121,16 +126,63 @@ test("group creation rolls back when its audit event fails", async () => {
   } finally { await db.close(); }
 });
 
-test("dashboard, Group 360, search, timeline, documents, follow-ups, permissions, and responsive structure are wired", async () => {
-  const [directory, detail, query, followUps, leadPage, actions, nav] = await Promise.all([
-    readRepo("app/admin/lead-groups/page.tsx"),
-    readRepo("app/admin/lead-groups/[id]/page.tsx"),
+test("member roles and primary contact change transactionally with audit history", async () => {
+  const { db, propertyId, leads } = await setup();
+  try {
+    const group = await db.transaction((tx) => createLeadGroupInTransaction(adapter(tx), createInput(propertyId, leads)));
+    await db.transaction((tx) => updateLeadGroupMemberRoleInTransaction(adapter(tx), { groupId: group.groupId, leadId: leads[1], role: "buyer", actorUsername: "synthetic-admin", operationKey: randomUUID() }));
+    await db.transaction((tx) => changeLeadGroupPrimaryContactInTransaction(adapter(tx), { groupId: group.groupId, leadId: leads[1], actorUsername: "synthetic-admin", operationKey: randomUUID() }));
+    const members = await db.query("SELECT lead_id::text, role, is_primary_contact FROM public.lead_group_members WHERE group_id=$1::uuid", [group.groupId]);
+    assert.equal(members.rows.filter((member) => member.is_primary_contact).length, 1);
+    assert.equal(members.rows.find((member) => member.lead_id === leads[1]).role, "buyer");
+    assert.equal(members.rows.find((member) => member.lead_id === leads[1]).is_primary_contact, true);
+    const events = await db.query("SELECT event_type FROM public.lead_group_events WHERE group_id=$1::uuid ORDER BY created_at", [group.groupId]);
+    assert.deepEqual(events.rows.map((event) => event.event_type), ["group_created", "member_role_changed", "primary_contact_changed"]);
+  } finally { await db.close(); }
+});
+
+test("case archive and explicit reopen preserve members and follow-up", async () => {
+  const { db, propertyId, leads } = await setup();
+  try {
+    const group = await db.transaction((tx) => createLeadGroupInTransaction(adapter(tx), { ...createInput(propertyId, leads), status: "active", nextFollowUpAt: "2026-07-25T14:00:00.000Z" }));
+    await db.transaction((tx) => updateLeadGroupInTransaction(adapter(tx), { groupId: group.groupId, status: "archived", actorUsername: "synthetic-admin", operationKey: randomUUID() }));
+    assert.ok((await db.query("SELECT archived_at FROM public.lead_groups WHERE id=$1::uuid", [group.groupId])).rows[0].archived_at);
+    await db.transaction((tx) => updateLeadGroupInTransaction(adapter(tx), { groupId: group.groupId, status: "active", actorUsername: "synthetic-admin", operationKey: randomUUID() }));
+    const state = (await db.query("SELECT status, archived_at, next_follow_up_at FROM public.lead_groups WHERE id=$1::uuid", [group.groupId])).rows[0];
+    assert.equal(state.status, "active");
+    assert.equal(state.archived_at, null);
+    assert.equal(new Date(state.next_follow_up_at).toISOString(), "2026-07-25T14:00:00.000Z");
+    assert.equal((await db.query("SELECT count(*)::int AS count FROM public.lead_group_members WHERE group_id=$1::uuid AND removed_at IS NULL", [group.groupId])).rows[0].count, 2);
+  } finally { await db.close(); }
+});
+
+test("unified Leads directory and Shared Case 360 are wired", async () => {
+  const [directory, detail, query, unifiedQuery, followUps, leadPage, actions, nav] = await Promise.all([
+    readRepo("app/admin/leads/page.tsx"),
+    readRepo("app/admin/leads/casos/[id]/page.tsx"),
     readRepo("lib/admin/queries/lead-groups.ts"),
+    readRepo("lib/admin/queries/unified-lead-directory.ts"),
     readRepo("lib/admin/queries/lead-follow-ups.ts"),
     readRepo("app/admin/leads/[id]/page.tsx"),
     readRepo("app/admin/lead-groups/actions.ts"),
     readRepo("components/admin/AdminNav.tsx"),
   ]);
+  assert.match(directory, /Vista operativa/);
+  assert.match(directory, /Mostrar personas individuales/);
+  assert.match(unifiedQuery, /group_entities/);
+  assert.match(unifiedQuery, /UNION ALL/);
+  assert.match(unifiedQuery, /search_text ILIKE/);
+  assert.match(detail, /Cronología combinada/);
+  assert.match(detail, /Formularios exactamente como fueron enviados/);
+  assert.match(detail, /submitterName/);
+  assert.match(detail, /LeadDocumentCard/);
+  assert.match(detail, /Notas del caso/);
+  assert.match(followUps, /NOT \$2::boolean/);
+  assert.match(leadPage, /\/admin\/leads\/casos/);
+  assert.doesNotMatch(nav, /\/admin\/lead-groups/);
+  assert.doesNotMatch(`${actions}\n${query}\n${unifiedQuery}\n${followUps}`, /console\.(log|info|warn|error)|analytics|track\(/i);
+  assert.doesNotMatch(`${directory}\n${detail}`, /w-\[[4-9][0-9]{2}px\]/);
+  /* Replaced Phase 7.4 module assertions:
   assert.match(directory, /Caso, persona, contacto o propiedad/);
   assert.match(query, /search_lead\.name ILIKE/);
   assert.match(query, /LIMIT 20/);
@@ -149,4 +201,5 @@ test("dashboard, Group 360, search, timeline, documents, follow-ups, permissions
   assert.match(detail, /grid min-w-0 gap-6 xl:grid-cols/);
   assert.doesNotMatch(`${actions}\n${query}\n${followUps}`, /console\.(log|info|warn|error)|analytics|track\(/i);
   assert.doesNotMatch(`${directory}\n${detail}`, /w-\[[4-9][0-9]{2}px\]/);
+  */
 });

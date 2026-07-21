@@ -10,6 +10,8 @@ type GroupMemberInput = {
 type CreateGroupInput = {
   title: string;
   primaryPropertyId: string | null;
+  status?: LeadGroupStatus;
+  nextFollowUpAt?: string | null;
   members: GroupMemberInput[];
   actorUsername: string;
   operationKey: string;
@@ -23,11 +25,11 @@ async function existingOperation(transaction: TransactionSql, operationKey: stri
   return rows[0]?.group_id ?? null;
 }
 
-async function lockGroup(transaction: TransactionSql, groupId: string) {
+async function lockGroup(transaction: TransactionSql, groupId: string, allowArchived = false) {
   const rows = await transaction.unsafe<Array<{ id: string; status: LeadGroupStatus }>>(
     `SELECT id::text, status FROM public.lead_groups WHERE id=$1::uuid FOR UPDATE`, [groupId]
   );
-  if (!rows[0] || rows[0].status === "archived") throw new Error("Caso no disponible.");
+  if (!rows[0] || (!allowArchived && rows[0].status === "archived")) throw new Error("Caso no disponible.");
   return rows[0];
 }
 
@@ -73,9 +75,9 @@ export async function createLeadGroupInTransaction(
   }
   const groups = await transaction.unsafe<Array<{ id: string }>>(
     `INSERT INTO public.lead_groups (
-      title, status, primary_property_id, created_by
-    ) VALUES ($1, 'new', $2::uuid, $3) RETURNING id::text`,
-    [input.title, input.primaryPropertyId, input.actorUsername]
+      title, status, primary_property_id, next_follow_up_at, created_by
+    ) VALUES ($1, $2::text, $3::uuid, $4::timestamptz, $5) RETURNING id::text`,
+    [input.title, input.status ?? "new", input.primaryPropertyId, input.nextFollowUpAt ?? null, input.actorUsername]
   );
   const groupId = groups[0].id;
   for (const member of members) {
@@ -105,6 +107,17 @@ export async function addLeadGroupMemberInTransaction(
   if (applied) return { status: "existing" as const };
   await lockGroup(transaction, input.groupId);
   await lockActiveLeads(transaction, [input.leadId]);
+  const related = await transaction.unsafe<Array<{ ok: boolean }>>(
+    `SELECT EXISTS (
+      SELECT 1 FROM public.lead_group_members gm
+      JOIN public.lead_relationships lr ON (
+        (lr.lead_id=gm.lead_id AND lr.related_lead_id=$2::uuid)
+        OR (lr.related_lead_id=gm.lead_id AND lr.lead_id=$2::uuid)
+      )
+      WHERE gm.group_id=$1::uuid AND gm.removed_at IS NULL
+    ) AS ok`, [input.groupId, input.leadId]
+  );
+  if (!related[0]?.ok) throw new Error("La persona debe tener una relación confirmada con el caso.");
   const rows = await transaction.unsafe<Array<{ removed_at: string | Date | null }>>(
     `SELECT removed_at FROM public.lead_group_members
     WHERE group_id=$1::uuid AND lead_id=$2::uuid FOR UPDATE`, [input.groupId, input.leadId]
@@ -200,7 +213,7 @@ export async function updateLeadGroupInTransaction(
 ) {
   const applied = await existingOperation(transaction, input.operationKey);
   if (applied) return { status: "existing" as const };
-  const group = await lockGroup(transaction, input.groupId);
+  const group = await lockGroup(transaction, input.groupId, input.status !== undefined);
   let eventType = "contacted";
   let eventData: Record<string, unknown> = {};
   if (input.status !== undefined) {
@@ -227,5 +240,58 @@ export async function updateLeadGroupInTransaction(
     groupId: input.groupId, eventType, eventDataJson: JSON.stringify(eventData),
     actorUsername: input.actorUsername, operationKey: input.operationKey,
   });
+  return { status: "updated" as const };
+}
+
+export async function updateLeadGroupMemberRoleInTransaction(
+  transaction: TransactionSql,
+  input: { groupId: string; leadId: string; role: LeadGroupRole; actorUsername: string; operationKey: string }
+) {
+  if (await existingOperation(transaction, input.operationKey)) return { status: "existing" as const };
+  await lockGroup(transaction, input.groupId);
+  const rows = await transaction.unsafe<Array<{ role: LeadGroupRole }>>(
+    `SELECT role FROM public.lead_group_members
+     WHERE group_id=$1::uuid AND lead_id=$2::uuid AND removed_at IS NULL FOR UPDATE`,
+    [input.groupId, input.leadId]
+  );
+  if (!rows[0]) throw new Error("Persona no disponible en el caso.");
+  if (rows[0].role !== input.role) {
+    await transaction.unsafe(
+      `UPDATE public.lead_group_members SET role=$3::text WHERE group_id=$1::uuid AND lead_id=$2::uuid`,
+      [input.groupId, input.leadId, input.role]
+    );
+  }
+  await recordEvent(transaction, {
+    groupId: input.groupId, eventType: "member_role_changed",
+    eventDataJson: JSON.stringify({ leadId: input.leadId, previousRole: rows[0].role, newRole: input.role }),
+    actorUsername: input.actorUsername, operationKey: input.operationKey,
+  });
+  await transaction.unsafe("UPDATE public.lead_groups SET updated_at=now() WHERE id=$1::uuid", [input.groupId]);
+  return { status: "updated" as const };
+}
+
+export async function changeLeadGroupPrimaryContactInTransaction(
+  transaction: TransactionSql,
+  input: { groupId: string; leadId: string; actorUsername: string; operationKey: string }
+) {
+  if (await existingOperation(transaction, input.operationKey)) return { status: "existing" as const };
+  await lockGroup(transaction, input.groupId);
+  const members = await transaction.unsafe<Array<{ lead_id: string; is_primary_contact: boolean }>>(
+    `SELECT lead_id::text, is_primary_contact FROM public.lead_group_members
+     WHERE group_id=$1::uuid AND removed_at IS NULL ORDER BY lead_id FOR UPDATE`, [input.groupId]
+  );
+  const target = members.find((member) => member.lead_id === input.leadId);
+  if (!target) throw new Error("El contacto principal debe pertenecer al caso.");
+  const previous = members.find((member) => member.is_primary_contact)?.lead_id ?? null;
+  if (!target.is_primary_contact) {
+    await transaction.unsafe("UPDATE public.lead_group_members SET is_primary_contact=false WHERE group_id=$1::uuid AND removed_at IS NULL", [input.groupId]);
+    await transaction.unsafe("UPDATE public.lead_group_members SET is_primary_contact=true WHERE group_id=$1::uuid AND lead_id=$2::uuid AND removed_at IS NULL", [input.groupId, input.leadId]);
+  }
+  await recordEvent(transaction, {
+    groupId: input.groupId, eventType: "primary_contact_changed",
+    eventDataJson: JSON.stringify({ previousLeadId: previous, newLeadId: input.leadId }),
+    actorUsername: input.actorUsername, operationKey: input.operationKey,
+  });
+  await transaction.unsafe("UPDATE public.lead_groups SET updated_at=now() WHERE id=$1::uuid", [input.groupId]);
   return { status: "updated" as const };
 }

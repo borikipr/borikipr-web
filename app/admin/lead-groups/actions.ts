@@ -6,8 +6,10 @@ import { getAdminSessionUser } from "@/lib/admin/auth";
 import {
   addLeadGroupMemberInTransaction,
   addLeadGroupNoteInTransaction,
+  changeLeadGroupPrimaryContactInTransaction,
   createLeadGroupInTransaction,
   removeLeadGroupMemberInTransaction,
+  updateLeadGroupMemberRoleInTransaction,
   updateLeadGroupInTransaction,
 } from "@/lib/admin/lead-group-mutations";
 import {
@@ -39,11 +41,11 @@ function role(formData: FormData, field = "role") {
 }
 
 function groupHref(groupId: string, message: string) {
-  return `/admin/lead-groups/${groupId}?ok=${encodeURIComponent(message)}`;
+  return `/admin/leads/casos/${groupId}?ok=${encodeURIComponent(message)}`;
 }
 
 function safeFailureHref(groupId: string | null, kind = "rolled_back") {
-  return groupId ? `/admin/lead-groups/${groupId}?group_result=${kind}` : `/admin/lead-groups?group_result=${kind}`;
+  return groupId ? `/admin/leads/casos/${groupId}?group_result=${kind}` : `/admin/leads?group_result=${kind}`;
 }
 
 export async function createLeadGroupAction(formData: FormData) {
@@ -54,6 +56,10 @@ export async function createLeadGroupAction(formData: FormData) {
   if (!title || title.length > 200) redirect(`/admin/leads/${sourceLeadId}?group_result=invalid`);
   const rawProperty = String(formData.get("primary_property_id") ?? "").trim();
   const primaryPropertyId = rawProperty ? uuid(formData, "primary_property_id") : null;
+  const status = String(formData.get("status") ?? "new") as LeadGroupStatus;
+  if (!(status in LEAD_GROUP_STATUS_LABELS) || status === "archived") redirect(`/admin/leads/${sourceLeadId}?group_result=invalid`);
+  const rawFollowUp = String(formData.get("next_follow_up_at") ?? "").trim();
+  if (rawFollowUp && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(rawFollowUp)) redirect(`/admin/leads/${sourceLeadId}?group_result=invalid`);
   const selectedIds = [...new Set(formData.getAll("member_id").map(String))];
   if (!selectedIds.includes(sourceLeadId)) selectedIds.unshift(sourceLeadId);
   if (selectedIds.some((id) => !UUID_PATTERN.test(id)) || selectedIds.length < 2) {
@@ -80,14 +86,16 @@ export async function createLeadGroupAction(formData: FormData) {
       );
       if (allowed[0].count !== relatedIds.length) throw new Error("Relación no confirmada.");
       return createLeadGroupInTransaction(transaction, {
-        title, primaryPropertyId, members, actorUsername: username, operationKey,
+        title, primaryPropertyId, status,
+        nextFollowUpAt: rawFollowUp ? new Date(`${rawFollowUp}:00-04:00`).toISOString() : null,
+        members, actorUsername: username, operationKey,
       });
     });
   } catch {
     redirect(`/admin/leads/${sourceLeadId}?group_result=rolled_back`);
   }
   revalidatePath("/admin/leads");
-  revalidatePath("/admin/lead-groups");
+  revalidatePath("/admin/leads/casos");
   revalidatePath(`/admin/leads/${sourceLeadId}`);
   redirect(groupHref(result.groupId, result.status === "existing" ? "El caso ya existía" : "Caso compartido creado"));
 }
@@ -105,8 +113,7 @@ export async function addLeadGroupMemberAction(formData: FormData) {
   } catch {
     redirect(safeFailureHref(groupId));
   }
-  revalidatePath(`/admin/lead-groups/${groupId}`);
-  revalidatePath("/admin/lead-groups");
+  revalidatePath(`/admin/leads/casos/${groupId}`);
   revalidatePath("/admin/leads");
   redirect(groupHref(groupId, result.status === "existing" ? "La persona ya pertenece al caso" : "Persona añadida"));
 }
@@ -123,8 +130,7 @@ export async function removeLeadGroupMemberAction(formData: FormData) {
   } catch {
     redirect(safeFailureHref(groupId));
   }
-  revalidatePath(`/admin/lead-groups/${groupId}`);
-  revalidatePath("/admin/lead-groups");
+  revalidatePath(`/admin/leads/casos/${groupId}`);
   revalidatePath("/admin/leads");
   redirect(groupHref(groupId, "Persona removida del caso"));
 }
@@ -142,7 +148,7 @@ export async function addLeadGroupNoteAction(formData: FormData) {
   } catch {
     redirect(safeFailureHref(groupId));
   }
-  revalidatePath(`/admin/lead-groups/${groupId}`);
+  revalidatePath(`/admin/leads/casos/${groupId}`);
   redirect(groupHref(groupId, "Nota compartida guardada"));
 }
 
@@ -172,8 +178,39 @@ export async function updateLeadGroupAction(formData: FormData) {
   } catch {
     redirect(safeFailureHref(groupId));
   }
-  revalidatePath(`/admin/lead-groups/${groupId}`);
-  revalidatePath("/admin/lead-groups");
+  revalidatePath(`/admin/leads/casos/${groupId}`);
   revalidatePath("/admin/leads/seguimientos");
   redirect(groupHref(groupId, "Caso actualizado"));
+}
+
+export async function updateLeadGroupMemberRoleAction(formData: FormData) {
+  const username = await requireAdmin();
+  const groupId = uuid(formData, "group_id");
+  const leadId = uuid(formData, "lead_id");
+  try {
+    await sql.begin((transaction) => updateLeadGroupMemberRoleInTransaction(transaction, {
+      groupId, leadId, role: role(formData), actorUsername: username,
+      operationKey: uuid(formData, "operation_key"),
+    }));
+  } catch {
+    redirect(safeFailureHref(groupId));
+  }
+  revalidatePath(`/admin/leads/casos/${groupId}`);
+  redirect(groupHref(groupId, "Función actualizada"));
+}
+
+export async function changeLeadGroupPrimaryContactAction(formData: FormData) {
+  const username = await requireAdmin();
+  const groupId = uuid(formData, "group_id");
+  try {
+    await sql.begin((transaction) => changeLeadGroupPrimaryContactInTransaction(transaction, {
+      groupId, leadId: uuid(formData, "lead_id"), actorUsername: username,
+      operationKey: uuid(formData, "operation_key"),
+    }));
+  } catch {
+    redirect(safeFailureHref(groupId));
+  }
+  revalidatePath(`/admin/leads/casos/${groupId}`);
+  revalidatePath("/admin/leads");
+  redirect(groupHref(groupId, "Contacto principal actualizado"));
 }

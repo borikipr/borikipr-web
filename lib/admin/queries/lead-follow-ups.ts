@@ -29,6 +29,7 @@ export type LeadFollowUpFilters = {
   bucket: FollowUpBucket | "all";
   sort: FollowUpSort;
   invalid: boolean;
+  showIndividuals: boolean;
 };
 
 export type LeadFollowUpItem = {
@@ -94,6 +95,7 @@ export function normalizeLeadFollowUpFilters(
     bucket,
     sort,
     invalid,
+    showIndividuals: first(params.individuals) === "1",
   };
 }
 
@@ -164,13 +166,13 @@ follow_up_base AS (
   LEFT JOIN management_activity ma ON ma.lead_id = l.id
   WHERE l.merged_into_lead_id IS NULL
     AND l.status IN ('new', 'active')
-    AND NOT EXISTS (
+    AND ($2::boolean OR NOT EXISTS (
       SELECT 1 FROM public.lead_group_members grouped_member
       INNER JOIN public.lead_groups grouped_case ON grouped_case.id=grouped_member.group_id
       WHERE grouped_member.lead_id=l.id
         AND grouped_member.removed_at IS NULL
         AND grouped_case.archived_at IS NULL
-    )
+    ))
 ),
 classified AS (
   SELECT *,
@@ -191,7 +193,7 @@ export function buildLeadFollowUpListQuery(
   filters: LeadFollowUpFilters,
   referenceNow = new Date().toISOString()
 ): SqlQuery {
-  const values: unknown[] = [referenceNow];
+  const values: unknown[] = [referenceNow, filters.showIndividuals];
   const conditions = ["c.bucket IS NOT NULL"];
 
   if (filters.search) {
@@ -242,14 +244,14 @@ export function buildLeadFollowUpListQuery(
   };
 }
 
-export function buildLeadFollowUpSummaryQuery(referenceNow = new Date().toISOString()): SqlQuery {
+export function buildLeadFollowUpSummaryQuery(referenceNow = new Date().toISOString(), showIndividuals = false): SqlQuery {
   return {
     text: `WITH ${CANONICAL_LEAD_SOURCE_RECORDS_CTE},${classificationCte("$1")}
       SELECT bucket, count(*) AS count
       FROM classified
       WHERE bucket IS NOT NULL
       GROUP BY bucket`,
-    values: [referenceNow],
+    values: [referenceNow, showIndividuals],
   };
 }
 
@@ -272,7 +274,7 @@ export function buildLeadGroupFollowUpQuery(
   filters: LeadFollowUpFilters,
   referenceNow = new Date().toISOString()
 ): SqlQuery {
-  const values: unknown[] = [referenceNow];
+  const values: unknown[] = [referenceNow, filters.showIndividuals];
   const add = (value: unknown) => { values.push(value); return `$${values.length}`; };
   const conditions = ["classified.bucket IS NOT NULL"];
   if (filters.search) {
@@ -286,7 +288,15 @@ export function buildLeadGroupFollowUpQuery(
   }
   if (filters.status !== "all") conditions.push(`classified.status=${add(filters.status)}`);
   if (filters.source !== "all") conditions.push(`${add(filters.source)}=ANY(classified.source_types)`);
-  if (filters.propertyId) conditions.push(`classified.property_id::text=${add(filters.propertyId)}`);
+  if (filters.propertyId) {
+    const propertyId = add(filters.propertyId);
+    conditions.push(`(classified.property_id::text=${propertyId} OR EXISTS (
+      SELECT 1 FROM public.lead_group_members property_member
+      JOIN source_records property_source ON property_source.lead_id=property_member.lead_id
+      WHERE property_member.group_id=classified.id AND property_member.removed_at IS NULL
+        AND property_source.property_id::text=${propertyId}
+    ))`);
+  }
   if (filters.bucket !== "all") conditions.push(`classified.bucket=${add(filters.bucket)}`);
   return {
     text: `WITH ${CANONICAL_LEAD_SOURCE_RECORDS_CTE},
@@ -296,11 +306,7 @@ export function buildLeadGroupFollowUpQuery(
     group_aggregates AS (
       SELECT g.id, g.title AS name,
         CASE WHEN g.status='new' THEN 'new' ELSE 'active' END AS status,
-        CASE
-          WHEN g.next_follow_up_at IS NULL THEN min(l.next_follow_up_at)
-          WHEN min(l.next_follow_up_at) IS NULL THEN g.next_follow_up_at
-          ELSE LEAST(g.next_follow_up_at, min(l.next_follow_up_at))
-        END AS next_follow_up_at,
+        g.next_follow_up_at,
         g.created_at,
         GREATEST(g.updated_at, max(l.last_activity_at), COALESCE(max(sr.created_at), g.updated_at)) AS last_activity_at,
         COALESCE(array_agg(DISTINCT sr.source_type ORDER BY sr.source_type) FILTER (WHERE sr.source_type IS NOT NULL), ARRAY[]::text[]) AS source_types,
@@ -343,7 +349,7 @@ export function buildLeadGroupFollowUpQuery(
       CASE WHEN is_new_without_follow_up AND bucket<>'new_without_follow_up' THEN 'new_without_follow_up' END,
       CASE WHEN is_inactive AND bucket<>'inactive' THEN 'inactive' END
     ]::text[], NULL) AS secondary_flags
-    FROM classified WHERE ${conditions.join(" AND ")}`,
+    FROM classified WHERE NOT $2::boolean AND ${conditions.join(" AND ")}`,
     values,
   };
 }

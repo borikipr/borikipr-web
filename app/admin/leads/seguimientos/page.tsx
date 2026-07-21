@@ -136,7 +136,7 @@ function LeadCard({ lead }: { lead: LeadFollowUpItem }) {
                 <button className="btn-secondary px-4 py-2 text-sm" type="submit">Limpiar seguimiento</button>
               </form>
             )}
-            <Link className="btn-secondary inline-flex items-center gap-2 px-4 py-2 text-sm" href={lead.entityType === "group" ? `/admin/lead-groups/${lead.id}` : `/admin/leads/${lead.id}`}>{lead.entityType === "group" ? "Abrir Caso 360" : "Abrir Lead 360"}<ExternalLink aria-hidden="true" className="h-4 w-4" /></Link>
+            <Link className="btn-secondary inline-flex items-center gap-2 px-4 py-2 text-sm" href={lead.entityType === "group" ? `/admin/leads/casos/${lead.id}` : `/admin/leads/${lead.id}`}>{lead.entityType === "group" ? "Abrir Caso 360" : "Abrir Lead 360"}<ExternalLink aria-hidden="true" className="h-4 w-4" /></Link>
           </div>
         </div>
       </div>
@@ -184,6 +184,8 @@ export default async function LeadFollowUpCenterPage({ searchParams }: { searchP
         <p className="mt-3 flex max-w-3xl items-start gap-2 text-sm text-[#4d4d4d]"><Clock3 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[#11518b]" />Hoy se calcula en America/Puerto_Rico. Un seguimiento pasa a vencido al superar su hora programada.</p>
       </AdminPageHeader>
 
+      <section className="surface-card p-4"><div className="flex flex-wrap gap-2" role="group" aria-label="Vista de seguimientos"><Link className={!filters.showIndividuals ? "btn-primary" : "btn-secondary"} href="/admin/leads/seguimientos">Vista operativa</Link><Link className={filters.showIndividuals ? "btn-primary" : "btn-secondary"} href="/admin/leads/seguimientos?individuals=1">Mostrar personas individuales</Link></div><p className="mt-3 text-sm text-[#4d4d4d]">La vista operativa usa el seguimiento propio del caso y oculta las tareas individuales de sus miembros para evitar trabajo duplicado.</p></section>
+
       {success && <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-900" role="status"><CheckCircle2 aria-hidden="true" className="h-5 w-5" />{success}</div>}
       {(error || filters.invalid) && <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-semibold text-amber-950" role="alert"><AlertCircle aria-hidden="true" className="h-5 w-5" />{error ?? "Se ignoraron filtros no válidos. Revisa tu selección."}</div>}
 
@@ -193,6 +195,7 @@ export default async function LeadFollowUpCenterPage({ searchParams }: { searchP
 
       <section className="surface-card p-5">
         <form action="/admin/leads/seguimientos" className="grid gap-4 md:grid-cols-2 xl:grid-cols-6" method="get">
+          {filters.showIndividuals && <input name="individuals" type="hidden" value="1" />}
           <label className="xl:col-span-2"><span className="mb-2 block text-sm font-semibold">Buscar</span><input className="input-field w-full" defaultValue={filters.search} maxLength={320} name="q" placeholder="Nombre, correo o teléfono" type="search" /></label>
           <label><span className="mb-2 block text-sm font-semibold">Estado</span><select className="input-field w-full" defaultValue={filters.status} name="status"><option value="all">Todos</option><option value="new">Nuevo</option><option value="active">Activo</option></select></label>
           <label><span className="mb-2 block text-sm font-semibold">Fuente</span><select className="input-field w-full" defaultValue={filters.source} name="source"><option value="all">Todas</option>{Object.entries(CANONICAL_LEAD_SOURCE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>

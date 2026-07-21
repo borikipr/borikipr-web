@@ -281,7 +281,8 @@ test("notes, management timeline, and email queue status are independently query
 });
 
 test("admin UI enables details, requires auth, and routes duplicate review safely", () => {
-  assert.match(directorySource, /href=\{`\/admin\/leads\/\$\{lead\.id\}`\}/);
+  assert.match(directorySource, /`\/admin\/leads\/\$\{item\.id\}`/);
+  assert.match(directorySource, /`\/admin\/leads\/casos\/\$\{item\.id\}`/);
   assert.match(pageSource, /if \(!username\) redirect\("\/admin\/login"\)/);
   assert.match(pageSource, /Contacto compartido con otra persona/);
   assert.match(pageSource, /Mantener separadas/);

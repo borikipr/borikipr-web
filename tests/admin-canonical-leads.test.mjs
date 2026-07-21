@@ -261,9 +261,9 @@ test("property options include only properties linked through canonical sources"
 
 test("empty results and no-leads states are explicit Spanish UI states", async () => {
   assert.equal((await runList({ search: "does-not-exist" })).length, 0);
-  assert.match(pageSource, /No hay leads canónicos todavía/);
-  assert.match(pageSource, /No hay leads que coincidan con los filtros/);
-  assert.match(pageSource, /fuente relacionada disponible/);
+  assert.match(pageSource, /No hay leads todavía/);
+  assert.match(pageSource, /No hay resultados/);
+  assert.match(pageSource, /Ajusta o limpia los filtros/);
   assert.match(pageSource, /No se pudo cargar el directorio/);
 });
 
@@ -276,7 +276,9 @@ test("admin protection remains active and every row links to Lead 360", () => {
   assert.match(pageSource, /getAdminSessionUser/);
   assert.match(pageSource, /redirect\("\/admin\/login"\)/);
   assert.match(middlewareSource, /pathname\.startsWith\("\/admin"\)/);
-  assert.match(pageSource, /href=\{`\/admin\/leads\/\$\{lead\.id\}`\}/);
+  assert.match(pageSource, /item\.entityType === "group"/);
+  assert.match(pageSource, /`\/admin\/leads\/\$\{item\.id\}`/);
+  assert.match(pageSource, /`\/admin\/leads\/casos\/\$\{item\.id\}`/);
   assert.match(pageSource, /Ver detalles/);
   assert.doesNotMatch(pageSource, /disponible próximamente/);
 });

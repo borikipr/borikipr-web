@@ -1,277 +1,129 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { UsersRound } from "lucide-react";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import {
   CANONICAL_LEAD_PAGE_SIZE,
   CANONICAL_LEAD_SOURCE_LABELS,
-  canonicalLeadDirectoryHref,
   getCanonicalLeadDirectory,
   normalizeCanonicalLeadFilters,
-  type CanonicalLeadFilters,
   type CanonicalLeadSourceType,
 } from "@/lib/admin/queries/canonical-leads";
 import {
-  LEAD_GROUP_ROLE_LABELS,
-  LEAD_GROUP_STATUS_LABELS,
-  getLeadGroupDirectory,
-  normalizeLeadGroupFilters,
-} from "@/lib/admin/queries/lead-groups";
+  UNIFIED_STATUS_LABELS,
+  getUnifiedLeadDirectory,
+  normalizeUnifiedDirectoryFilters,
+  type UnifiedDirectoryFilters,
+  type UnifiedDirectoryItem,
+} from "@/lib/admin/queries/unified-lead-directory";
 
 type PageSearchParams = Record<string, string | string[] | undefined>;
 
-const STATUS_LABELS: Record<string, string> = {
-  new: "Nuevo",
-  active: "Activo",
-  do_not_contact: "No contactar",
-  archived: "Archivado",
-  merged: "Fusionado",
-};
-
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("es-PR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-function StatCard({ label, value, detail }: { label: string; value: number; detail: string }) {
-  return (
-    <div className="surface-card p-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d4af37]">{label}</p>
-      <p className="mt-3 text-3xl font-bold text-[#000000]">{value}</p>
-      <p className="mt-2 text-sm text-[#4d4d4d]">{detail}</p>
-    </div>
-  );
+  return new Intl.DateTimeFormat("es-PR", { timeZone: "America/Puerto_Rico", dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
 function SourceBadge({ source }: { source: CanonicalLeadSourceType }) {
-  return (
-    <span className="inline-flex rounded-full border border-[#d9d9d9] bg-[#f8f8f8] px-2.5 py-1 text-xs font-semibold text-[#334155]">
-      {CANONICAL_LEAD_SOURCE_LABELS[source]}
-    </span>
-  );
+  return <span className="inline-flex rounded-full border border-[#d9d9d9] bg-[#f8f8f8] px-2.5 py-1 text-xs font-semibold text-[#334155]">{CANONICAL_LEAD_SOURCE_LABELS[source]}</span>;
 }
 
-function Pagination({ filters, totalPages, showIndividuals }: { filters: CanonicalLeadFilters; totalPages: number; showIndividuals: boolean }) {
-  if (totalPages <= 1) return null;
-  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1).filter(
-    (page) => page === 1 || page === totalPages || Math.abs(page - filters.page) <= 1
-  );
+function directoryHref(filters: UnifiedDirectoryFilters, page: number) {
+  const params = new URLSearchParams();
+  if (filters.search) params.set("q", filters.search);
+  if (filters.status !== "all") params.set("status", filters.status);
+  if (filters.source !== "all") params.set("source", filters.source);
+  if (filters.range !== "all") params.set("range", filters.range);
+  if (filters.propertyId) params.set("property", filters.propertyId);
+  if (filters.sort !== "recent") params.set("sort", filters.sort);
+  if (filters.showIndividuals) params.set("individuals", "1");
+  if (page > 1) params.set("page", String(page));
+  const query = params.toString();
+  return `/admin/leads${query ? `?${query}` : ""}`;
+}
 
+function LeadResultCard({ item }: { item: UnifiedDirectoryItem }) {
+  const isCase = item.entityType === "group";
+  const title = isCase ? item.memberNames.join(" + ") : item.name;
+  const href = isCase ? `/admin/leads/casos/${item.id}` : `/admin/leads/${item.id}`;
   return (
-    <nav aria-label="Paginación de leads" className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eeeeee] px-5 py-4">
-      <p className="text-sm text-[#4d4d4d]">Página {filters.page} de {totalPages}</p>
-      <div className="flex flex-wrap gap-2">
-        {filters.page > 1 && (
-          <Link className="btn-secondary px-3 py-2 text-sm" href={`${canonicalLeadDirectoryHref(filters, { page: filters.page - 1 })}${showIndividuals ? (canonicalLeadDirectoryHref(filters, { page: filters.page - 1 }).includes("?") ? "&individuals=1" : "?individuals=1") : ""}`}>
-            Anterior
-          </Link>
-        )}
-        {pageNumbers.map((page, index) => {
-          const previous = pageNumbers[index - 1];
-          return (
-            <span className="contents" key={page}>
-              {previous && page - previous > 1 && <span className="px-1 py-2 text-[#6b7280]">…</span>}
-              <Link
-                aria-current={page === filters.page ? "page" : undefined}
-                className={page === filters.page ? "rounded-lg bg-[#11518b] px-3 py-2 text-sm font-semibold text-white" : "rounded-lg border border-[#d9d9d9] bg-white px-3 py-2 text-sm font-semibold text-[#334155]"}
-                href={`${canonicalLeadDirectoryHref(filters, { page })}${showIndividuals ? (canonicalLeadDirectoryHref(filters, { page }).includes("?") ? "&individuals=1" : "?individuals=1") : ""}`}
-              >
-                {page}
-              </Link>
-            </span>
-          );
-        })}
-        {filters.page < totalPages && (
-          <Link className="btn-secondary px-3 py-2 text-sm" href={`${canonicalLeadDirectoryHref(filters, { page: filters.page + 1 })}${showIndividuals ? (canonicalLeadDirectoryHref(filters, { page: filters.page + 1 }).includes("?") ? "&individuals=1" : "?individuals=1") : ""}`}>
-            Siguiente
-          </Link>
-        )}
+    <article className={`min-w-0 rounded-3xl border p-5 ${isCase ? "border-blue-200 bg-blue-50/60" : "border-[#e8e8e8] bg-white"}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="break-words text-lg font-semibold text-[#000000]">{title}</h3>
+          <p className="mt-1 text-sm font-semibold text-[#334155]">{isCase ? `Caso compartido · ${item.personCount} personas` : "1 persona"}</p>
+        </div>
+        <span className="rounded-full bg-[#11518b]/10 px-3 py-1 text-xs font-semibold text-[#11518b]">{UNIFIED_STATUS_LABELS[item.status as keyof typeof UNIFIED_STATUS_LABELS] ?? item.status}</span>
       </div>
-    </nav>
+      {isCase && <p className="mt-3 break-words text-sm text-[#4d4d4d]">{item.name}</p>}
+      {(item.email || item.phone) && <div className="mt-3 grid gap-1 text-sm text-[#334155]">{item.email && <p className="break-all">{item.email}</p>}{item.phone && <p>{item.phone}</p>}</div>}
+      <div className="mt-4 flex flex-wrap gap-1.5">{item.sourceTypes.map((source) => <SourceBadge key={source} source={source} />)}</div>
+      {item.contextTitle && <p className="mt-4 break-words text-sm"><span className="font-semibold">Propiedad:</span> {item.contextTitle}</p>}
+      <div className="mt-4 grid gap-1 text-xs text-[#6b7280]">
+        <p>{item.sourceCount} interacción{item.sourceCount === 1 ? "" : "es"}</p>
+        <p>Última actividad: {formatDate(item.lastActivityAt)}</p>
+        {item.nextFollowUpAt && <p className="font-semibold text-[#8a5b00]">Seguimiento: {formatDate(item.nextFollowUpAt)}</p>}
+        {item.sharedContact && <p className="font-semibold text-[#11518b]">Contacto compartido</p>}
+      </div>
+      <Link aria-label={`Ver detalles de ${title}`} className="btn-secondary mt-5 w-full px-4 py-2.5 text-center text-sm" href={href}>Ver detalles</Link>
+    </article>
   );
 }
 
-export default async function AdminLeadsPage({
-  searchParams,
-}: {
-  searchParams: Promise<PageSearchParams>;
-}) {
+export default async function AdminLeadsPage({ searchParams }: { searchParams: Promise<PageSearchParams> }) {
   const user = await getAdminSessionUser();
   if (!user) redirect("/admin/login");
-
-  const rawParams = await searchParams;
-  const filters = normalizeCanonicalLeadFilters(rawParams);
-  const showIndividuals = (Array.isArray(rawParams.individuals) ? rawParams.individuals[0] : rawParams.individuals) === "1";
+  const raw = await searchParams;
+  const canonicalFilters = normalizeCanonicalLeadFilters(raw);
+  const filters = normalizeUnifiedDirectoryFilters(canonicalFilters, raw);
   let directory;
-  let groupDirectory;
-  let queryFailed = false;
-
+  let reference;
+  let failed = false;
   try {
-    [directory, groupDirectory] = await Promise.all([
-      getCanonicalLeadDirectory(filters, { excludeGroupedMembers: !showIndividuals }),
-      getLeadGroupDirectory(normalizeLeadGroupFilters(rawParams)),
+    [directory, reference] = await Promise.all([
+      getUnifiedLeadDirectory(filters),
+      getCanonicalLeadDirectory({ ...canonicalFilters, page: 1 }),
     ]);
   } catch {
-    queryFailed = true;
-    directory = {
-      items: [],
-      total: 0,
-      totalPages: 1,
-      summary: { total: 0, newToday: 0, newLast7Days: 0, withPriorityRegistration: 0, withMultipleInteractions: 0 },
-      properties: [],
-      relatedDataUnavailable: false,
-    };
-    groupDirectory = { items: [], total: 0, totalPages: 1, properties: [] };
+    failed = true;
+    directory = { items: [], total: 0, totalPages: 1 };
+    reference = { items: [], total: 0, totalPages: 1, summary: { total: 0, newToday: 0, newLast7Days: 0, withPriorityRegistration: 0, withMultipleInteractions: 0 }, properties: [], relatedDataUnavailable: false };
   }
-
-  const hasFilters = Boolean(
-    filters.search || filters.source !== "all" || filters.range !== "all" || filters.propertyId
-  );
-
+  const hasFilters = Boolean(filters.search || filters.status !== "all" || filters.source !== "all" || filters.range !== "all" || filters.propertyId);
   return (
     <AdminPageShell>
       <AdminPageHeader
-        actions={<><Link className="btn-primary" href="/admin/leads/seguimientos">Centro de seguimientos</Link><Link className="btn-secondary" href="/admin/lead-groups">Casos compartidos</Link></>}
+        actions={<Link className="btn-primary" href="/admin/leads/seguimientos">Centro de seguimientos</Link>}
         breadcrumbs={[{ href: "/admin", label: "Admin" }, { label: "Leads" }]}
-        description="Directorio canónico de personas e interacciones persistidas en Neon. Cada persona aparece una sola vez, aunque haya enviado varios formularios."
-        eyebrow="Relaciones con clientes"
-        title="Leads"
+        description="Personas y casos compartidos en un solo directorio operacional. Las identidades canónicas permanecen separadas."
+        eyebrow="Relaciones con clientes" title="Leads"
       />
-
-      {queryFailed ? (
-        <section className="surface-card border-l-4 border-red-500 p-6" role="alert">
-          <h2 className="text-lg font-semibold text-[#000000]">No se pudo cargar el directorio</h2>
-          <p className="mt-2 text-sm text-[#4d4d4d]">Intenta nuevamente. No se modificó ningún dato.</p>
+      {failed ? <section className="surface-card border-l-4 border-red-500 p-6" role="alert"><h2 className="text-lg font-semibold">No se pudo cargar el directorio</h2><p className="mt-2 text-sm text-[#4d4d4d]">Intenta nuevamente. No se modificó ningún dato.</p></section> : <>
+        <section aria-label="Resumen de leads" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {[["Identidades", reference.summary.total, "Personas canónicas activas"], ["Nuevos hoy", reference.summary.newToday, "Creados hoy"], ["Últimos 7 días", reference.summary.newLast7Days, "Personas recientes"], ["Registro prioritario", reference.summary.withPriorityRegistration, "Con esta fuente"], ["Múltiples interacciones", reference.summary.withMultipleInteractions, "Más de un formulario"]].map(([label, value, detail]) => <div className="surface-card p-5" key={String(label)}><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d4af37]">{label}</p><p className="mt-3 text-3xl font-bold">{value}</p><p className="mt-2 text-sm text-[#4d4d4d]">{detail}</p></div>)}
         </section>
-      ) : (
-        <>
-          <section aria-label="Resumen de leads" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            <StatCard label="Total de leads" value={directory.summary.total} detail="Identidades canónicas sin fusionar" />
-            <StatCard label="Nuevos hoy" value={directory.summary.newToday} detail="Creados desde el inicio del día" />
-            <StatCard label="Nuevos últimos 7 días" value={directory.summary.newLast7Days} detail="Identidades creadas recientemente" />
-            <StatCard label="Con registro prioritario" value={directory.summary.withPriorityRegistration} detail="Personas vinculadas a ese formulario" />
-            <StatCard label="Con múltiples interacciones" value={directory.summary.withMultipleInteractions} detail="Más de una fuente persistida" />
-          </section>
-
-          <section className="surface-card p-5">
-            <form action="/admin/leads" className="grid gap-4 lg:grid-cols-6" method="get">
-              <label className="lg:col-span-2">
-                <span className="mb-2 block text-sm font-semibold text-[#000000]">Buscar</span>
-                <input className="input-field w-full" defaultValue={filters.search} maxLength={320} name="q" placeholder="Nombre, correo o teléfono" type="search" />
-              </label>
-              <label>
-                <span className="mb-2 block text-sm font-semibold text-[#000000]">Fuente</span>
-                <select className="input-field w-full" defaultValue={filters.source} name="source">
-                  <option value="all">Todas</option>
-                  {Object.entries(CANONICAL_LEAD_SOURCE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-              </label>
-              <label>
-                <span className="mb-2 block text-sm font-semibold text-[#000000]">Fecha</span>
-                <select className="input-field w-full" defaultValue={filters.range} name="range">
-                  <option value="today">Hoy</option><option value="7d">7 días</option><option value="30d">30 días</option><option value="all">Todo</option>
-                </select>
-              </label>
-              <label>
-                <span className="mb-2 block text-sm font-semibold text-[#000000]">Propiedad</span>
-                <select className="input-field w-full" defaultValue={filters.propertyId ?? ""} name="property">
-                  <option value="">Todas</option>
-                  {directory.properties.map((property) => <option key={property.id} value={property.id}>{property.title}</option>)}
-                </select>
-              </label>
-              <label>
-                <span className="mb-2 block text-sm font-semibold text-[#000000]">Orden</span>
-                <select className="input-field w-full" defaultValue={filters.sort} name="sort">
-                  <option value="recent">Más recientes</option><option value="oldest">Más antiguos</option><option value="name_asc">Nombre A–Z</option><option value="name_desc">Nombre Z–A</option>
-                </select>
-              </label>
-              <div className="flex flex-wrap items-end gap-3 lg:col-span-6">
-                <button className="btn-primary" type="submit">Aplicar filtros</button>
-                <Link className="btn-secondary" href="/admin/leads">Limpiar</Link>
-                <Link className="btn-secondary" href={showIndividuals ? canonicalLeadDirectoryHref(filters) : `${canonicalLeadDirectoryHref(filters)}${canonicalLeadDirectoryHref(filters).includes("?") ? "&" : "?"}individuals=1`}>{showIndividuals ? "Mostrar vista operacional" : "Mostrar personas individuales"}</Link>
-              </div>
-            </form>
-          </section>
-
-          {!showIndividuals && groupDirectory.items.length > 0 && (
-            <section className="surface-card overflow-hidden">
-              <header className="border-b border-[#eeeeee] px-5 py-5"><p className="eyebrow">Casos compartidos</p><h2 className="mt-2 text-2xl font-semibold">Trabajo operacional agrupado</h2><p className="mt-2 text-sm text-[#4d4d4d]">Cada caso reemplaza las filas individuales de sus miembros en esta vista.</p></header>
-              <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">{groupDirectory.items.map((group) => <article className="min-w-0 rounded-3xl border border-blue-200 bg-blue-50 p-5" key={group.id}><div className="flex flex-wrap items-start justify-between gap-3"><h3 className="break-words text-lg font-semibold">{group.members.map((member) => member.name).join(" + ")}</h3><span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#11518b]">{LEAD_GROUP_STATUS_LABELS[group.status]}</span></div><p className="mt-2 text-sm font-semibold text-[#334155]">{group.members.length} personas</p>{group.propertyTitle && <p className="mt-3 text-sm">Propiedad: <span className="font-semibold">{group.propertyTitle}</span></p>}<ul className="mt-3 grid gap-1 text-xs text-[#6b7280]">{group.members.map((member) => <li key={member.id}>{member.name} · {LEAD_GROUP_ROLE_LABELS[member.role]}{member.isPrimaryContact ? " · principal" : ""}</li>)}</ul><p className="mt-3 text-sm">Interacciones: <span className="font-semibold">{group.interactionCount}</span></p><Link className="btn-primary mt-4 w-full text-center" href={`/admin/lead-groups/${group.id}`}>Abrir Caso 360</Link></article>)}</div>
-            </section>
-          )}
-
-          {directory.relatedDataUnavailable && (
-            <div className="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-900" role="status">
-              Algunas identidades no tienen una fuente relacionada disponible. La identidad canónica se conserva en el directorio.
-            </div>
-          )}
-
-          <section className="surface-card overflow-hidden">
-            <div className="flex flex-col gap-2 border-b border-[#eeeeee] px-5 py-5 sm:flex-row sm:items-end sm:justify-between">
-              <div><p className="eyebrow">{showIndividuals ? "Directorio canónico" : "Sin caso compartido"}</p><h2 className="mt-2 text-2xl font-semibold text-[#000000]">{showIndividuals ? "Personas e interacciones" : "Personas individuales"}</h2></div>
-              <p className="text-sm text-[#4d4d4d]">{directory.total} resultado{directory.total === 1 ? "" : "s"} · {CANONICAL_LEAD_PAGE_SIZE} por página</p>
-            </div>
-
-            {directory.items.length === 0 ? (
-              <div className="px-6 py-14 text-center">
-                <h3 className="text-lg font-semibold text-[#000000]">{directory.summary.total === 0 ? "No hay leads canónicos todavía" : "No hay leads que coincidan con los filtros"}</h3>
-                <p className="mt-2 text-sm text-[#4d4d4d]">{hasFilters ? "Ajusta o limpia los filtros para ampliar los resultados." : "Las personas aparecerán aquí cuando exista una identidad canónica persistida."}</p>
-              </div>
-            ) : (
-              <>
-                <div className="divide-y divide-[#eeeeee] md:hidden">
-                  {directory.items.map((lead) => (
-                    <article className="p-5" key={lead.id}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h3 className="break-words font-semibold text-[#000000]">{lead.name}</h3>
-                          <p className="mt-1 text-xs text-[#6b7280]">Creado {formatDate(lead.createdAt)}</p>
-                        </div>
-                        <span className="shrink-0 rounded-full bg-[#11518b]/10 px-3 py-1 text-xs font-semibold text-[#11518b]">{STATUS_LABELS[lead.status] ?? lead.status}</span>
-                      </div>
-                      <div className="mt-4 grid gap-3 text-sm text-[#334155]">
-                        {lead.email && <p className="break-all">{lead.email}</p>}
-                        {lead.phone && <p>{lead.phone}</p>}
-                        <div>
-                          <p className="font-semibold text-[#000000]">{lead.primarySource ? CANONICAL_LEAD_SOURCE_LABELS[lead.primarySource] : "Sin fuente vinculada"}</p>
-                          <p className="mt-1 text-xs text-[#6b7280]">{lead.sourceCount} interacción{lead.sourceCount === 1 ? "" : "es"}</p>
-                          <div className="mt-2 flex flex-wrap gap-1.5">{lead.sourceTypes.map((source) => <SourceBadge key={source} source={source} />)}</div>
-                        </div>
-                        {(lead.contextTitle || lead.contextDetail) && <div><p className="font-medium text-[#000000]">{lead.contextTitle ?? lead.contextDetail}</p>{lead.contextTitle && lead.contextDetail && <p className="mt-1 text-xs text-[#6b7280]">{lead.contextDetail}</p>}</div>}
-                        <p className="text-xs text-[#6b7280]">Última actividad {formatDate(lead.lastActivityAt)}</p>
-                      </div>
-                      <Link aria-label={`Ver detalles de ${lead.name}`} className="btn-secondary mt-4 w-full px-4 py-2.5 text-sm" href={`/admin/leads/${lead.id}`}>Ver detalles</Link>
-                    </article>
-                  ))}
-                </div>
-                <div className="hidden overflow-x-auto md:block">
-                  <table className="min-w-full">
-                  <thead className="bg-[#fafafa]"><tr className="text-left">
-                    <th className="px-5 py-4 text-sm font-semibold">Persona</th><th className="px-5 py-4 text-sm font-semibold">Contacto</th><th className="px-5 py-4 text-sm font-semibold">Fuentes</th><th className="px-5 py-4 text-sm font-semibold">Contexto</th><th className="px-5 py-4 text-sm font-semibold">Actividad</th><th className="px-5 py-4 text-sm font-semibold">Estado</th><th className="px-5 py-4 text-sm font-semibold">Acción</th>
-                  </tr></thead>
-                  <tbody>
-                    {directory.items.map((lead) => (
-                      <tr className="border-t border-[#eeeeee] align-top" key={lead.id}>
-                        <td className="px-5 py-5"><p className="font-semibold text-[#000000]">{lead.name}</p><p className="mt-1 text-xs text-[#6b7280]">Creado {formatDate(lead.createdAt)}</p></td>
-                        <td className="px-5 py-5 text-sm text-[#334155]"><p>{lead.email ?? "Sin correo"}</p><p className="mt-1">{lead.phone ?? "Sin teléfono"}</p></td>
-                        <td className="px-5 py-5"><p className="text-sm font-semibold text-[#000000]">{lead.primarySource ? CANONICAL_LEAD_SOURCE_LABELS[lead.primarySource] : "Sin fuente vinculada"}</p><p className="mt-1 text-xs text-[#6b7280]">{lead.sourceCount} interacción{lead.sourceCount === 1 ? "" : "es"}</p><div className="mt-2 flex max-w-md flex-wrap gap-1.5">{lead.sourceTypes.map((source) => <SourceBadge key={source} source={source} />)}</div></td>
-                        <td className="px-5 py-5 text-sm text-[#334155]"><p className="font-medium text-[#000000]">{lead.contextTitle ?? lead.contextDetail ?? "Sin contexto"}</p>{lead.contextTitle && lead.contextDetail && <p className="mt-1 text-xs text-[#6b7280]">{lead.contextDetail}</p>}</td>
-                        <td className="px-5 py-5 text-sm text-[#334155]">{formatDate(lead.lastActivityAt)}</td>
-                        <td className="px-5 py-5"><span className="inline-flex rounded-full bg-[#11518b]/10 px-3 py-1 text-xs font-semibold text-[#11518b]">{STATUS_LABELS[lead.status] ?? lead.status}</span></td>
-                        <td className="px-5 py-5"><Link aria-label={`Ver detalles de ${lead.name}`} className="inline-flex rounded-lg border border-[#11518b] px-3 py-2 text-sm font-semibold text-[#11518b] hover:bg-[#11518b] hover:text-white" href={`/admin/leads/${lead.id}`}>Ver detalles</Link></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-            <Pagination filters={filters} showIndividuals={showIndividuals} totalPages={directory.totalPages} />
-          </section>
-        </>
-      )}
+        <section className="surface-card p-5">
+          <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label="Vista del directorio">
+            <Link className={!filters.showIndividuals ? "btn-primary" : "btn-secondary"} href={directoryHref({ ...filters, showIndividuals: false }, 1)}>Vista operativa</Link>
+            <Link className={filters.showIndividuals ? "btn-primary" : "btn-secondary"} href={directoryHref({ ...filters, showIndividuals: true }, 1)}>Mostrar personas individuales</Link>
+          </div>
+          <form action="/admin/leads" className="grid gap-4 lg:grid-cols-6" method="get">
+            {filters.showIndividuals && <input name="individuals" type="hidden" value="1" />}
+            <label className="lg:col-span-2"><span className="mb-2 block text-sm font-semibold">Buscar</span><input className="input-field w-full" defaultValue={filters.search} maxLength={320} name="q" placeholder="Nombre, correo, teléfono o propiedad" type="search" /></label>
+            <label><span className="mb-2 block text-sm font-semibold">Estado</span><select className="input-field w-full" defaultValue={filters.status} name="status"><option value="all">Todos</option>{Object.entries(UNIFIED_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label><span className="mb-2 block text-sm font-semibold">Fuente</span><select className="input-field w-full" defaultValue={filters.source} name="source"><option value="all">Todas</option>{Object.entries(CANONICAL_LEAD_SOURCE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label><span className="mb-2 block text-sm font-semibold">Propiedad</span><select className="input-field w-full" defaultValue={filters.propertyId ?? ""} name="property"><option value="">Todas</option>{reference.properties.map((property) => <option key={property.id} value={property.id}>{property.title}</option>)}</select></label>
+            <label><span className="mb-2 block text-sm font-semibold">Fecha</span><select className="input-field w-full" defaultValue={filters.range} name="range"><option value="all">Todo</option><option value="today">Hoy</option><option value="7d">7 días</option><option value="30d">30 días</option></select></label>
+            <label><span className="mb-2 block text-sm font-semibold">Orden</span><select className="input-field w-full" defaultValue={filters.sort} name="sort"><option value="recent">Más recientes</option><option value="oldest">Más antiguos</option><option value="name_asc">Nombre A–Z</option><option value="name_desc">Nombre Z–A</option></select></label>
+            <div className="flex flex-wrap items-end gap-3 lg:col-span-5"><button className="btn-primary" type="submit">Aplicar filtros</button><Link className="btn-secondary" href="/admin/leads">Limpiar</Link></div>
+          </form>
+        </section>
+        <section className="surface-card overflow-hidden">
+          <header className="border-b border-[#eeeeee] px-5 py-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="eyebrow">{filters.showIndividuals ? "Vista de identidades" : "Vista operativa"}</p><h2 className="mt-2 text-2xl font-semibold">{filters.showIndividuals ? "Personas individuales" : "Personas y casos compartidos"}</h2></div><p className="text-sm text-[#4d4d4d]">{directory.total} resultado{directory.total === 1 ? "" : "s"} · {CANONICAL_LEAD_PAGE_SIZE} por página</p></div></header>
+          {directory.items.length ? <div className="grid min-w-0 gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">{directory.items.map((item) => <LeadResultCard item={item} key={`${item.entityType}-${item.id}`} />)}</div> : <div className="px-6 py-14 text-center"><UsersRound className="mx-auto h-8 w-8 text-[#11518b]" /><h3 className="mt-3 text-lg font-semibold">{hasFilters ? "No hay resultados" : "No hay leads todavía"}</h3><p className="mt-2 text-sm text-[#4d4d4d]">{hasFilters ? "Ajusta o limpia los filtros." : "Las personas y casos aparecerán aquí."}</p></div>}
+          {directory.totalPages > 1 && <nav aria-label="Paginación de leads" className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eeeeee] px-5 py-4"><p className="text-sm">Página {filters.page} de {directory.totalPages}</p><div className="flex gap-2">{filters.page > 1 && <Link className="btn-secondary" href={directoryHref(filters, filters.page - 1)}>Anterior</Link>}{filters.page < directory.totalPages && <Link className="btn-secondary" href={directoryHref(filters, filters.page + 1)}>Siguiente</Link>}</div></nav>}
+        </section>
+      </>}
     </AdminPageShell>
   );
 }

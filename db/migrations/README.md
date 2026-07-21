@@ -83,3 +83,7 @@ primary contact, its own status and follow-up, shared notes, and an audit event
 stream. Membership removal is soft and auditable. Every lead and property
 foreign key uses `ON DELETE RESTRICT`, and the guarded rollback refuses to
 discard any case data.
+
+Migration `0012` extends the existing Client Case audit-event constraint for
+explicit member-role and primary-contact changes. It adds no new storage model
+and does not rewrite existing cases or canonical leads.

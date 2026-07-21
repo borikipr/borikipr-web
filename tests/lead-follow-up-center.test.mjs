@@ -180,4 +180,12 @@ test("an active case replaces its members with one aggregated follow-up item", a
   assert.equal(groupRows[0].name, "Caso sintético");
   assert.equal(groupRows[0].bucket, "today");
   assert.deepEqual([...groupRows[0].member_names].sort(), ["Today Synthetic", "Upcoming Synthetic"]);
+
+  const individualView = normalizeLeadFollowUpFilters({ individuals: "1" });
+  const visiblePeople = await run(buildLeadFollowUpListQuery(individualView, referenceNow));
+  assert.equal(visiblePeople.some((row) => row.id === ids.today), true);
+  assert.equal(visiblePeople.some((row) => row.id === ids.upcoming), true);
+  assert.equal((await run(buildLeadGroupFollowUpQuery(individualView, referenceNow))).length, 0);
+  assert.match(pageSource, /Vista operativa/);
+  assert.match(pageSource, /Mostrar personas individuales/);
 });

@@ -80,6 +80,8 @@ export type LeadGroupDetail = {
   nextFollowUpAt: string | null;
   createdAt: string;
   updatedAt: string;
+  archivedAt: string | null;
+  knownMembers: Array<{ leadId: string; name: string }>;
   members: Array<{
     leadId: string;
     role: LeadGroupRole;
@@ -212,11 +214,7 @@ export async function getLeadGroupDirectory(filters: LeadGroupFilters): Promise<
     )
     SELECT g.id::text, g.title, g.status, g.primary_property_id::text AS property_id,
       p.titulo AS property_title, p.slug AS property_slug,
-      CASE
-        WHEN g.next_follow_up_at IS NULL THEN ma.earliest_follow_up_at
-        WHEN ma.earliest_follow_up_at IS NULL THEN g.next_follow_up_at
-        ELSE LEAST(g.next_follow_up_at, ma.earliest_follow_up_at)
-      END AS next_follow_up_at,
+      g.next_follow_up_at,
       g.created_at,
       GREATEST(g.updated_at, COALESCE(ma.latest_member_at, g.updated_at),
         COALESCE(gs.latest_source_at, g.updated_at), COALESCE(ga.latest_group_at, g.updated_at)) AS last_activity_at,
@@ -283,25 +281,13 @@ export async function getLeadGroupsForLead(leadId: string): Promise<LeadGroupMem
 }
 
 export async function getLeadGroupDetail(groupId: string): Promise<LeadGroupDetail | null> {
-  const [groupRows, memberRows, noteRows, eventRows] = await Promise.all([
+  const [groupRows, memberRows, knownMemberRows, noteRows, eventRows] = await Promise.all([
     sql.unsafe<Array<Record<string, unknown>>>(
-      `SELECT g.id::text, g.title, g.status,
-        CASE
-          WHEN g.next_follow_up_at IS NULL THEN member_follow_up.earliest_follow_up_at
-          WHEN member_follow_up.earliest_follow_up_at IS NULL THEN g.next_follow_up_at
-          ELSE LEAST(g.next_follow_up_at, member_follow_up.earliest_follow_up_at)
-        END AS next_follow_up_at,
-        g.created_at, g.updated_at,
+      `SELECT g.id::text, g.title, g.status, g.next_follow_up_at,
+        g.created_at, g.updated_at, g.archived_at,
         p.id::text AS property_id, p.titulo AS property_title, p.slug AS property_slug
       FROM public.lead_groups g
       LEFT JOIN public.propiedades p ON p.id=g.primary_property_id
-      LEFT JOIN LATERAL (
-        SELECT min(l.next_follow_up_at) AS earliest_follow_up_at
-        FROM public.lead_group_members gm
-        INNER JOIN public.leads l ON l.id=gm.lead_id
-        WHERE gm.group_id=g.id AND gm.removed_at IS NULL
-          AND l.merged_into_lead_id IS NULL
-      ) member_follow_up ON true
       WHERE g.id=$1::uuid`, [groupId]
     ),
     sql.unsafe<Array<Record<string, unknown>>>(
@@ -309,6 +295,10 @@ export async function getLeadGroupDetail(groupId: string): Promise<LeadGroupDeta
       FROM public.lead_group_members gm INNER JOIN public.leads l ON l.id=gm.lead_id
       WHERE gm.group_id=$1::uuid AND gm.removed_at IS NULL AND l.merged_into_lead_id IS NULL
       ORDER BY gm.is_primary_contact DESC, lower(l.name), l.id`, [groupId]
+    ),
+    sql.unsafe<Array<{ lead_id: string; name: string }>>(
+      `SELECT gm.lead_id::text, l.name FROM public.lead_group_members gm
+       INNER JOIN public.leads l ON l.id=gm.lead_id WHERE gm.group_id=$1::uuid`, [groupId]
     ),
     sql.unsafe<Array<Record<string, unknown>>>(
       `SELECT id::text, body, author_username, created_at FROM public.lead_group_notes
@@ -335,6 +325,8 @@ export async function getLeadGroupDetail(groupId: string): Promise<LeadGroupDeta
     } : null,
     nextFollowUpAt: optionalIso(group.next_follow_up_at as string | Date | null),
     createdAt: iso(group.created_at as string | Date), updatedAt: iso(group.updated_at as string | Date),
+    archivedAt: optionalIso(group.archived_at as string | Date | null),
+    knownMembers: knownMemberRows.map((row) => ({ leadId: row.lead_id, name: row.name })),
     members,
     sharedNotes: noteRows.map((row) => ({
       id: String(row.id), body: String(row.body), authorUsername: String(row.author_username),
@@ -357,6 +349,14 @@ export async function searchLeadGroupCandidates(groupId: string, query: string) 
       AND NOT EXISTS (
         SELECT 1 FROM public.lead_group_members gm
         WHERE gm.group_id=$1::uuid AND gm.lead_id=l.id AND gm.removed_at IS NULL
+      )
+      AND EXISTS (
+        SELECT 1 FROM public.lead_group_members current_member
+        JOIN public.lead_relationships relationship ON (
+          (relationship.lead_id=current_member.lead_id AND relationship.related_lead_id=l.id)
+          OR (relationship.related_lead_id=current_member.lead_id AND relationship.lead_id=l.id)
+        )
+        WHERE current_member.group_id=$1::uuid AND current_member.removed_at IS NULL
       )
       AND (l.name ILIKE $2 OR COALESCE(l.email_original, '') ILIKE $2 OR COALESCE(l.phone_original, '') ILIKE $2)
     ORDER BY lower(l.name), l.id LIMIT 20`,

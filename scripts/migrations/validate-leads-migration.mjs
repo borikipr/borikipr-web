@@ -32,6 +32,8 @@ const [
   leadMergeRollbackSql,
   leadGroupsMigrationSql,
   leadGroupsRollbackSql,
+  leadGroupEventsMigrationSql,
+  leadGroupEventsRollbackSql,
 ] =
   await Promise.all([
     readMigration("0001_create_leads.sql"),
@@ -55,6 +57,8 @@ const [
     readMigration("0010_add_transactional_lead_merges.rollback.sql"),
     readMigration("0011_create_lead_groups.sql"),
     readMigration("0011_create_lead_groups.rollback.sql"),
+    readMigration("0012_extend_lead_group_events.sql"),
+    readMigration("0012_extend_lead_group_events.rollback.sql"),
   ]);
 
 const typedTables = [
@@ -972,6 +976,7 @@ try {
     );
   `);
   await lead360Db.exec(leadGroupsMigrationSql);
+  await lead360Db.exec(leadGroupEventsMigrationSql);
 
   const tables = await lead360Db.query(`
     SELECT table_name
@@ -1140,6 +1145,13 @@ try {
     )
   `);
   assert.equal(groupIndexes.rows.length, 9);
+  const groupEventCheck = await lead360Db.query(`
+    SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint
+    WHERE conrelid='public.lead_group_events'::regclass
+      AND conname='lead_group_events_type_check'
+  `);
+  assert.match(groupEventCheck.rows[0].definition, /member_role_changed/);
+  assert.match(groupEventCheck.rows[0].definition, /primary_contact_changed/);
   const groupId = (await lead360Db.query(`
     INSERT INTO public.lead_groups (title, created_by)
     VALUES ('Caso sintético', 'migration-test') RETURNING id::text
@@ -1157,6 +1169,7 @@ try {
   await lead360Db.exec("ROLLBACK");
   await lead360Db.query("DELETE FROM public.lead_group_members WHERE group_id=$1::uuid", [groupId]);
   await lead360Db.query("DELETE FROM public.lead_groups WHERE id=$1::uuid", [groupId]);
+  await lead360Db.exec(leadGroupEventsRollbackSql);
   await lead360Db.exec(leadGroupsRollbackSql);
   const groupRollbackState = await lead360Db.query(`
     SELECT to_regclass('public.lead_groups') IS NULL AS groups_removed,
@@ -1205,7 +1218,7 @@ try {
   `);
   assert.deepEqual(rolledBack.rows, [{ notes_removed: true, follow_up_removed: true }]);
 
-  console.log("Validated the ordered migration chain through 0011.");
+  console.log("Validated the ordered migration chain through 0012.");
   console.log("Verified Lead 360, merge lineage, Client Case tables, indexes, RESTRICT keys, and guarded rollbacks.");
 } finally {
   await lead360Db.close();
