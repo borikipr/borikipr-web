@@ -67,3 +67,7 @@ unique identity constraint. Its rollback refuses to discard any Lead 360 data.
 Migration `0008` extends only the existing Lead 360 management-event check with
 the `contacted` event used by the Follow-up Center. It adds no table or column.
 Its rollback refuses to run after a contacted event has been recorded.
+
+Migration `0009` extends that same check with `document_accessed` for secure
+Lead 360 document auditing. It adds no table or column and stores no object key,
+signed URL, file contents, or customer contact data. Its rollback is guarded.

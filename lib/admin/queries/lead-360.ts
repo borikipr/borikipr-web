@@ -3,6 +3,7 @@ import {
   CANONICAL_LEAD_SOURCE_LABELS,
   type CanonicalLeadSourceType,
 } from "@/lib/admin/queries/canonical-leads";
+import { getLead360Documents, type Lead360Document } from "@/lib/admin/queries/lead-documents";
 
 export const LEAD_STATUS_LABELS = {
   new: "Nuevo",
@@ -98,6 +99,7 @@ export type Lead360Detail = {
   notes: Lead360Note[];
   managementEvents: Lead360ManagementEvent[];
   emailSummary: Lead360EmailSummary[];
+  documents: Lead360Document[];
 };
 
 export function buildLead360IdentityQuery(leadId: string): SqlQuery {
@@ -158,12 +160,7 @@ export function buildLead360InteractionsQuery(leadId: string): SqlQuery {
           'financial_institution', pbp.financial_institution,
           'closing_funds', pbp.closing_funds,
           'solar_contract_acceptance', pbp.solar_contract_acceptance,
-          'comments', pbp.comments,
-          'document_type', pbp.document_type,
-          'document_original_name', pbp.document_original_name,
-          'document_content_type', pbp.document_content_type,
-          'document_size_bytes', pbp.document_size_bytes,
-          'document_status', pbp.document_status
+          'comments', pbp.comments
         ))
       FROM public.property_buyer_profiles pbp
       INNER JOIN public.propiedades p ON p.id = pbp.property_id
@@ -227,9 +224,7 @@ export function buildLead360InteractionsQuery(leadId: string): SqlQuery {
           'visit_availability', cp.disponibilidad_visita,
           'showing_at', cp.showing_at,
           'showing_event_key', cp.showing_event_key,
-          'prequalification_document_status', cp.carta_precalificacion_status,
-          'proof_of_funds_status', cp.evidencia_fondos_status,
-          'custom_answers', cp.respuestas_personalizadas
+          'custom_answers', cp.respuestas_personalizadas - 'document_metadata'
         ))
       FROM public.consultas_propiedad cp
       INNER JOIN public.propiedades p ON p.id = cp.propiedad_id
@@ -377,7 +372,7 @@ export async function getLead360Detail(leadId: string): Promise<Lead360Detail | 
     last_updated_at: string | Date;
   };
 
-  const [identityRows, interactionRows, sharedRows, relationshipRows, noteRows, eventRows, emailRows] =
+  const [identityRows, interactionRows, sharedRows, relationshipRows, noteRows, eventRows, emailRows, documents] =
     await Promise.all([
       execute<IdentityRow>(buildLead360IdentityQuery(leadId)),
       execute<InteractionRow>(buildLead360InteractionsQuery(leadId)),
@@ -386,6 +381,7 @@ export async function getLead360Detail(leadId: string): Promise<Lead360Detail | 
       execute<NoteRow>(buildLead360NotesQuery(leadId)),
       execute<EventRow>(buildLead360ManagementEventsQuery(leadId)),
       execute<EmailRow>(buildLead360EmailSummaryQuery(leadId)),
+      getLead360Documents(leadId),
     ]);
 
   const row = identityRows[0];
@@ -449,5 +445,6 @@ export async function getLead360Detail(leadId: string): Promise<Lead360Detail | 
       lastSentAt: optionalIso(email.last_sent_at),
       lastUpdatedAt: iso(email.last_updated_at),
     })),
+    documents,
   };
 }

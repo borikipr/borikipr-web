@@ -26,6 +26,8 @@ const [
   lead360RollbackSql,
   contactedEventMigrationSql,
   contactedEventRollbackSql,
+  documentAccessMigrationSql,
+  documentAccessRollbackSql,
 ] =
   await Promise.all([
     readMigration("0001_create_leads.sql"),
@@ -43,6 +45,8 @@ const [
     readMigration("0007_create_lead_360.rollback.sql"),
     readMigration("0008_add_lead_contacted_event.sql"),
     readMigration("0008_add_lead_contacted_event.rollback.sql"),
+    readMigration("0009_add_document_accessed_event.sql"),
+    readMigration("0009_add_document_accessed_event.rollback.sql"),
   ]);
 
 const typedTables = [
@@ -952,6 +956,7 @@ try {
   await lead360Db.exec(leadsMigrationSql);
   await lead360Db.exec(lead360MigrationSql);
   await lead360Db.exec(contactedEventMigrationSql);
+  await lead360Db.exec(documentAccessMigrationSql);
 
   const tables = await lead360Db.query(`
     SELECT table_name
@@ -1038,6 +1043,17 @@ try {
       AND conname = 'lead_management_events_type_check'
   `);
   assert.match(eventCheck.rows[0].definition, /contacted/);
+  assert.match(eventCheck.rows[0].definition, /document_accessed/);
+
+  await lead360Db.exec(documentAccessRollbackSql);
+  const rolledBackDocumentCheck = await lead360Db.query(`
+    SELECT pg_get_constraintdef(oid) AS definition
+    FROM pg_constraint
+    WHERE conrelid = 'public.lead_management_events'::regclass
+      AND conname = 'lead_management_events_type_check'
+  `);
+  assert.doesNotMatch(rolledBackDocumentCheck.rows[0].definition, /document_accessed/);
+  assert.match(rolledBackDocumentCheck.rows[0].definition, /contacted/);
 
   await lead360Db.exec(contactedEventRollbackSql);
   const rolledBackEventCheck = await lead360Db.query(`
@@ -1059,8 +1075,8 @@ try {
   `);
   assert.deepEqual(rolledBack.rows, [{ notes_removed: true, follow_up_removed: true }]);
 
-  console.log("Validated the ordered migration chain through 0008.");
-  console.log("Verified Lead 360 tables, Follow-up Center event type, indexes, and guarded rollbacks.");
+  console.log("Validated the ordered migration chain through 0009.");
+  console.log("Verified Lead 360 tables, follow-up and document access event types, indexes, and guarded rollbacks.");
 } finally {
   await lead360Db.close();
 }

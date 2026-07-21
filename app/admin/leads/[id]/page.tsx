@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { notFound, redirect } from "next/navigation";
 import {
   AlertTriangle,
+  ArchiveX,
   CalendarClock,
   CheckCircle2,
   Clock3,
@@ -14,7 +15,13 @@ import {
   UsersRound,
 } from "lucide-react";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
+import { DocumentAccessButtons } from "@/components/admin/DocumentAccessButtons";
 import { getAdminSessionUser } from "@/lib/admin/auth";
+import {
+  LEAD_DOCUMENT_STATE_LABELS,
+  formatDocumentSize,
+  type Lead360Document,
+} from "@/lib/admin/queries/lead-documents";
 import {
   LEAD_RELATIONSHIP_LABELS,
   LEAD_STATUS_LABELS,
@@ -160,7 +167,65 @@ function ManagementEventSummary({ event }: { event: Lead360ManagementEvent }) {
   }
   if (event.type === "duplicate_reviewed") return <>Revisión de identidad: mantener separadas</>;
   if (event.type === "contacted") return <>Contacto registrado</>;
+  if (event.type === "document_accessed") {
+    const category = String(event.data.documentCategory ?? "");
+    const label = category === "prequalification_letter"
+      ? "Documento de precalificación"
+      : category === "proof_of_funds"
+        ? "Evidencia de fondos"
+        : "Documento";
+    return <>{label} consultado</>;
+  }
   return <>Actividad administrativa</>;
+}
+
+function DocumentCard({ document, leadId }: { document: Lead360Document; leadId: string }) {
+  const baseHref = `/admin/leads/${leadId}/documents/${document.source}/${document.submissionId}`;
+  const stateTone = {
+    available: "bg-emerald-50 text-emerald-800 border-emerald-200",
+    pending: "bg-amber-50 text-amber-900 border-amber-200",
+    failed: "bg-red-50 text-red-800 border-red-200",
+    metadata_incomplete: "bg-slate-100 text-slate-700 border-slate-200",
+  }[document.state];
+
+  return (
+    <article className="rounded-3xl border border-[#e8e8e8] p-4 md:p-5">
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="break-words font-semibold text-[#000000]">{document.categoryLabel}</h3>
+            <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${stateTone}`}>
+              {LEAD_DOCUMENT_STATE_LABELS[document.state]}
+            </span>
+          </div>
+          <p className="mt-2 break-all text-sm font-medium text-[#334155]">
+            {document.originalName ?? "Nombre de archivo no disponible"}
+          </p>
+          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+            <div><dt className="text-xs font-semibold uppercase tracking-[0.1em] text-[#6b7280]">Fuente</dt><dd className="mt-1">{document.sourceLabel}</dd></div>
+            <div><dt className="text-xs font-semibold uppercase tracking-[0.1em] text-[#6b7280]">Propiedad</dt><dd className="mt-1 break-words">{document.propertyTitle ?? "Sin propiedad asociada"}</dd></div>
+            <div><dt className="text-xs font-semibold uppercase tracking-[0.1em] text-[#6b7280]">Enviado</dt><dd className="mt-1">{formatDate(document.submittedAt)}</dd></div>
+            <div><dt className="text-xs font-semibold uppercase tracking-[0.1em] text-[#6b7280]">Formato y tamaño</dt><dd className="mt-1 break-words">{document.contentType ?? "Tipo no disponible"} · {formatDocumentSize(document.sizeBytes)}</dd></div>
+          </dl>
+        </div>
+        <div className="min-w-0 lg:max-w-64">
+          {document.state === "available" ? (
+            <DocumentAccessButtons
+              downloadHref={`${baseHref}?mode=download`}
+              previewHref={document.previewable ? `${baseHref}?mode=preview` : null}
+            />
+          ) : (
+            <p className="flex items-start gap-2 rounded-2xl bg-[#f8f8f8] p-3 text-sm text-[#4d4d4d]">
+              <ArchiveX aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+              {document.state === "pending" && "La carga todavía no ha terminado."}
+              {document.state === "failed" && "El archivo no quedó disponible en R2."}
+              {document.state === "metadata_incomplete" && "No hay datos suficientes para ofrecer acceso seguro."}
+            </p>
+          )}
+        </div>
+      </div>
+    </article>
+  );
 }
 
 type TimelineItem =
@@ -297,6 +362,16 @@ export default async function AdminLead360Page({
                 </article>
               ))}
             </div>
+          </section>
+
+          <section className="surface-card p-5 md:p-6" aria-labelledby="documents-heading">
+            <div className="flex items-center gap-3"><FileText aria-hidden="true" className="h-5 w-5 text-[#11518b]" /><h2 className="text-xl font-semibold" id="documents-heading">Documentos</h2></div>
+            <p className="mt-2 text-sm leading-6 text-[#4d4d4d]">Archivos privados vinculados a las interacciones de esta persona. Los enlaces se validan nuevamente al abrirlos.</p>
+            {detail.documents.length > 0 ? (
+              <div className="mt-5 grid gap-4">{detail.documents.map((document) => <DocumentCard document={document} key={`${document.source}-${document.submissionId}`} leadId={detail.identity.id} />)}</div>
+            ) : (
+              <div className="mt-5 rounded-2xl bg-[#f8f8f8] p-4 text-sm text-[#6b7280]">No hay documentos persistidos para este lead.</div>
+            )}
           </section>
 
           <section className="surface-card p-5 md:p-6" aria-labelledby="timeline-heading">
