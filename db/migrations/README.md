@@ -71,3 +71,8 @@ Its rollback refuses to run after a contacted event has been recorded.
 Migration `0009` extends that same check with `document_accessed` for secure
 Lead 360 document auditing. It adds no table or column and stores no object key,
 signed URL, file contents, or customer contact data. Its rollback is guarded.
+
+Migration `0010` adds immutable merge lineage metadata and a dedicated
+`lead_merge_events` audit table. Lead merges retain both canonical rows, move
+supported dependencies transactionally, and mark the secondary row as merged
+without deleting it. The rollback is blocked once merge history exists.

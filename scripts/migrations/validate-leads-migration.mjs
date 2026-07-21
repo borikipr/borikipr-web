@@ -28,6 +28,8 @@ const [
   contactedEventRollbackSql,
   documentAccessMigrationSql,
   documentAccessRollbackSql,
+  leadMergeMigrationSql,
+  leadMergeRollbackSql,
 ] =
   await Promise.all([
     readMigration("0001_create_leads.sql"),
@@ -47,6 +49,8 @@ const [
     readMigration("0008_add_lead_contacted_event.rollback.sql"),
     readMigration("0009_add_document_accessed_event.sql"),
     readMigration("0009_add_document_accessed_event.rollback.sql"),
+    readMigration("0010_add_transactional_lead_merges.sql"),
+    readMigration("0010_add_transactional_lead_merges.rollback.sql"),
   ]);
 
 const typedTables = [
@@ -957,6 +961,7 @@ try {
   await lead360Db.exec(lead360MigrationSql);
   await lead360Db.exec(contactedEventMigrationSql);
   await lead360Db.exec(documentAccessMigrationSql);
+  await lead360Db.exec(leadMergeMigrationSql);
 
   const tables = await lead360Db.query(`
     SELECT table_name
@@ -1044,6 +1049,50 @@ try {
   `);
   assert.match(eventCheck.rows[0].definition, /contacted/);
   assert.match(eventCheck.rows[0].definition, /document_accessed/);
+  assert.match(eventCheck.rows[0].definition, /leads_merged/);
+
+  const mergeColumns = await lead360Db.query(`
+    SELECT column_name, data_type, is_nullable
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'leads'
+      AND column_name IN ('merged_at', 'merged_by')
+    ORDER BY column_name
+  `);
+  assert.deepEqual(mergeColumns.rows, [
+    { column_name: "merged_at", data_type: "timestamp with time zone", is_nullable: "YES" },
+    { column_name: "merged_by", data_type: "text", is_nullable: "YES" },
+  ]);
+  const mergeTable = await lead360Db.query(`
+    SELECT to_regclass('public.lead_merge_events')::text AS table_name
+  `);
+  assert.deepEqual(mergeTable.rows, [{ table_name: "lead_merge_events" }]);
+  const mergeIndexes = await lead360Db.query(`
+    SELECT indexname FROM pg_indexes
+    WHERE schemaname = 'public' AND indexname IN (
+      'lead_merge_events_operation_key_uidx',
+      'lead_merge_events_secondary_lead_id_uidx',
+      'lead_merge_events_primary_created_at_idx'
+    ) ORDER BY indexname
+  `);
+  assert.equal(mergeIndexes.rows.length, 3);
+  const reviewCheck = await lead360Db.query(`
+    SELECT pg_get_constraintdef(oid) AS definition
+    FROM pg_constraint
+    WHERE conrelid = 'public.lead_duplicate_reviews'::regclass
+      AND conname = 'lead_duplicate_reviews_decision_check'
+  `);
+  assert.match(reviewCheck.rows[0].definition, /merged/);
+
+  await lead360Db.exec(leadMergeRollbackSql);
+  const mergeRollbackState = await lead360Db.query(`
+    SELECT to_regclass('public.lead_merge_events') IS NULL AS table_removed,
+      NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'leads'
+          AND column_name IN ('merged_at', 'merged_by')
+      ) AS columns_removed
+  `);
+  assert.deepEqual(mergeRollbackState.rows, [{ table_removed: true, columns_removed: true }]);
 
   await lead360Db.exec(documentAccessRollbackSql);
   const rolledBackDocumentCheck = await lead360Db.query(`
@@ -1075,8 +1124,8 @@ try {
   `);
   assert.deepEqual(rolledBack.rows, [{ notes_removed: true, follow_up_removed: true }]);
 
-  console.log("Validated the ordered migration chain through 0009.");
-  console.log("Verified Lead 360 tables, follow-up and document access event types, indexes, and guarded rollbacks.");
+  console.log("Validated the ordered migration chain through 0010.");
+  console.log("Verified Lead 360 tables, merge lineage, event types, indexes, and guarded rollbacks.");
 } finally {
   await lead360Db.close();
 }

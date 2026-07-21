@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import type { TransactionSql } from "postgres";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import { setLeadFollowUp } from "@/lib/admin/lead-follow-up-mutations";
+import { mergeLeadsInTransaction } from "@/lib/admin/lead-merge";
 import { sql } from "@/lib/db";
 import {
   LEAD_RELATIONSHIP_LABELS,
@@ -219,6 +220,44 @@ export async function createLeadRelationshipAction(formData: FormData) {
   revalidatePath(`/admin/leads/${leadId}`);
   revalidatePath(`/admin/leads/${relatedLeadId}`);
   redirect(leadHref(leadId, "Relación guardada"));
+}
+
+export async function mergeLeadsAction(formData: FormData) {
+  const username = await requireAdmin();
+  const leftLeadId = requiredUuid(formData, "left_lead_id");
+  const rightLeadId = requiredUuid(formData, "right_lead_id");
+  const primaryLeadId = requiredUuid(formData, "primary_lead_id");
+  const secondaryLeadId = requiredUuid(formData, "secondary_lead_id");
+  const operationKey = requiredUuid(formData, "operation_key");
+  const acknowledged = String(formData.get("review_acknowledged") ?? "") === "on";
+  const confirmation = String(formData.get("confirmation") ?? "").trim();
+
+  const requestedPair = new Set([leftLeadId, rightLeadId]);
+  if (
+    requestedPair.size !== 2
+    || !requestedPair.has(primaryLeadId)
+    || !requestedPair.has(secondaryLeadId)
+    || primaryLeadId === secondaryLeadId
+  ) {
+    throw new Error("La selección de identidad principal no es válida.");
+  }
+  if (!acknowledged || confirmation !== "FUSIONAR") {
+    throw new Error("Confirma la revisión y escribe FUSIONAR para continuar.");
+  }
+
+  const result = await sql.begin((transaction) => mergeLeadsInTransaction(transaction, {
+    primaryLeadId,
+    secondaryLeadId,
+    actorUsername: username,
+    operationKey,
+  }));
+
+  revalidatePath(`/admin/leads/${leftLeadId}`);
+  revalidatePath(`/admin/leads/${rightLeadId}`);
+  revalidatePath(`/admin/leads/${result.survivingLeadId}`);
+  revalidatePath("/admin/leads");
+  revalidatePath("/admin/leads/seguimientos");
+  redirect(`/admin/leads/${result.survivingLeadId}?merged=1`);
 }
 
 export async function keepLeadsSeparateAction(formData: FormData) {

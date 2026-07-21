@@ -23,6 +23,11 @@ import {
   type Lead360Document,
 } from "@/lib/admin/queries/lead-documents";
 import {
+  getLeadMergeHistory,
+  getMergedLeadDestination,
+  searchRelatedPeople,
+} from "@/lib/admin/queries/lead-identity-management";
+import {
   LEAD_RELATIONSHIP_LABELS,
   LEAD_STATUS_LABELS,
   getLead360Detail,
@@ -176,6 +181,7 @@ function ManagementEventSummary({ event }: { event: Lead360ManagementEvent }) {
         : "Documento";
     return <>{label} consultado</>;
   }
+  if (event.type === "leads_merged") return <>Identidades fusionadas de forma segura</>;
   return <>Actividad administrativa</>;
 }
 
@@ -238,18 +244,36 @@ export default async function AdminLead360Page({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string | string[] }>;
+  searchParams: Promise<{
+    ok?: string | string[];
+    related_q?: string | string[];
+    merged?: string | string[];
+    merged_alias?: string | string[];
+  }>;
 }) {
   const username = await getAdminSessionUser();
   if (!username) redirect("/admin/login");
 
   const { id } = await params;
   if (!UUID_PATTERN.test(id)) notFound();
-  const detail = await getLead360Detail(id);
+  const query = await searchParams;
+  const destination = await getMergedLeadDestination(id);
+  if (destination?.original_merged && destination.survivor_id !== id) {
+    redirect(`/admin/leads/${destination.survivor_id}?merged_alias=1`);
+  }
+  const rawRelatedSearch = Array.isArray(query.related_q) ? query.related_q[0] : query.related_q;
+  const relatedSearch = (rawRelatedSearch ?? "").trim().slice(0, 200);
+  const [detail, relatedPeople, mergeHistory] = await Promise.all([
+    getLead360Detail(id),
+    searchRelatedPeople(id, relatedSearch),
+    getLeadMergeHistory(id),
+  ]);
   if (!detail) notFound();
 
-  const query = await searchParams;
-  const successMessage = Array.isArray(query.ok) ? query.ok[0] : query.ok;
+  const okMessage = Array.isArray(query.ok) ? query.ok[0] : query.ok;
+  const mergeSucceeded = (Array.isArray(query.merged) ? query.merged[0] : query.merged) === "1";
+  const mergedAlias = (Array.isArray(query.merged_alias) ? query.merged_alias[0] : query.merged_alias) === "1";
+  const successMessage = mergeSucceeded ? "Los registros se fusionaron correctamente." : okMessage;
   const timeline: TimelineItem[] = [
     ...detail.interactions.map((interaction) => ({
       id: `interaction-${interaction.id}`,
@@ -292,6 +316,13 @@ export default async function AdminLead360Page({
         </div>
       )}
 
+      {mergedAlias && (
+        <div className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm font-semibold text-blue-950" role="status">
+          <CheckCircle2 aria-hidden="true" className="h-5 w-5 shrink-0" />
+          Este registro fue fusionado con {detail.identity.name}.
+        </div>
+      )}
+
       {detail.sharedContacts.length > 0 && (
         <section className="rounded-[2rem] border border-amber-300 bg-amber-50 p-5 md:p-6" aria-labelledby="shared-contact-heading">
           <div className="flex gap-4">
@@ -317,7 +348,7 @@ export default async function AdminLead360Page({
                           <input name="operation_key" type="hidden" value={randomUUID()} />
                           <button className="btn-secondary px-4 py-2 text-xs" type="submit">Mantener separadas</button>
                         </form>
-                        <button className="cursor-not-allowed rounded-full border border-[#d9d9d9] bg-[#f8f8f8] px-4 py-2 text-xs font-semibold text-[#6b7280]" disabled title="La fusión segura se implementará en una fase posterior" type="button">Confirmar que es la misma persona</button>
+                        <Link className="rounded-full border border-[#11518b] px-4 py-2 text-xs font-semibold text-[#11518b] hover:bg-[#11518b] hover:text-white" href={`/admin/leads/${detail.identity.id}/fusionar/${contact.id}`}>Confirmar que es la misma persona</Link>
                       </div>
                     </div>
                   </div>
@@ -373,6 +404,28 @@ export default async function AdminLead360Page({
               <div className="mt-5 rounded-2xl bg-[#f8f8f8] p-4 text-sm text-[#6b7280]">No hay documentos persistidos para este lead.</div>
             )}
           </section>
+
+          {mergeHistory.length > 0 && (
+            <section className="surface-card p-5 md:p-6" aria-labelledby="merge-history-heading">
+              <div className="flex items-center gap-3"><UsersRound aria-hidden="true" className="h-5 w-5 text-[#11518b]" /><h2 className="text-xl font-semibold" id="merge-history-heading">Historial de fusiones</h2></div>
+              <p className="mt-2 text-sm leading-6 text-[#4d4d4d]">Las identidades secundarias permanecen archivadas y sus valores anteriores se conservan para auditoría.</p>
+              <div className="mt-5 grid min-w-0 gap-4">
+                {mergeHistory.map((merge) => (
+                  <article className="min-w-0 rounded-2xl border border-[#e8e8e8] p-4" key={merge.id}>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <h3 className="break-words font-semibold">{merge.secondaryName}</h3>
+                        {merge.secondaryEmail && <p className="mt-1 break-all text-sm text-[#4d4d4d]">{merge.secondaryEmail}</p>}
+                        {merge.secondaryPhone && <p className="mt-1 break-words text-sm text-[#4d4d4d]">{merge.secondaryPhone}</p>}
+                      </div>
+                      <time className="shrink-0 text-xs text-[#6b7280]" dateTime={merge.createdAt}>{formatDate(merge.createdAt)}</time>
+                    </div>
+                    <p className="mt-3 text-xs text-[#6b7280]">{Object.values(merge.affectedCounts).reduce((total, count) => total + count, 0)} referencias auditadas durante la fusión.</p>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="surface-card p-5 md:p-6" aria-labelledby="timeline-heading">
             <div className="flex items-center gap-3"><Clock3 aria-hidden="true" className="h-5 w-5 text-[#11518b]" /><h2 className="text-xl font-semibold" id="timeline-heading">Cronología</h2></div>
@@ -441,21 +494,44 @@ export default async function AdminLead360Page({
               </ul>
             ) : <p className="mt-3 text-sm text-[#6b7280]">Todavía no hay relaciones confirmadas.</p>}
 
-            {detail.sharedContacts.length > 0 && (
-              <form action={createLeadRelationshipAction} className="mt-5 border-t border-[#eeeeee] pt-5">
-                <input name="lead_id" type="hidden" value={detail.identity.id} />
-                <input name="operation_key" type="hidden" value={randomUUID()} />
-                <label className="text-sm font-semibold" htmlFor="related_lead_id">Persona</label>
-                <select className="input-field mt-2 w-full" id="related_lead_id" name="related_lead_id" required>
-                  {detail.sharedContacts.map((contact) => <option key={contact.id} value={contact.id}>{contact.name}</option>)}
-                </select>
-                <label className="mt-4 block text-sm font-semibold" htmlFor="relationship_type">Relación</label>
-                <select className="input-field mt-2 w-full" id="relationship_type" name="relationship_type" required>
-                  {Object.entries(LEAD_RELATIONSHIP_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-                <button className="btn-secondary mt-3 w-full" type="submit">Relacionar personas</button>
+            <div className="mt-5 border-t border-[#eeeeee] pt-5">
+              <form action={`/admin/leads/${detail.identity.id}`} method="get">
+                <label className="text-sm font-semibold" htmlFor="related_q">Buscar cualquier persona</label>
+                <p className="mt-1 text-xs leading-5 text-[#6b7280]">Busca por nombre, correo o teléfono. No es necesario que compartan datos de contacto.</p>
+                <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row">
+                  <input className="input-field min-w-0 flex-1" defaultValue={relatedSearch} id="related_q" minLength={2} name="related_q" placeholder="Nombre, correo o teléfono" required />
+                  <button className="btn-secondary shrink-0" type="submit">Buscar</button>
+                </div>
               </form>
-            )}
+
+              {relatedSearch.length >= 2 && relatedPeople.length === 0 && (
+                <p className="mt-4 rounded-2xl bg-[#f8f8f8] p-4 text-sm text-[#6b7280]">No se encontraron personas activas con esa búsqueda.</p>
+              )}
+
+              {relatedPeople.length > 0 && (
+                <div className="mt-4 grid min-w-0 gap-3">
+                  {relatedPeople.map((person) => (
+                    <form action={createLeadRelationshipAction} className="min-w-0 rounded-2xl border border-[#e8e8e8] p-4" key={person.id}>
+                      <input name="lead_id" type="hidden" value={detail.identity.id} />
+                      <input name="related_lead_id" type="hidden" value={person.id} />
+                      <input name="operation_key" type="hidden" value={randomUUID()} />
+                      <Link className="break-words font-semibold text-[#11518b] hover:underline" href={`/admin/leads/${person.id}`}>{person.name}</Link>
+                      <p className="mt-1 break-all text-xs text-[#6b7280]">{person.email ?? "Sin correo"}</p>
+                      <p className="mt-1 break-words text-xs text-[#6b7280]">{person.phone ?? "Sin teléfono"}</p>
+                      {(person.emailExactMatch || person.phoneExactMatch) && <p className="mt-2 text-xs font-semibold text-amber-800">Contacto normalizado coincidente</p>}
+                      <label className="mt-3 block text-sm font-semibold" htmlFor={`relationship-${person.id}`}>Relación</label>
+                      <select className="input-field mt-2 w-full" id={`relationship-${person.id}`} name="relationship_type" required>
+                        {Object.entries(LEAD_RELATIONSHIP_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
+                      <div className="mt-3 grid min-w-0 gap-2">
+                        <button className="btn-secondary w-full" type="submit">Relacionar personas</button>
+                        <Link className="inline-flex min-h-11 items-center justify-center rounded-full px-4 text-center text-sm font-semibold text-[#11518b] hover:bg-[#11518b]/5" href={`/admin/leads/${detail.identity.id}/fusionar/${person.id}`}>Revisar posible duplicado</Link>
+                      </div>
+                    </form>
+                  ))}
+                </div>
+              )}
+            </div>
           </section>
 
           <section className="surface-card p-5" aria-labelledby="email-heading">

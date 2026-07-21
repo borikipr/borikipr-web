@@ -280,13 +280,13 @@ test("notes, management timeline, and email queue status are independently query
   assert.deepEqual(email.map((row) => [row.status, row.count]), [["sent", 1]]);
 });
 
-test("admin UI enables details, requires auth, and keeps merging deferred", () => {
+test("admin UI enables details, requires auth, and routes duplicate review safely", () => {
   assert.match(directorySource, /href=\{`\/admin\/leads\/\$\{lead\.id\}`\}/);
   assert.match(pageSource, /if \(!username\) redirect\("\/admin\/login"\)/);
   assert.match(pageSource, /Contacto compartido con otra persona/);
   assert.match(pageSource, /Mantener separadas/);
   assert.match(pageSource, /Confirmar que es la misma persona/);
-  assert.match(pageSource, /disabled title="La fusión segura/);
+  assert.match(pageSource, /\/fusionar\/\$\{contact\.id\}/);
   assert.match(actionsSource, /await sql\.begin/);
   assert.doesNotMatch(actionsSource, /console\.(log|error)/);
 });
