@@ -6,6 +6,10 @@ import type { TransactionSql } from "postgres";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import { setLeadFollowUp } from "@/lib/admin/lead-follow-up-mutations";
 import { mergeLeadsInTransaction } from "@/lib/admin/lead-merge";
+import {
+  createLeadRelationshipInTransaction,
+  updateLeadRelationshipInTransaction,
+} from "@/lib/admin/lead-relationship";
 import { sql } from "@/lib/db";
 import {
   LEAD_RELATIONSHIP_LABELS,
@@ -182,50 +186,74 @@ export async function createLeadRelationshipAction(formData: FormData) {
   const operationKey = requiredUuid(formData, "operation_key");
   const relationshipType = String(formData.get("relationship_type") ?? "") as LeadRelationshipType;
   if (!(relationshipType in LEAD_RELATIONSHIP_LABELS) || leadId === relatedLeadId) {
-    throw new Error("Relación inválida.");
+    redirect(`/admin/leads/${leadId}?relationship_result=invalid`);
   }
 
-  await sql.begin(async (transaction) => {
-    if (await operationAlreadyApplied(transaction, operationKey)) return;
-    await assertActiveLead(transaction, leadId);
-    await assertActiveLead(transaction, relatedLeadId);
-    const rows = await transaction.unsafe<{ id: string }[]>(
-      `INSERT INTO public.lead_relationships (
-        lead_id, related_lead_id, relationship_type, created_by
-      ) VALUES (
-        $1::uuid, $2::uuid, $3, $4
-      )
-      ON CONFLICT (
-        LEAST(lead_id, related_lead_id),
-        GREATEST(lead_id, related_lead_id)
-      ) DO UPDATE SET
-        relationship_type = EXCLUDED.relationship_type,
-        created_by = EXCLUDED.created_by,
-        updated_at = now()
-      RETURNING id::text`,
-      [leadId, relatedLeadId, relationshipType, username]
-    );
-    await transaction.unsafe(
-      `INSERT INTO public.lead_management_events (
-        lead_id, event_type, event_data, actor_username, idempotency_key
-      ) VALUES (
-        $1::uuid,
-        'relationship_created',
-        jsonb_build_object(
-          'relationshipId', $2,
-          'relatedLeadId', $3,
-          'relationshipType', $4
-        ),
-        $5,
-        $6::uuid
-      )`,
-      [leadId, rows[0].id, relatedLeadId, relationshipType, username, operationKey]
-    );
-  });
+  let result;
+  try {
+    result = await sql.begin((transaction) => createLeadRelationshipInTransaction(transaction, {
+      leadId,
+      relatedLeadId,
+      relationshipType,
+      actorUsername: username,
+      operationKey,
+    }));
+  } catch (error) {
+    if (isConfirmedDatabaseRollback(error)) {
+      redirect(`/admin/leads/${leadId}?relationship_result=rolled_back`);
+    }
+    redirect(`/admin/leads/${leadId}?relationship_result=unconfirmed`);
+  }
 
-  revalidatePath(`/admin/leads/${leadId}`);
-  revalidatePath(`/admin/leads/${relatedLeadId}`);
+  if (result.status === "existing") {
+    redirect(`/admin/leads/${leadId}?relationship_result=exists`);
+  }
+
+  try {
+    revalidatePath(`/admin/leads/${leadId}`);
+    revalidatePath(`/admin/leads/${relatedLeadId}`);
+  } catch {
+    redirect(`/admin/leads/${leadId}?relationship_result=unconfirmed`);
+  }
   redirect(leadHref(leadId, "Relación guardada"));
+}
+
+export async function updateLeadRelationshipAction(formData: FormData) {
+  const username = await requireAdmin();
+  const leadId = requiredUuid(formData, "lead_id");
+  const relatedLeadId = requiredUuid(formData, "related_lead_id");
+  const relationshipId = requiredUuid(formData, "relationship_id");
+  const operationKey = requiredUuid(formData, "operation_key");
+  const relationshipType = String(formData.get("relationship_type") ?? "") as LeadRelationshipType;
+  if (!(relationshipType in LEAD_RELATIONSHIP_LABELS) || leadId === relatedLeadId) {
+    redirect(`/admin/leads/${leadId}?relationship_result=invalid`);
+  }
+
+  let result;
+  try {
+    result = await sql.begin((transaction) => updateLeadRelationshipInTransaction(transaction, {
+      leadId,
+      relatedLeadId,
+      relationshipId,
+      relationshipType,
+      actorUsername: username,
+      operationKey,
+    }));
+  } catch (error) {
+    if (isConfirmedDatabaseRollback(error)) {
+      redirect(`/admin/leads/${leadId}?relationship_result=rolled_back`);
+    }
+    redirect(`/admin/leads/${leadId}?relationship_result=unconfirmed`);
+  }
+
+  try {
+    revalidatePath(`/admin/leads/${leadId}`);
+    revalidatePath(`/admin/leads/${result.relatedLeadId}`);
+  } catch {
+    redirect(`/admin/leads/${leadId}?relationship_result=unconfirmed`);
+  }
+  const message = result.status === "updated" ? "Relación actualizada" : "La relación ya tenía ese tipo";
+  redirect(leadHref(leadId, message));
 }
 
 export async function mergeLeadsAction(formData: FormData) {

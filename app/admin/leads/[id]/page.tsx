@@ -39,6 +39,7 @@ import {
   addLeadNoteAction,
   createLeadRelationshipAction,
   keepLeadsSeparateAction,
+  updateLeadRelationshipAction,
   updateLeadFollowUpAction,
   updateLeadStatusAction,
 } from "./actions";
@@ -168,7 +169,8 @@ function ManagementEventSummary({ event }: { event: Lead360ManagementEvent }) {
   if (event.type === "note_added") return <>Nota interna añadida</>;
   if (event.type === "relationship_created") {
     const type = String(event.data.relationshipType);
-    return <>Relación registrada: {LEAD_RELATIONSHIP_LABELS[type as keyof typeof LEAD_RELATIONSHIP_LABELS] ?? type}</>;
+    const action = event.data.action === "updated" ? "actualizada" : "registrada";
+    return <>Relación {action}: {LEAD_RELATIONSHIP_LABELS[type as keyof typeof LEAD_RELATIONSHIP_LABELS] ?? type}</>;
   }
   if (event.type === "duplicate_reviewed") return <>Revisión de identidad: mantener separadas</>;
   if (event.type === "contacted") return <>Contacto registrado</>;
@@ -250,6 +252,7 @@ export default async function AdminLead360Page({
     merged?: string | string[];
     merged_alias?: string | string[];
     merge_result?: string | string[];
+    relationship_result?: string | string[];
   }>;
 }) {
   const username = await getAdminSessionUser();
@@ -275,7 +278,11 @@ export default async function AdminLead360Page({
   const mergeSucceeded = (Array.isArray(query.merged) ? query.merged[0] : query.merged) === "1";
   const mergedAlias = (Array.isArray(query.merged_alias) ? query.merged_alias[0] : query.merged_alias) === "1";
   const mergeResult = Array.isArray(query.merge_result) ? query.merge_result[0] : query.merge_result;
+  const relationshipResult = Array.isArray(query.relationship_result) ? query.relationship_result[0] : query.relationship_result;
   const successMessage = mergeSucceeded ? "Los registros se fusionaron correctamente." : okMessage;
+  const relationshipsByLeadId = new Map(
+    detail.relationships.map((relationship) => [relationship.relatedLeadId, relationship])
+  );
   const timeline: TimelineItem[] = [
     ...detail.interactions.map((interaction) => ({
       id: `interaction-${interaction.id}`,
@@ -332,6 +339,34 @@ export default async function AdminLead360Page({
         </div>
       )}
 
+      {relationshipResult === "rolled_back" && (
+        <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold leading-6 text-red-900" role="alert">
+          <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
+          No se pudo crear la relación. Ningún cambio fue aplicado.
+        </div>
+      )}
+
+      {relationshipResult === "exists" && (
+        <div className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm font-semibold text-blue-950" role="status">
+          <CheckCircle2 aria-hidden="true" className="h-5 w-5 shrink-0" />
+          Estas personas ya están relacionadas.
+        </div>
+      )}
+
+      {relationshipResult === "unconfirmed" && (
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm font-semibold leading-6 text-amber-950" role="alert">
+          <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
+          No se pudo confirmar el resultado automáticamente. Revisa ambas personas antes de intentarlo nuevamente.
+        </div>
+      )}
+
+      {relationshipResult === "invalid" && (
+        <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold leading-6 text-red-900" role="alert">
+          <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
+          No se pudo procesar la relación solicitada.
+        </div>
+      )}
+
       {detail.sharedContacts.length > 0 && (
         <section className="rounded-[2rem] border border-amber-300 bg-amber-50 p-5 md:p-6" aria-labelledby="shared-contact-heading">
           <div className="flex gap-4">
@@ -340,7 +375,9 @@ export default async function AdminLead360Page({
               <h2 className="text-lg font-semibold text-amber-950" id="shared-contact-heading">Contacto compartido con otra persona</h2>
               <p className="mt-1 text-sm leading-6 text-amber-900">Coincidir en correo o teléfono no confirma una identidad duplicada. Revisa el contexto antes de relacionar o mantener separadas las personas.</p>
               <div className="mt-4 grid gap-3">
-                {detail.sharedContacts.map((contact) => (
+                {detail.sharedContacts.map((contact) => {
+                  const confirmedRelationship = relationshipsByLeadId.get(contact.id);
+                  return (
                   <div className="rounded-2xl border border-amber-200 bg-white p-4" key={contact.id}>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
@@ -348,20 +385,31 @@ export default async function AdminLead360Page({
                         <p className="mt-1 text-xs text-[#6b7280]">
                           Coincide por {[contact.emailMatch && "correo", contact.phoneMatch && "teléfono"].filter(Boolean).join(" y ")}.
                         </p>
+                        {confirmedRelationship ? (
+                          <p className="mt-2 inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+                            Relación confirmada: {LEAD_RELATIONSHIP_LABELS[confirmedRelationship.type]}
+                          </p>
+                        ) : (
+                          <p className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">Posible duplicado sin resolver</p>
+                        )}
                         {contact.reviewDecision === "keep_separate" && <p className="mt-2 text-xs font-semibold text-emerald-700">Revisión registrada: mantener separadas</p>}
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <form action={keepLeadsSeparateAction}>
-                          <input name="lead_id" type="hidden" value={detail.identity.id} />
-                          <input name="compared_lead_id" type="hidden" value={contact.id} />
-                          <input name="operation_key" type="hidden" value={randomUUID()} />
-                          <button className="btn-secondary px-4 py-2 text-xs" type="submit">Mantener separadas</button>
-                        </form>
-                        <Link className="rounded-full border border-[#11518b] px-4 py-2 text-xs font-semibold text-[#11518b] hover:bg-[#11518b] hover:text-white" href={`/admin/leads/${detail.identity.id}/fusionar/${contact.id}`}>Confirmar que es la misma persona</Link>
+                        {!confirmedRelationship && (
+                          <form action={keepLeadsSeparateAction}>
+                            <input name="lead_id" type="hidden" value={detail.identity.id} />
+                            <input name="compared_lead_id" type="hidden" value={contact.id} />
+                            <input name="operation_key" type="hidden" value={randomUUID()} />
+                            <button className="btn-secondary px-4 py-2 text-xs" type="submit">Mantener separadas</button>
+                          </form>
+                        )}
+                        <Link className="rounded-full border border-[#11518b] px-4 py-2 text-xs font-semibold text-[#11518b] hover:bg-[#11518b] hover:text-white" href={`/admin/leads/${detail.identity.id}/fusionar/${contact.id}`}>{confirmedRelationship ? "Revisar identidad por separado" : "Confirmar que es la misma persona"}</Link>
                       </div>
                     </div>
+                    {confirmedRelationship && <p className="mt-3 text-xs leading-5 text-[#6b7280]">La relación confirmada y una identidad duplicada son conceptos distintos. No se recomienda fusionar únicamente por compartir contacto.</p>}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -495,9 +543,21 @@ export default async function AdminLead360Page({
             {detail.relationships.length > 0 ? (
               <ul className="mt-4 grid gap-3">
                 {detail.relationships.map((relationship) => (
-                  <li className="rounded-2xl bg-[#f8f8f8] p-4" key={relationship.id}>
-                    <Link className="font-semibold text-[#11518b] hover:underline" href={`/admin/leads/${relationship.relatedLeadId}`}>{relationship.relatedLeadName}</Link>
-                    <p className="mt-1 text-xs text-[#6b7280]">{LEAD_RELATIONSHIP_LABELS[relationship.type]}</p>
+                  <li className="min-w-0 rounded-2xl border border-emerald-200 bg-emerald-50 p-4" key={relationship.id}>
+                    <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">Relación confirmada</span>
+                    <Link className="mt-3 block break-words font-semibold text-[#11518b] hover:underline" href={`/admin/leads/${relationship.relatedLeadId}`}>{relationship.relatedLeadName}</Link>
+                    <p className="mt-1 text-sm font-semibold text-emerald-900">{LEAD_RELATIONSHIP_LABELS[relationship.type]}</p>
+                    <form action={updateLeadRelationshipAction} className="mt-4 border-t border-emerald-200 pt-4">
+                      <input name="lead_id" type="hidden" value={detail.identity.id} />
+                      <input name="related_lead_id" type="hidden" value={relationship.relatedLeadId} />
+                      <input name="relationship_id" type="hidden" value={relationship.id} />
+                      <input name="operation_key" type="hidden" value={randomUUID()} />
+                      <label className="text-xs font-semibold text-emerald-950" htmlFor={`existing-relationship-${relationship.id}`}>Cambiar tipo explícitamente</label>
+                      <select className="input-field mt-2 w-full" defaultValue={relationship.type} id={`existing-relationship-${relationship.id}`} name="relationship_type" required>
+                        {Object.entries(LEAD_RELATIONSHIP_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
+                      <button className="btn-secondary mt-3 w-full" type="submit">Actualizar relación</button>
+                    </form>
                   </li>
                 ))}
               </ul>
