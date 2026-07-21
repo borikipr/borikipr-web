@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     const fromEmail =
       process.env.CONTACT_FROM_EMAIL?.trim() || "onboarding@resend.dev";
 
-    const html = `
+    const html = `<meta charset="utf-8" />
       <div style="font-family: Arial, Helvetica, sans-serif; color: #111; line-height: 1.6; padding: 24px;">
         <div style="max-width: 640px; margin: 0 auto; border: 1px solid #e8e8e8; border-radius: 18px; overflow: hidden;">
           <div style="background: #11518b; padding: 20px 24px;">
@@ -77,9 +77,9 @@ export async function POST(req: Request) {
             <p style="margin: 0 0 12px;"><strong>Nombre:</strong> ${escapeHtml(nombre)}</p>
             <p style="margin: 0 0 12px;"><strong>Email:</strong> <a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></p>
             <p style="margin: 0 0 12px;"><strong>Teléfono:</strong> ${escapeHtml(telefono)}</p>
-            <p style="margin: 0 0 12px;"><strong>Tipo de propiedad:</strong> ${escapeHtml(tipoPropiedad || "No especificado")}</p>
-            <p style="margin: 0 0 12px;"><strong>Ubicación (Municipio):</strong> ${escapeHtml(ubicacion || "No especificado")}</p>
-            <p style="margin: 0 0 20px;"><strong>Interés principal:</strong> ${escapeHtml(razonVenta || "No especificado")}</p>
+            ${tipoPropiedad ? `<p style="margin: 0 0 12px;"><strong>Tipo de propiedad:</strong> ${escapeHtml(tipoPropiedad)}</p>` : ""}
+            ${ubicacion ? `<p style="margin: 0 0 12px;"><strong>Ubicación (Municipio):</strong> ${escapeHtml(ubicacion)}</p>` : ""}
+            ${razonVenta ? `<p style="margin: 0 0 20px;"><strong>Interés principal:</strong> ${escapeHtml(razonVenta)}</p>` : ""}
 
             ${comentarios ? `
             <div style="border-top: 1px solid #ececec; padding-top: 20px;">

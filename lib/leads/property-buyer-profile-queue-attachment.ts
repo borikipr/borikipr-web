@@ -2,10 +2,10 @@ export const PROPERTY_BUYER_PROFILE_SUBMISSION_TYPE =
   "property_buyer_profile";
 
 export type BuyerProfileAttachmentMetadata = {
-  objectKey: string;
-  originalName: string;
-  contentType: string;
-  sizeBytes: number;
+  objectKey: string | null;
+  originalName: string | null;
+  contentType: string | null;
+  sizeBytes: number | null;
   status: string;
 };
 
@@ -16,11 +16,13 @@ export type EmailAttachment = {
 };
 
 export async function resolvePropertyBuyerProfileAttachment({
+  emailType,
   relatedSubmissionType,
   relatedSubmissionId,
   loadMetadata,
   download,
 }: {
+  emailType?: string;
   relatedSubmissionType: string | null;
   relatedSubmissionId: string | null;
   loadMetadata: (
@@ -31,6 +33,10 @@ export async function resolvePropertyBuyerProfileAttachment({
   ) => Promise<{ bytes: Uint8Array; contentType: string | null }>;
 }): Promise<EmailAttachment[] | undefined> {
   if (
+    (emailType && ![
+      "property_buyer_profile_internal",
+      "property_buyer_profile_internal_correction",
+    ].includes(emailType)) ||
     relatedSubmissionType !== PROPERTY_BUYER_PROFILE_SUBMISSION_TYPE ||
     !relatedSubmissionId
   ) {
@@ -38,7 +44,17 @@ export async function resolvePropertyBuyerProfileAttachment({
   }
 
   const metadata = await loadMetadata(relatedSubmissionId);
-  if (!metadata || metadata.status !== "uploaded") return undefined;
+  if (!metadata) throw new Error("Buyer Profile submission metadata is missing.");
+  if (metadata.status === "none") return undefined;
+  if (
+    metadata.status !== "uploaded" ||
+    !metadata.objectKey ||
+    !metadata.originalName ||
+    !metadata.contentType ||
+    metadata.sizeBytes === null
+  ) {
+    throw new Error("Buyer Profile attachment metadata is invalid or incomplete.");
+  }
 
   const object = await download(metadata.objectKey);
   if (object.bytes.byteLength !== metadata.sizeBytes) {
@@ -49,7 +65,7 @@ export async function resolvePropertyBuyerProfileAttachment({
     {
       filename: sanitizeAttachmentFilename(metadata.originalName),
       content: Buffer.from(object.bytes).toString("base64"),
-      contentType: metadata.contentType || object.contentType || "application/octet-stream",
+      contentType: metadata.contentType,
     },
   ];
 }

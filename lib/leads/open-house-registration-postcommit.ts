@@ -6,9 +6,21 @@ import type {
 } from "./open-house-registration";
 import type { PersistedOpenHouseRegistration } from "./postgres-open-house-registration";
 
-type QueueState = "queued" | "pending" | "failed_to_queue" | "not_applicable";
+type QueueState =
+  | "sent"
+  | "queued"
+  | "already_sent"
+  | "already_queued"
+  | "pending"
+  | "permanent_failure"
+  | "failed_to_queue"
+  | "not_applicable";
 type IssueHandler = (
-  stage: "document_upload" | "document_status_update" | "internal_queue" | "customer_queue",
+  stage:
+    | "document_upload"
+    | "document_status_update"
+    | "permanent_send"
+    | "queue_insert",
   error: unknown
 ) => void;
 
@@ -18,7 +30,8 @@ export async function processOpenHousePostCommit({
   isR2Configured,
   upload,
   updateDocumentStatus,
-  enqueue,
+  deliver,
+  resolveInternalAttachments,
   internalRecipient,
   onError,
 }: {
@@ -32,7 +45,7 @@ export async function processOpenHousePostCommit({
     key: string,
     status: "uploaded" | "failed"
   ) => Promise<boolean>;
-  enqueue: (input: {
+  deliver: (input: {
     recipient: string;
     subject: string;
     html: string;
@@ -42,20 +55,19 @@ export async function processOpenHousePostCommit({
     relatedSubmissionType: string;
     relatedSubmissionId: string;
     dedupeKey: string;
-  }) => Promise<unknown>;
+    attachments?: Array<{ filename: string; content: string; contentType: string }>;
+    resolveAttachments?: () => Promise<Array<{
+      filename: string;
+      content: string;
+      contentType: string;
+    }> | undefined>;
+  }, onError: IssueHandler) => Promise<QueueState>;
+  resolveInternalAttachments: () => Promise<
+    Array<{ filename: string; content: string; contentType: string }> | undefined
+  >;
   internalRecipient: string;
   onError: IssueHandler;
 }) {
-  if (!registration.created) {
-    return {
-      documentState: currentDocumentStatus(registration),
-      notificationState: {
-        internal: "pending" as QueueState,
-        customer: registration.email ? ("pending" as QueueState) : ("not_applicable" as QueueState),
-      },
-    };
-  }
-
   const documentState = await settleDocument({
     registration,
     input,
@@ -69,11 +81,12 @@ export async function processOpenHousePostCommit({
     registration,
     documentState,
     recipient: internalRecipient,
-    enqueue,
+    deliver,
+    resolveInternalAttachments,
     onError,
   });
   const customer = registration.email
-    ? await queueCustomer({ registration, enqueue, onError })
+    ? await queueCustomer({ registration, deliver, onError })
     : "not_applicable";
 
   return {
@@ -146,18 +159,26 @@ async function queueInternal({
   registration,
   documentState,
   recipient,
-  enqueue,
+  deliver,
+  resolveInternalAttachments,
   onError,
 }: {
   registration: PersistedOpenHouseRegistration;
   documentState: OpenHouseDocumentStatus;
   recipient: string;
-  enqueue: Parameters<typeof processOpenHousePostCommit>[0]["enqueue"];
+  deliver: Parameters<typeof processOpenHousePostCommit>[0]["deliver"];
+  resolveInternalAttachments: Parameters<typeof processOpenHousePostCommit>[0]["resolveInternalAttachments"];
   onError: IssueHandler;
 }): Promise<QueueState> {
   try {
     const email = buildOpenHouseInternalEmail({ registration, documentStatus: documentState });
-    await enqueue({
+    if (
+      (registration.prequalificationKey || registration.proofOfFundsKey) &&
+      documentState !== "uploaded"
+    ) {
+      throw new Error("Open House document is not durably available for email delivery.");
+    }
+    return await deliver({
       recipient,
       subject: email.subject,
       html: email.html,
@@ -167,22 +188,22 @@ async function queueInternal({
       relatedSubmissionType: "open_house_registration",
       relatedSubmissionId: registration.id,
       dedupeKey: `open_house_registration:${registration.id}:internal:v1`,
-    });
-    return "queued";
+      resolveAttachments: resolveInternalAttachments,
+    }, onError);
   } catch (error) {
-    onError("internal_queue", error);
-    return "failed_to_queue";
+    onError("permanent_send", error);
+    return "permanent_failure";
   }
 }
 
-async function queueCustomer({ registration, enqueue, onError }: {
+async function queueCustomer({ registration, deliver, onError }: {
   registration: PersistedOpenHouseRegistration;
-  enqueue: Parameters<typeof processOpenHousePostCommit>[0]["enqueue"];
+  deliver: Parameters<typeof processOpenHousePostCommit>[0]["deliver"];
   onError: IssueHandler;
 }): Promise<QueueState> {
   try {
     const email = buildOpenHouseCustomerEmail(registration);
-    await enqueue({
+    return await deliver({
       recipient: registration.email!,
       subject: email.subject,
       html: email.html,
@@ -192,18 +213,9 @@ async function queueCustomer({ registration, enqueue, onError }: {
       relatedSubmissionType: "open_house_registration",
       relatedSubmissionId: registration.id,
       dedupeKey: `open_house_registration:${registration.id}:customer:v1`,
-    });
-    return "queued";
+    }, onError);
   } catch (error) {
-    onError("customer_queue", error);
-    return "failed_to_queue";
+    onError("permanent_send", error);
+    return "permanent_failure";
   }
-}
-
-function currentDocumentStatus(registration: PersistedOpenHouseRegistration) {
-  return registration.prequalificationKey
-    ? registration.prequalificationStatus
-    : registration.proofOfFundsKey
-      ? registration.proofOfFundsStatus
-      : "none";
 }

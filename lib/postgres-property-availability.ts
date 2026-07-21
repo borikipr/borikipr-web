@@ -1,5 +1,8 @@
 import { sql } from "@/lib/db";
-import { enqueueAvailabilityNotificationsInTransaction } from "@/lib/property-availability-enqueue";
+import {
+  collectAvailabilityRegistrationsInTransaction,
+  deliverAvailabilityNotifications,
+} from "@/lib/property-availability-enqueue";
 
 type PropertyRow = {
   id: string;
@@ -15,7 +18,7 @@ export async function updatePropertyStatusWithAvailabilityQueue({
   propertyId: string;
   newStatus: string;
 }) {
-  return sql.begin(async (transaction) => {
+  const transition = await sql.begin(async (transaction) => {
     const rows = await transaction.unsafe<PropertyRow[]>(
       `SELECT id::text, slug, titulo, estado
          FROM public.propiedades
@@ -34,18 +37,33 @@ export async function updatePropertyStatusWithAvailabilityQueue({
 
     const isAvailabilityTransition =
       property.estado === "coming_soon" && newStatus === "disponible";
-    const queue = isAvailabilityTransition
-      ? await enqueueAvailabilityNotificationsInTransaction(transaction, {
-          id: property.id,
-          slug: property.slug,
-          title: property.titulo,
-        })
+    const registrations = isAvailabilityTransition
+      ? await collectAvailabilityRegistrationsInTransaction(
+          transaction,
+          property.id
+        )
       : null;
 
     return {
       previousStatus: property.estado,
       newStatus,
-      queue,
+      registrations,
+      property: {
+        id: property.id,
+        slug: property.slug,
+        title: property.titulo,
+      },
     };
   });
+  const delivery = transition.registrations
+    ? await deliverAvailabilityNotifications(
+        transition.property,
+        transition.registrations
+      )
+    : null;
+  return {
+    previousStatus: transition.previousStatus,
+    newStatus: transition.newStatus,
+    queue: delivery,
+  };
 }

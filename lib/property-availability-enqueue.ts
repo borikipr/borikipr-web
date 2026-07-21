@@ -16,9 +16,9 @@ type RegistrationRow = {
   email: string;
 };
 
-export async function enqueueAvailabilityNotificationsInTransaction(
+export async function collectAvailabilityRegistrationsInTransaction(
   transaction: postgres.TransactionSql,
-  property: AvailabilityProperty
+  propertyId: string
 ) {
   const rows = await transaction.unsafe<RegistrationRow[]>(
     `SELECT id::text, lead_id::text, name, email
@@ -27,60 +27,94 @@ export async function enqueueAvailabilityNotificationsInTransaction(
         AND notified_at IS NULL
       ORDER BY created_at ASC, id ASC
       FOR UPDATE`,
-    [property.id]
+    [propertyId]
   );
+  return rows.map((row) => ({
+    id: row.id,
+    leadId: row.lead_id,
+    name: row.name,
+    email: row.email,
+  }));
+}
 
-  let queued = 0;
-  let alreadyQueued = 0;
-  let skippedInvalidEmail = 0;
+export async function deliverAvailabilityNotifications(
+  property: AvailabilityProperty,
+  registrations: AvailabilityRegistration[]
+) {
+  const { deliverCanonicalLeadEmail } = await import("@/lib/email-queue");
+  const totals = {
+    eligibleRegistrations: 0,
+    sent: 0,
+    queued: 0,
+    alreadyHandled: 0,
+    permanentFailures: 0,
+    failedToQueue: 0,
+    skippedInvalidEmail: 0,
+  };
 
-  for (const row of rows) {
-    if (!isEligibleAvailabilityEmail(row.email)) {
-      skippedInvalidEmail += 1;
+  for (const registration of registrations) {
+    if (!isEligibleAvailabilityEmail(registration.email)) {
+      totals.skippedInvalidEmail += 1;
       continue;
     }
-
-    const registration: AvailabilityRegistration = {
-      id: row.id,
-      leadId: row.lead_id,
-      name: row.name,
-      email: row.email,
-    };
+    totals.eligibleRegistrations += 1;
     const email = buildPropertyAvailabilityEmail({ property, registration });
-    const inserted = await transaction.unsafe<{ id: string }[]>(
-      `INSERT INTO public.email_queue (
-         recipient, subject, html, email_type, related_property_id,
-         related_lead_id, canonical_lead_id, related_submission_type,
-         related_submission_id, dedupe_key, status, attempts, last_error
-       ) VALUES (
-         $1, $2, $3, $4, $5::uuid, $6::uuid, $7::uuid, $8, $9::uuid,
-         $10, 'pending', 0, NULL
-       )
-       ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL
-       DO NOTHING
-       RETURNING id::text`,
-      [
-        registration.email,
-        email.subject,
-        email.html,
-        PROPERTY_AVAILABILITY_EMAIL_TYPE,
-        property.id,
-        registration.id,
-        registration.leadId,
-        PROPERTY_AVAILABILITY_SUBMISSION_TYPE,
-        registration.id,
-        buildPropertyAvailabilityDedupeKey(property.id, registration.id),
-      ]
+    const state = await deliverCanonicalLeadEmail(
+      {
+        recipient: registration.email,
+        subject: email.subject,
+        html: email.html,
+        emailType: PROPERTY_AVAILABILITY_EMAIL_TYPE,
+        relatedPropertyId: property.id,
+        canonicalLeadId: registration.leadId,
+        relatedSubmissionType: PROPERTY_AVAILABILITY_SUBMISSION_TYPE,
+        relatedSubmissionId: registration.id,
+        dedupeKey: buildPropertyAvailabilityDedupeKey(
+          property.id,
+          registration.id
+        ),
+      },
+      (stage, error) => {
+        console.error("PROPERTY AVAILABILITY EMAIL", {
+          stage,
+          registrationId: registration.id,
+          error: safeError(error),
+        });
+      }
     );
 
-    if (inserted.length > 0) queued += 1;
-    else alreadyQueued += 1;
+    if (state === "sent" || state === "already_sent") {
+      if (state === "sent") totals.sent += 1;
+      else totals.alreadyHandled += 1;
+      await markAvailabilityNotified(registration.id);
+    } else if (state === "queued") totals.queued += 1;
+    else if (state === "already_queued") totals.alreadyHandled += 1;
+    else if (state === "failed_to_queue") totals.failedToQueue += 1;
+    else totals.permanentFailures += 1;
   }
+  return totals;
+}
 
-  return {
-    eligibleRegistrations: rows.length - skippedInvalidEmail,
-    queued,
-    alreadyQueued,
-    skippedInvalidEmail,
-  };
+async function markAvailabilityNotified(registrationId: string) {
+  try {
+    const { sql } = await import("@/lib/db");
+    await sql`
+      UPDATE public.property_priority_registrations
+      SET notified_at = now()
+      WHERE id = ${registrationId}
+        AND notified_at IS NULL
+    `;
+  } catch (error) {
+    console.error("PROPERTY AVAILABILITY NOTIFIED_AT", {
+      registrationId,
+      error: safeError(error),
+    });
+  }
+}
+
+function safeError(error: unknown) {
+  if (error instanceof Error) {
+    return { name: error.name, message: error.message };
+  }
+  return { message: String(error) };
 }

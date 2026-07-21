@@ -44,7 +44,7 @@ export function buildPropertyAvailabilityEmail({
 
   return {
     subject: "La propiedad que te interesó ya está disponible",
-    html: `
+    html: `<meta charset="utf-8" />
       <div style="font-family: Arial, Helvetica, sans-serif; color: #111; line-height: 1.6; padding: 24px;">
         <div style="max-width: 640px; margin: 0 auto; border: 1px solid #e8e8e8; border-radius: 18px; overflow: hidden;">
           <div style="background: #11518b; padding: 20px 24px;">

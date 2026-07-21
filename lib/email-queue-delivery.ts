@@ -9,6 +9,7 @@ export async function deliverClaimedEmail({
   send,
   markSuccess,
   markFailure,
+  classifyFailure,
 }: {
   attempts: number;
   maximumAttempts: number;
@@ -19,12 +20,15 @@ export async function deliverClaimedEmail({
     attempts: number;
     terminal: boolean;
   }) => Promise<void>;
+  classifyFailure: (error: unknown) => "retryable" | "permanent";
 }): Promise<EmailQueueDeliveryOutcome> {
   try {
     await send();
   } catch (error) {
     const nextAttempts = attempts + 1;
-    const terminal = nextAttempts >= maximumAttempts;
+    const terminal =
+      classifyFailure(error) === "permanent" ||
+      nextAttempts >= maximumAttempts;
     await markFailure({ error, attempts: nextAttempts, terminal });
     return {
       status: terminal ? "failed" : "retryable",

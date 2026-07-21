@@ -1,5 +1,6 @@
-import { queueCanonicalLeadEmail } from "@/lib/email-queue";
+import { deliverCanonicalLeadEmail } from "@/lib/email-queue";
 import {
+  downloadPrivateR2Object,
   isPrivateR2Configured,
   uploadFileToR2Key,
 } from "@/lib/r2";
@@ -16,6 +17,7 @@ import {
   queueBuyerProfileInternalNotification,
   settleBuyerProfileDocument,
 } from "./property-buyer-profile-postcommit";
+import { resolvePropertyBuyerProfileAttachment } from "./property-buyer-profile-queue-attachment";
 
 export async function handlePersistedPropertyBuyerProfile(req: Request) {
   const rateLimit = checkRateLimit({
@@ -46,7 +48,19 @@ export async function handlePersistedPropertyBuyerProfile(req: Request) {
       recipient:
         process.env.CONTACT_TO_EMAIL?.trim() ||
         "ericksonrealestatepr@gmail.com",
-      enqueue: queueCanonicalLeadEmail,
+      deliver: deliverCanonicalLeadEmail,
+      resolveAttachments: () => resolvePropertyBuyerProfileAttachment({
+        relatedSubmissionType: "property_buyer_profile",
+        relatedSubmissionId: profile.id,
+        loadMetadata: async () => ({
+          objectKey: profile.documentObjectKey,
+          originalName: profile.documentOriginalName,
+          contentType: profile.documentContentType,
+          sizeBytes: profile.documentSizeBytes,
+          status: documentState,
+        }),
+        download: downloadPrivateR2Object,
+      }),
       onError: (stage, error) => logBuyerProfileIssue(stage, error),
     });
 
@@ -58,7 +72,7 @@ export async function handlePersistedPropertyBuyerProfile(req: Request) {
       notificationState,
       warning:
         !["none", "uploaded"].includes(documentState) ||
-        notificationState === "failed_to_queue",
+        ["failed_to_queue", "permanent_failure"].includes(notificationState),
     });
   } catch (error) {
     if (error instanceof BuyerProfileValidationError) {

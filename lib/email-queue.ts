@@ -3,11 +3,20 @@ import { randomUUID } from "crypto";
 import { sql } from "@/lib/db";
 import { PROPERTY_AVAILABILITY_EMAIL_TYPE } from "@/lib/property-availability-notifications";
 import { deliverClaimedEmail } from "@/lib/email-queue-delivery";
+import {
+  attemptImmediateDelivery,
+  classifyEmailFailure,
+  type ImmediateDeliveryState,
+} from "@/lib/email-delivery";
 import { downloadPrivateR2Object } from "@/lib/r2";
 import {
   resolvePropertyBuyerProfileAttachment,
   type BuyerProfileAttachmentMetadata,
 } from "@/lib/leads/property-buyer-profile-queue-attachment";
+import {
+  resolveOpenHouseInternalAttachment,
+  type OpenHouseAttachmentMetadata,
+} from "@/lib/leads/open-house-registration-queue-attachment";
 
 const MAX_EMAIL_ATTEMPTS = 5;
 const STALE_PROCESSING_TIMEOUT = "15 minutes";
@@ -30,10 +39,24 @@ export type CanonicalLeadQueuedEmailInput = {
   html: string;
   emailType: string;
   relatedPropertyId?: string | null;
-  canonicalLeadId: string;
+  canonicalLeadId: string | null;
   relatedSubmissionType: string;
   relatedSubmissionId: string;
   dedupeKey: string;
+  lastError?: string | null;
+};
+
+export type CanonicalLeadEmailInput = CanonicalLeadQueuedEmailInput & {
+  attachments?: Array<{
+    filename: string;
+    content: string;
+    contentType: string;
+  }>;
+  resolveAttachments?: () => Promise<Array<{
+    filename: string;
+    content: string;
+    contentType: string;
+  }> | undefined>;
 };
 
 type PendingEmailRow = {
@@ -50,32 +73,7 @@ type PendingEmailRow = {
 };
 
 export function isResendLimitError(error: unknown) {
-  const details = error as {
-    name?: unknown;
-    message?: unknown;
-    statusCode?: unknown;
-    status?: unknown;
-    code?: unknown;
-  };
-  const status = Number(details?.statusCode ?? details?.status ?? 0);
-  const text = [
-    details?.name,
-    details?.message,
-    details?.code,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  return (
-    status === 429 ||
-    text.includes("rate limit") ||
-    text.includes("rate_limit") ||
-    text.includes("quota") ||
-    text.includes("daily") ||
-    text.includes("limit exceeded") ||
-    text.includes("too many requests")
-  );
+  return classifyEmailFailure(error) === "retryable";
 }
 
 export function serializeEmailError(error: unknown) {
@@ -141,6 +139,19 @@ export async function queueEmail(input: QueuedEmailInput) {
   `;
 }
 
+export async function recordEmailSent(input: QueuedEmailInput) {
+  await sql`
+    INSERT INTO public.email_queue (
+      recipient, subject, html, email_type, related_property_id,
+      related_lead_id, status, attempts, sent_at, last_error
+    ) VALUES (
+      ${input.recipient}, ${input.subject}, ${input.html}, ${input.emailType},
+      ${input.relatedPropertyId || null}, ${input.relatedLeadId || null},
+      'sent', 0, now(), NULL
+    )
+  `;
+}
+
 export async function queueCanonicalLeadEmail(
   input: CanonicalLeadQueuedEmailInput
 ) {
@@ -172,7 +183,7 @@ export async function queueCanonicalLeadEmail(
       ${input.dedupeKey},
       'pending',
       0,
-      NULL
+      ${input.lastError || null}
     )
     ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL
     DO NOTHING
@@ -180,6 +191,74 @@ export async function queueCanonicalLeadEmail(
   `;
 
   return inserted.length > 0 ? "queued" : "already_queued";
+}
+
+export async function deliverCanonicalLeadEmail(
+  input: CanonicalLeadEmailInput,
+  onError: (stage: "permanent_send" | "queue_insert", error: unknown) => void
+): Promise<ImmediateDeliveryState> {
+  return attemptImmediateDelivery({
+    preflight: async () => {
+      const rows = await sql<{ status: string }[]>`
+        SELECT status
+        FROM public.email_queue
+        WHERE dedupe_key = ${input.dedupeKey}
+        LIMIT 1
+      `;
+      const status = rows[0]?.status;
+      if (status === "sent") return "already_sent";
+      if (status === "pending" || status === "processing") {
+        return "already_queued";
+      }
+      if (status === "failed") return "permanent_failure";
+      return null;
+    },
+    send: async () => {
+      const apiKey = process.env.RESEND_API_KEY?.trim();
+      if (!apiKey) throw new Error("RESEND_API_KEY is not configured.");
+      if (!input.recipient.trim()) throw new Error("Email recipient is missing.");
+      const fromEmail =
+        process.env.CONTACT_FROM_EMAIL?.trim() || "onboarding@resend.dev";
+      const resend = new Resend(apiKey);
+      const result = await resend.emails.send(
+        {
+          from: `Erickson Real Estate <${fromEmail}>`,
+          to: [input.recipient],
+          subject: input.subject,
+          html: input.html,
+          attachments:
+            input.attachments || (await input.resolveAttachments?.()),
+        },
+        { idempotencyKey: input.dedupeKey }
+      );
+      if (result.error) throw result.error;
+      return result.data;
+    },
+    recordSuccess: async () => {
+      await sql`
+        INSERT INTO public.email_queue (
+          recipient, subject, html, email_type, related_property_id,
+          related_lead_id, canonical_lead_id, related_submission_type,
+          related_submission_id, dedupe_key, status, attempts, sent_at,
+          last_error
+        ) VALUES (
+          ${input.recipient}, ${input.subject}, ${input.html},
+          ${input.emailType}, ${input.relatedPropertyId || null}, NULL,
+          ${input.canonicalLeadId}, ${input.relatedSubmissionType},
+          ${input.relatedSubmissionId}, ${input.dedupeKey}, 'sent', 0,
+          now(), NULL
+        )
+        ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL
+        DO NOTHING
+      `;
+    },
+    enqueueRetry: (lastError) =>
+      queueCanonicalLeadEmail({ ...input, lastError }),
+    serializeError: serializeEmailError,
+    onPermanentFailure: (error) => onError("permanent_send", error),
+    onQueueFailure: (error) => onError("queue_insert", error),
+    onRecordFailure: (error) => onError("queue_insert", error),
+  });
 }
 
 export async function processPendingEmailQueue(
@@ -206,12 +285,21 @@ export async function processPendingEmailQueue(
       attempts: row.attempts,
       maximumAttempts: MAX_EMAIL_ATTEMPTS,
       async send() {
-        const attachments = await resolvePropertyBuyerProfileAttachment({
+        const buyerProfileAttachments = await resolvePropertyBuyerProfileAttachment({
+          emailType: row.email_type,
           relatedSubmissionType: row.related_submission_type,
           relatedSubmissionId: row.related_submission_id,
           loadMetadata: loadBuyerProfileAttachmentMetadata,
           download: downloadPrivateR2Object,
         });
+        const openHouseAttachments = await resolveOpenHouseInternalAttachment({
+          emailType: row.email_type,
+          relatedSubmissionType: row.related_submission_type,
+          relatedSubmissionId: row.related_submission_id,
+          loadMetadata: loadOpenHouseAttachmentMetadata,
+          download: downloadPrivateR2Object,
+        });
+        const attachments = buyerProfileAttachments || openHouseAttachments;
         const result = await resend.emails.send(
           {
             from: `Erickson Real Estate <${fromEmail}>`,
@@ -242,6 +330,7 @@ export async function processPendingEmailQueue(
       async markSuccess() {
         await finalizeSuccessfulEmail(row, invocationId);
       },
+      classifyFailure: classifyEmailFailure,
     });
 
     if (outcome.status === "sent") sent += 1;
@@ -255,6 +344,42 @@ export async function processPendingEmailQueue(
   };
 }
 
+async function loadOpenHouseAttachmentMetadata(
+  submissionId: string
+): Promise<OpenHouseAttachmentMetadata | null> {
+  const rows = await sql<
+    {
+      object_key: string | null;
+      original_name: string | null;
+      content_type: string | null;
+      size_bytes: number | string | null;
+      status: string;
+    }[]
+  >`
+    SELECT
+      COALESCE(carta_precalificacion_key, evidencia_fondos_key) AS object_key,
+      respuestas_personalizadas->'document_metadata'->>'original_name' AS original_name,
+      respuestas_personalizadas->'document_metadata'->>'content_type' AS content_type,
+      (respuestas_personalizadas->'document_metadata'->>'size_bytes')::bigint AS size_bytes,
+      CASE
+        WHEN carta_precalificacion_key IS NOT NULL THEN carta_precalificacion_status
+        ELSE evidencia_fondos_status
+      END AS status
+    FROM public.consultas_propiedad
+    WHERE id = ${submissionId}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    objectKey: row.object_key,
+    originalName: row.original_name,
+    contentType: row.content_type,
+    sizeBytes: row.size_bytes === null ? null : Number(row.size_bytes),
+    status: row.status,
+  };
+}
+
 async function finalizeSuccessfulEmail(
   row: PendingEmailRow,
   invocationId: string
@@ -263,6 +388,7 @@ async function finalizeSuccessfulEmail(
     const finalized = await transaction.unsafe<{ id: string }[]>(
       `UPDATE public.email_queue
           SET status = 'sent',
+              attempts = attempts + 1,
               sent_at = now(),
               locked_at = NULL,
               locked_by = NULL,
@@ -326,6 +452,13 @@ async function claimPendingEmails(invocationId: string, limit: number) {
         FROM email_queue
         WHERE status = 'pending'
           AND attempts < $1
+          AND updated_at <= now() - CASE attempts
+            WHEN 0 THEN interval '0 seconds'
+            WHEN 1 THEN interval '5 minutes'
+            WHEN 2 THEN interval '15 minutes'
+            WHEN 3 THEN interval '1 hour'
+            ELSE interval '6 hours'
+          END
         ORDER BY created_at ASC
         LIMIT $2
         FOR UPDATE SKIP LOCKED
@@ -360,10 +493,10 @@ async function loadBuyerProfileAttachmentMetadata(
 ): Promise<BuyerProfileAttachmentMetadata | null> {
   const rows = await sql<
     {
-      document_object_key: string;
-      document_original_name: string;
-      document_content_type: string;
-      document_size_bytes: number | string;
+      document_object_key: string | null;
+      document_original_name: string | null;
+      document_content_type: string | null;
+      document_size_bytes: number | string | null;
       document_status: string;
     }[]
   >`
@@ -375,10 +508,6 @@ async function loadBuyerProfileAttachmentMetadata(
       document_status
     FROM public.property_buyer_profiles
     WHERE id = ${submissionId}
-      AND document_object_key IS NOT NULL
-      AND document_original_name IS NOT NULL
-      AND document_content_type IS NOT NULL
-      AND document_size_bytes IS NOT NULL
     LIMIT 1
   `;
   const row = rows[0];
@@ -387,7 +516,8 @@ async function loadBuyerProfileAttachmentMetadata(
     objectKey: row.document_object_key,
     originalName: row.document_original_name,
     contentType: row.document_content_type,
-    sizeBytes: Number(row.document_size_bytes),
+    sizeBytes:
+      row.document_size_bytes === null ? null : Number(row.document_size_bytes),
     status: row.document_status,
   };
 }

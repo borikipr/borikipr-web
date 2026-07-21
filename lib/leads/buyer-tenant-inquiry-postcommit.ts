@@ -4,12 +4,12 @@ import type { PersistedBuyerTenantInquiry } from "./postgres-buyer-tenant-inquir
 export async function queueBuyerTenantInternalNotification({
   inquiry,
   recipient,
-  enqueue,
+  deliver,
   onError,
 }: {
   inquiry: PersistedBuyerTenantInquiry;
   recipient: string;
-  enqueue: (input: {
+  deliver: (input: {
     recipient: string;
     subject: string;
     html: string;
@@ -18,12 +18,19 @@ export async function queueBuyerTenantInternalNotification({
     relatedSubmissionType: string;
     relatedSubmissionId: string;
     dedupeKey: string;
-  }) => Promise<unknown>;
-  onError: (stage: "queue_insert", error: unknown) => void;
+  }, onError: (stage: "permanent_send" | "queue_insert", error: unknown) => void) => Promise<
+    | "sent"
+    | "queued"
+    | "already_sent"
+    | "already_queued"
+    | "permanent_failure"
+    | "failed_to_queue"
+  >;
+  onError: (stage: "permanent_send" | "queue_insert", error: unknown) => void;
 }) {
   try {
     const email = buildBuyerTenantInternalEmail(inquiry);
-    await enqueue({
+    return await deliver({
       recipient,
       subject: email.subject,
       html: email.html,
@@ -32,10 +39,9 @@ export async function queueBuyerTenantInternalNotification({
       relatedSubmissionType: "buyer_tenant_inquiry",
       relatedSubmissionId: inquiry.id,
       dedupeKey: `buyer_tenant_inquiry:${inquiry.id}:internal:v1`,
-    });
-    return "queued" as const;
+    }, onError);
   } catch (error) {
-    onError("queue_insert", error);
-    return "failed_to_queue" as const;
+    onError("permanent_send", error);
+    return "permanent_failure" as const;
   }
 }

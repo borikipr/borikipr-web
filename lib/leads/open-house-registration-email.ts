@@ -11,12 +11,12 @@ export function buildOpenHouseInternalEmail({
   const propertyUrl = buildPropertyUrl(registration.property.slug);
   const brokerDetails =
     registration.workingWithBroker === "Sí"
-      ? `<p style="margin:0 0 12px"><strong>Corredor:</strong> ${escapeHtml(registration.brokerName || "No provisto")}</p>
-         <p style="margin:0 0 12px"><strong>Teléfono del corredor:</strong> ${escapeHtml(registration.brokerPhone || "No provisto")}</p>`
+      ? `${detailRow("Corredor", registration.brokerName)}
+         ${detailRow("Teléfono del corredor", registration.brokerPhone)}`
       : "";
-  const customAnswer = registration.customQuestion
+  const customAnswer = registration.customQuestion && registration.customAnswer
     ? `<p style="margin:0 0 8px"><strong>${escapeHtml(registration.customQuestion)}</strong></p>
-       <p style="margin:0 0 20px;white-space:pre-line">${escapeHtml(registration.customAnswer || "No provisto")}</p>`
+       <p style="margin:0 0 20px;white-space:pre-line">${escapeHtml(registration.customAnswer)}</p>`
     : "";
 
   return {
@@ -28,23 +28,23 @@ export function buildOpenHouseInternalEmail({
        <p style="margin:0 0 12px"><strong>Fecha:</strong> ${escapeHtml(formatPuertoRicoDate(registration.showingAt))}</p>
        <p style="margin:0 0 20px"><strong>Enlace:</strong> <a href="${escapeHtml(propertyUrl)}">${escapeHtml(propertyUrl)}</a></p>
        <h3 style="margin:0 0 12px">Contacto</h3>
-       <p style="margin:0 0 12px"><strong>Nombre:</strong> ${escapeHtml(registration.name)}</p>
-       <p style="margin:0 0 12px"><strong>Teléfono:</strong> ${escapeHtml(registration.phone)}</p>
-       <p style="margin:0 0 20px"><strong>Email:</strong> ${escapeHtml(registration.email || "No provisto")}</p>
+       ${detailRow("Nombre", registration.name)}
+       ${detailRow("Teléfono", registration.phone)}
+       ${detailRow("Email", registration.email, "20px")}
        <h3 style="margin:0 0 12px">Perfil</h3>
        <p style="margin:0 0 12px"><strong>Método de compra:</strong> ${escapeHtml(registration.purchaseMethod)}</p>
        <p style="margin:0 0 12px"><strong>Disponibilidad:</strong> ${escapeHtml(registration.attendanceAvailability)}</p>
-       <p style="margin:0 0 12px"><strong>Fondos de cierre:</strong> ${escapeHtml(registration.closingFunds || "No especificado")}</p>
+       ${detailRow("Fondos de cierre", registration.closingFunds)}
        <p style="margin:0 0 12px"><strong>Trabaja con corredor:</strong> ${escapeHtml(registration.workingWithBroker)}</p>
        ${brokerDetails}
-       <p style="margin:0 0 20px"><strong>Documento:</strong> ${escapeHtml(documentStatusLabel(documentStatus))}</p>
+       ${documentStatus === "uploaded" ? detailRow("Documento", "Documento adjunto", "20px") : ""}
        ${customAnswer}`
     ),
   };
 }
 
 function emailShell(title: string, body: string) {
-  return `<div style="font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.6;padding:24px">
+  return `<meta charset="utf-8" /><div style="font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.6;padding:24px">
     <div style="max-width:680px;margin:0 auto;border:1px solid #e8e8e8;border-radius:18px;overflow:hidden">
       <div style="background:#11518b;padding:20px 24px">
         <h2 style="margin:0;color:#d4af37;font-size:22px">${escapeHtml(title)}</h2>
@@ -73,11 +73,9 @@ function formatPuertoRicoDate(value: Date) {
   }).format(value);
 }
 
-function documentStatusLabel(status: OpenHouseDocumentStatus) {
-  if (status === "uploaded") return "Documento cargado";
-  if (status === "failed") return "La carga del documento falló";
-  if (status === "pending") return "Carga pendiente";
-  return "Sin documento";
+function detailRow(label: string, value: string | null | undefined, bottom = "12px") {
+  if (!value?.trim()) return "";
+  return `<p style="margin:0 0 ${bottom}"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`;
 }
 
 function escapeHtml(value: string) {

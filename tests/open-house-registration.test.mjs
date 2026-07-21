@@ -234,7 +234,8 @@ test("document upload transitions pending to uploaded and never stores a URL", a
     isR2Configured: () => true,
     upload: async (_file, objectKey) => calls.push(["upload", objectKey]),
     updateDocumentStatus: async (_id, _kind, objectKey, status) => { calls.push([status, objectKey]); return true; },
-    enqueue: async (email) => calls.push(["queue", email.dedupeKey]),
+    deliver: async (email) => { calls.push(["send", email.dedupeKey]); return "sent"; },
+    resolveInternalAttachments: async () => [{ filename: "private.pdf", content: "cGRm", contentType: "application/pdf" }],
     internalRecipient: "internal@example.test",
     onError: () => {},
   });
@@ -243,7 +244,7 @@ test("document upload transitions pending to uploaded and never stores a URL", a
   assert.ok(!JSON.stringify(calls).includes("http"));
 });
 
-test("R2 failure marks the document failed but keeps queue processing", async () => {
+test("R2 failure is permanent for internal mail while customer confirmation remains independent", async () => {
   const file = new NodeFile(["pdf"], "private.pdf", { type: "application/pdf" });
   const input = parseOpenHouseRegistrationFormData(baseForm({ carta_precalificacion: file }));
   const queued = [];
@@ -253,15 +254,17 @@ test("R2 failure marks the document failed but keeps queue processing", async ()
     isR2Configured: () => true,
     upload: async () => { throw new Error("provider"); },
     updateDocumentStatus: async (_id, _kind, _key, status) => status === "failed",
-    enqueue: async (email) => queued.push(email.emailType),
+    deliver: async (email) => { queued.push(email.emailType); return "sent"; },
+    resolveInternalAttachments: async () => undefined,
     internalRecipient: "internal@example.test",
     onError: () => {},
   });
   assert.equal(result.documentState, "failed");
-  assert.deepEqual(queued.sort(), ["open_house_registration_customer", "open_house_registration_internal"]);
+  assert.deepEqual(queued, ["open_house_registration_customer"]);
+  assert.equal(result.notificationState.internal, "permanent_failure");
 });
 
-test("duplicate retry performs no second R2 or queue operation", async () => {
+test("duplicate retry performs no second R2 upload and delivery remains idempotent", async () => {
   const calls = [];
   const input = parseOpenHouseRegistrationFormData(baseForm());
   const result = await processOpenHousePostCommit({
@@ -270,12 +273,13 @@ test("duplicate retry performs no second R2 or queue operation", async () => {
     isR2Configured: () => true,
     upload: async () => calls.push("upload"),
     updateDocumentStatus: async () => { calls.push("update"); return true; },
-    enqueue: async () => calls.push("queue"),
+    deliver: async () => { calls.push("send"); return "sent"; },
+    resolveInternalAttachments: async () => undefined,
     internalRecipient: "internal@example.test",
     onError: () => {},
   });
-  assert.deepEqual(calls, []);
-  assert.equal(result.notificationState.internal, "pending");
+  assert.deepEqual(calls, ["send", "send"]);
+  assert.equal(result.notificationState.internal, "sent");
 });
 
 test("internal and customer queues fail independently", async () => {
@@ -287,16 +291,17 @@ test("internal and customer queues fail independently", async () => {
     isR2Configured: () => true,
     upload: async () => {},
     updateDocumentStatus: async () => true,
-    enqueue: async (email) => {
+    deliver: async (email) => {
       attempted.push(email.emailType);
-      if (email.emailType.endsWith("internal")) throw new Error("queue");
+      return email.emailType.endsWith("internal") ? "failed_to_queue" : "sent";
     },
+    resolveInternalAttachments: async () => undefined,
     internalRecipient: "internal@example.test",
     onError: () => {},
   });
   assert.deepEqual(attempted, ["open_house_registration_internal", "open_house_registration_customer"]);
   assert.equal(result.notificationState.internal, "failed_to_queue");
-  assert.equal(result.notificationState.customer, "queued");
+  assert.equal(result.notificationState.customer, "sent");
 });
 
 test("both queue failures still report durable persistence success states", async () => {
@@ -308,10 +313,11 @@ test("both queue failures still report durable persistence success states", asyn
     isR2Configured: () => true,
     upload: async () => {},
     updateDocumentStatus: async () => true,
-    enqueue: async (email) => {
+    deliver: async (email) => {
       attempted.push(email);
-      throw new Error("queue unavailable");
+      return "failed_to_queue";
     },
+    resolveInternalAttachments: async () => undefined,
     internalRecipient: "internal@example.test",
     onError: () => {},
   });
@@ -332,7 +338,8 @@ test("customer queue is not applicable without email", async () => {
     isR2Configured: () => true,
     upload: async () => {},
     updateDocumentStatus: async () => true,
-    enqueue: async (email) => queued.push(email.emailType),
+    deliver: async (email) => { queued.push(email.emailType); return "sent"; },
+    resolveInternalAttachments: async () => undefined,
     internalRecipient: "internal@example.test",
     onError: () => {},
   });

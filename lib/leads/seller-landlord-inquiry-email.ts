@@ -5,7 +5,7 @@ export function buildSellerLandlordInternalEmail(
 ) {
   return {
     subject: "Nueva solicitud de vendedor o arrendador",
-    html: `
+    html: `<meta charset="utf-8" />
       <div style="font-family: Arial, Helvetica, sans-serif; color: #111; line-height: 1.6; padding: 24px;">
         <div style="max-width: 640px; margin: 0 auto; border: 1px solid #e8e8e8; border-radius: 18px; overflow: hidden;">
           <div style="background: #11518b; padding: 20px 24px;">
@@ -18,12 +18,12 @@ export function buildSellerLandlordInternalEmail(
           </div>
 
           <div style="padding: 24px;">
-            <p style="margin: 0 0 12px;"><strong>Nombre:</strong> ${escapeHtml(inquiry.nameSnapshot)}</p>
-            <p style="margin: 0 0 12px;"><strong>Email:</strong> <a href="mailto:${escapeHtml(inquiry.emailSnapshot)}">${escapeHtml(inquiry.emailSnapshot)}</a></p>
-            <p style="margin: 0 0 12px;"><strong>Teléfono:</strong> ${escapeHtml(inquiry.phoneSnapshot)}</p>
-            <p style="margin: 0 0 12px;"><strong>Tipo de propiedad:</strong> ${escapeHtml(inquiry.propertyType || "No especificado")}</p>
-            <p style="margin: 0 0 12px;"><strong>Ubicación (Municipio):</strong> ${escapeHtml(inquiry.location || "No especificado")}</p>
-            <p style="margin: 0 0 20px;"><strong>Interés principal:</strong> ${escapeHtml(inquiry.primaryReason || "No especificado")}</p>
+            ${detailRow("Nombre", inquiry.nameSnapshot)}
+            ${detailRow("Email", inquiry.emailSnapshot)}
+            ${detailRow("Teléfono", inquiry.phoneSnapshot)}
+            ${detailRow("Tipo de propiedad", inquiry.propertyType)}
+            ${detailRow("Ubicación (Municipio)", inquiry.location)}
+            ${detailRow("Interés principal", inquiry.primaryReason, "20px")}
 
             ${inquiry.comments ? `
             <div style="border-top: 1px solid #ececec; padding-top: 20px;">
@@ -42,6 +42,11 @@ export function buildSellerLandlordInternalEmail(
       </div>
     `,
   };
+}
+
+function detailRow(label: string, value: string | null | undefined, bottom = "12px") {
+  if (!value?.trim()) return "";
+  return `<p style="margin: 0 0 ${bottom};"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`;
 }
 
 function escapeHtml(value: string) {

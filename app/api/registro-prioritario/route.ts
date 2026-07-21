@@ -3,6 +3,7 @@ import { sql } from "@/lib/db";
 import {
   isResendLimitError,
   queueEmail,
+  recordEmailSent,
   serializeEmailError,
 } from "@/lib/email-queue";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
@@ -335,7 +336,7 @@ export async function POST(req: Request) {
     const fromEmail =
       process.env.CONTACT_FROM_EMAIL?.trim() || "onboarding@resend.dev";
 
-    const html = `
+    const html = `<meta charset="utf-8" />
       <div style="font-family: Arial, Helvetica, sans-serif; color: #111; line-height: 1.6; padding: 24px;">
         <div style="max-width: 680px; margin: 0 auto; border: 1px solid #e8e8e8; border-radius: 18px; overflow: hidden;">
           <div style="background: #11518b; padding: 20px 24px;">
@@ -414,9 +415,18 @@ export async function POST(req: Request) {
       return successResponse();
     }
 
+    await safelyRecordPriorityRegistrationEmail({
+      recipient: toEmail,
+      subject: internalSubject,
+      html,
+      emailType: "priority_registration_internal",
+      relatedPropertyId: property.id,
+      relatedLeadId: insertedId || null,
+    });
+
     if (email) {
       const confirmationSubject = "Recibimos tu registro prioritario";
-      const confirmationHtml = `
+      const confirmationHtml = `<meta charset="utf-8" />
           <div style="font-family: Arial, Helvetica, sans-serif; color: #111; line-height: 1.6; padding: 24px;">
             <div style="max-width: 620px; margin: 0 auto; border: 1px solid #e8e8e8; border-radius: 18px; overflow: hidden;">
               <div style="background: #11518b; padding: 20px 24px;">
@@ -454,6 +464,14 @@ export async function POST(req: Request) {
           });
         }
       } else if (insertedId) {
+        await safelyRecordPriorityRegistrationEmail({
+          recipient: email,
+          subject: confirmationSubject,
+          html: confirmationHtml,
+          emailType: "priority_registration_confirmation",
+          relatedPropertyId: property.id,
+          relatedLeadId: insertedId,
+        });
         try {
           await sql`
             UPDATE property_priority_registrations
@@ -497,6 +515,24 @@ function normalizePurchaseType(value: string) {
       return "Otros (especifique)";
     default:
       return value;
+  }
+}
+
+async function safelyRecordPriorityRegistrationEmail(input: {
+  recipient: string;
+  subject: string;
+  html: string;
+  emailType: string;
+  relatedPropertyId?: string | null;
+  relatedLeadId?: string | null;
+}) {
+  try {
+    await recordEmailSent(input);
+  } catch (error) {
+    logPriorityRegistrationError(
+      "Priority registration successful email audit insert failed",
+      error
+    );
   }
 }
 

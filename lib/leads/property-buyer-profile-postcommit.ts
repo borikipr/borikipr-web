@@ -5,7 +5,11 @@ import type {
 import type { PersistedPropertyBuyerProfile } from "./postgres-property-buyer-profile";
 
 export type BuyerProfilePostCommitErrorHandler = (
-  stage: "document_upload" | "document_status_update" | "queue_insert",
+  stage:
+    | "document_upload"
+    | "document_status_update"
+    | "permanent_send"
+    | "queue_insert",
   error: unknown
 ) => void;
 
@@ -64,13 +68,14 @@ export async function queueBuyerProfileInternalNotification({
   profile,
   documentStatus,
   recipient,
-  enqueue,
+  deliver,
+  resolveAttachments,
   onError,
 }: {
   profile: PersistedPropertyBuyerProfile;
   documentStatus: BuyerProfileDocumentStatus;
   recipient: string;
-  enqueue: (input: {
+  deliver: (input: {
     recipient: string;
     subject: string;
     html: string;
@@ -80,7 +85,29 @@ export async function queueBuyerProfileInternalNotification({
     relatedSubmissionType: string;
     relatedSubmissionId: string;
     dedupeKey: string;
-  }) => Promise<unknown>;
+    attachments?: Array<{
+      filename: string;
+      content: string;
+      contentType: string;
+    }>;
+    resolveAttachments?: () => Promise<Array<{
+      filename: string;
+      content: string;
+      contentType: string;
+    }> | undefined>;
+  }, onError: BuyerProfilePostCommitErrorHandler) => Promise<
+    | "sent"
+    | "queued"
+    | "already_sent"
+    | "already_queued"
+    | "permanent_failure"
+    | "failed_to_queue"
+  >;
+  resolveAttachments?: () => Promise<Array<{
+    filename: string;
+    content: string;
+    contentType: string;
+  }> | undefined>;
   onError: BuyerProfilePostCommitErrorHandler;
 }) {
   try {
@@ -88,7 +115,12 @@ export async function queueBuyerProfileInternalNotification({
       profile,
       documentStatus,
     });
-    await enqueue({
+    if (profile.documentObjectKey && documentStatus !== "uploaded") {
+      throw new Error(
+        "Buyer Profile document is not durably available for email delivery."
+      );
+    }
+    return await deliver({
       recipient,
       subject: email.subject,
       html: email.html,
@@ -98,11 +130,11 @@ export async function queueBuyerProfileInternalNotification({
       relatedSubmissionType: "property_buyer_profile",
       relatedSubmissionId: profile.id,
       dedupeKey: `property_buyer_profile:${profile.id}:internal:v1`,
-    });
-    return "queued" as const;
+      resolveAttachments,
+    }, onError);
   } catch (error) {
-    onError("queue_insert", error);
-    return "failed_to_queue" as const;
+    onError("permanent_send", error);
+    return "permanent_failure" as const;
   }
 }
 

@@ -1,4 +1,4 @@
-import { queueCanonicalLeadEmail } from "@/lib/email-queue";
+import { deliverCanonicalLeadEmail } from "@/lib/email-queue";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import {
   BuyerTenantValidationError,
@@ -35,7 +35,7 @@ export async function handlePersistedBuyerTenantInquiry(req: Request) {
       recipient:
         process.env.CONTACT_TO_EMAIL?.trim() ||
         "ericksonrealestatepr@gmail.com",
-      enqueue: queueCanonicalLeadEmail,
+      deliver: deliverCanonicalLeadEmail,
       onError: (stage, error) => logBuyerTenantIssue(stage, error),
     });
 
@@ -44,7 +44,7 @@ export async function handlePersistedBuyerTenantInquiry(req: Request) {
       success: true,
       duplicate: !inquiry.created,
       notificationState,
-      warning: notificationState === "failed_to_queue",
+      warning: ["failed_to_queue", "permanent_failure"].includes(notificationState),
     });
   } catch (error) {
     if (error instanceof BuyerTenantValidationError) {

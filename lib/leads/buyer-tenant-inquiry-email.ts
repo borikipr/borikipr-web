@@ -3,11 +3,11 @@ import type { PersistedBuyerTenantInquiry } from "./postgres-buyer-tenant-inquir
 export function buildBuyerTenantInternalEmail(
   inquiry: PersistedBuyerTenantInquiry
 ) {
-  const propertyTypes = inquiry.propertyTypes?.join(", ") || "No especificado";
+  const propertyTypes = inquiry.propertyTypes?.filter(Boolean).join(", ") || "";
 
   return {
     subject: "Nuevo registro de comprador o arrendatario",
-    html: `
+    html: `<meta charset="utf-8" />
       <div style="font-family: Arial, Helvetica, sans-serif; color: #111; line-height: 1.6; padding: 24px;">
         <div style="max-width: 640px; margin: 0 auto; border: 1px solid #e8e8e8; border-radius: 18px; overflow: hidden;">
           <div style="background: #11518b; padding: 20px 24px;">
@@ -20,18 +20,16 @@ export function buildBuyerTenantInternalEmail(
           </div>
 
           <div style="padding: 24px;">
-            <p style="margin: 0 0 12px;"><strong>Nombre:</strong> ${escapeHtml(inquiry.nameSnapshot)}</p>
-            <p style="margin: 0 0 12px;"><strong>Email:</strong> ${escapeHtml(inquiry.emailSnapshot || "No provisto")}</p>
-            <p style="margin: 0 0 12px;"><strong>Teléfono:</strong> ${escapeHtml(inquiry.phoneSnapshot)}</p>
-            <p style="margin: 0 0 12px;"><strong>Municipios de interés:</strong> ${escapeHtml(inquiry.municipalities || "No especificado")}</p>
-            <p style="margin: 0 0 12px;"><strong>Interés principal:</strong> ${escapeHtml(inquiry.primaryInterest || "No especificado")}</p>
-            ${inquiry.primaryInterest === "Comprar" ? `
-              <p style="margin: 0 0 12px;"><strong>Cualificación para compra:</strong> ${escapeHtml(inquiry.purchaseQualification || "No especificado")}</p>
-            ` : ""}
-            <p style="margin: 0 0 12px;"><strong>Tipo de propiedad:</strong> ${escapeHtml(propertyTypes)}</p>
-            <p style="margin: 0 0 12px;"><strong>Presupuesto de compra o alquiler:</strong> ${escapeHtml(inquiry.budget || "No especificado")}</p>
-            <p style="margin: 0 0 12px;"><strong>Habitaciones:</strong> ${escapeHtml(inquiry.bedrooms || "No especificado")}</p>
-            <p style="margin: 0 0 20px;"><strong>Baños:</strong> ${escapeHtml(inquiry.bathrooms || "No especificado")}</p>
+            ${detailRow("Nombre", inquiry.nameSnapshot)}
+            ${detailRow("Email", inquiry.emailSnapshot)}
+            ${detailRow("Teléfono", inquiry.phoneSnapshot)}
+            ${detailRow("Municipios de interés", inquiry.municipalities)}
+            ${detailRow("Interés principal", inquiry.primaryInterest)}
+            ${inquiry.primaryInterest === "Comprar" ? detailRow("Cualificación para compra", inquiry.purchaseQualification) : ""}
+            ${detailRow("Tipo de propiedad", propertyTypes)}
+            ${detailRow("Presupuesto de compra o alquiler", inquiry.budget)}
+            ${detailRow("Habitaciones", inquiry.bedrooms)}
+            ${detailRow("Baños", inquiry.bathrooms, "20px")}
 
             ${inquiry.comments ? `
             <div style="border-top: 1px solid #ececec; padding-top: 20px;">
@@ -50,6 +48,11 @@ export function buildBuyerTenantInternalEmail(
       </div>
     `,
   };
+}
+
+function detailRow(label: string, value: string | null | undefined, bottom = "12px") {
+  if (!value?.trim()) return "";
+  return `<p style="margin: 0 0 ${bottom};"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`;
 }
 
 function escapeHtml(value: string) {

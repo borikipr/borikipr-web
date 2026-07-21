@@ -14,12 +14,8 @@ import {
   MAX_BUYER_PROFILE_DOCUMENT_BYTES,
 } from "../lib/leads/property-buyer-profile-upload.ts";
 import {
-  enqueueAvailabilityNotificationsInTransaction,
+  collectAvailabilityRegistrationsInTransaction,
 } from "../lib/property-availability-enqueue.ts";
-import {
-  buildPropertyAvailabilityDedupeKey,
-  PROPERTY_AVAILABILITY_EMAIL_TYPE,
-} from "../lib/property-availability-notifications.ts";
 import { deliverClaimedEmail } from "../lib/email-queue-delivery.ts";
 
 if (!globalThis.File) globalThis.File = NodeFile;
@@ -118,42 +114,19 @@ test("all Buyer Profile upload guidance and validation share the 4 MB limit", ()
 class FakeAvailabilityTransaction {
   constructor(registrations) {
     this.registrations = registrations;
-    this.queueByDedupe = new Map();
   }
 
-  async unsafe(query, params) {
+  async unsafe(query) {
     if (query.includes("FROM public.property_priority_registrations")) {
       assert.match(query, /notified_at IS NULL/);
       assert.match(query, /FOR UPDATE/);
       return this.registrations;
     }
-    if (query.includes("INSERT INTO public.email_queue")) {
-      assert.match(query, /ON CONFLICT \(dedupe_key\)/);
-      const dedupeKey = params[9];
-      if (this.queueByDedupe.has(dedupeKey)) return [];
-      const row = {
-        id: randomUUID(),
-        recipient: params[0],
-        subject: params[1],
-        html: params[2],
-        emailType: params[3],
-        relatedPropertyId: params[4],
-        relatedRegistrationId: params[5],
-        canonicalLeadId: params[6],
-        submissionType: params[7],
-        submissionId: params[8],
-        dedupeKey,
-        status: "pending",
-        attempts: 0,
-      };
-      this.queueByDedupe.set(dedupeKey, row);
-      return [{ id: row.id }];
-    }
     throw new Error("Unexpected synthetic query");
   }
 }
 
-test("availability transition creates one durable deduplicated intent per eligible registration", async () => {
+test("availability transition collects registrations before immediate post-commit delivery", async () => {
   const property = { id: randomUUID(), slug: "fixture", title: "Fixture <Home>" };
   const registrations = Array.from({ length: 84 }, (_, index) => ({
     id: randomUUID(),
@@ -169,43 +142,20 @@ test("availability transition creates one durable deduplicated intent per eligib
   });
   const transaction = new FakeAvailabilityTransaction(registrations);
 
-  const first = await enqueueAvailabilityNotificationsInTransaction(
+  const collected = await collectAvailabilityRegistrationsInTransaction(
     transaction,
-    property
+    property.id
   );
-  const repeated = await enqueueAvailabilityNotificationsInTransaction(
-    transaction,
-    property
-  );
-
-  assert.deepEqual(first, {
-    eligibleRegistrations: 84,
-    queued: 84,
-    alreadyQueued: 0,
-    skippedInvalidEmail: 1,
-  });
-  assert.deepEqual(repeated, {
-    eligibleRegistrations: 84,
-    queued: 0,
-    alreadyQueued: 84,
-    skippedInvalidEmail: 1,
-  });
-  assert.equal(transaction.queueByDedupe.size, 84);
-  const [row] = transaction.queueByDedupe.values();
-  assert.equal(row.emailType, PROPERTY_AVAILABILITY_EMAIL_TYPE);
-  assert.equal(
-    row.dedupeKey,
-    buildPropertyAvailabilityDedupeKey(property.id, row.relatedRegistrationId)
-  );
-  assert.match(row.html, /Fixture &lt;Home&gt;/);
-  assert.doesNotMatch(row.html, /Fixture 0 <unsafe>/);
+  assert.equal(collected.length, 85);
+  assert.equal(collected[0].leadId, registrations[0].lead_id);
 });
 
-test("property transition is transactional and never calls Resend directly", () => {
+test("property transition commits before the shared immediate delivery boundary", () => {
   assert.doesNotMatch(actionSource, /from "resend"|new Resend|emails\.send/);
   assert.match(actionSource, /sql\.begin\(async \(transaction\)/);
   assert.match(actionSource, /FOR UPDATE/);
-  assert.match(actionSource, /enqueueAvailabilityNotificationsInTransaction/);
+  assert.match(actionSource, /collectAvailabilityRegistrationsInTransaction/);
+  assert.match(actionSource, /deliverAvailabilityNotifications/);
   assert.doesNotMatch(actionSource, /AVAILABILITY EMAIL SENT TO|email:\s*registration\.email/);
 });
 
@@ -237,6 +187,7 @@ test("partial delivery failures remain retryable and later success finalizes onc
       queueStatus = terminal ? "failed" : "pending";
     },
     markSuccess: async () => assert.fail("failure must not finalize"),
+    classifyFailure: () => "retryable",
   });
   assert.deepEqual(first, { status: "retryable", attempts: 1 });
   assert.equal(queueStatus, "pending");
@@ -254,6 +205,7 @@ test("partial delivery failures remain retryable and later success finalizes onc
       queueStatus = "sent";
       notifiedAt = new Date();
     },
+    classifyFailure: () => "retryable",
   });
   assert.deepEqual(retry, { status: "sent" });
   assert.equal(queueStatus, "sent");
@@ -278,6 +230,7 @@ test("terminal delivery failure follows the existing five-attempt policy", async
       markedTerminal = terminal;
     },
     markSuccess: async () => assert.fail("failure must not finalize"),
+    classifyFailure: () => "retryable",
   });
   assert.deepEqual(outcome, { status: "failed", attempts: 5 });
   assert.equal(markedTerminal, true);

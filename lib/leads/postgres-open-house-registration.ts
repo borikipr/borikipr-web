@@ -57,6 +57,7 @@ type OpenHouseAnswers = {
     kind: "prequalification_letter" | "proof_of_funds";
     content_type: string;
     size_bytes: number;
+    original_name: string;
   } | null;
 };
 
@@ -86,6 +87,9 @@ export type PersistedOpenHouseRegistration = {
   prequalificationStatus: OpenHouseDocumentStatus;
   proofOfFundsKey: string | null;
   proofOfFundsStatus: OpenHouseDocumentStatus;
+  documentOriginalName: string | null;
+  documentContentType: string | null;
+  documentSizeBytes: number | null;
 };
 
 export async function getCanonicalOpenHouseShowingAt(propertyId: string) {
@@ -178,6 +182,7 @@ export async function persistOpenHouseRegistration(
                 kind: input.documentKind,
                 content_type: input.documentFile.type,
                 size_bytes: input.documentFile.size,
+                original_name: input.documentFile.name,
               }
             : null,
       };
@@ -386,6 +391,12 @@ function mapRegistration(
     prequalificationStatus: row.carta_precalificacion_status,
     proofOfFundsKey: row.evidencia_fondos_key,
     proofOfFundsStatus: row.evidencia_fondos_status,
+    documentOriginalName:
+      row.respuestas_personalizadas?.document_metadata?.original_name || null,
+    documentContentType:
+      row.respuestas_personalizadas?.document_metadata?.content_type || null,
+    documentSizeBytes:
+      row.respuestas_personalizadas?.document_metadata?.size_bytes ?? null,
   };
 }
 

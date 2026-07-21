@@ -428,8 +428,9 @@ test("durable profile remains successful when queue insertion fails", async () =
     profile,
     documentStatus: "none",
     recipient: "internal@example.invalid",
-    enqueue: async () => {
-      throw new Error("queue unavailable");
+    deliver: async (_input, onError) => {
+      onError("queue_insert", new Error("queue unavailable"));
+      return "failed_to_queue";
     },
     onError: (stage) => errors.push(stage),
   });
@@ -534,7 +535,7 @@ test("Buyer Profile financing email is UTF-8 and shows only applicable answers",
   assert.match(email.html, /carta-precalificación-josé\.pdf/);
   assert.doesNotMatch(email.html, /Método\/programa especificado/);
   assert.doesNotMatch(email.html, /No document|No especificado|No aplica/);
-  assert.doesNotMatch(email.html, /[ÃÂ�]/);
+  assert.doesNotMatch(email.html, new RegExp("[\\u00c3\\u00c2\\ufffd]"));
   assert.equal(Buffer.from(email.html, "utf8").toString("utf8"), email.html);
 });
 

@@ -6,7 +6,10 @@ import { revalidatePath } from "next/cache";
 import { municipiosPR } from "@/data/municipios";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import { normalizeSectorForMunicipio } from "@/lib/puerto-rico-sectores";
-import { enqueueAvailabilityNotificationsInTransaction } from "@/lib/property-availability-enqueue";
+import {
+  collectAvailabilityRegistrationsInTransaction,
+  deliverAvailabilityNotifications,
+} from "@/lib/property-availability-enqueue";
 import { updatePropertyStatusWithAvailabilityQueue } from "@/lib/postgres-property-availability";
 
 export type CreatePropiedadState = {
@@ -579,23 +582,26 @@ export async function updatePropiedadAction(
         );
       }
 
-      const queue =
+      const registrations =
         locked.estado === "coming_soon" && estado === "disponible"
-          ? await enqueueAvailabilityNotificationsInTransaction(transaction, {
-              id,
-              slug,
-              title: titulo,
-            })
+          ? await collectAvailabilityRegistrationsInTransaction(transaction, id)
           : null;
-      return { previousStatus: locked.estado, queue };
+      return { previousStatus: locked.estado, registrations };
     });
+
+    const availabilityDelivery = transition.registrations
+      ? await deliverAvailabilityNotifications(
+          { id, slug, title: titulo },
+          transition.registrations
+        )
+      : null;
 
     console.info("PROPERTY STATUS TRANSITION", {
       flow: "full_edit",
       propertyId: id,
       previousStatus: transition.previousStatus,
       newStatus: estado,
-      availabilityQueue: transition.queue,
+      availabilityDelivery,
     });
 
     revalidatePath("/admin/propiedades");

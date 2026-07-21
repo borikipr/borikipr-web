@@ -15,7 +15,7 @@ export function buildOpenHouseCustomerEmail(
 
   return {
     subject: `Confirmación de registro - ${registration.property.title}`,
-    html: `<div style="font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.6;padding:24px">
+    html: `<meta charset="utf-8" /><div style="font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.6;padding:24px">
       <div style="max-width:680px;margin:0 auto;border:1px solid #e8e8e8;border-radius:18px;overflow:hidden">
         <div style="background:#11518b;padding:20px 24px">
           <h2 style="margin:0;color:#d4af37;font-size:22px">Confirmación de registro</h2>

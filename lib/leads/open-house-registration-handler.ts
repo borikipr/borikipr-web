@@ -1,5 +1,5 @@
-import { queueCanonicalLeadEmail } from "@/lib/email-queue";
-import { isPrivateR2Configured, uploadFileToR2Key } from "@/lib/r2";
+import { deliverCanonicalLeadEmail } from "@/lib/email-queue";
+import { downloadPrivateR2Object, isPrivateR2Configured, uploadFileToR2Key } from "@/lib/r2";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import {
   OpenHouseValidationError,
@@ -10,6 +10,7 @@ import {
   persistOpenHouseRegistration,
   updateOpenHouseDocumentStatus,
 } from "./postgres-open-house-registration";
+import { resolveOpenHouseInternalAttachment } from "./open-house-registration-queue-attachment";
 
 export async function handleOpenHouseRegistrationV2(request: Request) {
   const rateLimit = checkRateLimit({
@@ -28,7 +29,28 @@ export async function handleOpenHouseRegistrationV2(request: Request) {
       isR2Configured: isPrivateR2Configured,
       upload: uploadFileToR2Key,
       updateDocumentStatus: updateOpenHouseDocumentStatus,
-      enqueue: queueCanonicalLeadEmail,
+      deliver: deliverCanonicalLeadEmail,
+      resolveInternalAttachments: () =>
+        resolveOpenHouseInternalAttachment({
+          emailType: "open_house_registration_internal",
+          relatedSubmissionType: "open_house_registration",
+          relatedSubmissionId: registration.id,
+          loadMetadata: async () => {
+            const objectKey =
+              registration.prequalificationKey || registration.proofOfFundsKey;
+            const status = registration.prequalificationKey
+              ? postUploadStatus(registration.prequalificationStatus)
+              : postUploadStatus(registration.proofOfFundsStatus);
+            return {
+              objectKey,
+              originalName: registration.documentOriginalName,
+              contentType: registration.documentContentType,
+              sizeBytes: registration.documentSizeBytes,
+              status,
+            };
+          },
+          download: downloadPrivateR2Object,
+        }),
       internalRecipient:
         process.env.CONTACT_TO_EMAIL?.trim() ||
         "ericksonrealestatepr@gmail.com",
@@ -43,7 +65,9 @@ export async function handleOpenHouseRegistrationV2(request: Request) {
       notificationState: postCommit.notificationState,
       warning:
         postCommit.documentState === "failed" ||
-        Object.values(postCommit.notificationState).includes("failed_to_queue"),
+        Object.values(postCommit.notificationState).some((state) =>
+          ["failed_to_queue", "permanent_failure"].includes(state)
+        ),
     });
   } catch (error) {
     if (error instanceof OpenHouseValidationError) {
@@ -59,6 +83,10 @@ export async function handleOpenHouseRegistrationV2(request: Request) {
       { status: 500 }
     );
   }
+}
+
+function postUploadStatus(status: string) {
+  return status === "pending" ? "uploaded" : status;
 }
 
 function logOpenHouseIssue(stage: string, error: unknown, reason?: string) {

@@ -71,7 +71,7 @@ export async function POST(req: Request) {
       message,
     ].join("\n");
 
-    const html = `
+    const html = `<meta charset="utf-8" />
       <div style="font-family: Arial, Helvetica, sans-serif; color: #111; line-height: 1.6; padding: 24px;">
         <div style="max-width: 640px; margin: 0 auto; border: 1px solid #e8e8e8; border-radius: 18px; overflow: hidden;">
           <div style="background: #0d1b2a; padding: 20px 24px;">

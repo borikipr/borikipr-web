@@ -299,8 +299,9 @@ test("seller queue failure keeps the durable inquiry", async () => {
   const state = await queueSellerLandlordInternalNotification({
     inquiry,
     recipient: "internal@example.invalid",
-    enqueue: async () => {
-      throw new Error("queue unavailable");
+    deliver: async (_input, onError) => {
+      onError("queue_insert", new Error("queue unavailable"));
+      return "failed_to_queue";
     },
     onError: (stage) => errors.push(stage),
   });
@@ -316,7 +317,7 @@ test("seller notification queues canonical relationships and branded content", a
   const state = await queueSellerLandlordInternalNotification({
     inquiry,
     recipient: "internal@example.invalid",
-    enqueue: async (input) => {
+    deliver: async (input) => {
       queued = input;
       return "queued";
     },

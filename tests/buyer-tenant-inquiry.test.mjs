@@ -360,8 +360,9 @@ test("queue failure after commit keeps the durable buyer inquiry", async () => {
   const state = await queueBuyerTenantInternalNotification({
     inquiry,
     recipient: "internal@example.invalid",
-    enqueue: async () => {
-      throw new Error("queue unavailable");
+    deliver: async (_input, onError) => {
+      onError("queue_insert", new Error("queue unavailable"));
+      return "failed_to_queue";
     },
     onError: (stage) => errors.push(stage),
   });
@@ -377,7 +378,7 @@ test("successful buyer notification has canonical dedupe fields and escaped HTML
   const state = await queueBuyerTenantInternalNotification({
     inquiry,
     recipient: "internal@example.invalid",
-    enqueue: async (input) => {
+    deliver: async (input) => {
       queued = input;
       return "queued";
     },
@@ -407,7 +408,7 @@ test("renter email excludes the purchase qualification section", async () => {
   await queueBuyerTenantInternalNotification({
     inquiry,
     recipient: "internal@example.invalid",
-    enqueue: async (input) => (queued = input),
+    deliver: async (input) => { queued = input; return "sent"; },
     onError: () => assert.fail("queue should not fail"),
   });
   assert.doesNotMatch(queued.html, /Cualificación para compra/);

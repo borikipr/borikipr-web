@@ -1,6 +1,7 @@
 import * as nextEnv from "@next/env";
+import { createHash } from "node:crypto";
 import { buildPropertyBuyerProfileInternalEmail } from "../../lib/leads/property-buyer-profile-email";
-import { inspectPrivateR2Object } from "../../lib/r2";
+import { downloadPrivateR2Object, inspectPrivateR2Object } from "../../lib/r2";
 
 nextEnv.loadEnvConfig(process.cwd());
 
@@ -37,10 +38,21 @@ type RecoveryRow = {
   correction_queue_status: string | null;
   correction_created_at: Date | null;
   correction_sent_at: Date | null;
+  created_at: Date;
+  idempotency_key: string;
 };
+
+type DuplicateClassification =
+  | "legitimate_separate_submission"
+  | "intentional_resubmission"
+  | "accidental_duplicate";
 
 async function main() {
   const applyRequested = process.argv.includes("--apply");
+  const includeArgument = process.argv.find((value) => value.startsWith("--include="));
+  const reviewedIds = new Set(
+    includeArgument?.slice("--include=".length).split(",").map((value) => value.trim()).filter(Boolean) || []
+  );
   if (
     applyRequested &&
     process.env[APPLY_SAFEGUARD] !== APPLY_VALUE
@@ -48,6 +60,9 @@ async function main() {
     throw new Error(
       `Apply mode requires ${APPLY_SAFEGUARD}=${APPLY_VALUE} after dry-run review.`
     );
+  }
+  if (applyRequested && reviewedIds.size === 0) {
+    throw new Error("Apply mode requires an explicit --include=<reviewed submission IDs> list.");
   }
 
   const [{ sql }, { queueCanonicalLeadEmail }] = await Promise.all([
@@ -86,6 +101,8 @@ async function main() {
         correction.status AS correction_queue_status,
         correction.created_at AS correction_created_at,
         correction.sent_at AS correction_sent_at
+        ,profile.created_at
+        ,profile.idempotency_key::text
       FROM public.property_buyer_profiles profile
       JOIN public.propiedades property ON property.id = profile.property_id
       JOIN public.email_queue original
@@ -111,13 +128,41 @@ async function main() {
     const recipient =
       process.env.CONTACT_TO_EMAIL?.trim() ||
       "ericksonrealestatepr@gmail.com";
-    const audited = [];
+    const audited: Array<{
+      row: RecoveryRow;
+      object: Awaited<ReturnType<typeof inspectPrivateR2Object>>;
+      bytes: Buffer | null;
+      checksum: string | null;
+      wouldResend: boolean;
+      classification: DuplicateClassification;
+      recommendation: "include" | "exclude";
+    }> = [];
 
     for (const row of rows) {
       const object = await inspectPrivateR2Object(row.document_object_key);
-      const wouldResend = object.exists && !row.correction_queue_status;
-      audited.push({ row, object, wouldResend });
+      let bytes: Buffer | null = null;
+      let checksum: string | null = null;
+      if (object.exists) {
+        const downloaded = await downloadPrivateR2Object(row.document_object_key);
+        bytes = Buffer.from(downloaded.bytes);
+        checksum = createHash("sha256").update(bytes).digest("hex");
+      }
+      const wouldResend =
+        object.exists &&
+        bytes?.byteLength === Number(row.document_size_bytes) &&
+        !row.correction_queue_status;
+      audited.push({
+        row,
+        object,
+        bytes,
+        checksum,
+        wouldResend,
+        classification: "legitimate_separate_submission",
+        recommendation: "include",
+      });
     }
+
+    const duplicateGroups = classifyDuplicates(audited);
 
     if (!applyRequested) {
       console.log(
@@ -128,31 +173,52 @@ async function main() {
               affectedSubmissions: audited.length,
               objectsPresent: audited.filter((item) => item.object.exists).length,
               objectsMissing: audited.filter((item) => !item.object.exists).length,
+              objectMetadataMatches: audited.filter(
+                (item) =>
+                  item.object.exists &&
+                  item.object.contentLength === Number(item.row.document_size_bytes) &&
+                  (!item.object.contentType ||
+                    item.object.contentType === item.row.document_content_type)
+              ).length,
               alreadyCorrectedOrQueued: audited.filter(
                 (item) => Boolean(item.row.correction_queue_status)
               ).length,
               wouldResend: audited.filter((item) => item.wouldResend).length,
+              recommendedInclude: audited.filter(
+                (item) => item.wouldResend && item.recommendation === "include"
+              ).length,
+              recommendedExclude: audited.filter(
+                (item) => item.wouldResend && item.recommendation === "exclude"
+              ).length,
             },
-            submissions: audited.map(({ row, object, wouldResend }) => ({
+            duplicateGroups,
+            submissions: audited.map(({ row, object, checksum, bytes, wouldResend, classification, recommendation }) => ({
               submissionId: row.id,
-              buyerName: row.name_snapshot,
-              buyerEmail: row.email_snapshot,
-              property: row.property_title,
-              r2ObjectKey: row.document_object_key,
-              originalFilename: row.document_original_name,
+              canonicalLeadId: row.lead_id,
+              propertyId: row.property_id,
+              createdAt: row.created_at,
+              emailFingerprint: fingerprint(row.email_snapshot || ""),
+              filenameFingerprint: fingerprint(row.document_original_name),
+              objectKeyFingerprint: fingerprint(row.document_object_key),
+              sha256: checksum,
               mimeType: row.document_content_type,
               fileSize: Number(row.document_size_bytes),
               objectExists: object.exists,
               objectSizeMatches:
                 object.exists &&
-                object.contentLength === Number(row.document_size_bytes),
-              recipient,
+                object.contentLength === Number(row.document_size_bytes) &&
+                bytes?.byteLength === Number(row.document_size_bytes),
+              objectContentTypeMatches:
+                object.exists &&
+                (!object.contentType || object.contentType === row.document_content_type),
               originalEmailAlreadySent: true,
               originalEmailSentAt: row.original_sent_at,
               correctionStatus: row.correction_queue_status,
               correctionQueuedAt: row.correction_created_at,
               correctionSentAt: row.correction_sent_at,
               wouldResend,
+              classification,
+              recommendation,
             })),
           },
           null,
@@ -164,8 +230,8 @@ async function main() {
 
     let queued = 0;
     let alreadyQueued = 0;
-    for (const { row, wouldResend } of audited) {
-      if (!wouldResend) {
+    for (const { row, wouldResend, recommendation } of audited) {
+      if (!wouldResend || recommendation === "exclude" || !reviewedIds.has(row.id)) {
         alreadyQueued += 1;
         continue;
       }
@@ -221,6 +287,103 @@ async function main() {
   } finally {
     await sql.end();
   }
+}
+
+function classifyDuplicates(
+  audited: Array<{
+    row: RecoveryRow;
+    bytes: Buffer | null;
+    checksum: string | null;
+    classification: DuplicateClassification;
+    recommendation: "include" | "exclude";
+  }>
+) {
+  const groups = new Map<string, typeof audited>();
+  for (const item of audited) {
+    if (!item.bytes || !item.checksum) continue;
+    const key = [
+      item.row.lead_id,
+      normalize(item.row.email_snapshot || ""),
+      normalize(item.row.document_original_name),
+      item.checksum,
+      item.bytes.byteLength,
+    ].join("|");
+    const group = groups.get(key) || [];
+    group.push(item);
+    groups.set(key, group);
+  }
+
+  const report = [];
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const identicalFileBytes = group.every((item) =>
+      item.bytes!.equals(group[0].bytes!)
+    );
+    if (!identicalFileBytes) continue;
+
+    const byProperty = new Map<string, typeof group>();
+    for (const item of group) {
+      const entries = byProperty.get(item.row.property_id) || [];
+      entries.push(item);
+      byProperty.set(item.row.property_id, entries);
+    }
+
+    for (const entries of byProperty.values()) {
+      if (entries.length === 1) {
+        entries[0].classification = "legitimate_separate_submission";
+        continue;
+      }
+      entries.sort(
+        (a, b) =>
+          new Date(a.row.created_at).getTime() - new Date(b.row.created_at).getTime()
+      );
+      const baseline = entries[0];
+      baseline.classification = "intentional_resubmission";
+      for (const item of entries.slice(1)) {
+        const exactAnswers = answerFingerprint(item.row) === answerFingerprint(baseline.row);
+        const elapsed =
+          new Date(item.row.created_at).getTime() -
+          new Date(baseline.row.created_at).getTime();
+        if (exactAnswers && elapsed >= 0 && elapsed <= 10 * 60 * 1000) {
+          item.classification = "accidental_duplicate";
+          item.recommendation = "exclude";
+        } else {
+          item.classification = "intentional_resubmission";
+        }
+      }
+    }
+
+    report.push({
+      submissionIds: group.map((item) => item.row.id),
+      propertyCount: byProperty.size,
+      identicalFileBytes,
+      classifications: group.map((item) => ({
+        submissionId: item.row.id,
+        classification: item.classification,
+        recommendation: item.recommendation,
+      })),
+    });
+  }
+  return report;
+}
+
+function answerFingerprint(row: RecoveryRow) {
+  return fingerprint(JSON.stringify({
+    purchaseMethod: row.purchase_method,
+    purchaseMethodOther: row.purchase_method_other,
+    financialInstitution: row.financial_institution,
+    closingFunds: row.closing_funds,
+    solarContractAcceptance: row.solar_contract_acceptance,
+    comments: row.comments,
+  }));
+}
+
+function normalize(value: string) {
+  return value.trim().toLowerCase().normalize("NFKC");
+}
+
+function fingerprint(value: string) {
+  return createHash("sha256").update(normalize(value)).digest("hex");
 }
 
 async function run() {
