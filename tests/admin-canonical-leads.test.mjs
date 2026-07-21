@@ -184,7 +184,7 @@ test("multiple linked source records do not duplicate a person", async () => {
 
 test("source badges use the reviewed Spanish labels", () => {
   assert.equal(CANONICAL_LEAD_SOURCE_LABELS.property_buyer_profile, "Perfil comprador de propiedad");
-  assert.equal(CANONICAL_LEAD_SOURCE_LABELS.open_house_registration, "Consulta de propiedad");
+  assert.equal(CANONICAL_LEAD_SOURCE_LABELS.open_house_registration, "Registro Open House");
 });
 
 test("Priority Registration is labeled correctly", () => {
@@ -272,13 +272,13 @@ test("admin lead directory adds no PII analytics or logging", () => {
   assert.doesNotMatch(pageSource, /@vercel\/analytics|clarity|google-analytics/i);
 });
 
-test("admin protection remains active and no detail route is linked", () => {
+test("admin protection remains active and every row links to Lead 360", () => {
   assert.match(pageSource, /getAdminSessionUser/);
   assert.match(pageSource, /redirect\("\/admin\/login"\)/);
   assert.match(middlewareSource, /pathname\.startsWith\("\/admin"\)/);
-  assert.doesNotMatch(pageSource, /href=\{`\/admin\/leads\/\$\{/);
+  assert.match(pageSource, /href=\{`\/admin\/leads\/\$\{lead\.id\}`\}/);
   assert.match(pageSource, /Ver detalles/);
-  assert.match(pageSource, /disabled/);
+  assert.doesNotMatch(pageSource, /disponible próximamente/);
 });
 
 test("query parameters are allowlisted and invalid page values normalize safely", () => {

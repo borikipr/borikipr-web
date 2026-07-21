@@ -198,8 +198,34 @@ export default async function AdminLeadsPage({
                 <p className="mt-2 text-sm text-[#4d4d4d]">{hasFilters ? "Ajusta o limpia los filtros para ampliar los resultados." : "Las personas aparecerán aquí cuando exista una identidad canónica persistida."}</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
+              <>
+                <div className="divide-y divide-[#eeeeee] md:hidden">
+                  {directory.items.map((lead) => (
+                    <article className="p-5" key={lead.id}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="break-words font-semibold text-[#000000]">{lead.name}</h3>
+                          <p className="mt-1 text-xs text-[#6b7280]">Creado {formatDate(lead.createdAt)}</p>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-[#11518b]/10 px-3 py-1 text-xs font-semibold text-[#11518b]">{STATUS_LABELS[lead.status] ?? lead.status}</span>
+                      </div>
+                      <div className="mt-4 grid gap-3 text-sm text-[#334155]">
+                        {lead.email && <p className="break-all">{lead.email}</p>}
+                        {lead.phone && <p>{lead.phone}</p>}
+                        <div>
+                          <p className="font-semibold text-[#000000]">{lead.primarySource ? CANONICAL_LEAD_SOURCE_LABELS[lead.primarySource] : "Sin fuente vinculada"}</p>
+                          <p className="mt-1 text-xs text-[#6b7280]">{lead.sourceCount} interacción{lead.sourceCount === 1 ? "" : "es"}</p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">{lead.sourceTypes.map((source) => <SourceBadge key={source} source={source} />)}</div>
+                        </div>
+                        {(lead.contextTitle || lead.contextDetail) && <div><p className="font-medium text-[#000000]">{lead.contextTitle ?? lead.contextDetail}</p>{lead.contextTitle && lead.contextDetail && <p className="mt-1 text-xs text-[#6b7280]">{lead.contextDetail}</p>}</div>}
+                        <p className="text-xs text-[#6b7280]">Última actividad {formatDate(lead.lastActivityAt)}</p>
+                      </div>
+                      <Link aria-label={`Ver detalles de ${lead.name}`} className="btn-secondary mt-4 w-full px-4 py-2.5 text-sm" href={`/admin/leads/${lead.id}`}>Ver detalles</Link>
+                    </article>
+                  ))}
+                </div>
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="min-w-full">
                   <thead className="bg-[#fafafa]"><tr className="text-left">
                     <th className="px-5 py-4 text-sm font-semibold">Persona</th><th className="px-5 py-4 text-sm font-semibold">Contacto</th><th className="px-5 py-4 text-sm font-semibold">Fuentes</th><th className="px-5 py-4 text-sm font-semibold">Contexto</th><th className="px-5 py-4 text-sm font-semibold">Actividad</th><th className="px-5 py-4 text-sm font-semibold">Estado</th><th className="px-5 py-4 text-sm font-semibold">Acción</th>
                   </tr></thead>
@@ -212,12 +238,13 @@ export default async function AdminLeadsPage({
                         <td className="px-5 py-5 text-sm text-[#334155]"><p className="font-medium text-[#000000]">{lead.contextTitle ?? lead.contextDetail ?? "Sin contexto"}</p>{lead.contextTitle && lead.contextDetail && <p className="mt-1 text-xs text-[#6b7280]">{lead.contextDetail}</p>}</td>
                         <td className="px-5 py-5 text-sm text-[#334155]">{formatDate(lead.lastActivityAt)}</td>
                         <td className="px-5 py-5"><span className="inline-flex rounded-full bg-[#11518b]/10 px-3 py-1 text-xs font-semibold text-[#11518b]">{STATUS_LABELS[lead.status] ?? lead.status}</span></td>
-                        <td className="px-5 py-5"><button aria-label={`Ver detalles de ${lead.name}, disponible próximamente`} className="cursor-not-allowed rounded-lg border border-[#d9d9d9] px-3 py-2 text-sm font-semibold text-[#6b7280]" disabled type="button">Ver detalles</button></td>
+                        <td className="px-5 py-5"><Link aria-label={`Ver detalles de ${lead.name}`} className="inline-flex rounded-lg border border-[#11518b] px-3 py-2 text-sm font-semibold text-[#11518b] hover:bg-[#11518b] hover:text-white" href={`/admin/leads/${lead.id}`}>Ver detalles</Link></td>
                       </tr>
                     ))}
                   </tbody>
-                </table>
-              </div>
+                  </table>
+                </div>
+              </>
             )}
             <Pagination filters={filters} totalPages={directory.totalPages} />
           </section>

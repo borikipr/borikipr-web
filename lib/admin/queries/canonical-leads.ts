@@ -7,7 +7,7 @@ export const CANONICAL_LEAD_SOURCE_LABELS = {
   property_buyer_profile: "Perfil comprador de propiedad",
   buyer_tenant_inquiry: "Comprador / arrendatario",
   seller_landlord_inquiry: "Vendedor / arrendador",
-  open_house_registration: "Consulta de propiedad",
+  open_house_registration: "Registro Open House",
 } as const;
 
 export type CanonicalLeadSourceType = keyof typeof CANONICAL_LEAD_SOURCE_LABELS;

@@ -22,6 +22,8 @@ const [
   hardeningRollbackSql,
   priorityRegistrationMigrationSql,
   priorityRegistrationRollbackSql,
+  lead360MigrationSql,
+  lead360RollbackSql,
 ] =
   await Promise.all([
     readMigration("0001_create_leads.sql"),
@@ -35,6 +37,8 @@ const [
     readMigration("0005_harden_consultas_propiedad.rollback.sql"),
     readMigration("0006_link_priority_registrations_to_leads.sql"),
     readMigration("0006_link_priority_registrations_to_leads.rollback.sql"),
+    readMigration("0007_create_lead_360.sql"),
+    readMigration("0007_create_lead_360.rollback.sql"),
   ]);
 
 const typedTables = [
@@ -937,4 +941,104 @@ try {
   console.log("Verified 0006 preserves Priority rows, adds a nullable RESTRICT lead FK and partial index, and rolls back only its additions.");
 } finally {
   await priorityRegistrationDb.close();
+}
+
+const lead360Db = new PGlite();
+try {
+  await lead360Db.exec(leadsMigrationSql);
+  await lead360Db.exec(lead360MigrationSql);
+
+  const tables = await lead360Db.query(`
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name IN (
+        'lead_notes',
+        'lead_relationships',
+        'lead_duplicate_reviews',
+        'lead_management_events'
+      )
+    ORDER BY table_name
+  `);
+  assert.deepEqual(tables.rows.map((row) => row.table_name), [
+    "lead_duplicate_reviews",
+    "lead_management_events",
+    "lead_notes",
+    "lead_relationships",
+  ]);
+
+  const followUpColumn = await lead360Db.query(`
+    SELECT data_type, is_nullable, column_default
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'leads'
+      AND column_name = 'next_follow_up_at'
+  `);
+  assert.deepEqual(followUpColumn.rows, [{
+    data_type: "timestamp with time zone",
+    is_nullable: "YES",
+    column_default: null,
+  }]);
+
+  const foreignKeys = await lead360Db.query(`
+    SELECT source.relname AS source_table,
+           count(*)::int AS foreign_key_count,
+           bool_and(con.confdeltype = 'r') AS all_restrict
+    FROM pg_constraint con
+    JOIN pg_class source ON source.oid = con.conrelid
+    WHERE con.contype = 'f'
+      AND source.relname IN (
+        'lead_notes',
+        'lead_relationships',
+        'lead_duplicate_reviews',
+        'lead_management_events'
+      )
+    GROUP BY source.relname
+    ORDER BY source.relname
+  `);
+  assert.deepEqual(foreignKeys.rows, [
+    { source_table: "lead_duplicate_reviews", foreign_key_count: 2, all_restrict: true },
+    { source_table: "lead_management_events", foreign_key_count: 1, all_restrict: true },
+    { source_table: "lead_notes", foreign_key_count: 1, all_restrict: true },
+    { source_table: "lead_relationships", foreign_key_count: 2, all_restrict: true },
+  ]);
+
+  const indexRows = await lead360Db.query(`
+    SELECT idx.relname AS index_name, i.indisunique AS is_unique
+    FROM pg_index i
+    JOIN pg_class idx ON idx.oid = i.indexrelid
+    WHERE idx.relname IN (
+      'leads_next_follow_up_at_idx',
+      'lead_notes_idempotency_key_uidx',
+      'lead_notes_lead_created_at_idx',
+      'lead_relationships_pair_uidx',
+      'lead_relationships_lead_id_idx',
+      'lead_relationships_related_lead_id_idx',
+      'lead_duplicate_reviews_pair_uidx',
+      'lead_management_events_idempotency_key_uidx',
+      'lead_management_events_lead_created_at_idx'
+    )
+    ORDER BY idx.relname
+  `);
+  assert.equal(indexRows.rows.length, 9);
+  assert.equal(
+    indexRows.rows.find((row) => row.index_name === "lead_relationships_pair_uidx").is_unique,
+    true
+  );
+
+  await lead360Db.exec(lead360RollbackSql);
+  const rolledBack = await lead360Db.query(`
+    SELECT to_regclass('public.lead_notes') IS NULL AS notes_removed,
+           NOT EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'leads'
+               AND column_name = 'next_follow_up_at'
+           ) AS follow_up_removed
+  `);
+  assert.deepEqual(rolledBack.rows, [{ notes_removed: true, follow_up_removed: true }]);
+
+  console.log("Validated the ordered migration chain through 0007.");
+  console.log("Verified Lead 360 tables, RESTRICT relationships, indexes, and guarded rollback.");
+} finally {
+  await lead360Db.close();
 }
