@@ -2,6 +2,12 @@ import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { notFound, redirect } from "next/navigation";
 import {
+  LEAD_GROUP_ROLE_LABELS,
+  LEAD_GROUP_STATUS_LABELS,
+  getLeadGroupsForLead,
+  type LeadGroupRole,
+} from "@/lib/admin/queries/lead-groups";
+import {
   AlertTriangle,
   ArchiveX,
   CalendarClock,
@@ -35,6 +41,7 @@ import {
   type Lead360ManagementEvent,
   type Lead360Note,
 } from "@/lib/admin/queries/lead-360";
+import { createLeadGroupAction } from "../../lead-groups/actions";
 import {
   addLeadNoteAction,
   createLeadRelationshipAction,
@@ -253,6 +260,7 @@ export default async function AdminLead360Page({
     merged_alias?: string | string[];
     merge_result?: string | string[];
     relationship_result?: string | string[];
+    group_result?: string | string[];
   }>;
 }) {
   const username = await getAdminSessionUser();
@@ -267,10 +275,11 @@ export default async function AdminLead360Page({
   }
   const rawRelatedSearch = Array.isArray(query.related_q) ? query.related_q[0] : query.related_q;
   const relatedSearch = (rawRelatedSearch ?? "").trim().slice(0, 200);
-  const [detail, relatedPeople, mergeHistory] = await Promise.all([
+  const [detail, relatedPeople, mergeHistory, leadGroups] = await Promise.all([
     getLead360Detail(id),
     searchRelatedPeople(id, relatedSearch),
     getLeadMergeHistory(id),
+    getLeadGroupsForLead(id),
   ]);
   if (!detail) notFound();
 
@@ -279,6 +288,7 @@ export default async function AdminLead360Page({
   const mergedAlias = (Array.isArray(query.merged_alias) ? query.merged_alias[0] : query.merged_alias) === "1";
   const mergeResult = Array.isArray(query.merge_result) ? query.merge_result[0] : query.merge_result;
   const relationshipResult = Array.isArray(query.relationship_result) ? query.relationship_result[0] : query.relationship_result;
+  const groupResult = Array.isArray(query.group_result) ? query.group_result[0] : query.group_result;
   const successMessage = mergeSucceeded ? "Los registros se fusionaron correctamente." : okMessage;
   const relationshipsByLeadId = new Map(
     detail.relationships.map((relationship) => [relationship.relatedLeadId, relationship])
@@ -365,6 +375,27 @@ export default async function AdminLead360Page({
           <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
           No se pudo procesar la relación solicitada.
         </div>
+      )}
+
+      {groupResult === "rolled_back" && (
+        <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold leading-6 text-red-900" role="alert">
+          <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
+          No se pudo crear el caso compartido. Ningún cambio fue aplicado.
+        </div>
+      )}
+
+      {groupResult === "invalid" && (
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm font-semibold leading-6 text-amber-950" role="alert">
+          <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
+          Revisa las personas, funciones y contacto principal antes de crear el caso.
+        </div>
+      )}
+
+      {leadGroups.length > 0 && (
+        <section className="rounded-[2rem] border border-blue-200 bg-blue-50 p-5 md:p-6" aria-labelledby="lead-groups-heading">
+          <div className="flex items-center gap-3"><UsersRound className="h-6 w-6 text-[#11518b]" /><h2 className="text-lg font-semibold text-blue-950" id="lead-groups-heading">Casos compartidos</h2></div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">{leadGroups.map((group) => <Link className="rounded-2xl border border-blue-200 bg-white p-4 transition hover:border-[#11518b]" href={`/admin/lead-groups/${group.groupId}`} key={group.groupId}><p className="break-words font-semibold text-[#11518b]">{group.title}</p><p className="mt-1 text-xs text-[#6b7280]">{LEAD_GROUP_ROLE_LABELS[group.role]}{group.isPrimaryContact ? " · contacto principal" : ""} · {LEAD_GROUP_STATUS_LABELS[group.status]}</p></Link>)}</div>
+        </section>
       )}
 
       {detail.sharedContacts.length > 0 && (
@@ -601,6 +632,31 @@ export default async function AdminLead360Page({
                 </div>
               )}
             </div>
+
+            {detail.relationships.length > 0 && (
+              <div className="mt-6 border-t border-[#eeeeee] pt-5">
+                <h3 className="text-base font-semibold">Crear caso compartido</h3>
+                <p className="mt-1 text-xs leading-5 text-[#6b7280]">Agrupa trabajo operacional sin fusionar identidades. La creación siempre requiere una decisión administrativa.</p>
+                <form action={createLeadGroupAction} className="mt-4 grid min-w-0 gap-4">
+                  <input name="source_lead_id" type="hidden" value={detail.identity.id} />
+                  <input name="operation_key" type="hidden" value={randomUUID()} />
+                  <label><span className="text-sm font-semibold">Título del caso</span><input className="input-field mt-2 w-full" defaultValue={detail.interactions.find((interaction) => interaction.propertyTitle)?.propertyTitle ? `Caso · ${detail.interactions.find((interaction) => interaction.propertyTitle)?.propertyTitle}` : `Caso · ${detail.identity.name}`} maxLength={200} name="title" required /></label>
+                  <label><span className="text-sm font-semibold">Propiedad principal</span><select className="input-field mt-2 w-full" name="primary_property_id"><option value="">Sin propiedad principal</option>{[...new Map(detail.interactions.filter((interaction) => interaction.propertyId && interaction.propertyTitle).map((interaction) => [interaction.propertyId, { id: interaction.propertyId as string, title: interaction.propertyTitle as string }])).values()].map((property) => <option key={property.id} value={property.id}>{property.title}</option>)}</select></label>
+                  {[{ leadId: detail.identity.id, name: detail.identity.name, defaultRole: "buyer" as LeadGroupRole }, ...detail.relationships.map((relationship) => ({
+                    leadId: relationship.relatedLeadId,
+                    name: relationship.relatedLeadName,
+                    defaultRole: ({ family: "family_contact", primary_buyer: "buyer", co_buyer: "co_buyer", prequalified_person: "prequalified_buyer", representative_contact: "representative_contact", other: "other" } as const)[relationship.type],
+                  }))].map((person, index) => (
+                    <div className="rounded-2xl border border-[#e8e8e8] p-4" key={person.leadId}>
+                      <label className="flex items-start gap-3"><input defaultChecked className="mt-1" name="member_id" type="checkbox" value={person.leadId} /><span className="min-w-0 break-words text-sm font-semibold">{person.name}</span></label>
+                      <select className="input-field mt-3 w-full" defaultValue={person.defaultRole} name={`role_${person.leadId}`}>{Object.entries(LEAD_GROUP_ROLE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+                      <label className="mt-3 flex items-center gap-2 text-xs font-semibold"><input defaultChecked={index === 0} name="primary_contact_lead_id" type="radio" value={person.leadId} />Contacto principal</label>
+                    </div>
+                  ))}
+                  <button className="btn-primary w-full" type="submit">Crear caso compartido</button>
+                </form>
+              </div>
+            )}
           </section>
 
           <section className="surface-card p-5" aria-labelledby="email-heading">

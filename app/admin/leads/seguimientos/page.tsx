@@ -25,6 +25,7 @@ import {
   type LeadFollowUpItem,
 } from "@/lib/admin/queries/lead-follow-ups";
 import { markContactedFromCenterAction, setFollowUpFromCenterAction } from "./actions";
+import { updateLeadGroupAction } from "../../lead-groups/actions";
 
 type PageSearchParams = Record<string, string | string[] | undefined>;
 
@@ -85,12 +86,14 @@ function LeadCard({ lead }: { lead: LeadFollowUpItem }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="min-w-0 break-words text-lg font-semibold text-[#000000]">{lead.name}</h3>
+            {lead.entityType === "group" && <span className="rounded-full bg-[#d4af37]/20 px-2.5 py-1 text-xs font-semibold">Caso · {lead.memberNames.length} personas</span>}
             <span className="rounded-full bg-[#11518b]/10 px-2.5 py-1 text-xs font-semibold text-[#11518b]">{STATUS_LABELS[lead.status]}</span>
           </div>
           <div className="mt-2 space-y-1 text-sm text-[#4d4d4d]">
             {lead.email && <p className="break-all">{lead.email}</p>}
             {lead.phone && <p>{lead.phone}</p>}
           </div>
+          {lead.entityType === "group" && <p className="mt-2 break-words text-sm text-[#334155]">{lead.memberNames.join(" + ")}</p>}
           <div className="mt-3 flex flex-wrap gap-2">{lead.sourceTypes.map((source) => <SourceBadge key={source} source={source} />)}</div>
           {lead.propertyTitle && <p className="mt-3 text-sm font-medium text-[#334155]">Propiedad: {lead.propertyTitle}</p>}
           {lead.sharedContact && (
@@ -109,28 +112,31 @@ function LeadCard({ lead }: { lead: LeadFollowUpItem }) {
         </dl>
 
         <div className="min-w-0 space-y-3">
-          <form action={setFollowUpFromCenterAction} className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <input name="lead_id" type="hidden" value={lead.id} />
+          <form action={lead.entityType === "group" ? updateLeadGroupAction : setFollowUpFromCenterAction} className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <input name={lead.entityType === "group" ? "group_id" : "lead_id"} type="hidden" value={lead.id} />
             <input name="operation_key" type="hidden" value={randomUUID()} />
+            {lead.entityType === "group" && <input name="intent" type="hidden" value="follow_up" />}
             <label className="sr-only" htmlFor={`follow-up-${lead.id}`}>Próximo seguimiento para {lead.name}</label>
             <input className="input-field min-w-0 w-full" defaultValue={dateTimeLocal(lead.nextFollowUpAt)} id={`follow-up-${lead.id}`} name="next_follow_up_at" type="datetime-local" />
             <button className="btn-secondary px-4 py-2 text-sm" type="submit">Guardar</button>
           </form>
           <div className="flex flex-wrap gap-2">
-            <form action={markContactedFromCenterAction}>
-              <input name="lead_id" type="hidden" value={lead.id} />
+            <form action={lead.entityType === "group" ? updateLeadGroupAction : markContactedFromCenterAction}>
+              <input name={lead.entityType === "group" ? "group_id" : "lead_id"} type="hidden" value={lead.id} />
               <input name="operation_key" type="hidden" value={randomUUID()} />
+              {lead.entityType === "group" && <input name="intent" type="hidden" value="contacted" />}
               <button className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm" type="submit"><PhoneCall aria-hidden="true" className="h-4 w-4" />Marcar contactado</button>
             </form>
             {lead.nextFollowUpAt && (
-              <form action={setFollowUpFromCenterAction}>
-                <input name="lead_id" type="hidden" value={lead.id} />
+              <form action={lead.entityType === "group" ? updateLeadGroupAction : setFollowUpFromCenterAction}>
+                <input name={lead.entityType === "group" ? "group_id" : "lead_id"} type="hidden" value={lead.id} />
                 <input name="operation_key" type="hidden" value={randomUUID()} />
+                {lead.entityType === "group" && <input name="intent" type="hidden" value="follow_up" />}
                 <input name="next_follow_up_at" type="hidden" value="" />
                 <button className="btn-secondary px-4 py-2 text-sm" type="submit">Limpiar seguimiento</button>
               </form>
             )}
-            <Link className="btn-secondary inline-flex items-center gap-2 px-4 py-2 text-sm" href={`/admin/leads/${lead.id}`}>Abrir Lead 360<ExternalLink aria-hidden="true" className="h-4 w-4" /></Link>
+            <Link className="btn-secondary inline-flex items-center gap-2 px-4 py-2 text-sm" href={lead.entityType === "group" ? `/admin/lead-groups/${lead.id}` : `/admin/leads/${lead.id}`}>{lead.entityType === "group" ? "Abrir Caso 360" : "Abrir Lead 360"}<ExternalLink aria-hidden="true" className="h-4 w-4" /></Link>
           </div>
         </div>
       </div>

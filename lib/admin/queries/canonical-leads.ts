@@ -216,10 +216,20 @@ export function normalizeCanonicalLeadFilters(
 
 export function buildCanonicalLeadListQuery(
   filters: CanonicalLeadFilters,
-  pageSize = CANONICAL_LEAD_PAGE_SIZE
+  pageSize = CANONICAL_LEAD_PAGE_SIZE,
+  excludeGroupedMembers = false
 ): SqlQuery {
   const values: unknown[] = [];
   const conditions: string[] = ["l.merged_into_lead_id IS NULL"];
+  if (excludeGroupedMembers) {
+    conditions.push(`NOT EXISTS (
+      SELECT 1 FROM public.lead_group_members grouped_member
+      INNER JOIN public.lead_groups grouped_case ON grouped_case.id=grouped_member.group_id
+      WHERE grouped_member.lead_id=l.id
+        AND grouped_member.removed_at IS NULL
+        AND grouped_case.archived_at IS NULL
+    )`);
+  }
 
   if (filters.search) {
     const search = appendValue(values, `%${filters.search}%`);
@@ -346,10 +356,11 @@ function toIso(value: string | Date) {
 }
 
 export async function getCanonicalLeadDirectory(
-  filters: CanonicalLeadFilters
+  filters: CanonicalLeadFilters,
+  options: { excludeGroupedMembers?: boolean } = {}
 ): Promise<CanonicalLeadDirectory> {
   const [rows, summaryRows, propertyRows] = await Promise.all([
-    executeQuery<CanonicalLeadRow>(buildCanonicalLeadListQuery(filters)),
+    executeQuery<CanonicalLeadRow>(buildCanonicalLeadListQuery(filters, CANONICAL_LEAD_PAGE_SIZE, options.excludeGroupedMembers ?? false)),
     executeQuery<SummaryRow>(buildCanonicalLeadSummaryQuery()),
     executeQuery<PropertyRow>(buildCanonicalLeadPropertiesQuery()),
   ]);

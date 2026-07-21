@@ -21,6 +21,11 @@ const navItems = [
     match: (path: string) => path.startsWith("/admin/leads"),
   },
   {
+    href: "/admin/lead-groups",
+    label: "Casos",
+    match: (path: string) => path.startsWith("/admin/lead-groups"),
+  },
+  {
     href: "/admin/analytics",
     label: "Analytics",
     match: (path: string) => path.startsWith("/admin/analytics"),

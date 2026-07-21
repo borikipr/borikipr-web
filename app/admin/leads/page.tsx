@@ -11,6 +11,12 @@ import {
   type CanonicalLeadFilters,
   type CanonicalLeadSourceType,
 } from "@/lib/admin/queries/canonical-leads";
+import {
+  LEAD_GROUP_ROLE_LABELS,
+  LEAD_GROUP_STATUS_LABELS,
+  getLeadGroupDirectory,
+  normalizeLeadGroupFilters,
+} from "@/lib/admin/queries/lead-groups";
 
 type PageSearchParams = Record<string, string | string[] | undefined>;
 
@@ -47,7 +53,7 @@ function SourceBadge({ source }: { source: CanonicalLeadSourceType }) {
   );
 }
 
-function Pagination({ filters, totalPages }: { filters: CanonicalLeadFilters; totalPages: number }) {
+function Pagination({ filters, totalPages, showIndividuals }: { filters: CanonicalLeadFilters; totalPages: number; showIndividuals: boolean }) {
   if (totalPages <= 1) return null;
   const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1).filter(
     (page) => page === 1 || page === totalPages || Math.abs(page - filters.page) <= 1
@@ -58,7 +64,7 @@ function Pagination({ filters, totalPages }: { filters: CanonicalLeadFilters; to
       <p className="text-sm text-[#4d4d4d]">Página {filters.page} de {totalPages}</p>
       <div className="flex flex-wrap gap-2">
         {filters.page > 1 && (
-          <Link className="btn-secondary px-3 py-2 text-sm" href={canonicalLeadDirectoryHref(filters, { page: filters.page - 1 })}>
+          <Link className="btn-secondary px-3 py-2 text-sm" href={`${canonicalLeadDirectoryHref(filters, { page: filters.page - 1 })}${showIndividuals ? (canonicalLeadDirectoryHref(filters, { page: filters.page - 1 }).includes("?") ? "&individuals=1" : "?individuals=1") : ""}`}>
             Anterior
           </Link>
         )}
@@ -70,7 +76,7 @@ function Pagination({ filters, totalPages }: { filters: CanonicalLeadFilters; to
               <Link
                 aria-current={page === filters.page ? "page" : undefined}
                 className={page === filters.page ? "rounded-lg bg-[#11518b] px-3 py-2 text-sm font-semibold text-white" : "rounded-lg border border-[#d9d9d9] bg-white px-3 py-2 text-sm font-semibold text-[#334155]"}
-                href={canonicalLeadDirectoryHref(filters, { page })}
+                href={`${canonicalLeadDirectoryHref(filters, { page })}${showIndividuals ? (canonicalLeadDirectoryHref(filters, { page }).includes("?") ? "&individuals=1" : "?individuals=1") : ""}`}
               >
                 {page}
               </Link>
@@ -78,7 +84,7 @@ function Pagination({ filters, totalPages }: { filters: CanonicalLeadFilters; to
           );
         })}
         {filters.page < totalPages && (
-          <Link className="btn-secondary px-3 py-2 text-sm" href={canonicalLeadDirectoryHref(filters, { page: filters.page + 1 })}>
+          <Link className="btn-secondary px-3 py-2 text-sm" href={`${canonicalLeadDirectoryHref(filters, { page: filters.page + 1 })}${showIndividuals ? (canonicalLeadDirectoryHref(filters, { page: filters.page + 1 }).includes("?") ? "&individuals=1" : "?individuals=1") : ""}`}>
             Siguiente
           </Link>
         )}
@@ -95,12 +101,18 @@ export default async function AdminLeadsPage({
   const user = await getAdminSessionUser();
   if (!user) redirect("/admin/login");
 
-  const filters = normalizeCanonicalLeadFilters(await searchParams);
+  const rawParams = await searchParams;
+  const filters = normalizeCanonicalLeadFilters(rawParams);
+  const showIndividuals = (Array.isArray(rawParams.individuals) ? rawParams.individuals[0] : rawParams.individuals) === "1";
   let directory;
+  let groupDirectory;
   let queryFailed = false;
 
   try {
-    directory = await getCanonicalLeadDirectory(filters);
+    [directory, groupDirectory] = await Promise.all([
+      getCanonicalLeadDirectory(filters, { excludeGroupedMembers: !showIndividuals }),
+      getLeadGroupDirectory(normalizeLeadGroupFilters(rawParams)),
+    ]);
   } catch {
     queryFailed = true;
     directory = {
@@ -111,6 +123,7 @@ export default async function AdminLeadsPage({
       properties: [],
       relatedDataUnavailable: false,
     };
+    groupDirectory = { items: [], total: 0, totalPages: 1, properties: [] };
   }
 
   const hasFilters = Boolean(
@@ -120,7 +133,7 @@ export default async function AdminLeadsPage({
   return (
     <AdminPageShell>
       <AdminPageHeader
-        actions={<Link className="btn-primary" href="/admin/leads/seguimientos">Centro de seguimientos</Link>}
+        actions={<><Link className="btn-primary" href="/admin/leads/seguimientos">Centro de seguimientos</Link><Link className="btn-secondary" href="/admin/lead-groups">Casos compartidos</Link></>}
         breadcrumbs={[{ href: "/admin", label: "Admin" }, { label: "Leads" }]}
         description="Directorio canónico de personas e interacciones persistidas en Neon. Cada persona aparece una sola vez, aunque haya enviado varios formularios."
         eyebrow="Relaciones con clientes"
@@ -177,9 +190,17 @@ export default async function AdminLeadsPage({
               <div className="flex flex-wrap items-end gap-3 lg:col-span-6">
                 <button className="btn-primary" type="submit">Aplicar filtros</button>
                 <Link className="btn-secondary" href="/admin/leads">Limpiar</Link>
+                <Link className="btn-secondary" href={showIndividuals ? canonicalLeadDirectoryHref(filters) : `${canonicalLeadDirectoryHref(filters)}${canonicalLeadDirectoryHref(filters).includes("?") ? "&" : "?"}individuals=1`}>{showIndividuals ? "Mostrar vista operacional" : "Mostrar personas individuales"}</Link>
               </div>
             </form>
           </section>
+
+          {!showIndividuals && groupDirectory.items.length > 0 && (
+            <section className="surface-card overflow-hidden">
+              <header className="border-b border-[#eeeeee] px-5 py-5"><p className="eyebrow">Casos compartidos</p><h2 className="mt-2 text-2xl font-semibold">Trabajo operacional agrupado</h2><p className="mt-2 text-sm text-[#4d4d4d]">Cada caso reemplaza las filas individuales de sus miembros en esta vista.</p></header>
+              <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">{groupDirectory.items.map((group) => <article className="min-w-0 rounded-3xl border border-blue-200 bg-blue-50 p-5" key={group.id}><div className="flex flex-wrap items-start justify-between gap-3"><h3 className="break-words text-lg font-semibold">{group.members.map((member) => member.name).join(" + ")}</h3><span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#11518b]">{LEAD_GROUP_STATUS_LABELS[group.status]}</span></div><p className="mt-2 text-sm font-semibold text-[#334155]">{group.members.length} personas</p>{group.propertyTitle && <p className="mt-3 text-sm">Propiedad: <span className="font-semibold">{group.propertyTitle}</span></p>}<ul className="mt-3 grid gap-1 text-xs text-[#6b7280]">{group.members.map((member) => <li key={member.id}>{member.name} · {LEAD_GROUP_ROLE_LABELS[member.role]}{member.isPrimaryContact ? " · principal" : ""}</li>)}</ul><p className="mt-3 text-sm">Interacciones: <span className="font-semibold">{group.interactionCount}</span></p><Link className="btn-primary mt-4 w-full text-center" href={`/admin/lead-groups/${group.id}`}>Abrir Caso 360</Link></article>)}</div>
+            </section>
+          )}
 
           {directory.relatedDataUnavailable && (
             <div className="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-900" role="status">
@@ -189,7 +210,7 @@ export default async function AdminLeadsPage({
 
           <section className="surface-card overflow-hidden">
             <div className="flex flex-col gap-2 border-b border-[#eeeeee] px-5 py-5 sm:flex-row sm:items-end sm:justify-between">
-              <div><p className="eyebrow">Directorio canónico</p><h2 className="mt-2 text-2xl font-semibold text-[#000000]">Personas e interacciones</h2></div>
+              <div><p className="eyebrow">{showIndividuals ? "Directorio canónico" : "Sin caso compartido"}</p><h2 className="mt-2 text-2xl font-semibold text-[#000000]">{showIndividuals ? "Personas e interacciones" : "Personas individuales"}</h2></div>
               <p className="text-sm text-[#4d4d4d]">{directory.total} resultado{directory.total === 1 ? "" : "s"} · {CANONICAL_LEAD_PAGE_SIZE} por página</p>
             </div>
 
@@ -247,7 +268,7 @@ export default async function AdminLeadsPage({
                 </div>
               </>
             )}
-            <Pagination filters={filters} totalPages={directory.totalPages} />
+            <Pagination filters={filters} showIndividuals={showIndividuals} totalPages={directory.totalPages} />
           </section>
         </>
       )}

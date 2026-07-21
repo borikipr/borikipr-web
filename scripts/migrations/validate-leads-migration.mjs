@@ -30,6 +30,8 @@ const [
   documentAccessRollbackSql,
   leadMergeMigrationSql,
   leadMergeRollbackSql,
+  leadGroupsMigrationSql,
+  leadGroupsRollbackSql,
 ] =
   await Promise.all([
     readMigration("0001_create_leads.sql"),
@@ -51,6 +53,8 @@ const [
     readMigration("0009_add_document_accessed_event.rollback.sql"),
     readMigration("0010_add_transactional_lead_merges.sql"),
     readMigration("0010_add_transactional_lead_merges.rollback.sql"),
+    readMigration("0011_create_lead_groups.sql"),
+    readMigration("0011_create_lead_groups.rollback.sql"),
   ]);
 
 const typedTables = [
@@ -962,6 +966,12 @@ try {
   await lead360Db.exec(contactedEventMigrationSql);
   await lead360Db.exec(documentAccessMigrationSql);
   await lead360Db.exec(leadMergeMigrationSql);
+  await lead360Db.exec(`
+    CREATE TABLE public.propiedades (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid()
+    );
+  `);
+  await lead360Db.exec(leadGroupsMigrationSql);
 
   const tables = await lead360Db.query(`
     SELECT table_name
@@ -1083,6 +1093,77 @@ try {
   `);
   assert.match(reviewCheck.rows[0].definition, /merged/);
 
+  const groupTables = await lead360Db.query(`
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema='public' AND table_name IN (
+      'lead_groups', 'lead_group_members', 'lead_group_notes', 'lead_group_events'
+    )
+    ORDER BY table_name
+  `);
+  assert.deepEqual(groupTables.rows.map((row) => row.table_name), [
+    "lead_group_events",
+    "lead_group_members",
+    "lead_group_notes",
+    "lead_groups",
+  ]);
+  const groupForeignKeys = await lead360Db.query(`
+    SELECT source.relname AS source_table,
+           count(*)::int AS foreign_key_count,
+           bool_and(con.confdeltype='r') AS all_restrict
+    FROM pg_constraint con
+    JOIN pg_class source ON source.oid=con.conrelid
+    WHERE con.contype='f' AND source.relname IN (
+      'lead_groups', 'lead_group_members', 'lead_group_notes', 'lead_group_events'
+    )
+    GROUP BY source.relname
+    ORDER BY source.relname
+  `);
+  assert.deepEqual(groupForeignKeys.rows, [
+    { source_table: "lead_group_events", foreign_key_count: 1, all_restrict: true },
+    { source_table: "lead_group_members", foreign_key_count: 2, all_restrict: true },
+    { source_table: "lead_group_notes", foreign_key_count: 1, all_restrict: true },
+    { source_table: "lead_groups", foreign_key_count: 1, all_restrict: true },
+  ]);
+  const groupIndexes = await lead360Db.query(`
+    SELECT indexname FROM pg_indexes
+    WHERE schemaname='public' AND indexname IN (
+      'lead_groups_status_updated_at_idx',
+      'lead_groups_primary_property_id_idx',
+      'lead_groups_next_follow_up_at_idx',
+      'lead_group_members_one_primary_uidx',
+      'lead_group_members_lead_id_idx',
+      'lead_group_notes_idempotency_key_uidx',
+      'lead_group_notes_group_created_at_idx',
+      'lead_group_events_idempotency_key_uidx',
+      'lead_group_events_group_created_at_idx'
+    )
+  `);
+  assert.equal(groupIndexes.rows.length, 9);
+  const groupId = (await lead360Db.query(`
+    INSERT INTO public.lead_groups (title, created_by)
+    VALUES ('Caso sintético', 'migration-test') RETURNING id::text
+  `)).rows[0].id;
+  const groupLead = (await lead360Db.query(`
+    INSERT INTO public.leads (name, email_normalized)
+    VALUES ('Miembro sintético', 'member@example.test') RETURNING id::text
+  `)).rows[0].id;
+  await lead360Db.query(`
+    INSERT INTO public.lead_group_members (
+      group_id, lead_id, role, is_primary_contact, created_by
+    ) VALUES ($1::uuid, $2::uuid, 'buyer', true, 'migration-test')
+  `, [groupId, groupLead]);
+  await assert.rejects(lead360Db.exec(leadGroupsRollbackSql));
+  await lead360Db.exec("ROLLBACK");
+  await lead360Db.query("DELETE FROM public.lead_group_members WHERE group_id=$1::uuid", [groupId]);
+  await lead360Db.query("DELETE FROM public.lead_groups WHERE id=$1::uuid", [groupId]);
+  await lead360Db.exec(leadGroupsRollbackSql);
+  const groupRollbackState = await lead360Db.query(`
+    SELECT to_regclass('public.lead_groups') IS NULL AS groups_removed,
+           to_regclass('public.lead_group_members') IS NULL AS members_removed
+  `);
+  assert.deepEqual(groupRollbackState.rows, [{ groups_removed: true, members_removed: true }]);
+
   await lead360Db.exec(leadMergeRollbackSql);
   const mergeRollbackState = await lead360Db.query(`
     SELECT to_regclass('public.lead_merge_events') IS NULL AS table_removed,
@@ -1124,8 +1205,8 @@ try {
   `);
   assert.deepEqual(rolledBack.rows, [{ notes_removed: true, follow_up_removed: true }]);
 
-  console.log("Validated the ordered migration chain through 0010.");
-  console.log("Verified Lead 360 tables, merge lineage, event types, indexes, and guarded rollbacks.");
+  console.log("Validated the ordered migration chain through 0011.");
+  console.log("Verified Lead 360, merge lineage, Client Case tables, indexes, RESTRICT keys, and guarded rollbacks.");
 } finally {
   await lead360Db.close();
 }

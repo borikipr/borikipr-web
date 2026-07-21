@@ -7,6 +7,7 @@ import { PGlite } from "@electric-sql/pglite";
 process.env.DATABASE_URL ||= "postgresql://local-test.invalid/neondb";
 
 const {
+  buildLeadGroupFollowUpQuery,
   buildLeadFollowUpListQuery,
   buildLeadFollowUpSummaryQuery,
   normalizeLeadFollowUpFilters,
@@ -15,11 +16,12 @@ const { markLeadContacted, setLeadFollowUp } = await import("../lib/admin/lead-f
 
 const root = new URL("..", import.meta.url);
 const readMigration = (name) => readFile(new URL(`db/migrations/${name}`, root), "utf8");
-const [leadsSql, typedSql, lead360Sql, contactedSql, pageSource, actionsSource] = await Promise.all([
+const [leadsSql, typedSql, lead360Sql, contactedSql, leadGroupsSql, pageSource, actionsSource] = await Promise.all([
   readMigration("0001_create_leads.sql"),
   readMigration("0002_create_typed_lead_tables.sql"),
   readMigration("0007_create_lead_360.sql"),
   readMigration("0008_add_lead_contacted_event.sql"),
+  readMigration("0011_create_lead_groups.sql"),
   readFile(new URL("app/admin/leads/seguimientos/page.tsx", root), "utf8"),
   readFile(new URL("app/admin/leads/seguimientos/actions.ts", root), "utf8"),
 ]);
@@ -73,6 +75,7 @@ before(async () => {
   await db.exec(typedSql);
   await db.exec(lead360Sql);
   await db.exec(contactedSql);
+  await db.exec(leadGroupsSql);
 
   await insertLead("overdue", { name: "Overdue Synthetic", createdAt: "2026-07-01T12:00:00Z", lastActivityAt: "2026-07-20T12:00:00Z", nextFollowUpAt: "2026-07-21T15:00:00Z", email: "overdue@example.invalid" });
   await insertLead("today", { name: "Today Synthetic", createdAt: "2026-07-20T12:00:00Z", lastActivityAt: "2026-07-20T12:00:00Z", nextFollowUpAt: "2026-07-21T18:00:00Z", phone: "+17870000002" });
@@ -150,4 +153,31 @@ test("follow-up center has mobile-safe structure and every required empty state"
   assert.match(pageSource, /sm:grid-cols-\[minmax\(0,1fr\)_auto\]/);
   assert.doesNotMatch(pageSource, /w-\[[4-9][0-9]{2}px\]/);
   for (const copy of ["No hay seguimientos vencidos", "No hay seguimientos pendientes para hoy", "No hay seguimientos en los próximos siete días", "No hay resultados"]) assert.match(pageSource, new RegExp(copy));
+});
+
+test("an active case replaces its members with one aggregated follow-up item", async () => {
+  const propertyId = (await db.query("SELECT id::text FROM public.propiedades LIMIT 1")).rows[0].id;
+  const group = await db.query(`
+    INSERT INTO public.lead_groups (
+      title, status, primary_property_id, next_follow_up_at, created_by
+    ) VALUES ('Caso sintético', 'active', $1::uuid, '2026-07-21T18:00:00Z', 'synthetic-admin')
+    RETURNING id::text
+  `, [propertyId]);
+  await db.query(`
+    INSERT INTO public.lead_group_members (
+      group_id, lead_id, role, is_primary_contact, created_by
+    ) VALUES
+      ($1::uuid, $2::uuid, 'buyer', true, 'synthetic-admin'),
+      ($1::uuid, $3::uuid, 'co_buyer', false, 'synthetic-admin')
+  `, [group.rows[0].id, ids.today, ids.upcoming]);
+
+  const filters = normalizeLeadFollowUpFilters({});
+  const individualRows = await run(buildLeadFollowUpListQuery(filters, referenceNow));
+  assert.equal(individualRows.some((row) => row.id === ids.today || row.id === ids.upcoming), false);
+
+  const groupRows = await run(buildLeadGroupFollowUpQuery(filters, referenceNow));
+  assert.equal(groupRows.length, 1);
+  assert.equal(groupRows[0].name, "Caso sintético");
+  assert.equal(groupRows[0].bucket, "today");
+  assert.deepEqual([...groupRows[0].member_names].sort(), ["Today Synthetic", "Upcoming Synthetic"]);
 });

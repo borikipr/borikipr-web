@@ -76,3 +76,10 @@ Migration `0010` adds immutable merge lineage metadata and a dedicated
 `lead_merge_events` audit table. Lead merges retain both canonical rows, move
 supported dependencies transactionally, and mark the secondary row as merged
 without deleting it. The rollback is blocked once merge history exists.
+
+Migration `0011` adds operational Client Cases without changing canonical lead
+identity. A case may contain several active lead memberships, has one optional
+primary contact, its own status and follow-up, shared notes, and an audit event
+stream. Membership removal is soft and auditable. Every lead and property
+foreign key uses `ON DELETE RESTRICT`, and the guarded rollback refuses to
+discard any case data.

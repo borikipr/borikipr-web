@@ -33,6 +33,8 @@ export type LeadFollowUpFilters = {
 
 export type LeadFollowUpItem = {
   id: string;
+  entityType: "lead" | "group";
+  memberNames: string[];
   name: string;
   email: string | null;
   phone: string | null;
@@ -162,6 +164,13 @@ follow_up_base AS (
   LEFT JOIN management_activity ma ON ma.lead_id = l.id
   WHERE l.merged_into_lead_id IS NULL
     AND l.status IN ('new', 'active')
+    AND NOT EXISTS (
+      SELECT 1 FROM public.lead_group_members grouped_member
+      INNER JOIN public.lead_groups grouped_case ON grouped_case.id=grouped_member.group_id
+      WHERE grouped_member.lead_id=l.id
+        AND grouped_member.removed_at IS NULL
+        AND grouped_case.archived_at IS NULL
+    )
 ),
 classified AS (
   SELECT *,
@@ -259,25 +268,105 @@ function iso(value: string | Date) {
   return new Date(value).toISOString();
 }
 
+export function buildLeadGroupFollowUpQuery(
+  filters: LeadFollowUpFilters,
+  referenceNow = new Date().toISOString()
+): SqlQuery {
+  const values: unknown[] = [referenceNow];
+  const add = (value: unknown) => { values.push(value); return `$${values.length}`; };
+  const conditions = ["classified.bucket IS NOT NULL"];
+  if (filters.search) {
+    const search = add(`%${filters.search}%`);
+    conditions.push(`(classified.name ILIKE ${search} OR EXISTS (
+      SELECT 1 FROM public.lead_group_members search_member
+      INNER JOIN public.leads search_lead ON search_lead.id=search_member.lead_id
+      WHERE search_member.group_id=classified.id AND search_member.removed_at IS NULL
+        AND (search_lead.name ILIKE ${search} OR COALESCE(search_lead.email_original, '') ILIKE ${search} OR COALESCE(search_lead.phone_original, '') ILIKE ${search})
+    ))`);
+  }
+  if (filters.status !== "all") conditions.push(`classified.status=${add(filters.status)}`);
+  if (filters.source !== "all") conditions.push(`${add(filters.source)}=ANY(classified.source_types)`);
+  if (filters.propertyId) conditions.push(`classified.property_id::text=${add(filters.propertyId)}`);
+  if (filters.bucket !== "all") conditions.push(`classified.bucket=${add(filters.bucket)}`);
+  return {
+    text: `WITH ${CANONICAL_LEAD_SOURCE_RECORDS_CTE},
+    active_members AS (
+      SELECT gm.group_id, gm.lead_id FROM public.lead_group_members gm WHERE gm.removed_at IS NULL
+    ),
+    group_aggregates AS (
+      SELECT g.id, g.title AS name,
+        CASE WHEN g.status='new' THEN 'new' ELSE 'active' END AS status,
+        CASE
+          WHEN g.next_follow_up_at IS NULL THEN min(l.next_follow_up_at)
+          WHEN min(l.next_follow_up_at) IS NULL THEN g.next_follow_up_at
+          ELSE LEAST(g.next_follow_up_at, min(l.next_follow_up_at))
+        END AS next_follow_up_at,
+        g.created_at,
+        GREATEST(g.updated_at, max(l.last_activity_at), COALESCE(max(sr.created_at), g.updated_at)) AS last_activity_at,
+        COALESCE(array_agg(DISTINCT sr.source_type ORDER BY sr.source_type) FILTER (WHERE sr.source_type IS NOT NULL), ARRAY[]::text[]) AS source_types,
+        array_agg(DISTINCT l.name ORDER BY l.name) AS member_names,
+        primary_lead.email_original AS email, primary_lead.phone_original AS phone,
+        COALESCE(g.primary_property_id, (array_agg(sr.property_id ORDER BY sr.created_at DESC) FILTER (WHERE sr.property_id IS NOT NULL))[1]) AS property_id,
+        COALESCE(primary_property.titulo, (array_agg(sr.property_title ORDER BY sr.created_at DESC) FILTER (WHERE sr.property_title IS NOT NULL))[1]) AS property_title,
+        COALESCE(primary_property.slug, (array_agg(sr.property_slug ORDER BY sr.created_at DESC) FILTER (WHERE sr.property_slug IS NOT NULL))[1]) AS property_slug,
+        bool_or(EXISTS (
+          SELECT 1 FROM public.leads shared WHERE shared.id<>l.id AND shared.merged_into_lead_id IS NULL
+            AND ((l.email_normalized IS NOT NULL AND shared.email_normalized=l.email_normalized) OR (l.phone_normalized IS NOT NULL AND shared.phone_normalized=l.phone_normalized))
+        )) AS shared_contact
+      FROM public.lead_groups g
+      INNER JOIN active_members am ON am.group_id=g.id
+      INNER JOIN public.leads l ON l.id=am.lead_id
+      LEFT JOIN source_records sr ON sr.lead_id=l.id
+      LEFT JOIN public.lead_group_members primary_member ON primary_member.group_id=g.id AND primary_member.is_primary_contact=true AND primary_member.removed_at IS NULL
+      LEFT JOIN public.leads primary_lead ON primary_lead.id=primary_member.lead_id
+      LEFT JOIN public.propiedades primary_property ON primary_property.id=g.primary_property_id
+      WHERE g.status NOT IN ('closed', 'archived') AND g.archived_at IS NULL
+      GROUP BY g.id, primary_lead.email_original, primary_lead.phone_original, primary_property.titulo, primary_property.slug
+    ), flags AS (
+      SELECT *,
+        next_follow_up_at < $1::timestamptz AS is_overdue,
+        next_follow_up_at >= $1::timestamptz AND next_follow_up_at < ((date_trunc('day', $1::timestamptz AT TIME ZONE '${ADMIN_TIME_ZONE}') + interval '1 day') AT TIME ZONE '${ADMIN_TIME_ZONE}') AS is_today,
+        next_follow_up_at >= ((date_trunc('day', $1::timestamptz AT TIME ZONE '${ADMIN_TIME_ZONE}') + interval '1 day') AT TIME ZONE '${ADMIN_TIME_ZONE}')
+          AND next_follow_up_at < ((date_trunc('day', $1::timestamptz AT TIME ZONE '${ADMIN_TIME_ZONE}') + interval '8 days') AT TIME ZONE '${ADMIN_TIME_ZONE}') AS is_upcoming,
+        status='new' AND next_follow_up_at IS NULL AS is_new_without_follow_up,
+        last_activity_at < $1::timestamptz - interval '${INACTIVITY_DAYS} days' AS is_inactive
+      FROM group_aggregates
+    ), classified AS (
+      SELECT *, CASE WHEN is_overdue THEN 'overdue' WHEN is_today THEN 'today' WHEN is_upcoming THEN 'upcoming'
+        WHEN is_new_without_follow_up THEN 'new_without_follow_up' WHEN is_inactive THEN 'inactive' ELSE NULL END AS bucket
+      FROM flags
+    )
+    SELECT *, ARRAY_REMOVE(ARRAY[
+      CASE WHEN is_overdue AND bucket<>'overdue' THEN 'overdue' END,
+      CASE WHEN is_today AND bucket<>'today' THEN 'today' END,
+      CASE WHEN is_upcoming AND bucket<>'upcoming' THEN 'upcoming' END,
+      CASE WHEN is_new_without_follow_up AND bucket<>'new_without_follow_up' THEN 'new_without_follow_up' END,
+      CASE WHEN is_inactive AND bucket<>'inactive' THEN 'inactive' END
+    ]::text[], NULL) AS secondary_flags
+    FROM classified WHERE ${conditions.join(" AND ")}`,
+    values,
+  };
+}
+
 export async function getLeadFollowUpCenter(
   filters: LeadFollowUpFilters,
   referenceNow = new Date().toISOString()
 ): Promise<LeadFollowUpCenter> {
   const listQuery = buildLeadFollowUpListQuery(filters, referenceNow);
-  const summaryQuery = buildLeadFollowUpSummaryQuery(referenceNow);
+  const groupQuery = buildLeadGroupFollowUpQuery(filters, referenceNow);
   const propertiesQuery = buildLeadFollowUpPropertiesQuery();
-  const [rows, summaryRows, properties] = await Promise.all([
+  const [rows, groupRows, properties] = await Promise.all([
     sql.unsafe(listQuery.text, listQuery.values as never[]),
-    sql.unsafe(summaryQuery.text, summaryQuery.values as never[]),
+    sql.unsafe(groupQuery.text, groupQuery.values as never[]),
     sql.unsafe(propertiesQuery.text, propertiesQuery.values as never[]),
   ]) as unknown as [Array<Record<string, unknown>>, Array<Record<string, unknown>>, CanonicalLeadPropertyOption[]];
 
   const summary = Object.fromEntries(Object.keys(FOLLOW_UP_BUCKET_LABELS).map((bucket) => [bucket, 0])) as Record<FollowUpBucket, number>;
-  for (const row of summaryRows) summary[row.bucket as FollowUpBucket] = Number(row.count);
+  for (const row of [...rows, ...groupRows]) summary[row.bucket as FollowUpBucket] += 1;
 
-  return {
-    items: rows.map((row) => ({
-      id: String(row.id), name: String(row.name), email: row.email ? String(row.email) : null,
+  const mappedRows: LeadFollowUpItem[] = [
+    ...rows.map((row) => ({
+      id: String(row.id), entityType: "lead" as const, memberNames: [String(row.name)], name: String(row.name), email: row.email ? String(row.email) : null,
       phone: row.phone ? String(row.phone) : null, status: row.status as FollowUpStatus,
       nextFollowUpAt: row.next_follow_up_at ? iso(row.next_follow_up_at as string | Date) : null,
       lastActivityAt: iso(row.last_activity_at as string | Date), createdAt: iso(row.created_at as string | Date),
@@ -287,6 +376,28 @@ export async function getLeadFollowUpCenter(
       sharedContact: Boolean(row.shared_contact), bucket: row.bucket as FollowUpBucket,
       secondaryFlags: (row.secondary_flags ?? []) as FollowUpBucket[],
     })),
+    ...groupRows.map((row) => ({
+      id: String(row.id), entityType: "group" as const, memberNames: (row.member_names ?? []) as string[], name: String(row.name),
+      email: row.email ? String(row.email) : null, phone: row.phone ? String(row.phone) : null,
+      status: row.status as FollowUpStatus,
+      nextFollowUpAt: row.next_follow_up_at ? iso(row.next_follow_up_at as string | Date) : null,
+      lastActivityAt: iso(row.last_activity_at as string | Date), createdAt: iso(row.created_at as string | Date),
+      sourceTypes: (row.source_types ?? []) as CanonicalLeadSourceType[],
+      propertyTitle: row.property_title ? String(row.property_title) : null,
+      propertySlug: row.property_slug ? String(row.property_slug) : null,
+      sharedContact: Boolean(row.shared_contact), bucket: row.bucket as FollowUpBucket,
+      secondaryFlags: (row.secondary_flags ?? []) as FollowUpBucket[],
+    })),
+  ];
+  const priority = { overdue: 1, today: 2, upcoming: 3, new_without_follow_up: 4, inactive: 5 } as const;
+  mappedRows.sort((left, right) => filters.sort === "newest"
+    ? new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+    : filters.sort === "oldest_follow_up"
+      ? (left.nextFollowUpAt ? new Date(left.nextFollowUpAt).getTime() : Number.MAX_SAFE_INTEGER) - (right.nextFollowUpAt ? new Date(right.nextFollowUpAt).getTime() : Number.MAX_SAFE_INTEGER)
+      : priority[left.bucket] - priority[right.bucket] || (left.nextFollowUpAt ? new Date(left.nextFollowUpAt).getTime() : Number.MAX_SAFE_INTEGER) - (right.nextFollowUpAt ? new Date(right.nextFollowUpAt).getTime() : Number.MAX_SAFE_INTEGER));
+
+  return {
+    items: mappedRows,
     summary,
     properties,
   };
