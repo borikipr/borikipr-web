@@ -249,6 +249,7 @@ export default async function AdminLead360Page({
     related_q?: string | string[];
     merged?: string | string[];
     merged_alias?: string | string[];
+    merge_result?: string | string[];
   }>;
 }) {
   const username = await getAdminSessionUser();
@@ -273,6 +274,7 @@ export default async function AdminLead360Page({
   const okMessage = Array.isArray(query.ok) ? query.ok[0] : query.ok;
   const mergeSucceeded = (Array.isArray(query.merged) ? query.merged[0] : query.merged) === "1";
   const mergedAlias = (Array.isArray(query.merged_alias) ? query.merged_alias[0] : query.merged_alias) === "1";
+  const mergeResult = Array.isArray(query.merge_result) ? query.merge_result[0] : query.merge_result;
   const successMessage = mergeSucceeded ? "Los registros se fusionaron correctamente." : okMessage;
   const timeline: TimelineItem[] = [
     ...detail.interactions.map((interaction) => ({
@@ -320,6 +322,13 @@ export default async function AdminLead360Page({
         <div className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm font-semibold text-blue-950" role="status">
           <CheckCircle2 aria-hidden="true" className="h-5 w-5 shrink-0" />
           Este registro fue fusionado con {detail.identity.name}.
+        </div>
+      )}
+
+      {mergeResult === "unconfirmed" && (
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm font-semibold leading-6 text-amber-950" role="alert">
+          <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
+          No se pudo confirmar el resultado automáticamente. Revisa ambos registros antes de repetir la operación.
         </div>
       )}
 

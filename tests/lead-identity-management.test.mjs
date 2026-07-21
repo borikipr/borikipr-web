@@ -306,6 +306,48 @@ test("conflicting identity values and both prior follow-ups are preserved in mer
   } finally { await db.close(); }
 });
 
+test("production-shaped shared-contact pair writes JSON audit objects with driver-safe casts", async () => {
+  const db = await setupDatabase();
+  try {
+    const sharedEmail = "shared@example.test";
+    const sharedPhone = "7875550101";
+    const primary = await insertLead(db, {
+      name: "Perfil sintético",
+      email: sharedEmail,
+      emailNormalized: sharedEmail,
+      phone: sharedPhone,
+      phoneNormalized: sharedPhone,
+    });
+    const secondary = await insertLead(db, {
+      name: "Registro sintético",
+      email: sharedEmail,
+      emailNormalized: sharedEmail,
+      phone: sharedPhone,
+      phoneNormalized: sharedPhone,
+    });
+    await db.query("UPDATE public.leads SET identity_status='conflict' WHERE id=$1::uuid", [primary]);
+    const property = (await db.query("INSERT INTO public.propiedades (titulo, slug) VALUES ('Forma realista', 'forma-realista') RETURNING id::text")).rows[0].id;
+    await db.query(`INSERT INTO public.property_buyer_profiles (
+      lead_id, property_id, name_snapshot, phone_snapshot, purchase_method,
+      idempotency_key, source_path
+    ) VALUES ($1::uuid, $2::uuid, 'Perfil sintético', $3, 'Cash', $4::uuid,
+      '/listados/forma-realista/perfil-comprador')`, [primary, property, sharedPhone, randomUUID()]);
+    await db.query("INSERT INTO public.property_priority_registrations (lead_id, property_id, email) VALUES ($1::uuid, $2::uuid, $3)", [secondary, property, sharedEmail]);
+    await db.query("INSERT INTO public.email_queue (canonical_lead_id, status, dedupe_key) VALUES ($1::uuid, 'sent', 'profile-sent'), ($2::uuid, 'sent', 'priority-sent')", [primary, secondary]);
+
+    await runMerge(db, {
+      primaryLeadId: primary,
+      secondaryLeadId: secondary,
+      actorUsername: "test-admin",
+      operationKey: randomUUID(),
+    });
+    const audit = (await db.query("SELECT jsonb_typeof(identity_snapshot) AS identity_type, jsonb_typeof(affected_counts) AS counts_type FROM public.lead_merge_events")).rows[0];
+    assert.deepEqual(audit, { identity_type: "object", counts_type: "object" });
+    const engineSource = await readRepo("lib/admin/lead-merge.ts");
+    assert.match(engineSource, /\$5::text::jsonb, \$6::text::jsonb/);
+  } finally { await db.close(); }
+});
+
 test("repeated merge is idempotent and reverse or chained merges are rejected", async () => {
   const db = await setupDatabase();
   try {
@@ -413,7 +455,22 @@ test("merge actions are authenticated, validate IDs, use POST server actions and
   assert.match(actions, /const username = await requireAdmin\(\)/);
   assert.match(actions, /requiredUuid\(formData, "primary_lead_id"\)/);
   assert.match(actions, /confirmation !== "FUSIONAR"/);
+  assert.match(actions, /merge_error=rolled_back/);
+  assert.match(actions, /merge_result=unconfirmed/);
+  assert.match(actions, /redirect\(`\/admin\/leads\/\$\{result\.survivingLeadId\}\?merged=1`\)/);
   assert.match(component, /action=\{mergeLeadsAction\}/);
   assert.doesNotMatch(`${actions}\n${engine}\n${query}`, /console\.(log|info|warn|error)/);
   assert.doesNotMatch(`${actions}\n${engine}\n${query}`, /analytics|track\(/i);
+});
+
+test("merge failure UX distinguishes confirmed rollback from ambiguous post-commit state", async () => {
+  const [comparisonPage, leadPage, actions] = await Promise.all([
+    readRepo("app/admin/leads/[id]/fusionar/[candidateId]/page.tsx"),
+    readRepo("app/admin/leads/[id]/page.tsx"),
+    readRepo("app/admin/leads/[id]/actions.ts"),
+  ]);
+  assert.match(comparisonPage, /No se pudo completar la fusión\. Ningún cambio fue aplicado/);
+  assert.match(leadPage, /No se pudo confirmar el resultado automáticamente/);
+  assert.match(actions, /isConfirmedDatabaseRollback/);
+  assert.doesNotMatch(actions, /try\s*\{[\s\S]*redirect\(`\/admin\/leads\/\$\{result\.survivingLeadId\}\?merged=1`\)[\s\S]*\}\s*catch/);
 });

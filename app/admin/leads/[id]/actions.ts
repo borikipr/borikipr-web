@@ -32,6 +32,12 @@ function leadHref(leadId: string, message: string) {
   return `/admin/leads/${leadId}?ok=${encodeURIComponent(message)}`;
 }
 
+function isConfirmedDatabaseRollback(error: unknown) {
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  const code = String((error as { code?: unknown }).code ?? "");
+  return /^(22|23|40|42)/.test(code);
+}
+
 async function operationAlreadyApplied(
   transaction: TransactionSql,
   operationKey: string
@@ -245,18 +251,30 @@ export async function mergeLeadsAction(formData: FormData) {
     throw new Error("Confirma la revisión y escribe FUSIONAR para continuar.");
   }
 
-  const result = await sql.begin((transaction) => mergeLeadsInTransaction(transaction, {
-    primaryLeadId,
-    secondaryLeadId,
-    actorUsername: username,
-    operationKey,
-  }));
+  let result;
+  try {
+    result = await sql.begin((transaction) => mergeLeadsInTransaction(transaction, {
+      primaryLeadId,
+      secondaryLeadId,
+      actorUsername: username,
+      operationKey,
+    }));
+  } catch (error) {
+    if (isConfirmedDatabaseRollback(error)) {
+      redirect(`/admin/leads/${leftLeadId}/fusionar/${rightLeadId}?merge_error=rolled_back`);
+    }
+    redirect(`/admin/leads/${primaryLeadId}?merge_result=unconfirmed`);
+  }
 
-  revalidatePath(`/admin/leads/${leftLeadId}`);
-  revalidatePath(`/admin/leads/${rightLeadId}`);
-  revalidatePath(`/admin/leads/${result.survivingLeadId}`);
-  revalidatePath("/admin/leads");
-  revalidatePath("/admin/leads/seguimientos");
+  try {
+    revalidatePath(`/admin/leads/${leftLeadId}`);
+    revalidatePath(`/admin/leads/${rightLeadId}`);
+    revalidatePath(`/admin/leads/${result.survivingLeadId}`);
+    revalidatePath("/admin/leads");
+    revalidatePath("/admin/leads/seguimientos");
+  } catch {
+    redirect(`/admin/leads/${result.survivingLeadId}?merge_result=unconfirmed`);
+  }
   redirect(`/admin/leads/${result.survivingLeadId}?merged=1`);
 }
 

@@ -101,8 +101,10 @@ function ComparisonCard({ detail }: { detail: Lead360Detail }) {
 
 export default async function LeadMergeReviewPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; candidateId: string }>;
+  searchParams: Promise<{ merge_error?: string | string[] }>;
 }) {
   const username = await getAdminSessionUser();
   if (!username) redirect("/admin/login");
@@ -110,6 +112,8 @@ export default async function LeadMergeReviewPage({
   if (!UUID_PATTERN.test(id) || !UUID_PATTERN.test(candidateId) || id === candidateId) notFound();
   const comparison = await getLeadMergeComparison(id, candidateId);
   if (!comparison) notFound();
+  const query = await searchParams;
+  const mergeError = Array.isArray(query.merge_error) ? query.merge_error[0] : query.merge_error;
 
   const { identifiers } = comparison;
   const totalInteractions = comparison.left.detail.interactions.length + comparison.right.detail.interactions.length;
@@ -131,6 +135,13 @@ export default async function LeadMergeReviewPage({
         eyebrow="Identidad avanzada"
         title="Revisar posible duplicado"
       />
+
+      {mergeError === "rolled_back" && (
+        <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold leading-6 text-red-900" role="alert">
+          <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
+          No se pudo completar la fusión. Ningún cambio fue aplicado. Revisa el estado de ambos registros antes de intentarlo nuevamente.
+        </div>
+      )}
 
       <section className="rounded-[2rem] border border-amber-300 bg-amber-50 p-5 md:p-6">
         <div className="flex gap-4">

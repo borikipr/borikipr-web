@@ -428,7 +428,7 @@ export async function mergeLeadsInTransaction(
     `INSERT INTO public.lead_merge_events (
       primary_lead_id, secondary_lead_id, actor_username, operation_key,
       identity_snapshot, affected_counts
-    ) VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5::jsonb, $6::jsonb)
+    ) VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5::text::jsonb, $6::text::jsonb)
     RETURNING id::text`,
     [primary.id, secondary.id, input.actorUsername, input.operationKey, JSON.stringify(snapshot), JSON.stringify(affectedCounts)]
   );
