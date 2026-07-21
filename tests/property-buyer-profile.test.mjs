@@ -635,6 +635,8 @@ test("Buyer Profile correction subject and recovery command are idempotent", asy
   assert.match(source, /process\.argv\.includes\("--apply"\)/);
   assert.match(source, /internal:corrected:v1/);
   assert.match(source, /if \(!applyRequested\)/);
+  assert.match(source, /HISTORICAL_CUTOFF/);
+  assert.match(source, /original\.sent_at < \$\{HISTORICAL_CUTOFF\}/);
 });
 
 test("Priority Registration queue relationship and timestamps survive 0003", async () => {

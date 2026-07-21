@@ -8,6 +8,7 @@ nextEnv.loadEnvConfig(process.cwd());
 const APPLY_SAFEGUARD = "PROPERTY_BUYER_PROFILE_RESEND_APPLY";
 const APPLY_VALUE = "YES";
 const CORRECTION_EMAIL_TYPE = "property_buyer_profile_internal_correction";
+const HISTORICAL_CUTOFF = new Date("2026-07-21T03:44:56.000Z");
 
 type RecoveryRow = {
   id: string;
@@ -112,6 +113,7 @@ async function main() {
            'property_buyer_profile:' || profile.id::text || ':internal:v1'
        AND original.status = 'sent'
        AND original.sent_at IS NOT NULL
+       AND original.sent_at < ${HISTORICAL_CUTOFF}
       LEFT JOIN public.email_queue correction
         ON correction.related_submission_type = 'property_buyer_profile'
        AND correction.related_submission_id = profile.id
@@ -169,6 +171,7 @@ async function main() {
         JSON.stringify(
           {
             mode: "dry-run",
+            historicalCutoff: HISTORICAL_CUTOFF.toISOString(),
             summary: {
               affectedSubmissions: audited.length,
               objectsPresent: audited.filter((item) => item.object.exists).length,
