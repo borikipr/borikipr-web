@@ -63,3 +63,7 @@ table. It adds only `leads.next_follow_up_at` plus dedicated internal notes,
 person relationships, duplicate-review decisions, and management audit events.
 All lead foreign keys use `ON DELETE RESTRICT`; shared contact data is never a
 unique identity constraint. Its rollback refuses to discard any Lead 360 data.
+
+Migration `0008` extends only the existing Lead 360 management-event check with
+the `contacted` event used by the Follow-up Center. It adds no table or column.
+Its rollback refuses to run after a contacted event has been recorded.

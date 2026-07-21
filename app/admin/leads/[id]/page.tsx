@@ -159,6 +159,7 @@ function ManagementEventSummary({ event }: { event: Lead360ManagementEvent }) {
     return <>Relación registrada: {LEAD_RELATIONSHIP_LABELS[type as keyof typeof LEAD_RELATIONSHIP_LABELS] ?? type}</>;
   }
   if (event.type === "duplicate_reviewed") return <>Revisión de identidad: mantener separadas</>;
+  if (event.type === "contacted") return <>Contacto registrado</>;
   return <>Actividad administrativa</>;
 }
 
@@ -216,7 +217,7 @@ export default async function AdminLead360Page({
         description="Vista completa de identidad, interacciones, propiedades y seguimiento. Los contactos compartidos requieren revisión humana."
         eyebrow="Lead 360"
         title={detail.identity.name}
-        actions={<Link className="btn-secondary" href="/admin/leads">Volver al directorio</Link>}
+        actions={<><Link className="btn-primary" href="/admin/leads/seguimientos">Seguimientos</Link><Link className="btn-secondary" href="/admin/leads">Volver al directorio</Link></>}
       />
 
       {successMessage && (

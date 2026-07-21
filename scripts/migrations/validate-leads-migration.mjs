@@ -24,6 +24,8 @@ const [
   priorityRegistrationRollbackSql,
   lead360MigrationSql,
   lead360RollbackSql,
+  contactedEventMigrationSql,
+  contactedEventRollbackSql,
 ] =
   await Promise.all([
     readMigration("0001_create_leads.sql"),
@@ -39,6 +41,8 @@ const [
     readMigration("0006_link_priority_registrations_to_leads.rollback.sql"),
     readMigration("0007_create_lead_360.sql"),
     readMigration("0007_create_lead_360.rollback.sql"),
+    readMigration("0008_add_lead_contacted_event.sql"),
+    readMigration("0008_add_lead_contacted_event.rollback.sql"),
   ]);
 
 const typedTables = [
@@ -947,6 +951,7 @@ const lead360Db = new PGlite();
 try {
   await lead360Db.exec(leadsMigrationSql);
   await lead360Db.exec(lead360MigrationSql);
+  await lead360Db.exec(contactedEventMigrationSql);
 
   const tables = await lead360Db.query(`
     SELECT table_name
@@ -1026,6 +1031,23 @@ try {
     true
   );
 
+  const eventCheck = await lead360Db.query(`
+    SELECT pg_get_constraintdef(oid) AS definition
+    FROM pg_constraint
+    WHERE conrelid = 'public.lead_management_events'::regclass
+      AND conname = 'lead_management_events_type_check'
+  `);
+  assert.match(eventCheck.rows[0].definition, /contacted/);
+
+  await lead360Db.exec(contactedEventRollbackSql);
+  const rolledBackEventCheck = await lead360Db.query(`
+    SELECT pg_get_constraintdef(oid) AS definition
+    FROM pg_constraint
+    WHERE conrelid = 'public.lead_management_events'::regclass
+      AND conname = 'lead_management_events_type_check'
+  `);
+  assert.doesNotMatch(rolledBackEventCheck.rows[0].definition, /contacted/);
+
   await lead360Db.exec(lead360RollbackSql);
   const rolledBack = await lead360Db.query(`
     SELECT to_regclass('public.lead_notes') IS NULL AS notes_removed,
@@ -1037,8 +1059,8 @@ try {
   `);
   assert.deepEqual(rolledBack.rows, [{ notes_removed: true, follow_up_removed: true }]);
 
-  console.log("Validated the ordered migration chain through 0007.");
-  console.log("Verified Lead 360 tables, RESTRICT relationships, indexes, and guarded rollback.");
+  console.log("Validated the ordered migration chain through 0008.");
+  console.log("Verified Lead 360 tables, Follow-up Center event type, indexes, and guarded rollbacks.");
 } finally {
   await lead360Db.close();
 }

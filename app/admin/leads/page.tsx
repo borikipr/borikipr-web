@@ -120,6 +120,7 @@ export default async function AdminLeadsPage({
   return (
     <AdminPageShell>
       <AdminPageHeader
+        actions={<Link className="btn-primary" href="/admin/leads/seguimientos">Centro de seguimientos</Link>}
         breadcrumbs={[{ href: "/admin", label: "Admin" }, { label: "Leads" }]}
         description="Directorio canónico de personas e interacciones persistidas en Neon. Cada persona aparece una sola vez, aunque haya enviado varios formularios."
         eyebrow="Relaciones con clientes"

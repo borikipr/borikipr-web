@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { TransactionSql } from "postgres";
 import { getAdminSessionUser } from "@/lib/admin/auth";
+import { setLeadFollowUp } from "@/lib/admin/lead-follow-up-mutations";
 import { sql } from "@/lib/db";
 import {
   LEAD_RELATIONSHIP_LABELS,
@@ -115,37 +116,16 @@ export async function updateLeadFollowUpAction(formData: FormData) {
   if (parsed && Number.isNaN(parsed.getTime())) throw new Error("Fecha inválida.");
 
   await sql.begin(async (transaction) => {
-    if (await operationAlreadyApplied(transaction, operationKey)) return;
-    await assertActiveLead(transaction, leadId);
-    const current = await transaction.unsafe<{ next_follow_up_at: string | Date | null }[]>(
-      "SELECT next_follow_up_at FROM public.leads WHERE id = $1::uuid",
-      [leadId]
-    );
-    const previousAt = current[0].next_follow_up_at;
-    const nextAt = parsed?.toISOString() ?? null;
-    if ((previousAt ? new Date(previousAt).toISOString() : null) === nextAt) return;
-
-    await transaction.unsafe(
-      `UPDATE public.leads
-      SET next_follow_up_at = $2, updated_at = now()
-      WHERE id = $1::uuid`,
-      [leadId, nextAt]
-    );
-    await transaction.unsafe(
-      `INSERT INTO public.lead_management_events (
-        lead_id, event_type, event_data, actor_username, idempotency_key
-      ) VALUES (
-        $1::uuid,
-        'follow_up_changed',
-        jsonb_build_object('previousAt', $2::timestamptz, 'newAt', $3::timestamptz),
-        $4,
-        $5::uuid
-      )`,
-      [leadId, previousAt, nextAt, username, operationKey]
-    );
+    await setLeadFollowUp(transaction, {
+      leadId,
+      nextAt: parsed?.toISOString() ?? null,
+      operationKey,
+      username,
+    });
   });
 
   revalidatePath(`/admin/leads/${leadId}`);
+  revalidatePath("/admin/leads/seguimientos");
   redirect(leadHref(leadId, "Seguimiento actualizado"));
 }
 

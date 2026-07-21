@@ -95,7 +95,7 @@ type PropertyRow = {
   slug: string;
 };
 
-const SOURCE_RECORDS_CTE = `
+export const CANONICAL_LEAD_SOURCE_RECORDS_CTE = `
 source_records AS (
   SELECT
     pr.lead_id,
@@ -267,7 +267,7 @@ export function buildCanonicalLeadListQuery(
   const offset = appendValue(values, (filters.page - 1) * pageSize);
 
   return {
-    text: `WITH ${SOURCE_RECORDS_CTE}
+    text: `WITH ${CANONICAL_LEAD_SOURCE_RECORDS_CTE}
       SELECT
         l.id::text,
         l.name,
@@ -299,7 +299,7 @@ export function buildCanonicalLeadListQuery(
 
 export function buildCanonicalLeadSummaryQuery(): SqlQuery {
   return {
-    text: `WITH ${SOURCE_RECORDS_CTE},
+    text: `WITH ${CANONICAL_LEAD_SOURCE_RECORDS_CTE},
       source_counts AS (
         SELECT
           lead_id,
@@ -323,7 +323,7 @@ export function buildCanonicalLeadSummaryQuery(): SqlQuery {
 
 export function buildCanonicalLeadPropertiesQuery(): SqlQuery {
   return {
-    text: `WITH ${SOURCE_RECORDS_CTE}
+    text: `WITH ${CANONICAL_LEAD_SOURCE_RECORDS_CTE}
       SELECT DISTINCT
         sr.property_id::text AS id,
         sr.property_title AS title,
