@@ -1,4 +1,9 @@
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 
 function getR2Config() {
   const accountId = process.env.R2_ACCOUNT_ID;
@@ -116,7 +121,76 @@ export async function uploadFileToR2Key(file: File, key: string) {
   );
 }
 
-function isSafePrivateObjectKey(key: string) {
+export async function inspectPrivateR2Object(key: string) {
+  const config = getPrivateR2Config();
+  if (!config) throw new Error("Cloudflare R2 no esta configurado.");
+  assertSafePrivateObjectKey(key);
+
+  const r2 = createPrivateR2Client(config);
+  try {
+    const result = await r2.send(
+      new HeadObjectCommand({ Bucket: config.bucketName, Key: key })
+    );
+    return {
+      exists: true as const,
+      contentLength:
+        result.ContentLength === undefined ? null : Number(result.ContentLength),
+      contentType: result.ContentType || null,
+    };
+  } catch (error) {
+    if (isMissingObjectError(error)) {
+      return { exists: false as const, contentLength: null, contentType: null };
+    }
+    throw error;
+  } finally {
+    r2.destroy();
+  }
+}
+
+export async function downloadPrivateR2Object(key: string) {
+  const config = getPrivateR2Config();
+  if (!config) throw new Error("Cloudflare R2 no esta configurado.");
+  assertSafePrivateObjectKey(key);
+
+  const r2 = createPrivateR2Client(config);
+  try {
+    const result = await r2.send(
+      new GetObjectCommand({ Bucket: config.bucketName, Key: key })
+    );
+    if (!result.Body) throw new Error("Private R2 object has no body.");
+    return {
+      bytes: await result.Body.transformToByteArray(),
+      contentType: result.ContentType || null,
+    };
+  } finally {
+    r2.destroy();
+  }
+}
+
+function createPrivateR2Client(config: NonNullable<ReturnType<typeof getPrivateR2Config>>) {
+  return new S3Client({
+    region: "auto",
+    endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+    },
+  });
+}
+
+function assertSafePrivateObjectKey(key: string) {
+  if (!isSafePrivateObjectKey(key)) {
+    throw new Error("Invalid private R2 object key.");
+  }
+}
+
+function isMissingObjectError(error: unknown) {
+  if (typeof error !== "object" || error === null) return false;
+  const details = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+  return details.name === "NotFound" || details.$metadata?.httpStatusCode === 404;
+}
+
+export function isSafePrivateObjectKey(key: string) {
   return (
     key.length > 0 &&
     key.length <= 512 &&

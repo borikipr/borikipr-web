@@ -96,7 +96,7 @@ export async function persistPropertyBuyerProfile(
              origen_listado = 'propio'
              OR (
                origen_listado IN (
-                 'co_broke', 'co-broke', 'co broke', 'colaboracion', 'colaboraciÃ³n'
+                 'co_broke', 'co-broke', 'co broke', 'colaboracion', 'colaboración'
                )
                AND COALESCE(permiso_publicar_web, false) = true
              )

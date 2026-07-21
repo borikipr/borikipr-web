@@ -3,6 +3,11 @@ import { randomUUID } from "crypto";
 import { sql } from "@/lib/db";
 import { PROPERTY_AVAILABILITY_EMAIL_TYPE } from "@/lib/property-availability-notifications";
 import { deliverClaimedEmail } from "@/lib/email-queue-delivery";
+import { downloadPrivateR2Object } from "@/lib/r2";
+import {
+  resolvePropertyBuyerProfileAttachment,
+  type BuyerProfileAttachmentMetadata,
+} from "@/lib/leads/property-buyer-profile-queue-attachment";
 
 const MAX_EMAIL_ATTEMPTS = 5;
 const STALE_PROCESSING_TIMEOUT = "15 minutes";
@@ -38,6 +43,8 @@ type PendingEmailRow = {
   html: string;
   email_type: string;
   related_lead_id: string | null;
+  related_submission_type: string | null;
+  related_submission_id: string | null;
   dedupe_key: string | null;
   attempts: number;
 };
@@ -199,12 +206,19 @@ export async function processPendingEmailQueue(
       attempts: row.attempts,
       maximumAttempts: MAX_EMAIL_ATTEMPTS,
       async send() {
+        const attachments = await resolvePropertyBuyerProfileAttachment({
+          relatedSubmissionType: row.related_submission_type,
+          relatedSubmissionId: row.related_submission_id,
+          loadMetadata: loadBuyerProfileAttachmentMetadata,
+          download: downloadPrivateR2Object,
+        });
         const result = await resend.emails.send(
           {
             from: `Erickson Real Estate <${fromEmail}>`,
             to: [row.recipient],
             subject: row.subject,
             html: row.html,
+            attachments,
           },
           row.dedupe_key ? { idempotencyKey: row.dedupe_key } : undefined
         );
@@ -331,12 +345,51 @@ async function claimPendingEmails(invocationId: string, limit: number) {
         email_queue.html,
         email_queue.email_type,
         email_queue.related_lead_id::text,
+        email_queue.related_submission_type,
+        email_queue.related_submission_id::text,
         email_queue.dedupe_key,
         email_queue.attempts
     `,
       [MAX_EMAIL_ATTEMPTS, limit, invocationId]
     );
   });
+}
+
+async function loadBuyerProfileAttachmentMetadata(
+  submissionId: string
+): Promise<BuyerProfileAttachmentMetadata | null> {
+  const rows = await sql<
+    {
+      document_object_key: string;
+      document_original_name: string;
+      document_content_type: string;
+      document_size_bytes: number | string;
+      document_status: string;
+    }[]
+  >`
+    SELECT
+      document_object_key,
+      document_original_name,
+      document_content_type,
+      document_size_bytes,
+      document_status
+    FROM public.property_buyer_profiles
+    WHERE id = ${submissionId}
+      AND document_object_key IS NOT NULL
+      AND document_original_name IS NOT NULL
+      AND document_content_type IS NOT NULL
+      AND document_size_bytes IS NOT NULL
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    objectKey: row.document_object_key,
+    originalName: row.document_original_name,
+    contentType: row.document_content_type,
+    sizeBytes: Number(row.document_size_bytes),
+    status: row.document_status,
+  };
 }
 
 function wait(milliseconds: number) {

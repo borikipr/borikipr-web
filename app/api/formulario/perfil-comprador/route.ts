@@ -2,10 +2,9 @@ import { Resend } from "resend";
 import { isR2Configured, uploadImageToR2 } from "@/lib/r2";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { getPropiedadBySlug } from "@/lib/queries/propiedades";
-import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
-import { absoluteUrl } from "@/lib/seo";
 import { handlePersistedPropertyBuyerProfile } from "@/lib/leads/property-buyer-profile-handler";
 import { isPropertyBuyerProfilePersistenceEnabled } from "@/lib/leads/property-buyer-profile";
+import { buildPropertyBuyerProfileInternalEmail } from "@/lib/leads/property-buyer-profile-email";
 import {
   BUYER_PROFILE_FILE_TOO_LARGE_MESSAGE,
   MAX_BUYER_PROFILE_DOCUMENT_BYTES,
@@ -108,13 +107,9 @@ export async function POST(req: Request) {
     }
 
     const requiresSolarContractAcceptance = property.placas_en_lease === true;
-    let solarContractAcceptanceLabel = "";
 
     if (requiresSolarContractAcceptance) {
-      solarContractAcceptanceLabel =
-        SOLAR_CONTRACT_ACCEPTANCE_LABELS[solarContractAcceptance] || "";
-
-      if (!solarContractAcceptanceLabel) {
+      if (!SOLAR_CONTRACT_ACCEPTANCE_LABELS[solarContractAcceptance]) {
         return Response.json(
           {
             ok: false,
@@ -134,14 +129,6 @@ export async function POST(req: Request) {
       );
     }
 
-    const canonicalPropertyLocation = formatPropertyLocation(
-      property.municipio,
-      property.sector_comunidad
-    );
-    const canonicalPropertyUrl = absoluteUrl(
-      `/listados/${property.slug}/perfil-comprador`
-    );
-
     if (!nombre || !telefono || !metodoCompra) {
       return Response.json(
         { ok: false, error: "Completa los campos requeridos." },
@@ -160,14 +147,7 @@ export async function POST(req: Request) {
     }
 
     const cartaFile = getFile(formData, "cartaPreaprobacion");
-    const uploadedDocumentLabel =
-      metodoCompra === "Efectivo" || metodoCompra === "Cash"
-        ? "Evidencia de fondos"
-        : "Carta de precalificación";
-
-    let cartaUrl = "";
     let uploadNote = "";
-    const attachmentNote = "";
     const attachments: {
       filename: string;
       content: string;
@@ -188,7 +168,7 @@ export async function POST(req: Request) {
       });
 
       if (isR2Configured()) {
-        cartaUrl = await uploadImageToR2(cartaFile, "contact/perfiles-comprador");
+        await uploadImageToR2(cartaFile, "contact/perfiles-comprador");
       } else {
         uploadNote =
           "Se adjuntó un archivo, pero R2 no está configurado en este ambiente. TODO: habilitar R2 para guardar la carta.";
@@ -209,75 +189,37 @@ export async function POST(req: Request) {
     const fromEmail =
       process.env.CONTACT_FROM_EMAIL?.trim() || "onboarding@resend.dev";
 
-    const html = `
-      <div style="font-family: Arial, Helvetica, sans-serif; color: #111; line-height: 1.6; padding: 24px;">
-        <div style="max-width: 680px; margin: 0 auto; border: 1px solid #e8e8e8; border-radius: 18px; overflow: hidden;">
-          <div style="background: #11518b; padding: 20px 24px;">
-            <h2 style="margin: 0; color: #d4af37; font-size: 22px;">
-              Perfil del Cliente Comprador
-            </h2>
-            <p style="margin: 6px 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">
-              Formulario compartido por Ivonne Erickson para continuar el proceso de orientación y coordinar posibles visitas.
-            </p>
-          </div>
-
-          <div style="padding: 24px;">
-            <h3 style="margin: 0 0 12px;">Propiedad</h3>
-            <p style="margin: 0 0 12px;"><strong>Título:</strong> ${escapeHtml(property.titulo)}</p>
-            <p style="margin: 0 0 12px;"><strong>Ubicación:</strong> ${escapeHtml(canonicalPropertyLocation)}</p>
-            <p style="margin: 0 0 20px;"><strong>Enlace:</strong> <a href="${escapeHtml(canonicalPropertyUrl)}">${escapeHtml(canonicalPropertyUrl)}</a></p>
-
-            <h3 style="margin: 0 0 12px;">Información de contacto</h3>
-            <p style="margin: 0 0 12px;"><strong>Nombre:</strong> ${escapeHtml(nombre)}</p>
-            <p style="margin: 0 0 12px;"><strong>Teléfono:</strong> ${escapeHtml(telefono)}</p>
-            <p style="margin: 0 0 20px;"><strong>Email:</strong> ${escapeHtml(email || "No provisto")}</p>
-
-            <h3 style="margin: 20px 0 12px;">Método de compra</h3>
-            <p style="margin: 0 0 12px;"><strong>Método:</strong> ${escapeHtml(metodoCompra)}</p>
-            <p style="margin: 0 0 12px;"><strong>Método/programa especificado:</strong> ${escapeHtml(metodoCompraOtro || "No especificado")}</p>
-            <p style="margin: 0 0 12px;"><strong>Institución financiera:</strong> ${escapeHtml(institucionFinanciera || "No especificado")}</p>
-            ${requiresSolarContractAcceptance ? `
-              <p style="margin: 0 0 12px;"><strong>Disposición para asumir contrato o leasing de placas solares:</strong> ${escapeHtml(solarContractAcceptanceLabel)}</p>
-            ` : ""}
-            ${cartaFile ? `
-              <p style="margin: 0 0 12px;"><strong>${escapeHtml(uploadedDocumentLabel)}:</strong> ${
-                attachments.length > 0 ? "Adjunta en este correo." : escapeHtml(attachmentNote || "No adjunta.")
-              }</p>
-              ${attachmentNote ? `<p style="margin: 0 0 12px; color: #7a4a00;">${escapeHtml(attachmentNote)}</p>` : ""}
-              <p style="margin: 0 0 20px;"><strong>Enlace de respaldo:</strong> ${
-                cartaUrl
-                  ? `<a href="${escapeHtml(cartaUrl)}">${escapeHtml(cartaUrl)}</a>`
-                  : escapeHtml(uploadNote || "No disponible")
-              }</p>
-            ` : `
-              <p style="margin: 0 0 20px;"><strong>${escapeHtml(uploadedDocumentLabel)}:</strong> No provista</p>
-            `}
-
-            <h3 style="margin: 20px 0 12px;">Preparación financiera</h3>
-            <p style="margin: 0 0 20px;"><strong>Fondos para pronto y cierre:</strong> ${escapeHtml(fondosCierre || "No especificado")}</p>
-
-            <h3 style="margin: 20px 0 12px;">Información adicional</h3>
-            ${comentarios ? `
-              <p style="margin: 0 0 10px; font-weight: 700;">Comentarios adicionales:</p>
-              <p style="margin: 0; color: #4d4d4d; white-space: pre-line;">${escapeHtml(comentarios)}</p>
-            ` : ""}
-          </div>
-
-          <div style="background: #f8f8f8; padding: 20px 24px; border-top: 1px solid #e8e8e8;">
-            <p style="margin: 0; font-size: 12px; color: #666;">
-              Este es un lead automático desde borikipr.com/listados/${escapeHtml(property.slug)}/perfil-comprador
-            </p>
-          </div>
-        </div>
-      </div>
-    `;
+    const emailMessage = buildPropertyBuyerProfileInternalEmail({
+      profile: {
+        nameSnapshot: nombre,
+        emailSnapshot: email || null,
+        phoneSnapshot: telefono,
+        purchaseMethod: metodoCompra as "Financiamiento" | "Cash" | "Otro",
+        purchaseMethodOther: metodoCompraOtro || null,
+        financialInstitution: institucionFinanciera || null,
+        closingFunds: fondosCierre || null,
+        solarContractAcceptance: solarContractAcceptance || null,
+        comments: comentarios || null,
+        documentOriginalName: cartaFile?.name || null,
+        property: {
+          id: property.id,
+          slug: property.slug,
+          title: property.titulo,
+          municipio: property.municipio,
+          sectorComunidad: property.sector_comunidad ?? null,
+          status: property.estado,
+          hasSolarLease: requiresSolarContractAcceptance,
+        },
+      },
+      documentStatus: cartaFile ? "uploaded" : "none",
+    });
 
     const { data, error } = await resend.emails.send({
       from: `Erickson Real Estate <${fromEmail}>`,
       to: [toEmail],
       replyTo: email || undefined,
-      subject: `Perfil del Cliente Comprador - ${property.titulo}: ${nombre}`,
-      html,
+      subject: emailMessage.subject,
+      html: emailMessage.html,
       attachments: attachments.length > 0 ? attachments : undefined,
     });
 
@@ -298,13 +240,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }

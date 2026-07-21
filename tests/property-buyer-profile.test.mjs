@@ -20,6 +20,11 @@ import {
   normalizeEmail,
   normalizePuertoRicoUsPhone,
 } from "../lib/leads/normalization.ts";
+import { buildPropertyBuyerProfileInternalEmail } from "../lib/leads/property-buyer-profile-email.ts";
+import {
+  resolvePropertyBuyerProfileAttachment,
+  sanitizeAttachmentFilename,
+} from "../lib/leads/property-buyer-profile-queue-attachment.ts";
 
 if (!globalThis.File) {
   globalThis.File = NodeFile;
@@ -50,7 +55,7 @@ function baseForm(overrides = {}) {
     metodoCompra: "Financiamiento",
     metodoCompraOtro: "",
     institucionFinanciera: "Banco Prueba",
-    fondosCierre: "SÃ­",
+    fondosCierre: "Sí",
     solarContractAcceptance: "",
     comentarios: "Comentario de prueba",
     ...overrides,
@@ -394,7 +399,7 @@ function makeProfile(overrides = {}) {
     purchaseMethod: "Financiamiento",
     purchaseMethodOther: null,
     financialInstitution: "Banco Prueba",
-    closingFunds: "SÃ­",
+    closingFunds: "Sí",
     solarContractAcceptance: null,
     comments: null,
     documentType: null,
@@ -493,6 +498,142 @@ test("same idempotency retry does not create a second R2 object", async () => {
   assert.equal(first, "uploaded");
   assert.equal(retry, "uploaded");
   assert.equal(objects.size, 1);
+});
+
+test("Buyer Profile financing email is UTF-8 and shows only applicable answers", () => {
+  const email = buildPropertyBuyerProfileInternalEmail({
+    profile: makeProfile({
+      nameSnapshot: "José Muñoz",
+      emailSnapshot: "buyer@example.invalid",
+      phoneSnapshot: "787-555-1234",
+      purchaseMethod: "Financiamiento",
+      purchaseMethodOther: "hidden value",
+      financialInstitution: "Institución Crédito Ágil",
+      closingFunds: "Sí",
+      solarContractAcceptance: "yes",
+      comments: "Solicita orientación sobre financiación.",
+      documentOriginalName: "carta-precalificación-josé.pdf",
+      property: {
+        ...makeProfile().property,
+        title: "Residencia en ubicación céntrica",
+        hasSolarLease: true,
+      },
+    }),
+    documentStatus: "uploaded",
+  });
+
+  assert.match(email.html, /<meta charset="UTF-8">/);
+  assert.match(email.html, /orientación/);
+  assert.match(email.html, /Teléfono/);
+  assert.match(email.html, /Método de compra/);
+  assert.match(email.html, /Institución financiera/);
+  assert.match(email.html, /precalificación/);
+  assert.match(email.html, /Disposición/);
+  assert.match(email.html, /financiación/);
+  assert.match(email.html, /ubicación/);
+  assert.match(email.html, /carta-precalificación-josé\.pdf/);
+  assert.doesNotMatch(email.html, /Método\/programa especificado/);
+  assert.doesNotMatch(email.html, /No document|No especificado|No aplica/);
+  assert.doesNotMatch(email.html, /[ÃÂ�]/);
+  assert.equal(Buffer.from(email.html, "utf8").toString("utf8"), email.html);
+});
+
+test("Buyer Profile Cash email omits unanswered and hidden questions", () => {
+  const email = buildPropertyBuyerProfileInternalEmail({
+    profile: makeProfile({
+      emailSnapshot: null,
+      purchaseMethod: "Cash",
+      purchaseMethodOther: "must stay hidden",
+      financialInstitution: "must stay hidden",
+      closingFunds: null,
+      comments: null,
+      documentOriginalName: null,
+      property: { ...makeProfile().property, hasSolarLease: false },
+    }),
+    documentStatus: "none",
+  });
+
+  assert.match(email.html, /<strong>Método:<\/strong> Cash/);
+  assert.doesNotMatch(email.html, /Institución financiera/);
+  assert.doesNotMatch(email.html, /Método\/programa especificado/);
+  assert.doesNotMatch(email.html, /Carta de precalificación|Evidencia de fondos/);
+  assert.doesNotMatch(email.html, /<strong>Email:/);
+  assert.doesNotMatch(email.html, /Preparación financiera/);
+  assert.doesNotMatch(email.html, /Información adicional/);
+  assert.doesNotMatch(email.html, /Disposición para asumir/);
+  assert.doesNotMatch(email.html, /No document|No especificado|Aún no/);
+});
+
+test("uploaded private R2 document becomes one unchanged email attachment", async () => {
+  const source = new Uint8Array([0, 1, 2, 127, 128, 255]);
+  const attachments = await resolvePropertyBuyerProfileAttachment({
+    relatedSubmissionType: "property_buyer_profile",
+    relatedSubmissionId: randomUUID(),
+    loadMetadata: async () => ({
+      objectKey: "lead-documents/property-buyer-profiles/id/proof_of_funds.pdf",
+      originalName: "../Evidencia fondos José.pdf",
+      contentType: "application/pdf",
+      sizeBytes: source.byteLength,
+      status: "uploaded",
+    }),
+    download: async () => ({ bytes: source, contentType: "application/pdf" }),
+  });
+
+  assert.equal(attachments.length, 1);
+  assert.equal(attachments[0].filename, "Evidencia fondos José.pdf");
+  assert.equal(attachments[0].contentType, "application/pdf");
+  assert.deepEqual(
+    new Uint8Array(Buffer.from(attachments[0].content, "base64")),
+    source
+  );
+  assert.equal(sanitizeAttachmentFilename("..\\unsafe\r\nname.pdf"), "unsafename.pdf");
+});
+
+test("unrelated queue intents never inspect or attach Buyer Profile documents", async () => {
+  let metadataCalls = 0;
+  let downloadCalls = 0;
+  const attachments = await resolvePropertyBuyerProfileAttachment({
+    relatedSubmissionType: "property_priority_registration",
+    relatedSubmissionId: randomUUID(),
+    loadMetadata: async () => {
+      metadataCalls += 1;
+      return null;
+    },
+    download: async () => {
+      downloadCalls += 1;
+      return { bytes: new Uint8Array(), contentType: null };
+    },
+  });
+  assert.equal(attachments, undefined);
+  assert.equal(metadataCalls, 0);
+  assert.equal(downloadCalls, 0);
+});
+
+test("Buyer Profile correction subject and recovery command are idempotent", async () => {
+  const email = buildPropertyBuyerProfileInternalEmail({
+    profile: makeProfile({ documentOriginalName: "carta.pdf" }),
+    documentStatus: "uploaded",
+    correctedResend: true,
+  });
+  assert.equal(
+    email.subject,
+    "Reenvío corregido — Perfil del Cliente Comprador — Persona Prueba"
+  );
+
+  const source = await readFile(
+    fileURLToPath(
+      new URL(
+        "../scripts/leads/resend-property-buyer-profile-emails.ts",
+        import.meta.url
+      )
+    ),
+    "utf8"
+  );
+  assert.match(source, /PROPERTY_BUYER_PROFILE_RESEND_APPLY/);
+  assert.match(source, /!== APPLY_VALUE/);
+  assert.match(source, /process\.argv\.includes\("--apply"\)/);
+  assert.match(source, /internal:corrected:v1/);
+  assert.match(source, /if \(!applyRequested\)/);
 });
 
 test("Priority Registration queue relationship and timestamps survive 0003", async () => {

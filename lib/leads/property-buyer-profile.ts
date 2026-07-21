@@ -95,7 +95,7 @@ export function parsePropertyBuyerProfileFormData(
 
   if (!UUID_PATTERN.test(idempotencyKey)) {
     throw new BuyerProfileValidationError(
-      "No pudimos validar este envÃ­o. Intenta nuevamente.",
+      "No pudimos validar este envío. Intenta nuevamente.",
       400,
       "invalid_idempotency_key"
     );
@@ -108,7 +108,7 @@ export function parsePropertyBuyerProfileFormData(
     !UUID_PATTERN.test(propertyId)
   ) {
     throw new BuyerProfileValidationError(
-      "La informaciÃ³n de la propiedad no es vÃ¡lida.",
+      "La información de la propiedad no es válida.",
       400,
       "invalid_property_identity"
     );
@@ -124,7 +124,7 @@ export function parsePropertyBuyerProfileFormData(
 
   if (!normalizePuertoRicoUsPhone(phone)) {
     throw new BuyerProfileValidationError(
-      "Ingresa un telÃ©fono vÃ¡lido de Puerto Rico o Estados Unidos.",
+      "Ingresa un teléfono válido de Puerto Rico o Estados Unidos.",
       400,
       "invalid_phone"
     );
@@ -132,7 +132,7 @@ export function parsePropertyBuyerProfileFormData(
 
   if (email && !normalizeEmail(email)) {
     throw new BuyerProfileValidationError(
-      "El email no es vÃ¡lido.",
+      "El email no es válido.",
       400,
       "invalid_email"
     );
@@ -140,7 +140,7 @@ export function parsePropertyBuyerProfileFormData(
 
   if (!PURCHASE_METHODS.has(purchaseMethod)) {
     throw new BuyerProfileValidationError(
-      "Selecciona un mÃ©todo de compra vÃ¡lido.",
+      "Selecciona un método de compra válido.",
       400,
       "invalid_purchase_method"
     );
@@ -161,7 +161,7 @@ export function parsePropertyBuyerProfileFormData(
     documentExtension = DOCUMENT_EXTENSIONS[file.type] || null;
     if (!documentExtension) {
       throw new BuyerProfileValidationError(
-        "Solo se aceptan PDF e imÃ¡genes JPG, PNG o WebP.",
+        "Solo se aceptan PDF e imágenes JPG, PNG o WebP.",
         400,
         "invalid_document_type"
       );
@@ -173,7 +173,7 @@ export function parsePropertyBuyerProfileFormData(
       documentType = "proof_of_funds";
     } else {
       throw new BuyerProfileValidationError(
-        "El documento no aplica al mÃ©todo de compra seleccionado.",
+        "El documento no aplica al método de compra seleccionado.",
         400,
         "unexpected_document"
       );
@@ -214,7 +214,7 @@ export function validateBuyerProfileForProperty(
 
   if (property.status !== "disponible") {
     throw new BuyerProfileValidationError(
-      "El perfil de comprador no estÃ¡ disponible para esta propiedad.",
+      "El perfil de comprador no está disponible para esta propiedad.",
       403,
       "property_not_available"
     );
@@ -226,7 +226,7 @@ export function validateBuyerProfileForProperty(
       !SOLAR_ANSWERS.has(input.solarContractAcceptance)
     ) {
       throw new BuyerProfileValidationError(
-        "Selecciona una respuesta vÃ¡lida sobre el contrato o leasing de las placas solares.",
+        "Selecciona una respuesta válida sobre el contrato o leasing de las placas solares.",
         400,
         "invalid_solar_answer"
       );
@@ -250,17 +250,6 @@ export function buildBuyerProfileDocumentObjectKey(
   }
 
   return `lead-documents/property-buyer-profiles/${profileId}/${documentType}.${extension}`;
-}
-
-export function documentStatusLabel(status: BuyerProfileDocumentStatus) {
-  switch (status) {
-    case "uploaded":
-      return "Uploaded";
-    case "failed":
-      return "Upload failed";
-    default:
-      return "No document";
-  }
 }
 
 function getText(formData: FormData, key: string) {
