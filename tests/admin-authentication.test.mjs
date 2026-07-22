@@ -11,11 +11,12 @@ import {
 } from "../lib/admin/auth-core.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const [migration, authSource, middlewareSource, loginSource, forgotSource, accountSource, profileSource] = await Promise.all([
+const [migration, authSource, middlewareSource, loginPageSource, loginFormSource, forgotSource, accountSource, profileSource] = await Promise.all([
   readFile(`${root}/db/migrations/0013_extend_admin_authentication.sql`, "utf8"),
   readFile(`${root}/lib/admin/auth.ts`, "utf8"),
   readFile(`${root}/lib/admin/middleware.ts`, "utf8"),
   readFile(`${root}/app/admin/login/page.tsx`, "utf8"),
+  readFile(`${root}/app/admin/login/LoginForm.tsx`, "utf8"),
   readFile(`${root}/app/admin/forgot-password/page.tsx`, "utf8"),
   readFile(`${root}/lib/admin/account.ts`, "utf8"),
   readFile(`${root}/app/admin/profile/ProfileForms.tsx`, "utf8"),
@@ -59,7 +60,8 @@ test("migration extends the existing admin table without creating another user s
 });
 
 test("login and reset UX avoid account enumeration and expose recovery", () => {
-  assert.match(loginSource, /¿Olvidaste tu contraseña\?/);
+  assert.match(loginFormSource, /¿Olvidaste tu contraseña\?/);
+  assert.match(loginPageSource, /if \(await getAdminSession\(\)\) redirect\("\/admin"\)/);
   assert.match(forgotSource, /Si existe una cuenta, recibirás un email/);
   assert.doesNotMatch(forgotSource, /cuenta no existe|email no existe/i);
   assert.match(accountSource, /randomBytes\(32\)/);
