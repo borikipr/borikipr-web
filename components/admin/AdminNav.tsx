@@ -25,6 +25,11 @@ const navItems = [
     label: "Analytics",
     match: (path: string) => path.startsWith("/admin/analytics"),
   },
+  {
+    href: "/admin/profile",
+    label: "Mi perfil",
+    match: (path: string) => path.startsWith("/admin/profile"),
+  },
   { href: "/", label: "Ver website", match: () => false },
 ];
 

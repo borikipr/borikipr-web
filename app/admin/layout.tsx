@@ -1,13 +1,14 @@
 import { ReactNode } from "react";
+import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
-import { getAdminSessionUser } from "@/lib/admin/auth";
+import { getAdminSession } from "@/lib/admin/auth";
 
 export default async function AdminLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  const user = await getAdminSessionUser();
+  const user = await getAdminSession();
   const isLoggedIn = Boolean(user);
 
   return (
@@ -26,9 +27,9 @@ export default async function AdminLayout({
 
             <AdminNav />
 
-            <div className="text-sm text-white/70">
-              Sesión: <span className="font-semibold text-white">{user}</span>
-            </div>
+            <Link href="/admin/profile" className="text-sm text-white/70 transition hover:text-[#d4af37]">
+              Sesión: <span className="font-semibold text-white">{user?.displayName}</span>
+            </Link>
           </div>
         </header>
       )}

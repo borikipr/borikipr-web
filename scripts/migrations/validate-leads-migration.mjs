@@ -34,6 +34,8 @@ const [
   leadGroupsRollbackSql,
   leadGroupEventsMigrationSql,
   leadGroupEventsRollbackSql,
+  adminAuthMigrationSql,
+  adminAuthRollbackSql,
 ] =
   await Promise.all([
     readMigration("0001_create_leads.sql"),
@@ -59,6 +61,8 @@ const [
     readMigration("0011_create_lead_groups.rollback.sql"),
     readMigration("0012_extend_lead_group_events.sql"),
     readMigration("0012_extend_lead_group_events.rollback.sql"),
+    readMigration("0013_extend_admin_authentication.sql"),
+    readMigration("0013_extend_admin_authentication.rollback.sql"),
   ]);
 
 const typedTables = [
@@ -1222,4 +1226,97 @@ try {
   console.log("Verified Lead 360, merge lineage, Client Case tables, indexes, RESTRICT keys, and guarded rollbacks.");
 } finally {
   await lead360Db.close();
+}
+
+const adminAuthDb = new PGlite();
+try {
+  await adminAuthDb.exec(`
+    CREATE TABLE public.admin_users (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      username text NOT NULL UNIQUE,
+      password_hash text NOT NULL,
+      activo boolean NOT NULL DEFAULT true,
+      created_at timestamp without time zone NOT NULL DEFAULT now()
+    );
+    INSERT INTO public.admin_users (username, password_hash)
+    VALUES ('admin-one', 'hash-one'), ('admin-two', 'hash-two');
+  `);
+  await adminAuthDb.exec(adminAuthMigrationSql);
+
+  const columns = await adminAuthDb.query(`
+    SELECT column_name, data_type, is_nullable, column_default
+    FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='admin_users'
+      AND column_name IN (
+        'display_name', 'email', 'last_login_at', 'password_changed_at',
+        'session_version'
+      )
+    ORDER BY ordinal_position
+  `);
+  assert.deepEqual(columns.rows, [
+    { column_name: 'display_name', data_type: 'text', is_nullable: 'YES', column_default: null },
+    { column_name: 'email', data_type: 'text', is_nullable: 'YES', column_default: null },
+    { column_name: 'last_login_at', data_type: 'timestamp with time zone', is_nullable: 'YES', column_default: null },
+    { column_name: 'password_changed_at', data_type: 'timestamp with time zone', is_nullable: 'YES', column_default: null },
+    { column_name: 'session_version', data_type: 'integer', is_nullable: 'NO', column_default: '1' },
+  ]);
+  const authTables = await adminAuthDb.query(`
+    SELECT table_name FROM information_schema.tables
+    WHERE table_schema='public'
+      AND table_name IN ('admin_password_reset_tokens', 'admin_auth_attempts')
+    ORDER BY table_name
+  `);
+  assert.deepEqual(authTables.rows.map((row) => row.table_name), [
+    'admin_auth_attempts',
+    'admin_password_reset_tokens',
+  ]);
+  const indexes = await adminAuthDb.query(`
+    SELECT indexname FROM pg_indexes
+    WHERE schemaname='public' AND indexname IN (
+      'admin_users_email_normalized_uidx',
+      'admin_password_reset_tokens_hash_uidx',
+      'admin_password_reset_tokens_admin_created_at_idx',
+      'admin_password_reset_tokens_active_expiry_idx',
+      'admin_auth_attempts_lookup_idx'
+    )
+  `);
+  assert.equal(indexes.rows.length, 5);
+  const preserved = await adminAuthDb.query(`
+    SELECT count(*)::int AS count,
+           bool_and(session_version = 1) AS versions_preserved
+    FROM public.admin_users
+  `);
+  assert.deepEqual(preserved.rows, [{ count: 2, versions_preserved: true }]);
+
+  await adminAuthDb.query(`
+    INSERT INTO public.admin_users (
+      username, password_hash, email
+    ) VALUES ('email-owner', 'hash', 'owner@example.test')
+  `);
+  await assert.rejects(adminAuthDb.query(`
+    INSERT INTO public.admin_users (
+      username, password_hash, email
+    ) VALUES ('duplicate-email', 'hash', 'owner@example.test')
+  `));
+  await adminAuthDb.query(`DELETE FROM public.admin_users WHERE username='email-owner'`);
+
+  await adminAuthDb.exec(adminAuthRollbackSql);
+  const rolledBack = await adminAuthDb.query(`
+    SELECT to_regclass('public.admin_password_reset_tokens') IS NULL AS tokens_removed,
+           to_regclass('public.admin_auth_attempts') IS NULL AS attempts_removed,
+           NOT EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='admin_users'
+               AND column_name='session_version'
+           ) AS columns_removed
+  `);
+  assert.deepEqual(rolledBack.rows, [{
+    tokens_removed: true,
+    attempts_removed: true,
+    columns_removed: true,
+  }]);
+  console.log('Validated the ordered migration chain through 0013.');
+  console.log('Verified admin profile fields, reset tokens, rate-limit audit storage, indexes, and guarded rollback.');
+} finally {
+  await adminAuthDb.close();
 }

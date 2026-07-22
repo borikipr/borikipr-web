@@ -1,71 +1,35 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import {
+  parseAdminSessionValue,
+  verifyLegacyAdminSession,
+} from "@/lib/admin/auth-core";
 
 const SESSION_COOKIE = "boriki_admin_session";
+const PUBLIC_ADMIN_PATHS = new Set([
+  "/admin/login",
+  "/admin/forgot-password",
+  "/admin/reset-password",
+]);
 
-function getSessionSecret() {
-  const secret = process.env.SESSION_SECRET;
-
-  if (!secret) {
-    throw new Error("SESSION_SECRET no está configurado.");
-  }
-
-  return secret;
-}
-
-function signValue(value: string) {
-  return createHmac("sha256", getSessionSecret()).update(value).digest("hex");
-}
-
-function isValidSession(sessionValue: string) {
-  const lastDot = sessionValue.lastIndexOf(".");
-
-  if (lastDot === -1) return false;
-
-  const username = sessionValue.slice(0, lastDot);
-  const signature = sessionValue.slice(lastDot + 1);
-
-  if (!username || !signature) return false;
-
-  const expectedSignature = signValue(username);
-
-  const signatureBuffer = Buffer.from(signature);
-  const expectedBuffer = Buffer.from(expectedSignature);
-
-  if (signatureBuffer.length !== expectedBuffer.length) {
-    return false;
-  }
-
-  return timingSafeEqual(signatureBuffer, expectedBuffer);
+function hasSignedSession(sessionValue: string | undefined) {
+  const secret = process.env.SESSION_SECRET?.trim();
+  if (!secret || !sessionValue) return false;
+  return Boolean(
+    parseAdminSessionValue(sessionValue, secret) ||
+      verifyLegacyAdminSession(sessionValue, secret)
+  );
 }
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  if (!pathname.startsWith("/admin")) {
-    return NextResponse.next();
-  }
-
-  if (pathname === "/admin/login") {
-    const session = request.cookies.get(SESSION_COOKIE)?.value;
-
-    if (session && isValidSession(session)) {
-      return NextResponse.redirect(new URL("/admin", request.url));
-    }
-
-    return NextResponse.next();
-  }
+  if (!pathname.startsWith("/admin")) return NextResponse.next();
+  if (PUBLIC_ADMIN_PATHS.has(pathname)) return NextResponse.next();
 
   const session = request.cookies.get(SESSION_COOKIE)?.value;
-
-  if (!session || !isValidSession(session)) {
+  if (!hasSignedSession(session)) {
     return NextResponse.redirect(new URL("/admin/login", request.url));
   }
 
   return NextResponse.next();
 }
-
-export const config = {
-  matcher: ["/admin/:path*"],
-};

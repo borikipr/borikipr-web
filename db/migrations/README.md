@@ -20,7 +20,7 @@ applies migrations to a remote database.
 Each migration file must include a matching rollback file. Rollbacks are
 manual review artifacts, not automatic deployment behavior.
 
-Migrations are validated in order through `0007`. The validator creates only
+Migrations are validated in order through `0013`. The validator creates only
 ephemeral local fixtures for the pre-existing `propiedades`,
 `consultas_propiedad`, Priority Registration, and email queue structures needed
 to exercise the reviewed foreign keys and rollback behavior. It verifies each
@@ -87,3 +87,9 @@ discard any case data.
 Migration `0012` extends the existing Client Case audit-event constraint for
 explicit member-role and primary-contact changes. It adds no new storage model
 and does not rewrite existing cases or canonical leads.
+
+Migration `0013` extends the existing `admin_users` authentication source with
+display/profile fields and session versioning. It adds hashed, expiring,
+single-use password-reset tokens and pseudonymous rate-limit attempt records;
+it does not create another administrator store or add account-management UI.
+Its rollback is guarded once any new authentication data exists.

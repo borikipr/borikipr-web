@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
-import { getAdminSessionUser } from "@/lib/admin/auth";
+import { getAdminSession } from "@/lib/admin/auth";
 import { getAdminDashboardStats } from "@/lib/admin/queries";
 import { logoutAdmin } from "./actions";
 
@@ -67,7 +67,7 @@ function ActionCard({
 }
 
 export default async function AdminPage() {
-  const user = await getAdminSessionUser();
+  const user = await getAdminSession();
 
   if (!user) {
     redirect("/admin/login");
@@ -81,7 +81,7 @@ export default async function AdminPage() {
         <AdminPageHeader
           breadcrumbs={[{ label: "Admin" }]}
           eyebrow="Dashboard"
-          title={`Bienvenido, ${user}`}
+          title={`Bienvenido, ${user.displayName}`}
           description="Desde aquí puedes administrar contenido clave del website con una vista clara y profesional."
           actions={
             <form action={logoutAdmin}>

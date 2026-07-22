@@ -1,106 +1,151 @@
 import { cookies } from "next/headers";
-import { createHmac, timingSafeEqual } from "node:crypto";
 import * as bcrypt from "bcryptjs";
 import { sql } from "@/lib/db";
+import {
+  ADMIN_SESSION_MAX_AGE_SECONDS,
+  parseAdminSessionValue,
+  signAdminSessionPayload,
+  verifyLegacyAdminSession,
+} from "@/lib/admin/auth-core";
 
 export const SESSION_COOKIE = "boriki_admin_session";
 
-type AdminUser = {
+export type AdminSessionUser = {
+  id: string;
   username: string;
-  password_hash: string;
-  activo: boolean;
+  displayName: string;
+  email: string | null;
+  sessionVersion: number;
 };
 
-function getSessionSecret() {
+type AdminUserRow = {
+  id: string;
+  username: string;
+  display_name: string | null;
+  email: string | null;
+  password_hash: string;
+  activo: boolean;
+  session_version: number;
+  password_changed_at: Date | null;
+};
+
+const DUMMY_PASSWORD_HASH =
+  "$2b$12$Ohn0e/3Mn/EF7LNXKXCgMOB8vmZjiUzIv/kCrgIJXF0s3C39YTHEK";
+
+export function getSessionSecret() {
   const secret = process.env.SESSION_SECRET?.trim();
-
-  if (!secret) {
-    throw new Error("SESSION_SECRET no está configurado.");
-  }
-
+  if (!secret) throw new Error("SESSION_SECRET no está configurado.");
   return secret;
 }
 
-function signValue(value: string) {
-  return createHmac("sha256", getSessionSecret())
-    .update(value)
-    .digest("hex");
+function toSessionUser(row: AdminUserRow): AdminSessionUser {
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name?.trim() || row.username,
+    email: row.email,
+    sessionVersion: row.session_version,
+  };
 }
 
-function buildSessionValue(username: string) {
-  const signature = signValue(username);
-  return `${username}.${signature}`;
-}
-
-async function getAdminUsers() {
-  const users = await sql<AdminUser[]>`
-    SELECT username, password_hash, activo
-    FROM admin_users
-    WHERE activo = true
+async function findActiveAdminByUsername(username: string) {
+  const rows = await sql<AdminUserRow[]>`
+    SELECT id::text, username, display_name, email, password_hash, activo,
+           session_version, password_changed_at
+    FROM public.admin_users
+    WHERE username = ${username}
+      AND activo = true
+    LIMIT 1
   `;
+  return rows[0] || null;
+}
 
-  return users;
+async function findActiveAdminById(id: string) {
+  const rows = await sql<AdminUserRow[]>`
+    SELECT id::text, username, display_name, email, password_hash, activo,
+           session_version, password_changed_at
+    FROM public.admin_users
+    WHERE id = ${id}::uuid
+      AND activo = true
+    LIMIT 1
+  `;
+  return rows[0] || null;
 }
 
 export async function authenticateAdmin(username: string, password: string) {
   const cleanUsername = username.trim();
-  const cleanPassword = password.trim();
+  const row = cleanUsername
+    ? await findActiveAdminByUsername(cleanUsername)
+    : null;
+  const matches = await bcrypt.compare(
+    password,
+    row?.password_hash || DUMMY_PASSWORD_HASH
+  );
+  if (!row || !matches) return null;
 
-  const users = await getAdminUsers();
-  const user = users.find((u) => u.username === cleanUsername);
-
-  if (!user) return null;
-
-  const matches = await bcrypt.compare(cleanPassword, user.password_hash);
-
-  return matches ? user.username : null;
+  await sql`
+    UPDATE public.admin_users
+    SET last_login_at = now()
+    WHERE id = ${row.id}::uuid
+  `;
+  return toSessionUser(row);
 }
 
 export async function verifyAdminSessionValue(
   sessionValue: string | undefined | null
 ) {
-  if (!sessionValue) return null;
+  const secret = getSessionSecret();
+  const payload = parseAdminSessionValue(sessionValue, secret);
 
-  const lastDot = sessionValue.lastIndexOf(".");
-  if (lastDot === -1) return null;
+  if (payload) {
+    const row = await findActiveAdminById(payload.adminId);
+    if (
+      !row ||
+      row.username !== payload.username ||
+      row.session_version !== payload.sessionVersion
+    ) {
+      return null;
+    }
+    return toSessionUser(row);
+  }
 
-  const username = sessionValue.slice(0, lastDot);
-  const signature = sessionValue.slice(lastDot + 1);
-
-  if (!username || !signature) return null;
-
-  const expectedSignature = signValue(username);
-
-  const signatureBuffer = Buffer.from(signature);
-  const expectedBuffer = Buffer.from(expectedSignature);
-
-  if (signatureBuffer.length !== expectedBuffer.length) return null;
-
-  if (!timingSafeEqual(signatureBuffer, expectedBuffer)) return null;
-
-  const users = await getAdminUsers();
-  const userExists = users.some((u) => u.username === username);
-
-  return userExists ? username : null;
+  // Existing signed cookies remain valid during this deployment. Every newly
+  // created session uses the versioned v2 format, so the compatibility path
+  // naturally disappears after the previous eight-hour cookie window.
+  const legacyUsername = verifyLegacyAdminSession(sessionValue, secret);
+  if (!legacyUsername) return null;
+  const row = await findActiveAdminByUsername(legacyUsername);
+  return row && !row.password_changed_at ? toSessionUser(row) : null;
 }
 
-export async function createAdminSession(username: string) {
+export async function createAdminSession(user: AdminSessionUser) {
   const cookieStore = await cookies();
+  const expiresAt =
+    Math.floor(Date.now() / 1000) + ADMIN_SESSION_MAX_AGE_SECONDS;
+  const value = signAdminSessionPayload(
+    {
+      adminId: user.id,
+      username: user.username,
+      sessionVersion: user.sessionVersion,
+      expiresAt,
+    },
+    getSessionSecret()
+  );
 
   cookieStore.set({
     name: SESSION_COOKIE,
-    value: buildSessionValue(username),
+    value,
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 8,
+    maxAge: ADMIN_SESSION_MAX_AGE_SECONDS,
+    priority: "high",
   });
 }
 
 export async function clearAdminSession() {
   const cookieStore = await cookies();
-
   cookieStore.set({
     name: SESSION_COOKIE,
     value: "",
@@ -109,12 +154,15 @@ export async function clearAdminSession() {
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 0,
+    priority: "high",
   });
 }
 
-export async function getAdminSessionUser() {
+export async function getAdminSession() {
   const cookieStore = await cookies();
-  const session = cookieStore.get(SESSION_COOKIE)?.value;
+  return verifyAdminSessionValue(cookieStore.get(SESSION_COOKIE)?.value);
+}
 
-  return verifyAdminSessionValue(session);
+export async function getAdminSessionUser() {
+  return (await getAdminSession())?.username || null;
 }
