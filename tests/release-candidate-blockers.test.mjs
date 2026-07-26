@@ -304,5 +304,6 @@ test("current free-compatible queue run can process all 84 recipients in one dai
   const config = JSON.parse(vercelConfig);
   assert.deepEqual(config.crons, [
     { path: "/api/cron/process-email-queue", schedule: "0 9 * * *" },
+    { path: "/api/cron/cleanup-admin-auth", schedule: "17 9 * * *" },
   ]);
 });

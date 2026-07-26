@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
+import AdminFooter from "@/components/admin/AdminFooter";
 import { getAdminSession } from "@/lib/admin/auth";
 
 export default async function AdminLayout({
@@ -12,7 +13,7 @@ export default async function AdminLayout({
   const isLoggedIn = Boolean(user);
 
   return (
-    <div className="min-h-screen bg-[#f8f8f8]">
+    <div className="flex min-h-screen flex-col bg-[#f8f8f8]">
       {isLoggedIn && (
         <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0d1b2a]/95 backdrop-blur">
           <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-5 md:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
@@ -34,7 +35,8 @@ export default async function AdminLayout({
         </header>
       )}
 
-      <div>{children}</div>
+      <div className="min-w-0 flex-1">{children}</div>
+      <AdminFooter />
     </div>
   );
 }

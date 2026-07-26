@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Footer from "@/components/footer";
 import AnalyticsScripts from "@/components/AnalyticsScripts";
 import {
   DEFAULT_OG_IMAGE,
@@ -61,7 +60,6 @@ export default function RootLayout({
           dangerouslySetInnerHTML={jsonLdScript(realEstateAgentJsonLd)}
         />
         {children}
-        <Footer />
         <AnalyticsScripts />
       </body>
     </html>
