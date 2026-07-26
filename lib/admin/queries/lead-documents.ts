@@ -40,6 +40,7 @@ export type Lead360Document = {
   propertySlug: string | null;
   submittedAt: string;
   previewable: boolean;
+  reusedFromBuyerProfile: boolean;
 };
 
 export type ResolvedLeadDocument = Lead360Document & {
@@ -124,7 +125,8 @@ export function buildLead360DocumentsQuery(leadId: string): SqlQuery {
         pbp.document_status AS status,
         pbp.created_at,
         p.titulo AS property_title,
-        p.slug AS property_slug
+        p.slug AS property_slug,
+        false AS reused_from_buyer_profile
       FROM public.property_buyer_profiles pbp
       INNER JOIN public.propiedades p ON p.id = pbp.property_id
       WHERE pbp.lead_id = $1::uuid
@@ -161,7 +163,8 @@ export function buildLead360DocumentsQuery(leadId: string): SqlQuery {
         END,
         cp.created_at,
         p.titulo,
-        p.slug
+        p.slug,
+        cp.reused_property_buyer_profile_id IS NOT NULL
       FROM public.consultas_propiedad cp
       INNER JOIN public.propiedades p ON p.id = cp.propiedad_id
       WHERE cp.lead_id = $1::uuid
@@ -197,7 +200,8 @@ export function buildLeadDocumentAccessQuery(
         pbp.document_status AS status,
         pbp.created_at,
         p.titulo AS property_title,
-        p.slug AS property_slug
+        p.slug AS property_slug,
+        false AS reused_from_buyer_profile
       FROM public.property_buyer_profiles pbp
       INNER JOIN public.propiedades p ON p.id = pbp.property_id
       WHERE pbp.id = $2::uuid AND pbp.lead_id = $1::uuid
@@ -219,7 +223,8 @@ export function buildLeadDocumentAccessQuery(
         THEN (cp.respuestas_personalizadas->'document_metadata'->>'size_bytes')::bigint ELSE NULL END AS size_bytes,
       CASE WHEN cp.carta_precalificacion_key IS NOT NULL THEN cp.carta_precalificacion_status
            WHEN cp.evidencia_fondos_key IS NOT NULL THEN cp.evidencia_fondos_status ELSE NULL END AS status,
-      cp.created_at, p.titulo AS property_title, p.slug AS property_slug
+      cp.created_at, p.titulo AS property_title, p.slug AS property_slug,
+      cp.reused_property_buyer_profile_id IS NOT NULL AS reused_from_buyer_profile
     FROM public.consultas_propiedad cp
     INNER JOIN public.propiedades p ON p.id = cp.propiedad_id
     WHERE cp.id = $2::uuid AND cp.lead_id = $1::uuid
@@ -240,6 +245,7 @@ type DocumentRow = {
   created_at: string | Date;
   property_title: string | null;
   property_slug: string | null;
+  reused_from_buyer_profile: boolean;
 };
 
 export function mapLeadDocumentRow(row: DocumentRow): ResolvedLeadDocument {
@@ -267,6 +273,7 @@ export function mapLeadDocumentRow(row: DocumentRow): ResolvedLeadDocument {
     propertySlug: row.property_slug,
     submittedAt: new Date(row.created_at).toISOString(),
     previewable: isPreviewableDocumentType(row.content_type),
+    reusedFromBuyerProfile: row.reused_from_buyer_profile,
   };
 }
 
@@ -292,6 +299,7 @@ export async function getLead360Documents(leadId: string): Promise<Lead360Docume
       propertySlug: resolved.propertySlug,
       submittedAt: resolved.submittedAt,
       previewable: resolved.previewable,
+      reusedFromBuyerProfile: resolved.reusedFromBuyerProfile,
     };
   });
 }

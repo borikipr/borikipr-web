@@ -110,7 +110,12 @@ async function settleDocument({
   updateDocumentStatus: Parameters<typeof processOpenHousePostCommit>[0]["updateDocumentStatus"];
   onError: IssueHandler;
 }): Promise<OpenHouseDocumentStatus> {
-  const kind = input.documentKind;
+  const kind =
+    (registration.prequalificationKey
+      ? "prequalification_letter"
+      : registration.proofOfFundsKey
+        ? "proof_of_funds"
+        : null) || input.documentKind;
   if (!kind) return "none";
   const key =
     kind === "prequalification_letter"

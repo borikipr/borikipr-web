@@ -11,6 +11,7 @@ import {
   type ParsedOpenHouseRegistration,
   validateOpenHouseForProperty,
 } from "./open-house-registration";
+import type { ReusableFinancialDocument } from "./financial-document-reuse";
 
 type PropertyRow = {
   id: string;
@@ -48,6 +49,7 @@ type RegistrationRow = {
   carta_precalificacion_status: OpenHouseDocumentStatus;
   evidencia_fondos_key: string | null;
   evidencia_fondos_status: OpenHouseDocumentStatus;
+  reused_property_buyer_profile_id: string | null;
 };
 
 type OpenHouseAnswers = {
@@ -90,6 +92,7 @@ export type PersistedOpenHouseRegistration = {
   documentOriginalName: string | null;
   documentContentType: string | null;
   documentSizeBytes: number | null;
+  reusedPropertyBuyerProfileId: string | null;
 };
 
 export async function getCanonicalOpenHouseShowingAt(propertyId: string) {
@@ -104,7 +107,8 @@ export async function getCanonicalOpenHouseShowingAt(propertyId: string) {
 }
 
 export async function persistOpenHouseRegistration(
-  input: ParsedOpenHouseRegistration
+  input: ParsedOpenHouseRegistration,
+  options: { reusableDocument?: ReusableFinancialDocument | null } = {}
 ): Promise<PersistedOpenHouseRegistration> {
   try {
     const result = await sql.begin(async (transaction) => {
@@ -146,14 +150,26 @@ export async function persistOpenHouseRegistration(
       }
 
       const property = mapProperty(propertyRow);
-      validateOpenHouseForProperty(input, property);
-
       const resolver = createPostgresLeadResolverInTransaction(transaction);
       const resolved = await resolver.resolveOrCreate({
         name: input.name,
         email: input.email,
         phone: input.phone,
       });
+      const reusableDocument = options.reusableDocument
+        ? await validateReusableDocumentInTransaction(
+            transaction,
+            options.reusableDocument,
+            resolved.lead.id,
+            input.purchaseMethod
+          )
+        : null;
+      validateOpenHouseForProperty(
+        input,
+        property,
+        new Date(),
+        Boolean(reusableDocument)
+      );
 
       const registrationId = randomUUID();
       const showingAt = property.showingAt!;
@@ -161,7 +177,7 @@ export async function persistOpenHouseRegistration(
         property.id,
         showingAt
       );
-      const objectKey =
+      const uploadedObjectKey =
         input.documentKind && input.documentExtension
           ? buildOpenHouseDocumentObjectKey(
               registrationId,
@@ -169,20 +185,33 @@ export async function persistOpenHouseRegistration(
               input.documentExtension
             )
           : null;
+      const effectiveDocumentType =
+        input.documentKind || reusableDocument?.documentType || null;
+      const objectKey =
+        uploadedObjectKey || reusableDocument?.objectKey || null;
       const prequalificationKey =
-        input.documentKind === "prequalification_letter" ? objectKey : null;
+        effectiveDocumentType === "prequalification_letter" ? objectKey : null;
       const proofOfFundsKey =
-        input.documentKind === "proof_of_funds" ? objectKey : null;
+        effectiveDocumentType === "proof_of_funds" ? objectKey : null;
+      const documentOriginalName =
+        input.documentFile?.name || reusableDocument?.originalName || null;
+      const documentContentType =
+        input.documentFile?.type || reusableDocument?.contentType || null;
+      const documentSizeBytes =
+        input.documentFile?.size ?? reusableDocument?.sizeBytes ?? null;
       const answers: OpenHouseAnswers = {
         pregunta_personalizada: property.customQuestion,
         respuesta_personalizada: input.customAnswer,
         document_metadata:
-          input.documentFile && input.documentKind
+          effectiveDocumentType &&
+          documentOriginalName &&
+          documentContentType &&
+          documentSizeBytes !== null
             ? {
-                kind: input.documentKind,
-                content_type: input.documentFile.type,
-                size_bytes: input.documentFile.size,
-                original_name: input.documentFile.name,
+                kind: effectiveDocumentType,
+                content_type: documentContentType,
+                size_bytes: documentSizeBytes,
+                original_name: documentOriginalName,
               }
             : null,
       };
@@ -209,18 +238,19 @@ export async function persistOpenHouseRegistration(
            carta_precalificacion_key,
            carta_precalificacion_status,
            evidencia_fondos_key,
-           evidencia_fondos_status
+           evidencia_fondos_status,
+           reused_property_buyer_profile_id
          ) VALUES (
            $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6::timestamptz,
            $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb,
-           $18, $19, $20, $21
+           $18, $19, $20, $21, $22::uuid
          )
          RETURNING
            id::text,
            lead_id::text,
            propiedad_id::text,
-           $22::text AS property_slug,
-           $23::text AS property_title,
+           $23::text AS property_slug,
+           $24::text AS property_title,
            showing_at,
            showing_event_key,
            nombre,
@@ -236,7 +266,8 @@ export async function persistOpenHouseRegistration(
            carta_precalificacion_key,
            carta_precalificacion_status,
            evidencia_fondos_key,
-           evidencia_fondos_status`,
+           evidencia_fondos_status,
+           reused_property_buyer_profile_id::text`,
         [
           registrationId,
           property.id,
@@ -256,9 +287,18 @@ export async function persistOpenHouseRegistration(
           input.attendanceAvailability,
           JSON.stringify(answers),
           prequalificationKey,
-          prequalificationKey ? "pending" : "none",
+          prequalificationKey
+            ? reusableDocument
+              ? "uploaded"
+              : "pending"
+            : "none",
           proofOfFundsKey,
-          proofOfFundsKey ? "pending" : "none",
+          proofOfFundsKey
+            ? reusableDocument
+              ? "uploaded"
+              : "pending"
+            : "none",
+          reusableDocument?.sourceProfileId || null,
           property.slug,
           property.title,
         ]
@@ -339,7 +379,8 @@ const registrationLookupSql = `SELECT
    registration.carta_precalificacion_key,
    registration.carta_precalificacion_status,
    registration.evidencia_fondos_key,
-   registration.evidencia_fondos_status
+   registration.evidencia_fondos_status,
+   registration.reused_property_buyer_profile_id::text
  FROM public.consultas_propiedad registration
  JOIN public.propiedades property ON property.id = registration.propiedad_id
  WHERE registration.idempotency_key = $1::uuid
@@ -397,7 +438,75 @@ function mapRegistration(
       row.respuestas_personalizadas?.document_metadata?.content_type || null,
     documentSizeBytes:
       row.respuestas_personalizadas?.document_metadata?.size_bytes ?? null,
+    reusedPropertyBuyerProfileId: row.reused_property_buyer_profile_id,
   };
+}
+
+async function validateReusableDocumentInTransaction(
+  transaction: postgres.TransactionSql,
+  document: ReusableFinancialDocument,
+  leadId: string,
+  purchaseMethod: ParsedOpenHouseRegistration["purchaseMethod"]
+) {
+  const expectedType =
+    purchaseMethod === "Financiamiento"
+      ? "prequalification_letter"
+      : "proof_of_funds";
+  if (
+    document.ownerLeadId !== leadId ||
+    document.documentType !== expectedType
+  ) {
+    throw new OpenHouseValidationError(
+      "Adjunta el documento financiero requerido.",
+      400,
+      "unsafe_reused_document"
+    );
+  }
+  const rows = await transaction.unsafe<{
+    id: string;
+    lead_id: string;
+    document_type: ReusableFinancialDocument["documentType"];
+    document_object_key: string;
+    document_original_name: string;
+    document_content_type: string;
+    document_size_bytes: number | string;
+  }[]>(
+    `SELECT
+       id::text,
+       lead_id::text,
+       document_type,
+       document_object_key,
+       document_original_name,
+       document_content_type,
+       document_size_bytes
+     FROM public.property_buyer_profiles
+     WHERE id = $1::uuid
+       AND lead_id = $2::uuid
+       AND document_type = $3
+       AND document_status = 'uploaded'
+       AND document_object_key = $4
+       AND document_original_name = $5
+       AND document_content_type = $6
+       AND document_size_bytes = $7::bigint
+     FOR SHARE`,
+    [
+      document.sourceProfileId,
+      leadId,
+      expectedType,
+      document.objectKey,
+      document.originalName,
+      document.contentType,
+      document.sizeBytes,
+    ]
+  );
+  if (rows.length !== 1) {
+    throw new OpenHouseValidationError(
+      "Adjunta el documento financiero requerido.",
+      400,
+      "stale_reused_document"
+    );
+  }
+  return document;
 }
 
 function isUniqueViolation(error: unknown) {

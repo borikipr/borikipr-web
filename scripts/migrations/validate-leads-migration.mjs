@@ -36,6 +36,8 @@ const [
   leadGroupEventsRollbackSql,
   adminAuthMigrationSql,
   adminAuthRollbackSql,
+  financialDocumentReuseMigrationSql,
+  financialDocumentReuseRollbackSql,
 ] =
   await Promise.all([
     readMigration("0001_create_leads.sql"),
@@ -63,6 +65,8 @@ const [
     readMigration("0012_extend_lead_group_events.rollback.sql"),
     readMigration("0013_extend_admin_authentication.sql"),
     readMigration("0013_extend_admin_authentication.rollback.sql"),
+    readMigration("0014_link_open_house_reused_financial_documents.sql"),
+    readMigration("0014_link_open_house_reused_financial_documents.rollback.sql"),
   ]);
 
 const typedTables = [
@@ -817,6 +821,47 @@ try {
   assert.deepEqual(propertyFkAfterHardening.rows, [{ confdeltype: "r" }]);
   assert.deepEqual(await relationCatalog(openHouseDb, unrelatedTables), unrelatedCatalog);
 
+  await openHouseDb.exec(financialDocumentReuseMigrationSql);
+  const reuseColumn = await openHouseDb.query(
+    `SELECT data_type, is_nullable, column_default
+       FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'consultas_propiedad'
+        AND column_name = 'reused_property_buyer_profile_id'`
+  );
+  assert.deepEqual(reuseColumn.rows, [
+    { data_type: "uuid", is_nullable: "YES", column_default: null },
+  ]);
+  const reuseFk = await openHouseDb.query(
+    `SELECT target.relname AS target_table, con.confdeltype
+       FROM pg_constraint con
+       JOIN pg_class target ON target.oid = con.confrelid
+      WHERE con.conrelid = 'public.consultas_propiedad'::regclass
+        AND con.conname = 'consultas_propiedad_reused_profile_fkey'`
+  );
+  assert.deepEqual(reuseFk.rows, [
+    { target_table: "property_buyer_profiles", confdeltype: "r" },
+  ]);
+  const reuseIndex = await openHouseDb.query(
+    `SELECT indexdef
+       FROM pg_indexes
+      WHERE schemaname = 'public'
+        AND indexname = 'consultas_propiedad_reused_profile_idx'`
+  );
+  assert.equal(reuseIndex.rows.length, 1);
+  assert.match(reuseIndex.rows[0].indexdef, /WHERE \(reused_property_buyer_profile_id IS NOT NULL\)/);
+  await openHouseDb.exec(financialDocumentReuseRollbackSql);
+  const reuseRollback = await openHouseDb.query(
+    `SELECT NOT EXISTS (
+       SELECT 1
+         FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'consultas_propiedad'
+          AND column_name = 'reused_property_buyer_profile_id'
+     ) AS removed`
+  );
+  assert.deepEqual(reuseRollback.rows, [{ removed: true }]);
+
   const property = await openHouseDb.query(
     `INSERT INTO public.propiedades DEFAULT VALUES RETURNING id::text`
   );
@@ -852,11 +897,12 @@ try {
   );
   assert.deepEqual(await relationCatalog(openHouseDb, unrelatedTables), unrelatedCatalog);
 
-  console.log("Validated the ordered 0001-0005 chain in an ephemeral local database.");
+  console.log("Validated the ordered lead migration chain through 0014 in ephemeral local databases.");
   console.log("Verified 0004 adds eight nullable columns, one RESTRICT FK, nine checks, and five partial indexes.");
   console.log("Verified 0004 rollback restores the original consultas_propiedad catalog only.");
   console.log("Verified 0005 forward and rollback guards reject non-empty tables.");
   console.log("Verified 0005 hardens and restores property FK, nullability, and created_at semantics.");
+  console.log("Verified 0014 adds one nullable RESTRICT source FK, one state check, one partial index, and a contained rollback.");
 } finally {
   await openHouseDb.close();
 }

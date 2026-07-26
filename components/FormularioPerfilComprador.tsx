@@ -18,6 +18,13 @@ const solarContractOptions = [
   { label: "Sí", value: "yes" },
   { label: "No", value: "no" },
 ];
+const allowedDocumentTypes = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+]);
 
 type FormularioPerfilCompradorProps = {
   propertyId: string;
@@ -60,6 +67,28 @@ export default function FormularioPerfilComprador({
     formData.set("propertyTitle", propertyTitle);
     formData.set("idempotencyKey", idempotencyKeyRef.current);
     const cartaFile = formData.get("cartaPreaprobacion");
+
+    if (
+      (metodoCompra === "Financiamiento" || metodoCompra === "Cash") &&
+      (!(cartaFile instanceof File) || cartaFile.size === 0)
+    ) {
+      setError(
+        metodoCompra === "Financiamiento"
+          ? "Adjunta la carta de precalificación requerida."
+          : "Adjunta la evidencia de fondos requerida."
+      );
+      setLoading(false);
+      return;
+    }
+    if (
+      cartaFile instanceof File &&
+      cartaFile.size > 0 &&
+      !allowedDocumentTypes.has(cartaFile.type)
+    ) {
+      setError("Solo se aceptan PDF e imágenes JPG, PNG o WebP.");
+      setLoading(false);
+      return;
+    }
 
     if (
       cartaFile instanceof File &&
@@ -140,9 +169,11 @@ export default function FormularioPerfilComprador({
             <input id="institucionFinanciera" name="institucionFinanciera" type="text" className="input-premium" />
           </Field>
           <UploadField
+            key="financing-document"
             label="Carta de precalificación"
             helper={BUYER_PROFILE_UPLOAD_HELPER}
             name="cartaPreaprobacion"
+            required
           />
         </div>
       )}
@@ -167,9 +198,11 @@ export default function FormularioPerfilComprador({
       {metodoCompra === "Cash" && (
         <div className="rounded-2xl border border-[#e8e8e8] bg-[#f8f8f8] p-5">
           <UploadField
+            key="cash-document"
             label="Evidencia de fondos"
             helper={BUYER_PROFILE_UPLOAD_HELPER}
             name="cartaPreaprobacion"
+            required
           />
         </div>
       )}
@@ -337,21 +370,25 @@ function UploadField({
   label,
   helper,
   name,
+  required,
 }: {
   label: string;
   helper?: string;
   name: string;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-2">
       <label htmlFor={name} className="text-sm font-semibold text-[#000000]">
-        {label}
+        {label} {required && <span className="text-red-500">*</span>}
       </label>
       <input
         id={name}
         name={name}
         type="file"
         accept="application/pdf,image/jpeg,image/png,image/webp,image/jpg"
+        required={required}
+        aria-required={required}
         className="block w-full rounded-xl border border-[#d9d9d9] bg-white px-4 py-3 text-sm text-[#333333] file:mr-4 file:rounded-full file:border-0 file:bg-[#11518b] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
       />
       {helper && <p className="text-xs text-[#4d4d4d]">{helper}</p>}

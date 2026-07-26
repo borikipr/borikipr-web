@@ -89,6 +89,7 @@ before(async () => {
       respuestas_personalizadas jsonb NULL,
       created_at timestamp without time zone NULL DEFAULT CURRENT_TIMESTAMP,
       carta_precalificacion_key text NULL,
+      reused_property_buyer_profile_id uuid NULL,
       CONSTRAINT consultas_propiedad_propiedad_id_fkey
         FOREIGN KEY (propiedad_id) REFERENCES public.propiedades(id) ON DELETE CASCADE
     );

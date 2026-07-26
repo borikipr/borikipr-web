@@ -147,6 +147,21 @@ export async function POST(req: Request) {
     }
 
     const cartaFile = getFile(formData, "cartaPreaprobacion");
+    if (
+      (metodoCompra === "Financiamiento" || metodoCompra === "Cash") &&
+      !cartaFile
+    ) {
+      return Response.json(
+        {
+          ok: false,
+          error:
+            metodoCompra === "Financiamiento"
+              ? "Adjunta la carta de precalificación requerida."
+              : "Adjunta la evidencia de fondos requerida.",
+        },
+        { status: 400 }
+      );
+    }
     let uploadNote = "";
     const attachments: {
       filename: string;

@@ -54,6 +54,7 @@ before(async () => {
       carta_precalificacion_url text NULL, evidencia_fondos text NULL,
       carta_precalificacion_key text NULL, evidencia_fondos_key text NULL,
       carta_precalificacion_status text NULL, evidencia_fondos_status text NULL,
+      reused_property_buyer_profile_id uuid NULL,
       respuestas_personalizadas jsonb NULL, created_at timestamptz NOT NULL DEFAULT now()
     );
   `);

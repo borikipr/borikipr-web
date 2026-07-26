@@ -93,6 +93,7 @@ before(async () => {
       evidencia_fondos_key text NULL,
       carta_precalificacion_status text NULL,
       evidencia_fondos_status text NULL
+      ,reused_property_buyer_profile_id uuid NULL
     );
     CREATE TABLE public.email_queue (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

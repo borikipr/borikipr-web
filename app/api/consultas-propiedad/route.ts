@@ -97,12 +97,41 @@ export async function POST(request: Request) {
 
     const cartaFile = getFile(formData, "carta_precalificacion");
     const evidenciaFile = getFile(formData, "evidencia_fondos_archivo");
-    const needsPreapproval =
-      Boolean(propiedad.requiere_precalificacion) && metodoCompra === "Financiamiento";
-
-    if (needsPreapproval && !cartaFile && isR2Configured()) {
+    if (metodoCompra === "Financiamiento" && !cartaFile) {
       return NextResponse.json(
-        { ok: false, error: "La carta de precalificación es requerida para esta propiedad." },
+        {
+          ok: false,
+          error:
+            "La carta de precalificación es requerida para completar este registro.",
+        },
+        { status: 400 }
+      );
+    }
+    if (metodoCompra === "Cash" && !evidenciaFile) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "La evidencia de fondos es requerida para completar este registro.",
+        },
+        { status: 400 }
+      );
+    }
+    if (metodoCompra === "Financiamiento" && evidenciaFile) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "La evidencia de fondos no aplica a financiamiento.",
+        },
+        { status: 400 }
+      );
+    }
+    if (metodoCompra === "Cash" && cartaFile) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "La carta de precalificación no aplica a una compra Cash.",
+        },
         { status: 400 }
       );
     }

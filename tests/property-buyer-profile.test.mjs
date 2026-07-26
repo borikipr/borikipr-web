@@ -58,6 +58,9 @@ function baseForm(overrides = {}) {
     fondosCierre: "Sí",
     solarContractAcceptance: "",
     comentarios: "Comentario de prueba",
+    cartaPreaprobacion: new NodeFile(["pdf"], "carta.pdf", {
+      type: "application/pdf",
+    }),
     ...overrides,
   };
   const form = new FormData();
@@ -384,6 +387,55 @@ test("invalid purchase method and solar answer are rejected", () => {
         hasSolarLease: true,
       }),
     BuyerProfileValidationError
+  );
+});
+
+test("Financing and Cash require the matching financial document on the server", () => {
+  assert.throws(
+    () =>
+      parsePropertyBuyerProfileFormData(
+        baseForm({
+          metodoCompra: "Financiamiento",
+          cartaPreaprobacion: "",
+        })
+      ),
+    (error) =>
+      error instanceof BuyerProfileValidationError &&
+      error.reason === "missing_required_prequalification"
+  );
+  assert.throws(
+    () =>
+      parsePropertyBuyerProfileFormData(
+        baseForm({ metodoCompra: "Cash", cartaPreaprobacion: "" })
+      ),
+    (error) =>
+      error instanceof BuyerProfileValidationError &&
+      error.reason === "missing_required_proof_of_funds"
+  );
+
+  const prequalification = new NodeFile(["pdf"], "carta.pdf", {
+    type: "application/pdf",
+  });
+  const proofOfFunds = new NodeFile(["pdf"], "fondos.pdf", {
+    type: "application/pdf",
+  });
+  assert.equal(
+    parsePropertyBuyerProfileFormData(
+      baseForm({
+        metodoCompra: "Financiamiento",
+        cartaPreaprobacion: prequalification,
+      })
+    ).documentType,
+    "prequalification_letter"
+  );
+  assert.equal(
+    parsePropertyBuyerProfileFormData(
+      baseForm({
+        metodoCompra: "Cash",
+        cartaPreaprobacion: proofOfFunds,
+      })
+    ).documentType,
+    "proof_of_funds"
   );
 });
 

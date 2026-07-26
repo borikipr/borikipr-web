@@ -149,6 +149,21 @@ export function parsePropertyBuyerProfileFormData(
   let documentType: BuyerProfileDocumentType | null = null;
   let documentExtension: string | null = null;
 
+  if (
+    (purchaseMethod === "Financiamiento" || purchaseMethod === "Cash") &&
+    !file
+  ) {
+    throw new BuyerProfileValidationError(
+      purchaseMethod === "Financiamiento"
+        ? "Adjunta la carta de precalificación requerida."
+        : "Adjunta la evidencia de fondos requerida.",
+      400,
+      purchaseMethod === "Financiamiento"
+        ? "missing_required_prequalification"
+        : "missing_required_proof_of_funds"
+    );
+  }
+
   if (file) {
     if (file.size > MAX_BUYER_PROFILE_DOCUMENT_BYTES) {
       throw new BuyerProfileValidationError(

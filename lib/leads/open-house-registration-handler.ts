@@ -11,6 +11,7 @@ import {
   updateOpenHouseDocumentStatus,
 } from "./postgres-open-house-registration";
 import { resolveOpenHouseInternalAttachment } from "./open-house-registration-queue-attachment";
+import { findReusableFinancialDocument } from "./financial-document-reuse";
 
 export async function handleOpenHouseRegistrationV2(request: Request) {
   const rateLimit = checkRateLimit({
@@ -22,7 +23,20 @@ export async function handleOpenHouseRegistrationV2(request: Request) {
 
   try {
     const input = parseOpenHouseRegistrationFormData(await request.formData());
-    const registration = await persistOpenHouseRegistration(input);
+    const reusableDocument = input.documentFile
+      ? null
+      : await findReusableFinancialDocument({
+          name: input.name,
+          email: input.email,
+          phone: input.phone,
+          purchaseMethod: input.purchaseMethod,
+        }).catch((error) => {
+          logOpenHouseIssue("document_reuse_lookup", error);
+          return null;
+        });
+    const registration = await persistOpenHouseRegistration(input, {
+      reusableDocument,
+    });
     const postCommit = await processOpenHousePostCommit({
       registration,
       input,
@@ -68,6 +82,7 @@ export async function handleOpenHouseRegistrationV2(request: Request) {
         Object.values(postCommit.notificationState).some((state) =>
           ["failed_to_queue", "permanent_failure"].includes(state)
         ),
+      documentReused: Boolean(registration.reusedPropertyBuyerProfileId),
     });
   } catch (error) {
     if (error instanceof OpenHouseValidationError) {

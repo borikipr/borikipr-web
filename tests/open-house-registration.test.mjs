@@ -18,6 +18,11 @@ import {
 } from "../lib/leads/open-house-registration-email.ts";
 import { buildOpenHouseCustomerEmail } from "../lib/leads/open-house-registration-customer-email.ts";
 import { processOpenHousePostCommit } from "../lib/leads/open-house-registration-postcommit.ts";
+import { findReusableFinancialDocument } from "../lib/leads/financial-document-reuse.ts";
+import {
+  normalizeEmail,
+  normalizePuertoRicoUsPhone,
+} from "../lib/leads/normalization.ts";
 
 if (!globalThis.File) globalThis.File = NodeFile;
 
@@ -156,19 +161,179 @@ test("canonical property and showing rules reject stale or unavailable events", 
 test("property-dependent document and custom-question rules are enforced", () => {
   const input = parseOpenHouseRegistrationFormData(baseForm());
   assert.throws(
-    () => validateOpenHouseForProperty(input, propertyFor(input, { requiresPrequalification: true }), new Date("2030-01-01T00:00:00Z")),
+    () => validateOpenHouseForProperty(input, propertyFor(input), new Date("2030-01-01T00:00:00Z")),
     (error) => error.reason === "missing_required_prequalification"
+  );
+  const cash = parseOpenHouseRegistrationFormData(
+    baseForm({ metodo_compra: "Cash" })
+  );
+  assert.throws(
+    () =>
+      validateOpenHouseForProperty(
+        cash,
+        propertyFor(cash),
+        new Date("2030-01-01T00:00:00Z")
+      ),
+    (error) => error.reason === "missing_required_proof_of_funds"
+  );
+  assert.doesNotThrow(() =>
+    validateOpenHouseForProperty(
+      input,
+      propertyFor(input),
+      new Date("2030-01-01T00:00:00Z"),
+      true
+    )
   );
 
   const unexpected = parseOpenHouseRegistrationFormData(baseForm({ respuesta_personalizada: "Unexpected" }));
   assert.throws(
-    () => validateOpenHouseForProperty(unexpected, propertyFor(unexpected), new Date("2030-01-01T00:00:00Z")),
+    () => validateOpenHouseForProperty(unexpected, propertyFor(unexpected), new Date("2030-01-01T00:00:00Z"), true),
     (error) => error.reason === "unexpected_custom_answer"
   );
 
   assert.throws(
-    () => validateOpenHouseForProperty(input, propertyFor(input, { customQuestion: "Pregunta", customQuestionRequired: true }), new Date("2030-01-01T00:00:00Z")),
+    () => validateOpenHouseForProperty(input, propertyFor(input, { customQuestion: "Pregunta", customQuestionRequired: true }), new Date("2030-01-01T00:00:00Z"), true),
     (error) => error.reason === "missing_custom_answer"
+  );
+});
+
+function candidateLead({ id = randomUUID(), name = "Persona Prueba", email = "open-house@example.test", phone = "787-555-1234" } = {}) {
+  const now = new Date();
+  return {
+    id,
+    name,
+    emailOriginal: email,
+    emailNormalized: normalizeEmail(email),
+    phoneOriginal: phone,
+    phoneNormalized: normalizePuertoRicoUsPhone(phone),
+    status: "new",
+    identityStatus: "matched",
+    firstSeenAt: now,
+    lastActivityAt: now,
+    createdAt: now,
+    updatedAt: now,
+    mergedIntoLeadId: null,
+  };
+}
+
+function reusableDocumentDependencies(leads, documents) {
+  return {
+    loadCandidates: async () => leads,
+    loadDocuments: async (leadId, documentType) =>
+      documents.filter(
+        (document) =>
+          document.lead_id === leadId &&
+          document.document_type === documentType
+      ),
+    inspectObject: async () => ({
+      exists: true,
+      contentLength: 3,
+      contentType: "application/pdf",
+    }),
+  };
+}
+
+function reusableDocument(lead, type = "prequalification_letter") {
+  return {
+    id: randomUUID(),
+    lead_id: lead.id,
+    document_type: type,
+    document_object_key: `lead-documents/property-buyer-profiles/${randomUUID()}/${type}.pdf`,
+    document_original_name: "documento.pdf",
+    document_content_type: "application/pdf",
+    document_size_bytes: 3,
+  };
+}
+
+test("Open House reuses only a valid document owned by the same canonical person", async () => {
+  const lead = candidateLead();
+  const document = reusableDocument(lead);
+  const result = await findReusableFinancialDocument(
+    {
+      name: "Pérsona Prueba",
+      email: "OPEN-HOUSE@example.test",
+      phone: "+1 (787) 555-1234",
+      purchaseMethod: "Financiamiento",
+    },
+    reusableDocumentDependencies([lead], [document])
+  );
+  assert.equal(result?.ownerLeadId, lead.id);
+  assert.equal(result?.documentType, "prequalification_letter");
+});
+
+test("shared contact details never reuse another canonical person's document", async () => {
+  const owner = candidateLead({ name: "Persona Uno" });
+  const registrant = candidateLead({ name: "Persona Dos" });
+  const document = reusableDocument(owner);
+  const result = await findReusableFinancialDocument(
+    {
+      name: registrant.name,
+      email: registrant.emailOriginal,
+      phone: registrant.phoneOriginal,
+      purchaseMethod: "Financiamiento",
+    },
+    reusableDocumentDependencies([owner, registrant], [document])
+  );
+  assert.equal(result, null);
+});
+
+test("a case member's document and a mismatched document type are not reused", async () => {
+  const registrant = candidateLead({ name: "Persona Dos" });
+  const relatedPerson = candidateLead({ name: "Persona Familiar" });
+  const relatedDocument = reusableDocument(relatedPerson);
+  assert.equal(
+    await findReusableFinancialDocument(
+      {
+        name: registrant.name,
+        email: registrant.emailOriginal,
+        phone: registrant.phoneOriginal,
+        purchaseMethod: "Financiamiento",
+      },
+      reusableDocumentDependencies(
+        [registrant, relatedPerson],
+        [relatedDocument]
+      )
+    ),
+    null
+  );
+
+  const proof = reusableDocument(registrant, "proof_of_funds");
+  assert.equal(
+    await findReusableFinancialDocument(
+      {
+        name: registrant.name,
+        email: registrant.emailOriginal,
+        phone: registrant.phoneOriginal,
+        purchaseMethod: "Financiamiento",
+      },
+      reusableDocumentDependencies([registrant], [proof])
+    ),
+    null
+  );
+});
+
+test("missing, incomplete, or inaccessible document metadata requires upload", async () => {
+  const lead = candidateLead();
+  const document = reusableDocument(lead);
+  const missingObjectDependencies = {
+    ...reusableDocumentDependencies([lead], [document]),
+    inspectObject: async () => ({
+      exists: false,
+      contentLength: null,
+      contentType: null,
+    }),
+  };
+  assert.equal(
+    await findReusableFinancialDocument(
+      {
+        name: lead.name,
+        email: lead.emailOriginal,
+        phone: lead.phoneOriginal,
+        purchaseMethod: "Financiamiento",
+      },
+      missingObjectDependencies
+    ),
+    null
   );
 });
 

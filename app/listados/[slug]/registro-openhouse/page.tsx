@@ -142,7 +142,6 @@ export default async function PerfilCompradorPage({ params }: PageProps) {
                     propiedadId={propiedad.id}
                     propiedadSlug={propiedad.slug}
                     showingAt={canonicalShowingAt || ""}
-                    requierePrecalificacion={Boolean(propiedad.requiere_precalificacion)}
                     preguntaPersonalizada={propiedad.pregunta_personalizada}
                     preguntaPersonalizadaRequerida={
                       propiedad.configuracion_formulario

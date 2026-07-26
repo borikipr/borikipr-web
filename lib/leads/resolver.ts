@@ -104,50 +104,15 @@ export function createLeadResolver(store: LeadResolverStore) {
 
         await transaction.lockIdentityKeys(lockKeys.sort());
         const candidates = await transaction.findCandidates(identity);
-        const compatibleName = normalizeNameForComparison(name);
-        const hasCompatibleName = (lead: LeadRecord) =>
-          normalizeNameForComparison(lead.name) === compatibleName;
-        const emailMatches = identity.emailNormalized
-          ? candidates.filter(
-              (lead) => lead.emailNormalized === identity.emailNormalized
-            )
-          : [];
-        const phoneMatches = identity.phoneNormalized
-          ? candidates.filter(
-              (lead) => lead.phoneNormalized === identity.phoneNormalized
-            )
-          : [];
+        const matchingLead = selectMatchingCanonicalLead(candidates, {
+          name,
+          emailNormalized: identity.emailNormalized,
+          phoneNormalized: identity.phoneNormalized,
+        });
 
-        if (identity.emailNormalized && identity.phoneNormalized) {
-          const exactMatches = candidates.filter(
-            (lead) =>
-              lead.emailNormalized === identity.emailNormalized &&
-              lead.phoneNormalized === identity.phoneNormalized &&
-              hasCompatibleName(lead)
-          );
-
-          if (exactMatches.length === 1) {
-            return {
-              lead: await transaction.markMatched(exactMatches[0].id),
-              outcome: "matched",
-            };
-          }
-
-          return createLead(
-            transaction,
-            name,
-            identity,
-            candidates.length > 0 ? "conflict" : "provisional"
-          );
-        }
-
-        const singleIdentifierMatches = (
-          identity.emailNormalized ? emailMatches : phoneMatches
-        ).filter(hasCompatibleName);
-
-        if (singleIdentifierMatches.length === 1) {
+        if (matchingLead) {
           return {
-            lead: await transaction.markMatched(singleIdentifierMatches[0].id),
+            lead: await transaction.markMatched(matchingLead.id),
             outcome: "matched",
           };
         }
@@ -161,6 +126,41 @@ export function createLeadResolver(store: LeadResolverStore) {
       });
     },
   };
+}
+
+export function selectMatchingCanonicalLead(
+  candidates: LeadRecord[],
+  identity: {
+    name: string;
+    emailNormalized: string | null;
+    phoneNormalized: string | null;
+  }
+) {
+  const compatibleName = normalizeNameForComparison(identity.name);
+  const hasCompatibleName = (lead: LeadRecord) =>
+    normalizeNameForComparison(lead.name) === compatibleName;
+
+  if (identity.emailNormalized && identity.phoneNormalized) {
+    const exactMatches = candidates.filter(
+      (lead) =>
+        lead.emailNormalized === identity.emailNormalized &&
+        lead.phoneNormalized === identity.phoneNormalized &&
+        hasCompatibleName(lead)
+    );
+    return exactMatches.length === 1 ? exactMatches[0] : null;
+  }
+
+  const identifierMatches = candidates.filter((lead) => {
+    if (identity.emailNormalized) {
+      return lead.emailNormalized === identity.emailNormalized;
+    }
+    return (
+      Boolean(identity.phoneNormalized) &&
+      lead.phoneNormalized === identity.phoneNormalized
+    );
+  });
+  const compatibleMatches = identifierMatches.filter(hasCompatibleName);
+  return compatibleMatches.length === 1 ? compatibleMatches[0] : null;
 }
 
 async function createLead(

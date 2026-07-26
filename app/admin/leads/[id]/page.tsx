@@ -212,6 +212,11 @@ function DocumentCard({ document, leadId }: { document: Lead360Document; leadId:
             <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${stateTone}`}>
               {LEAD_DOCUMENT_STATE_LABELS[document.state]}
             </span>
+            {document.reusedFromBuyerProfile && (
+              <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-800">
+                Reutilizado de un perfil comprador
+              </span>
+            )}
           </div>
           <p className="mt-2 break-all text-sm font-medium text-[#334155]">
             {document.originalName ?? "Nombre de archivo no disponible"}

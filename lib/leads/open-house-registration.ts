@@ -205,7 +205,8 @@ export function parseOpenHouseRegistrationFormData(
 export function validateOpenHouseForProperty(
   input: ParsedOpenHouseRegistration,
   property: CanonicalOpenHouseProperty,
-  now = new Date()
+  now = new Date(),
+  hasReusableDocument = false
 ) {
   if (property.id !== input.propertyId || property.slug !== input.propertySlug) {
     invalid("La propiedad seleccionada cambió. Recarga la página.", "property_identity_mismatch");
@@ -229,13 +230,23 @@ export function validateOpenHouseForProperty(
     invalid("La fecha del showing cambió. Recarga la página.", "showing_mismatch");
   }
   if (
-    property.requiresPrequalification &&
     input.purchaseMethod === "Financiamiento" &&
-    !input.prequalificationFile
+    !input.prequalificationFile &&
+    !hasReusableDocument
   ) {
     invalid(
-      "La carta de precalificación es requerida para esta propiedad.",
+      "La carta de precalificación es requerida para completar este registro.",
       "missing_required_prequalification"
+    );
+  }
+  if (
+    input.purchaseMethod === "Cash" &&
+    !input.proofOfFundsFile &&
+    !hasReusableDocument
+  ) {
+    invalid(
+      "La evidencia de fondos es requerida para completar este registro.",
+      "missing_required_proof_of_funds"
     );
   }
   if (!property.customQuestion && input.customAnswer) {

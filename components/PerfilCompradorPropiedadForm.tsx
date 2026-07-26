@@ -2,12 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { trackAnalyticsEvent } from "@/lib/analytics";
+import { MAX_OPEN_HOUSE_DOCUMENT_BYTES } from "@/lib/leads/open-house-registration";
+
+const allowedDocumentTypes = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+]);
 
 export default function PerfilCompradorPropiedadForm({
   propiedadId,
   propiedadSlug,
   showingAt,
-  requierePrecalificacion,
   preguntaPersonalizada,
   preguntaPersonalizadaRequerida,
   r2Configured,
@@ -15,7 +23,6 @@ export default function PerfilCompradorPropiedadForm({
   propiedadId: string;
   propiedadSlug: string;
   showingAt: string;
-  requierePrecalificacion: boolean;
   preguntaPersonalizada?: string | null;
   preguntaPersonalizadaRequerida?: boolean;
   r2Configured: boolean;
@@ -27,6 +34,9 @@ export default function PerfilCompradorPropiedadForm({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState("");
+  const [documentReuseState, setDocumentReuseState] = useState<
+    "idle" | "checking" | "available" | "unavailable"
+  >("idle");
 
   useEffect(() => {
     setIdempotencyKey(crypto.randomUUID());
@@ -44,6 +54,43 @@ export default function PerfilCompradorPropiedadForm({
     formData.set("propertySlug", propiedadSlug);
     formData.set("showingAt", showingAt);
     formData.set("idempotencyKey", idempotencyKey || crypto.randomUUID());
+    const applicableFile =
+      metodoCompra === "Financiamiento"
+        ? formData.get("carta_precalificacion")
+        : formData.get("evidencia_fondos_archivo");
+    const hasFile =
+      applicableFile instanceof File && applicableFile.size > 0;
+    if (
+      hasFile &&
+      applicableFile instanceof File &&
+      !allowedDocumentTypes.has(applicableFile.type)
+    ) {
+      setError("Solo se aceptan PDF e imágenes JPG, PNG o WebP.");
+      setPending(false);
+      return;
+    }
+    if (
+      hasFile &&
+      applicableFile instanceof File &&
+      applicableFile.size > MAX_OPEN_HOUSE_DOCUMENT_BYTES
+    ) {
+      setError("El archivo excede el máximo permitido de 10 MB.");
+      setPending(false);
+      return;
+    }
+
+    if (!hasFile && documentReuseState !== "available") {
+      const reusable = await checkReusableDocument(event.currentTarget);
+      if (!reusable) {
+        setError(
+          metodoCompra === "Financiamiento"
+            ? "Adjunta la carta de precalificación requerida."
+            : "Adjunta la evidencia de fondos requerida."
+        );
+        setPending(false);
+        return;
+      }
+    }
 
     try {
       const response = await fetch("/api/consultas-propiedad", {
@@ -69,6 +116,7 @@ export default function PerfilCompradorPropiedadForm({
       formRef.current?.reset();
       setMetodoCompra("");
       setTrabajaCorredor("");
+      setDocumentReuseState("idle");
       setIdempotencyKey(crypto.randomUUID());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido.");
@@ -77,21 +125,70 @@ export default function PerfilCompradorPropiedadForm({
     }
   };
 
-  const debeSubirPrecalificacion =
-    requierePrecalificacion && metodoCompra === "Financiamiento";
+  const resetDocumentReuse = () => setDocumentReuseState("idle");
+
+  async function checkReusableDocument(form = formRef.current) {
+    if (!form || !metodoCompra) return false;
+    const data = new FormData(form);
+    const name = String(data.get("nombre") || "").trim();
+    const phone = String(data.get("telefono") || "").trim();
+    const email = String(data.get("email") || "").trim();
+    if (!name || !phone) {
+      setDocumentReuseState("unavailable");
+      return false;
+    }
+    setDocumentReuseState("checking");
+    try {
+      const response = await fetch("/api/consultas-propiedad/document-status", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name,
+          phone,
+          email,
+          purchaseMethod: metodoCompra,
+        }),
+      });
+      const result = await response.json();
+      const reusable = response.ok && result.reusable === true;
+      setDocumentReuseState(reusable ? "available" : "unavailable");
+      return reusable;
+    } catch {
+      setDocumentReuseState("unavailable");
+      return false;
+    }
+  }
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
       {!r2Configured && (
         <div className="rounded-xl border border-[#d4af37] bg-[#fff9e6] p-4 text-sm text-[#4d4d4d]">
-          R2 no esta configurado en este ambiente. Puedes probar el formulario sin adjuntar documentos.
+          La carga segura de documentos no está disponible en este momento.
+          Podrás continuar únicamente si confirmamos un documento financiero
+          existente asociado con tu perfil.
         </div>
       )}
 
       <div className="grid gap-5 md:grid-cols-2">
-        <Field label="Nombre completo" name="nombre" required />
-        <Field label="Telefono" name="telefono" type="tel" required />
-        <Field label="Correo electronico" name="email" type="email" />
+        <Field
+          label="Nombre completo"
+          name="nombre"
+          required
+          onInput={resetDocumentReuse}
+        />
+        <Field
+          label="Telefono"
+          name="telefono"
+          type="tel"
+          required
+          onInput={resetDocumentReuse}
+        />
+        <Field
+          label="Correo electronico"
+          name="email"
+          type="email"
+          onInput={resetDocumentReuse}
+        />
 
         <fieldset className="space-y-3">
           <legend className="text-sm font-semibold text-[#000000]">
@@ -112,7 +209,10 @@ export default function PerfilCompradorPropiedadForm({
                   value={option.value}
                   required
                   checked={metodoCompra === option.value}
-                  onChange={(event) => setMetodoCompra(event.target.value)}
+                  onChange={(event) => {
+                    setMetodoCompra(event.target.value);
+                    setDocumentReuseState("idle");
+                  }}
                   className="h-4 w-4 border-[#d9d9d9] accent-[#11518b]"
                 />
                 <span>{option.label}</span>
@@ -123,19 +223,24 @@ export default function PerfilCompradorPropiedadForm({
       </div>
 
       {metodoCompra === "Financiamiento" && (
-        <UploadField
+        <FinancialDocumentField
+          key="financing-document"
           label="Carta de precalificación"
           name="carta_precalificacion"
-          required={debeSubirPrecalificacion && r2Configured}
-          disabled={!r2Configured}
+          r2Configured={r2Configured}
+          reuseState={documentReuseState}
+          onCheck={() => checkReusableDocument()}
         />
       )}
 
       {metodoCompra === "Cash" && (
-        <UploadField
+        <FinancialDocumentField
+          key="cash-document"
           label="Evidencia de fondos"
           name="evidencia_fondos_archivo"
-          disabled={!r2Configured}
+          r2Configured={r2Configured}
+          reuseState={documentReuseState}
+          onCheck={() => checkReusableDocument()}
         />
       )}
 
@@ -236,6 +341,7 @@ function Field({
   required,
   placeholder,
   disabled,
+  onInput,
 }: {
   label: string;
   name: string;
@@ -243,6 +349,7 @@ function Field({
   required?: boolean;
   placeholder?: string;
   disabled?: boolean;
+  onInput?: () => void;
 }) {
   return (
     <div className="space-y-2">
@@ -256,7 +363,67 @@ function Field({
         required={required}
         placeholder={placeholder}
         disabled={disabled}
+        onInput={onInput}
         className="input-premium disabled:bg-[#eeeeee]"
+      />
+    </div>
+  );
+}
+
+function FinancialDocumentField({
+  label,
+  name,
+  r2Configured,
+  reuseState,
+  onCheck,
+}: {
+  label: string;
+  name: string;
+  r2Configured: boolean;
+  reuseState: "idle" | "checking" | "available" | "unavailable";
+  onCheck: () => void;
+}) {
+  const reusable = reuseState === "available";
+  return (
+    <div className="space-y-3 rounded-2xl border border-[#e8e8e8] bg-[#f8f8f8] p-5">
+      <p className="text-sm leading-relaxed text-[#4d4d4d]">
+        Este documento financiero es requerido. Si ya está asociado de forma
+        segura con tu perfil de comprador, podrás continuar sin subirlo otra vez.
+      </p>
+      <button
+        type="button"
+        onClick={onCheck}
+        disabled={reuseState === "checking"}
+        className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#11518b] px-4 py-2 text-sm font-semibold text-[#11518b] disabled:cursor-wait disabled:opacity-60"
+      >
+        {reuseState === "checking"
+          ? "Verificando…"
+          : "Verificar documento existente"}
+      </button>
+      {reusable && (
+        <div
+          role="status"
+          className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800"
+        >
+          Ya tenemos el documento financiero requerido asociado con tu perfil
+          de comprador. No necesitas subirlo nuevamente.
+        </div>
+      )}
+      {reuseState === "unavailable" && (
+        <div
+          role="status"
+          className="rounded-xl border border-[#d4af37] bg-[#fff9e6] p-4 text-sm text-[#4d4d4d]"
+        >
+          No pudimos confirmar un documento reutilizable. Adjunta el archivo
+          requerido para completar el registro.
+        </div>
+      )}
+      <UploadField
+        label={label}
+        name={name}
+        required={reuseState === "unavailable" && r2Configured}
+        showRequired
+        disabled={reusable || !r2Configured}
       />
     </div>
   );
@@ -266,17 +433,19 @@ function UploadField({
   label,
   name,
   required,
+  showRequired,
   disabled,
 }: {
   label: string;
   name: string;
   required?: boolean;
+  showRequired?: boolean;
   disabled?: boolean;
 }) {
   return (
     <div className="space-y-2">
       <label htmlFor={name} className="text-sm font-semibold text-[#000000]">
-        {label} {required && <span className="text-red-500">*</span>}
+        {label} {(required || showRequired) && <span className="text-red-500">*</span>}
       </label>
       <input
         id={name}
@@ -284,6 +453,7 @@ function UploadField({
         type="file"
         accept="application/pdf,image/jpeg,image/png,image/webp,image/jpg"
         required={required}
+        aria-required={showRequired || required}
         disabled={disabled}
         className="block w-full rounded-xl border border-[#d9d9d9] bg-white px-4 py-3 text-sm text-[#333333] file:mr-4 file:rounded-full file:border-0 file:bg-[#11518b] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white disabled:bg-[#eeeeee]"
       />
