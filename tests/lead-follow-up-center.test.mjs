@@ -7,7 +7,8 @@ import { PGlite } from "@electric-sql/pglite";
 process.env.DATABASE_URL ||= "postgresql://local-test.invalid/neondb";
 
 const {
-  buildLeadGroupFollowUpQuery,
+  FOLLOW_UP_PAGE_SIZE,
+  buildLeadFollowUpCountQuery,
   buildLeadFollowUpListQuery,
   buildLeadFollowUpSummaryQuery,
   normalizeLeadFollowUpFilters,
@@ -16,13 +17,14 @@ const { markLeadContacted, setLeadFollowUp } = await import("../lib/admin/lead-f
 
 const root = new URL("..", import.meta.url);
 const readMigration = (name) => readFile(new URL(`db/migrations/${name}`, root), "utf8");
-const [leadsSql, typedSql, lead360Sql, contactedSql, leadGroupsSql, pageSource, actionsSource] = await Promise.all([
+const [leadsSql, typedSql, lead360Sql, contactedSql, leadGroupsSql, pageSource, directorySource, actionsSource] = await Promise.all([
   readMigration("0001_create_leads.sql"),
   readMigration("0002_create_typed_lead_tables.sql"),
   readMigration("0007_create_lead_360.sql"),
   readMigration("0008_add_lead_contacted_event.sql"),
   readMigration("0011_create_lead_groups.sql"),
   readFile(new URL("app/admin/leads/seguimientos/page.tsx", root), "utf8"),
+  readFile(new URL("app/admin/leads/page.tsx", root), "utf8"),
   readFile(new URL("app/admin/leads/seguimientos/actions.ts", root), "utf8"),
 ]);
 
@@ -82,6 +84,8 @@ before(async () => {
   await insertLead("upcoming", { name: "Upcoming Synthetic", createdAt: "2026-07-20T12:00:00Z", lastActivityAt: "2026-07-20T12:00:00Z", nextFollowUpAt: "2026-07-27T14:00:00Z" });
   await insertLead("new", { name: "New Synthetic", status: "new", createdAt: "2026-07-21T14:00:00Z", lastActivityAt: "2026-07-21T14:00:00Z" });
   await insertLead("inactive", { name: "Inactive Synthetic", createdAt: "2026-06-01T12:00:00Z", lastActivityAt: "2026-07-06T12:00:00Z" });
+  await insertLead("activeRecent", { name: "Active Recent Synthetic", createdAt: "2026-07-21T13:00:00Z", lastActivityAt: "2026-07-21T13:00:00Z" });
+  await insertLead("later", { name: "Later Synthetic", createdAt: "2026-07-20T13:00:00Z", lastActivityAt: "2026-07-20T13:00:00Z", nextFollowUpAt: "2026-08-15T14:00:00Z" });
   await insertLead("closed", { name: "Archived Synthetic", status: "archived", createdAt: "2026-06-01T12:00:00Z", lastActivityAt: "2026-06-01T12:00:00Z", nextFollowUpAt: "2026-07-01T12:00:00Z" });
   await insertLead("multiple", { name: "Multiple Synthetic", status: "new", createdAt: "2026-06-01T12:00:00Z", lastActivityAt: "2026-06-01T12:00:00Z", nextFollowUpAt: "2026-07-01T12:00:00Z" });
 
@@ -99,6 +103,8 @@ test("classifies overdue, due today in Puerto Rico, upcoming seven days, new, an
   assert.equal(byName["Upcoming Synthetic"], "upcoming");
   assert.equal(byName["New Synthetic"], "new_without_follow_up");
   assert.equal(byName["Inactive Synthetic"], "inactive");
+  assert.equal(byName["Active Recent Synthetic"], null);
+  assert.equal(byName["Later Synthetic"], null);
   assert.equal(byName["Archived Synthetic"], undefined);
 });
 
@@ -121,10 +127,25 @@ test("urgency ordering and canonical summary counts are deterministic", async ()
   const filters = normalizeLeadFollowUpFilters({ sort: "urgency" });
   const rows = await run(buildLeadFollowUpListQuery(filters, referenceNow));
   assert.deepEqual(rows.slice(0, 5).map((row) => row.bucket), ["overdue", "overdue", "today", "upcoming", "new_without_follow_up"]);
-  const summary = await run(buildLeadFollowUpSummaryQuery(referenceNow));
+  const summary = await run(buildLeadFollowUpSummaryQuery(filters, referenceNow));
   const counts = Object.fromEntries(summary.map((row) => [row.bucket, Number(row.count)]));
   assert.equal(counts.overdue, 2);
   assert.equal(counts.today, 1);
+});
+
+test("server pagination reaches every filtered operational record without duplicates", async () => {
+  const firstPageFilters = normalizeLeadFollowUpFilters({ page: "1" });
+  const total = Number((await run(buildLeadFollowUpCountQuery(firstPageFilters, referenceNow)))[0].count);
+  const pageSize = 2;
+  const idsAcrossPages = [];
+  for (let page = 1; page <= Math.ceil(total / pageSize); page += 1) {
+    const filters = normalizeLeadFollowUpFilters({ page: String(page) });
+    const rows = await run(buildLeadFollowUpListQuery(filters, referenceNow, pageSize));
+    idsAcrossPages.push(...rows.map((row) => `${row.entity_type}:${row.id}`));
+  }
+  assert.equal(idsAcrossPages.length, total);
+  assert.equal(new Set(idsAcrossPages).size, total);
+  assert.equal(FOLLOW_UP_PAGE_SIZE, 25);
 });
 
 test("quick follow-up update and clear are transactional and audited", async () => {
@@ -153,6 +174,10 @@ test("follow-up center has mobile-safe structure and every required empty state"
   assert.match(pageSource, /sm:grid-cols-\[minmax\(0,1fr\)_auto\]/);
   assert.doesNotMatch(pageSource, /w-\[[4-9][0-9]{2}px\]/);
   for (const copy of ["No hay seguimientos vencidos", "No hay seguimientos pendientes para hoy", "No hay seguimientos en los próximos siete días", "No hay resultados"]) assert.match(pageSource, new RegExp(copy));
+  assert.match(pageSource, /Mostrando \{firstVisible\}–\{lastVisible\} de \{center\.total\}/);
+  assert.match(pageSource, /Paginación de seguimientos/);
+  assert.match(pageSource, /Sin actividad registrada/);
+  assert.match(pageSource, /Sin propiedad asociada/);
 });
 
 test("an active case replaces its members with one aggregated follow-up item", async () => {
@@ -172,10 +197,9 @@ test("an active case replaces its members with one aggregated follow-up item", a
   `, [group.rows[0].id, ids.today, ids.upcoming]);
 
   const filters = normalizeLeadFollowUpFilters({});
-  const individualRows = await run(buildLeadFollowUpListQuery(filters, referenceNow));
-  assert.equal(individualRows.some((row) => row.id === ids.today || row.id === ids.upcoming), false);
-
-  const groupRows = await run(buildLeadGroupFollowUpQuery(filters, referenceNow));
+  const operationalRows = await run(buildLeadFollowUpListQuery(filters, referenceNow));
+  assert.equal(operationalRows.some((row) => row.id === ids.today || row.id === ids.upcoming), false);
+  const groupRows = operationalRows.filter((row) => row.entity_type === "group");
   assert.equal(groupRows.length, 1);
   assert.equal(groupRows[0].name, "Caso sintético");
   assert.equal(groupRows[0].bucket, "today");
@@ -185,7 +209,20 @@ test("an active case replaces its members with one aggregated follow-up item", a
   const visiblePeople = await run(buildLeadFollowUpListQuery(individualView, referenceNow));
   assert.equal(visiblePeople.some((row) => row.id === ids.today), true);
   assert.equal(visiblePeople.some((row) => row.id === ids.upcoming), true);
-  assert.equal((await run(buildLeadGroupFollowUpQuery(individualView, referenceNow))).length, 0);
+  assert.equal(visiblePeople.some((row) => row.entity_type === "group"), false);
+
+  await db.query("UPDATE public.lead_groups SET next_follow_up_at = NULL, updated_at = $2::timestamptz WHERE id = $1::uuid", [group.rows[0].id, referenceNow]);
+  const noDateCase = (await run(buildLeadFollowUpListQuery(filters, referenceNow))).find((row) => row.id === group.rows[0].id);
+  assert.ok(noDateCase);
+  assert.equal(noDateCase.bucket, null);
+
   assert.match(pageSource, /Vista operativa/);
   assert.match(pageSource, /Mostrar personas individuales/);
+});
+
+test("shared-contact warning is limited to individual cards", () => {
+  assert.match(pageSource, /lead\.entityType === "lead" && lead\.sharedContact/);
+  assert.match(directorySource, /item\.entityType === "lead" && item\.sharedContact/);
+  assert.doesNotMatch(pageSource, /\{lead\.sharedContact &&/);
+  assert.doesNotMatch(directorySource, /\{item\.sharedContact &&/);
 });

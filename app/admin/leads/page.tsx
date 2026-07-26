@@ -63,7 +63,7 @@ function LeadResultCard({ item }: { item: UnifiedDirectoryItem }) {
         <p>{item.sourceCount} interacción{item.sourceCount === 1 ? "" : "es"}</p>
         <p>Última actividad: {formatDate(item.lastActivityAt)}</p>
         {item.nextFollowUpAt && <p className="font-semibold text-[#8a5b00]">Seguimiento: {formatDate(item.nextFollowUpAt)}</p>}
-        {item.sharedContact && <p className="font-semibold text-[#11518b]">Contacto compartido</p>}
+        {item.entityType === "lead" && item.sharedContact && <p className="font-semibold text-[#11518b]">Contacto compartido</p>}
       </div>
       <Link aria-label={`Ver detalles de ${title}`} className="btn-secondary mt-5 w-full px-4 py-2.5 text-center text-sm" href={href}>Ver detalles</Link>
     </article>

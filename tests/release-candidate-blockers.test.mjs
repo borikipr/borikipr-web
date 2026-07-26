@@ -82,7 +82,7 @@ test("Buyer Profile rejects files above 4 MB before persistence", () => {
   assert.equal(persistenceCalls, 0);
 });
 
-test("Buyer Profile keeps MIME validation, optional uploads, and both document paths", () => {
+test("Buyer Profile keeps MIME validation, required uploads, and both document paths", () => {
   assert.throws(
     () =>
       parsePropertyBuyerProfileFormData(
@@ -94,7 +94,20 @@ test("Buyer Profile keeps MIME validation, optional uploads, and both document p
       error instanceof BuyerProfileValidationError &&
       error.reason === "invalid_document_type"
   );
-  assert.equal(parsePropertyBuyerProfileFormData(buyerProfileForm(null)).file, null);
+  assert.throws(
+    () => parsePropertyBuyerProfileFormData(buyerProfileForm(null)),
+    (error) =>
+      error instanceof BuyerProfileValidationError &&
+      error.reason === "missing_required_prequalification"
+  );
+  const financing = parsePropertyBuyerProfileFormData(
+    buyerProfileForm(
+      new NodeFile(["content"], "prequalification.pdf", {
+        type: "application/pdf",
+      })
+    )
+  );
+  assert.equal(financing.documentType, "prequalification_letter");
   const cash = parsePropertyBuyerProfileFormData(
     buyerProfileForm(
       new NodeFile(["content"], "funds.pdf", { type: "application/pdf" }),
