@@ -203,39 +203,39 @@ export default function PerfilCompradorPropiedadForm({
           type="email"
           onInput={resetDocumentReuse}
         />
-
-        <fieldset className="space-y-3">
-          <legend className="text-sm font-semibold text-[#000000]">
-            Método de compra <span className="text-red-500">*</span>
-          </legend>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {[
-              { label: "Financiamiento", value: "Financiamiento" },
-              { label: "Cash", value: "Cash" },
-              { label: "Otros", value: "Otro" },
-            ].map((option) => (
-              <label
-                key={option.value}
-                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-[#d9d9d9] bg-white px-4 py-2.5 text-sm text-[#333333] transition hover:border-[#11518b] hover:bg-[#f7fbff]"
-              >
-                <input
-                  type="radio"
-                  name="metodo_compra"
-                  value={option.value}
-                  required
-                  checked={metodoCompra === option.value}
-                  onChange={(event) => {
-                    setMetodoCompra(event.target.value);
-                    setDocumentReuseState("idle");
-                  }}
-                  className="h-4 w-4 border-[#d9d9d9] accent-[#11518b]"
-                />
-                <span>{option.label}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
       </div>
+
+      <fieldset className="w-full space-y-3">
+        <legend className="text-sm font-semibold text-[#000000]">
+          Método de compra <span className="text-red-500">*</span>
+        </legend>
+        <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+          {[
+            { label: "Financiamiento", value: "Financiamiento" },
+            { label: "Cash", value: "Cash" },
+            { label: "Otros", value: "Otro" },
+          ].map((option) => (
+            <label
+              key={option.value}
+              className="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-xl border border-[#d9d9d9] bg-white px-4 py-2.5 text-sm text-[#333333] transition hover:border-[#11518b] hover:bg-[#f7fbff] sm:w-auto"
+            >
+              <input
+                type="radio"
+                name="metodo_compra"
+                value={option.value}
+                required
+                checked={metodoCompra === option.value}
+                onChange={(event) => {
+                  setMetodoCompra(event.target.value);
+                  setDocumentReuseState("idle");
+                }}
+                className="h-4 w-4 shrink-0 border-[#d9d9d9] accent-[#11518b]"
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       {metodoCompra === "Otro" && (
         <Field
@@ -268,32 +268,31 @@ export default function PerfilCompradorPropiedadForm({
         />
       )}
 
-      <div className="grid gap-5 md:grid-cols-2">
-        <RadioGroup
-          legend="¿Podrá asistir al Open House en la fecha y hora indicadas?"
-          name="disponibilidad_visita"
-          options={["Sí", "No"]}
-        />
-        <RadioGroup
-          legend="¿Cuenta con fondos para el pronto y los gastos de cierre?"
-          name="fondos_gastos_cierre"
-          options={["Sí", "Parcialmente", "Aún no"]}
-        />
-      </div>
+      <RadioGroup
+        legend="¿Podrá asistir al Open House en la fecha y hora indicadas?"
+        name="disponibilidad_visita"
+        options={["Sí", "No"]}
+      />
+
+      <RadioGroup
+        legend="¿Cuenta con fondos para el pronto y los gastos de cierre?"
+        name="fondos_gastos_cierre"
+        options={["Sí", "Parcialmente", "Aún no"]}
+      />
 
       <div className="space-y-5">
         <fieldset className="space-y-3">
           <legend className="text-sm font-semibold text-[#000000]">
             ¿Está trabajando actualmente con otro corredor/Realtor?
           </legend>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
             {[
               { label: "Sí", value: "Sí" },
               { label: "No", value: "No" },
             ].map((option) => (
               <label
                 key={option.value}
-                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-[#d9d9d9] bg-white px-4 py-2.5 text-sm text-[#333333] transition hover:border-[#11518b] hover:bg-[#f7fbff]"
+                className="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-xl border border-[#d9d9d9] bg-white px-4 py-2.5 text-sm text-[#333333] transition hover:border-[#11518b] hover:bg-[#f7fbff] sm:w-auto"
               >
                 <input
                   type="radio"
@@ -302,7 +301,7 @@ export default function PerfilCompradorPropiedadForm({
                   required
                   checked={trabajaCorredor === option.value}
                   onChange={(event) => setTrabajaCorredor(event.target.value)}
-                  className="h-4 w-4 border-[#d9d9d9] accent-[#11518b]"
+                  className="h-4 w-4 shrink-0 border-[#d9d9d9] accent-[#11518b]"
                 />
                 <span>{option.label}</span>
               </label>
@@ -367,11 +366,11 @@ function RadioGroup({
   options: Array<string | { label: string; value: string }>;
 }) {
   return (
-    <fieldset className="min-w-0 space-y-3">
+    <fieldset className="w-full min-w-0 space-y-3">
       <legend className="text-sm font-semibold text-[#000000]">
         {legend} <span className="text-red-500">*</span>
       </legend>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
         {options.map((option) => {
           const item =
             typeof option === "string"
@@ -380,7 +379,7 @@ function RadioGroup({
           return (
             <label
               key={item.value}
-              className="flex min-h-11 min-w-0 cursor-pointer items-center gap-3 rounded-xl border border-[#d9d9d9] bg-white px-4 py-2.5 text-sm text-[#333333] transition hover:border-[#11518b] hover:bg-[#f7fbff]"
+              className="flex min-h-11 w-full min-w-0 cursor-pointer items-center gap-3 rounded-xl border border-[#d9d9d9] bg-white px-4 py-2.5 text-sm text-[#333333] transition hover:border-[#11518b] hover:bg-[#f7fbff] sm:w-auto"
             >
               <input
                 type="radio"
@@ -389,7 +388,7 @@ function RadioGroup({
                 required
                 className="h-4 w-4 shrink-0 border-[#d9d9d9] accent-[#11518b]"
               />
-              <span className="break-words">{item.label}</span>
+              <span>{item.label}</span>
             </label>
           );
         })}

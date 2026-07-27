@@ -684,3 +684,49 @@ test("V2 source uses row locking, canonical PR timezone, and leaves legacy URL c
   assert.match(form, /value: "Sí"/);
   assert.ok(!form.includes('value: "Efectivo"'));
 });
+
+test("Open House radio questions use full-width responsive blocks without clipped labels", async () => {
+  const form = await readFile(
+    fileURLToPath(new URL("../components/PerfilCompradorPropiedadForm.tsx", import.meta.url)),
+    "utf8"
+  );
+
+  const identityGrid = form.indexOf('<div className="grid gap-5 md:grid-cols-2">');
+  const purchaseGroup = form.indexOf('<fieldset className="w-full space-y-3">');
+  const availabilityGroup = form.indexOf(
+    'legend="¿Podrá asistir al Open House en la fecha y hora indicadas?"'
+  );
+  const closingFundsGroup = form.indexOf(
+    'legend="¿Cuenta con fondos para el pronto y los gastos de cierre?"'
+  );
+  const otherDetails = form.indexOf('metodoCompra === "Otro"', purchaseGroup);
+  const financingDocument = form.indexOf(
+    'metodoCompra === "Financiamiento"',
+    purchaseGroup
+  );
+  const realtorGroup = form.indexOf(
+    "¿Está trabajando actualmente con otro corredor/Realtor?"
+  );
+  const realtorDetails = form.indexOf('trabajaCorredor === "Sí"', realtorGroup);
+
+  assert.ok(identityGrid >= 0);
+  assert.ok(purchaseGroup > identityGrid);
+  assert.ok(otherDetails > purchaseGroup);
+  assert.ok(financingDocument > purchaseGroup);
+  assert.ok(availabilityGroup > financingDocument);
+  assert.ok(closingFundsGroup > availabilityGroup);
+  assert.ok(realtorDetails > realtorGroup);
+
+  assert.match(
+    form,
+    /<fieldset className="w-full space-y-3">[\s\S]*?Método de compra[\s\S]*?<div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">/
+  );
+  assert.match(
+    form,
+    /<fieldset className="w-full min-w-0 space-y-3">[\s\S]*?<div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">/
+  );
+  assert.match(form, /min-h-11 w-full[\s\S]*?sm:w-auto/);
+  assert.ok(!form.includes("sm:grid-cols-3"));
+  assert.ok(!form.includes("truncate"));
+  assert.ok(!form.includes("text-ellipsis"));
+});
