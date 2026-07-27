@@ -88,7 +88,6 @@ export default function EditarPropiedadForm({
  const [destacado, setDestacado] = useState(propiedad.destacado);
  const [origenListado, setOrigenListado] = useState<"propio" | "co_broke" | "externo">(propiedad.origen_listado);
  const [showingActivo, setShowingActivo] = useState(propiedad.formulario_showing_activo);
- const [tienePlacas, setTienePlacas] = useState(Boolean(propiedad.tiene_placas_solares));
  const [descripcion, setDescripcion] = useState(propiedad.descripcion);
  const [municipio, setMunicipio] = useState(propiedad.municipio);
  const [sectorComunidad, setSectorComunidad] = useState(propiedad.sector_comunidad || "");
@@ -612,10 +611,10 @@ export default function EditarPropiedadForm({
      <div className="space-y-6 rounded-2xl border border-[#11518b]/20 bg-[#f7fbff] p-6">
       <div>
        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#11518b]">
-        Formulario de showing/open house
+        Formulario de Open House
        </p>
        <p className="mt-2 text-sm text-[#4d4d4d]">
-        Activalo solo cuando haya una fecha y hora confirmada para recibir perfiles de compradores.
+        Actívalo solo cuando haya una fecha y hora confirmadas para recibir registros de asistencia.
        </p>
       </div>
 
@@ -629,14 +628,14 @@ export default function EditarPropiedadForm({
         className="h-4 w-4 rounded border-[#d9d9d9] accent-[#11518b]"
        />
        <label htmlFor="formulario_showing_activo" className="text-sm font-medium text-[#000000]">
-        Activar formulario para showing/open house
+        Activar formulario de Open House
        </label>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-3">
        <div className="space-y-2">
         <label htmlFor="fecha_showing_fecha" className="text-sm font-medium text-[#000000]">
-         Fecha del showing/open house
+         Fecha del Open House
         </label>
         <input
          id="fecha_showing_fecha"
@@ -649,7 +648,7 @@ export default function EditarPropiedadForm({
 
        <div className="space-y-2">
         <label htmlFor="fecha_showing_hora" className="text-sm font-medium text-[#000000]">
-         Hora del showing/open house
+         Hora del Open House
         </label>
         <input
          id="fecha_showing_hora"
@@ -673,66 +672,9 @@ export default function EditarPropiedadForm({
         </label>
        </div>
 
-       <div className="flex items-center gap-3 pt-7">
-        <input
-         id="acepta_cdbg"
-         name="acepta_cdbg"
-         type="checkbox"
-         defaultChecked={Boolean(propiedad.acepta_cdbg)}
-         className="h-4 w-4 rounded border-[#d9d9d9] accent-[#11518b]"
-        />
-        <label htmlFor="acepta_cdbg" className="text-sm text-[#4d4d4d]">
-         Acepta CDBG
-        </label>
-       </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-       <div className="flex items-center gap-3">
-        <input
-         id="tiene_placas_solares"
-         name="tiene_placas_solares"
-         type="checkbox"
-         checked={tienePlacas}
-         onChange={(e) => setTienePlacas(e.target.checked)}
-         className="h-4 w-4 rounded border-[#d9d9d9] accent-[#11518b]"
-        />
-        <label htmlFor="tiene_placas_solares" className="text-sm text-[#4d4d4d]">
-         Tiene placas solares
-        </label>
-       </div>
-
-       <div className="space-y-2">
-        <label htmlFor="cantidad_placas" className="text-sm font-medium text-[#000000]">
-         Cantidad de placas
-        </label>
-        <input
-         id="cantidad_placas"
-         name="cantidad_placas"
-         type="number"
-         min="0"
-         defaultValue={propiedad.cantidad_placas ?? 0}
-         disabled={!tienePlacas}
-         className="input-premium disabled:bg-[#eeeeee]"
-        />
-       </div>
-
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-       <div className="space-y-2">
-        <label htmlFor="pregunta_personalizada" className="text-sm font-medium text-[#000000]">
-         Pregunta personalizada
-        </label>
-        <textarea
-         id="pregunta_personalizada"
-         name="pregunta_personalizada"
-         rows={3}
-         defaultValue={propiedad.pregunta_personalizada || ""}
-         className="input-premium"
-        />
-       </div>
-
+      <div>
        <div className="space-y-2">
         <label htmlFor="notas_compradores" className="text-sm font-medium text-[#000000]">
          Nota adicional para compradores

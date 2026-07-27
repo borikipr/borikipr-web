@@ -23,6 +23,7 @@ type PropertyRow = {
   formulario_showing_activo: boolean | null;
   showing_at: Date | string | null;
   requiere_precalificacion: boolean | null;
+  placas_en_lease: boolean | null;
   pregunta_personalizada: string | null;
   pregunta_personalizada_requerida: boolean;
 };
@@ -38,7 +39,7 @@ type RegistrationRow = {
   nombre: string;
   telefono: string;
   email: string | null;
-  metodo_compra: "Financiamiento" | "Cash";
+  metodo_compra: "Financiamiento" | "Cash" | "Otro";
   fondos_gastos_cierre: string | null;
   trabajando_con_corredor: "Sí" | "No";
   nombre_corredor: string | null;
@@ -55,6 +56,8 @@ type RegistrationRow = {
 type OpenHouseAnswers = {
   pregunta_personalizada: string | null;
   respuesta_personalizada: string | null;
+  purchase_method_other: string | null;
+  solar_contract_acceptance: "yes" | "no" | null;
   document_metadata: {
     kind: "prequalification_letter" | "proof_of_funds";
     content_type: string;
@@ -77,7 +80,8 @@ export type PersistedOpenHouseRegistration = {
   name: string;
   phone: string;
   email: string | null;
-  purchaseMethod: "Financiamiento" | "Cash";
+  purchaseMethod: "Financiamiento" | "Cash" | "Otro";
+  purchaseMethodOther: string | null;
   attendanceAvailability: string;
   closingFunds: string | null;
   workingWithBroker: "Sí" | "No";
@@ -85,6 +89,7 @@ export type PersistedOpenHouseRegistration = {
   brokerPhone: string | null;
   customQuestion: string | null;
   customAnswer: string | null;
+  solarContractAcceptance: "yes" | "no" | null;
   prequalificationKey: string | null;
   prequalificationStatus: OpenHouseDocumentStatus;
   proofOfFundsKey: string | null;
@@ -129,6 +134,7 @@ export async function persistOpenHouseRegistration(
            formulario_showing_activo,
            fecha_showing AT TIME ZONE 'America/Puerto_Rico' AS showing_at,
            requiere_precalificacion,
+           placas_en_lease,
            pregunta_personalizada,
            COALESCE(
              configuracion_formulario->>'pregunta_personalizada_requerida' = 'true',
@@ -200,8 +206,12 @@ export async function persistOpenHouseRegistration(
       const documentSizeBytes =
         input.documentFile?.size ?? reusableDocument?.sizeBytes ?? null;
       const answers: OpenHouseAnswers = {
-        pregunta_personalizada: property.customQuestion,
-        respuesta_personalizada: input.customAnswer,
+        pregunta_personalizada: null,
+        respuesta_personalizada: null,
+        purchase_method_other: input.purchaseMethodOther,
+        solar_contract_acceptance: property.hasSolarLease
+          ? input.solarContractAcceptance
+          : null,
         document_metadata:
           effectiveDocumentType &&
           documentOriginalName &&
@@ -397,8 +407,7 @@ function mapProperty(row: PropertyRow): CanonicalOpenHouseProperty {
     showingFormActive: row.formulario_showing_activo === true,
     showingAt: row.showing_at ? new Date(row.showing_at) : null,
     requiresPrequalification: row.requiere_precalificacion === true,
-    customQuestion: row.pregunta_personalizada,
-    customQuestionRequired: row.pregunta_personalizada_requerida,
+    hasSolarLease: row.placas_en_lease === true,
   };
 }
 
@@ -421,6 +430,8 @@ function mapRegistration(
     phone: row.telefono,
     email: row.email,
     purchaseMethod: row.metodo_compra,
+    purchaseMethodOther:
+      row.respuestas_personalizadas?.purchase_method_other || null,
     attendanceAvailability: row.disponibilidad_visita,
     closingFunds: row.fondos_gastos_cierre,
     workingWithBroker: row.trabajando_con_corredor,
@@ -428,6 +439,8 @@ function mapRegistration(
     brokerPhone: row.telefono_corredor,
     customQuestion: row.respuestas_personalizadas?.pregunta_personalizada || null,
     customAnswer: row.respuestas_personalizadas?.respuesta_personalizada || null,
+    solarContractAcceptance:
+      row.respuestas_personalizadas?.solar_contract_acceptance || null,
     prequalificationKey: row.carta_precalificacion_key,
     prequalificationStatus: row.carta_precalificacion_status,
     proofOfFundsKey: row.evidencia_fondos_key,

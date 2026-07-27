@@ -38,11 +38,13 @@ function baseForm(overrides = {}) {
     telefono: "787-555-1234",
     email: "open-house@example.test",
     metodo_compra: "Financiamiento",
-    disponibilidad_visita: "Sí, asistiré",
-    fondos_gastos_cierre: "Disponibles",
+    metodoCompraOtro: "",
+    disponibilidad_visita: "Sí",
+    fondos_gastos_cierre: "Sí",
     trabajando_con_corredor: "No",
     nombre_corredor: "",
     telefono_corredor: "",
+    solarContractAcceptance: "",
     respuesta_personalizada: "",
     ...overrides,
   };
@@ -65,8 +67,7 @@ function propertyFor(input, overrides = {}) {
     showingFormActive: true,
     showingAt: new Date(showingAt),
     requiresPrequalification: false,
-    customQuestion: null,
-    customQuestionRequired: false,
+    hasSolarLease: false,
     ...overrides,
   };
 }
@@ -78,7 +79,7 @@ function expectReason(form, reason) {
   );
 }
 
-test("valid financing and Cash registrations use canonical submitted values", () => {
+test("valid financing, Cash, and Otros registrations use canonical submitted values", () => {
   const financing = parseOpenHouseRegistrationFormData(baseForm());
   assert.equal(financing.purchaseMethod, "Financiamiento");
   assert.equal(financing.workingWithBroker, "No");
@@ -89,6 +90,16 @@ test("valid financing and Cash registrations use canonical submitted values", ()
   );
   assert.equal(cash.purchaseMethod, "Cash");
   assert.equal(cash.documentKind, "proof_of_funds");
+
+  const other = parseOpenHouseRegistrationFormData(
+    baseForm({
+      metodo_compra: "Otro",
+      metodoCompraOtro: "Programa especial",
+    })
+  );
+  assert.equal(other.purchaseMethod, "Otro");
+  assert.equal(other.purchaseMethodOther, "Programa especial");
+  assert.equal(other.documentKind, null);
 });
 
 test("basic malformed direct requests are rejected", async (t) => {
@@ -96,6 +107,10 @@ test("basic malformed direct requests are rejected", async (t) => {
     ["invalid email", { email: "bad" }, "invalid_email"],
     ["invalid phone", { telefono: "12345" }, "invalid_phone"],
     ["invalid purchase method", { metodo_compra: "Efectivo" }, "invalid_purchase_method"],
+    ["Otros missing detail", { metodo_compra: "Otro" }, "missing_purchase_method_other"],
+    ["hidden other detail", { metodoCompraOtro: "No aplica" }, "unexpected_purchase_method_other"],
+    ["invalid attendance", { disponibilidad_visita: "Tal vez" }, "invalid_attendance_answer"],
+    ["invalid closing funds", { fondos_gastos_cierre: "En proceso" }, "invalid_closing_funds_answer"],
     ["invalid broker answer", { trabajando_con_corredor: "Si" }, "invalid_broker_answer"],
     ["broker Sí missing name", { trabajando_con_corredor: "Sí", nombre_corredor: "", telefono_corredor: "787-555-1111" }, "invalid_nombre_corredor"],
     ["broker Sí missing phone", { trabajando_con_corredor: "Sí", nombre_corredor: "Corredor", telefono_corredor: "" }, "invalid_telefono_corredor"],
@@ -158,7 +173,7 @@ test("canonical property and showing rules reject stale or unavailable events", 
   }
 });
 
-test("property-dependent document and custom-question rules are enforced", () => {
+test("property-dependent document and solar rules are enforced", () => {
   const input = parseOpenHouseRegistrationFormData(baseForm());
   assert.throws(
     () => validateOpenHouseForProperty(input, propertyFor(input), new Date("2030-01-01T00:00:00Z")),
@@ -185,15 +200,45 @@ test("property-dependent document and custom-question rules are enforced", () =>
     )
   );
 
-  const unexpected = parseOpenHouseRegistrationFormData(baseForm({ respuesta_personalizada: "Unexpected" }));
   assert.throws(
-    () => validateOpenHouseForProperty(unexpected, propertyFor(unexpected), new Date("2030-01-01T00:00:00Z"), true),
+    () =>
+      parseOpenHouseRegistrationFormData(
+        baseForm({ respuesta_personalizada: "Unexpected" })
+      ),
     (error) => error.reason === "unexpected_custom_answer"
   );
 
+  const solarMissing = parseOpenHouseRegistrationFormData(baseForm());
   assert.throws(
-    () => validateOpenHouseForProperty(input, propertyFor(input, { customQuestion: "Pregunta", customQuestionRequired: true }), new Date("2030-01-01T00:00:00Z"), true),
-    (error) => error.reason === "missing_custom_answer"
+    () =>
+      validateOpenHouseForProperty(
+        solarMissing,
+        propertyFor(solarMissing, { hasSolarLease: true }),
+        new Date("2030-01-01T00:00:00Z"),
+        true
+      ),
+    (error) => error.reason === "invalid_solar_answer"
+  );
+  const solarAccepted = parseOpenHouseRegistrationFormData(
+    baseForm({ solarContractAcceptance: "yes" })
+  );
+  assert.doesNotThrow(() =>
+    validateOpenHouseForProperty(
+      solarAccepted,
+      propertyFor(solarAccepted, { hasSolarLease: true }),
+      new Date("2030-01-01T00:00:00Z"),
+      true
+    )
+  );
+  assert.throws(
+    () =>
+      validateOpenHouseForProperty(
+        solarAccepted,
+        propertyFor(solarAccepted),
+        new Date("2030-01-01T00:00:00Z"),
+        true
+      ),
+    (error) => error.reason === "unexpected_solar_answer"
   );
 });
 
@@ -373,13 +418,15 @@ function registration(overrides = {}) {
     phone: "787-555-1234",
     email: "open-house@example.test",
     purchaseMethod: "Financiamiento",
+    purchaseMethodOther: null,
     attendanceAvailability: "Sí",
-    closingFunds: "Disponibles",
+    closingFunds: "Sí",
     workingWithBroker: "No",
     brokerName: null,
     brokerPhone: null,
     customQuestion: null,
     customAnswer: null,
+    solarContractAcceptance: null,
     prequalificationKey: null,
     prequalificationStatus: "none",
     proofOfFundsKey: null,
@@ -525,6 +572,77 @@ test("email renderers escape submitted content and customer email excludes sensi
   assert.ok(!customer.html.includes("Answer"));
 });
 
+test("Open House UI and admin configuration use the dedicated attendance workflow", async () => {
+  const [page, form, editForm, newPage, leadQuery, casePage] =
+    await Promise.all([
+      readFile(
+        fileURLToPath(
+          new URL(
+            "../app/(public)/listados/[slug]/registro-openhouse/page.tsx",
+            import.meta.url
+          )
+        ),
+        "utf8"
+      ),
+      readFile(
+        fileURLToPath(
+          new URL(
+            "../components/PerfilCompradorPropiedadForm.tsx",
+            import.meta.url
+          )
+        ),
+        "utf8"
+      ),
+      readFile(
+        fileURLToPath(
+          new URL(
+            "../app/admin/propiedades/[id]/editar/EditarPropiedadForm.tsx",
+            import.meta.url
+          )
+        ),
+        "utf8"
+      ),
+      readFile(
+        fileURLToPath(
+          new URL("../app/admin/propiedades/nueva/page.tsx", import.meta.url)
+        ),
+        "utf8"
+      ),
+      readFile(
+        fileURLToPath(
+          new URL("../lib/admin/queries/lead-360.ts", import.meta.url)
+        ),
+        "utf8"
+      ),
+      readFile(
+        fileURLToPath(
+          new URL("../app/admin/leads/casos/[id]/page.tsx", import.meta.url)
+        ),
+        "utf8"
+      ),
+    ]);
+
+  assert.match(page, /Confirma tu asistencia al Open House/);
+  assert.ok(!page.includes("Completa tu perfil de comprador"));
+  assert.match(form, /name="disponibilidad_visita"/);
+  assert.match(form, /options=\{\["Sí", "No"\]\}/);
+  assert.match(form, /name="fondos_gastos_cierre"/);
+  assert.match(form, /"Parcialmente", "Aún no"/);
+  assert.match(form, /name="metodoCompraOtro"/);
+  assert.match(form, /requiresSolarContractAcceptance/);
+  assert.match(form, /name="solarContractAcceptance"/);
+  assert.match(editForm, /Formulario de Open House/);
+  assert.match(newPage, /Formulario de Open House/);
+  assert.ok(!editForm.includes("Acepta CDBG"));
+  assert.ok(!editForm.includes("Pregunta personalizada"));
+  assert.ok(!newPage.includes("Pregunta personalizada"));
+  assert.match(editForm, /name="placas_en_lease"/);
+  assert.match(newPage, /name="placas_en_lease"/);
+  assert.match(leadQuery, /'purchase_method_other'/);
+  assert.match(leadQuery, /'solar_contract_acceptance'/);
+  assert.match(casePage, /LeadInteractionCard/);
+});
+
 test("feature flag is enabled only by exact lowercase true", () => {
   const original = process.env.OPEN_HOUSE_PERSISTENCE_V2;
   try {
@@ -560,6 +678,9 @@ test("V2 source uses row locking, canonical PR timezone, and leaves legacy URL c
   assert.ok(!insertColumns.includes("evidencia_fondos,"));
   assert.match(route, /if \(isOpenHousePersistenceEnabled\(\)\)/);
   assert.match(form, /value: "Cash"/);
+  assert.match(form, /label: "Otros", value: "Otro"/);
+  assert.match(form, /¿Podrá asistir al Open House en la fecha y hora indicadas\?/);
+  assert.match(form, /¿Cuenta con fondos para el pronto y los gastos de cierre\?/);
   assert.match(form, /value: "Sí"/);
   assert.ok(!form.includes('value: "Efectivo"'));
 });

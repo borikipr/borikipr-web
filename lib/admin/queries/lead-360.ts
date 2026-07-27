@@ -217,7 +217,9 @@ export function buildLead360InteractionsQuery(leadId: string): SqlQuery {
         p.slug,
         jsonb_strip_nulls(jsonb_build_object(
           'purchase_method', cp.metodo_compra,
+          'purchase_method_other', cp.respuestas_personalizadas->>'purchase_method_other',
           'closing_funds', cp.fondos_gastos_cierre,
+          'solar_contract_acceptance', cp.respuestas_personalizadas->>'solar_contract_acceptance',
           'working_with_broker', cp.trabajando_con_corredor,
           'broker_name', cp.nombre_corredor,
           'broker_phone', cp.telefono_corredor,

@@ -23,7 +23,7 @@ function formatoPrecio(precio: string | number) {
   return `$${numericPrice.toLocaleString("en-US")}`;
 }
 
-function formatoFechaShowing(
+function formatoFechaOpenHouse(
   value: string | Date | null | undefined,
   canonicalUtc = false
 ) {
@@ -38,7 +38,9 @@ function formatoFechaShowing(
   }).format(date);
 }
 
-export default async function PerfilCompradorPage({ params }: PageProps) {
+export default async function OpenHouseRegistrationPage({
+  params,
+}: PageProps) {
   const { slug } = await params;
   const propiedad = await getPropiedadBySlug(slug);
 
@@ -55,9 +57,10 @@ export default async function PerfilCompradorPage({ params }: PageProps) {
     Array.isArray(propiedad.imagenes) && propiedad.imagenes.length > 0
       ? propiedad.imagenes[0]
       : "/og-image.jpg";
-  const showingActivo =
-    Boolean(propiedad.formulario_showing_activo) && Boolean(propiedad.fecha_showing);
-  const fechaShowing = formatoFechaShowing(
+  const openHouseActivo =
+    Boolean(propiedad.formulario_showing_activo) &&
+    Boolean(propiedad.fecha_showing);
+  const fechaOpenHouse = formatoFechaOpenHouse(
     canonicalShowingAt || propiedad.fecha_showing,
     Boolean(canonicalShowingAt)
   );
@@ -91,29 +94,35 @@ export default async function PerfilCompradorPage({ params }: PageProps) {
                   />
                 </div>
                 <div className="space-y-4 p-6">
-                  <p className="eyebrow">Perfil de comprador</p>
+                  <p className="eyebrow">Open House</p>
                   <h1 className="text-3xl font-bold leading-tight text-[#000000]">
                     {propiedad.titulo}
                   </h1>
                   <div className="grid gap-3 text-sm text-[#4d4d4d] sm:grid-cols-2">
                     <p>
-                      <span className="font-semibold text-[#000000]">Municipio:</span>{" "}
+                      <span className="font-semibold text-[#000000]">
+                        Municipio:
+                      </span>{" "}
                       {formatPropertyLocation(
                         propiedad.municipio,
                         propiedad.sector_comunidad
                       )}
                     </p>
                     <p>
-                      <span className="font-semibold text-[#000000]">Precio:</span>{" "}
+                      <span className="font-semibold text-[#000000]">
+                        Precio:
+                      </span>{" "}
                       {formatoPrecio(propiedad.precio)}
                     </p>
                   </div>
-                  {fechaShowing && (
+                  {fechaOpenHouse && (
                     <div className="rounded-xl border border-[#d4af37] bg-[#fff9e6] p-4">
                       <p className="text-sm font-semibold text-[#000000]">
-                        Showing/Open house
+                        Open House
                       </p>
-                      <p className="mt-1 text-sm text-[#4d4d4d]">{fechaShowing}</p>
+                      <p className="mt-1 text-sm text-[#4d4d4d]">
+                        {fechaOpenHouse}
+                      </p>
                     </div>
                   )}
                   {notasCompradores && (
@@ -126,15 +135,16 @@ export default async function PerfilCompradorPage({ params }: PageProps) {
             </aside>
 
             <section className="surface-card p-6 md:p-10">
-              {showingActivo ? (
+              {openHouseActivo ? (
                 <>
                   <div className="mb-8">
-                    <p className="eyebrow">Confirmacion de asistencia</p>
+                    <p className="eyebrow">Confirmación de asistencia</p>
                     <h2 className="mt-3 text-3xl font-bold text-[#000000]">
-                      Completa tu perfil de comprador
+                      Confirma tu asistencia al Open House
                     </h2>
                     <p className="mt-4 text-[#4d4d4d]">
-                      Esta informacion ayuda a Ivonne a confirmar compradores preparados para el showing.
+                      Confirma si podrás asistir en la fecha y hora indicadas y
+                      comparte la información necesaria para preparar tu visita.
                     </p>
                   </div>
 
@@ -142,10 +152,8 @@ export default async function PerfilCompradorPage({ params }: PageProps) {
                     propiedadId={propiedad.id}
                     propiedadSlug={propiedad.slug}
                     showingAt={canonicalShowingAt || ""}
-                    preguntaPersonalizada={propiedad.pregunta_personalizada}
-                    preguntaPersonalizadaRequerida={
-                      propiedad.configuracion_formulario
-                        ?.pregunta_personalizada_requerida === true
+                    requiresSolarContractAcceptance={
+                      propiedad.placas_en_lease === true
                     }
                     r2Configured={
                       openHouseV2Enabled
@@ -158,13 +166,17 @@ export default async function PerfilCompradorPage({ params }: PageProps) {
                 <div className="py-10 text-center">
                   <p className="eyebrow">Formulario no disponible</p>
                   <h2 className="mt-3 text-3xl font-bold text-[#000000]">
-                    Aun no hay un showing activo para esta propiedad
+                    Aún no hay un Open House activo para esta propiedad
                   </h2>
                   <p className="mx-auto mt-4 max-w-xl text-[#4d4d4d]">
-                    Cuando Ivonne confirme fecha y hora, el perfil de comprador estara disponible aqui.
+                    Cuando Ivonne confirme la fecha y la hora, el registro para
+                    el Open House estará disponible aquí.
                   </p>
                   <div className="mt-8">
-                    <Link href={`/listados/${propiedad.slug}`} className="btn-primary">
+                    <Link
+                      href={`/listados/${propiedad.slug}`}
+                      className="btn-primary"
+                    >
                       Ver detalles de la propiedad
                     </Link>
                   </div>

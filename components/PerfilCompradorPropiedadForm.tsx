@@ -12,19 +12,19 @@ const allowedDocumentTypes = new Set([
   "image/webp",
 ]);
 
+type ReuseState = "idle" | "checking" | "available" | "unavailable";
+
 export default function PerfilCompradorPropiedadForm({
   propiedadId,
   propiedadSlug,
   showingAt,
-  preguntaPersonalizada,
-  preguntaPersonalizadaRequerida,
+  requiresSolarContractAcceptance,
   r2Configured,
 }: {
   propiedadId: string;
   propiedadSlug: string;
   showingAt: string;
-  preguntaPersonalizada?: string | null;
-  preguntaPersonalizadaRequerida?: boolean;
+  requiresSolarContractAcceptance: boolean;
   r2Configured: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -34,9 +34,8 @@ export default function PerfilCompradorPropiedadForm({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState("");
-  const [documentReuseState, setDocumentReuseState] = useState<
-    "idle" | "checking" | "available" | "unavailable"
-  >("idle");
+  const [documentReuseState, setDocumentReuseState] =
+    useState<ReuseState>("idle");
 
   useEffect(() => {
     setIdempotencyKey(crypto.randomUUID());
@@ -54,12 +53,18 @@ export default function PerfilCompradorPropiedadForm({
     formData.set("propertySlug", propiedadSlug);
     formData.set("showingAt", showingAt);
     formData.set("idempotencyKey", idempotencyKey || crypto.randomUUID());
+
+    const requiresFinancialDocument =
+      metodoCompra === "Financiamiento" || metodoCompra === "Cash";
     const applicableFile =
       metodoCompra === "Financiamiento"
         ? formData.get("carta_precalificacion")
-        : formData.get("evidencia_fondos_archivo");
+        : metodoCompra === "Cash"
+          ? formData.get("evidencia_fondos_archivo")
+          : null;
     const hasFile =
       applicableFile instanceof File && applicableFile.size > 0;
+
     if (
       hasFile &&
       applicableFile instanceof File &&
@@ -79,7 +84,11 @@ export default function PerfilCompradorPropiedadForm({
       return;
     }
 
-    if (!hasFile && documentReuseState !== "available") {
+    if (
+      requiresFinancialDocument &&
+      !hasFile &&
+      documentReuseState !== "available"
+    ) {
       const reusable = await checkReusableDocument(event.currentTarget);
       if (!reusable) {
         setError(
@@ -112,7 +121,7 @@ export default function PerfilCompradorPropiedadForm({
           cartaFile instanceof File && cartaFile.size > 0,
       });
 
-      setMessage("Gracias. Tu perfil fue enviado correctamente.");
+      setMessage("Gracias. Tu asistencia quedó confirmada correctamente.");
       formRef.current?.reset();
       setMetodoCompra("");
       setTrabajaCorredor("");
@@ -128,7 +137,12 @@ export default function PerfilCompradorPropiedadForm({
   const resetDocumentReuse = () => setDocumentReuseState("idle");
 
   async function checkReusableDocument(form = formRef.current) {
-    if (!form || !metodoCompra) return false;
+    if (
+      !form ||
+      (metodoCompra !== "Financiamiento" && metodoCompra !== "Cash")
+    ) {
+      return false;
+    }
     const data = new FormData(form);
     const name = String(data.get("nombre") || "").trim();
     const phone = String(data.get("telefono") || "").trim();
@@ -177,14 +191,14 @@ export default function PerfilCompradorPropiedadForm({
           onInput={resetDocumentReuse}
         />
         <Field
-          label="Telefono"
+          label="Teléfono"
           name="telefono"
           type="tel"
           required
           onInput={resetDocumentReuse}
         />
         <Field
-          label="Correo electronico"
+          label="Correo electrónico"
           name="email"
           type="email"
           onInput={resetDocumentReuse}
@@ -194,10 +208,11 @@ export default function PerfilCompradorPropiedadForm({
           <legend className="text-sm font-semibold text-[#000000]">
             Método de compra <span className="text-red-500">*</span>
           </legend>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-3">
             {[
               { label: "Financiamiento", value: "Financiamiento" },
               { label: "Cash", value: "Cash" },
+              { label: "Otros", value: "Otro" },
             ].map((option) => (
               <label
                 key={option.value}
@@ -222,6 +237,15 @@ export default function PerfilCompradorPropiedadForm({
         </fieldset>
       </div>
 
+      {metodoCompra === "Otro" && (
+        <Field
+          label="Especifique"
+          name="metodoCompraOtro"
+          required
+          placeholder="Indique el método o programa de compra"
+        />
+      )}
+
       {metodoCompra === "Financiamiento" && (
         <FinancialDocumentField
           key="financing-document"
@@ -245,23 +269,22 @@ export default function PerfilCompradorPropiedadForm({
       )}
 
       <div className="grid gap-5 md:grid-cols-2">
-        <Field
-          label="Confirmacion de disponibilidad para asistir"
+        <RadioGroup
+          legend="¿Podrá asistir al Open House en la fecha y hora indicadas?"
           name="disponibilidad_visita"
-          required
-          placeholder="Ej: Si, puedo asistir a la hora indicada"
+          options={["Sí", "No"]}
         />
-        <Field
-          label="Fondos para pronto y gastos de cierre"
+        <RadioGroup
+          legend="¿Cuenta con fondos para el pronto y los gastos de cierre?"
           name="fondos_gastos_cierre"
-          placeholder="Ej: Tengo fondos disponibles / En proceso"
+          options={["Sí", "Parcialmente", "Aún no"]}
         />
       </div>
 
       <div className="space-y-5">
         <fieldset className="space-y-3">
           <legend className="text-sm font-semibold text-[#000000]">
-            ¿Está trabajando actualmente con otro corredor/realtor?
+            ¿Está trabajando actualmente con otro corredor/Realtor?
           </legend>
           <div className="grid gap-2 sm:grid-cols-2">
             {[
@@ -291,7 +314,7 @@ export default function PerfilCompradorPropiedadForm({
           <div className="grid gap-5 md:grid-cols-2">
             <Field label="Nombre del corredor" name="nombre_corredor" required />
             <Field
-              label="Telefono del corredor"
+              label="Teléfono del corredor"
               name="telefono_corredor"
               type="tel"
               required
@@ -300,19 +323,15 @@ export default function PerfilCompradorPropiedadForm({
         )}
       </div>
 
-      {preguntaPersonalizada && (
-        <div className="space-y-2">
-          <label htmlFor="respuesta_personalizada" className="text-sm font-semibold text-[#000000]">
-            {preguntaPersonalizada}
-          </label>
-          <textarea
-            id="respuesta_personalizada"
-            name="respuesta_personalizada"
-            rows={4}
-            required={preguntaPersonalizadaRequerida}
-            className="input-premium resize-none"
-          />
-        </div>
+      {requiresSolarContractAcceptance && (
+        <RadioGroup
+          legend="Esta propiedad tiene placas solares con contrato o leasing vigente. ¿Estaría dispuesto(a) a asumir ese contrato o leasing como parte de la compra?"
+          name="solarContractAcceptance"
+          options={[
+            { label: "Sí", value: "yes" },
+            { label: "No", value: "no" },
+          ]}
+        />
       )}
 
       {message && (
@@ -327,10 +346,55 @@ export default function PerfilCompradorPropiedadForm({
         </div>
       )}
 
-      <button type="submit" disabled={pending} className="btn-primary w-full justify-center py-3.5 disabled:opacity-60">
-        {pending ? "Enviando..." : "Enviar perfil de comprador"}
+      <button
+        type="submit"
+        disabled={pending}
+        className="btn-primary w-full justify-center py-3.5 disabled:opacity-60"
+      >
+        {pending ? "Enviando..." : "Confirmar asistencia"}
       </button>
     </form>
+  );
+}
+
+function RadioGroup({
+  legend,
+  name,
+  options,
+}: {
+  legend: string;
+  name: string;
+  options: Array<string | { label: string; value: string }>;
+}) {
+  return (
+    <fieldset className="min-w-0 space-y-3">
+      <legend className="text-sm font-semibold text-[#000000]">
+        {legend} <span className="text-red-500">*</span>
+      </legend>
+      <div className="grid gap-2 sm:grid-cols-3">
+        {options.map((option) => {
+          const item =
+            typeof option === "string"
+              ? { label: option, value: option }
+              : option;
+          return (
+            <label
+              key={item.value}
+              className="flex min-h-11 min-w-0 cursor-pointer items-center gap-3 rounded-xl border border-[#d9d9d9] bg-white px-4 py-2.5 text-sm text-[#333333] transition hover:border-[#11518b] hover:bg-[#f7fbff]"
+            >
+              <input
+                type="radio"
+                name={name}
+                value={item.value}
+                required
+                className="h-4 w-4 shrink-0 border-[#d9d9d9] accent-[#11518b]"
+              />
+              <span className="break-words">{item.label}</span>
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }
 
@@ -380,7 +444,7 @@ function FinancialDocumentField({
   label: string;
   name: string;
   r2Configured: boolean;
-  reuseState: "idle" | "checking" | "available" | "unavailable";
+  reuseState: ReuseState;
   onCheck: () => void;
 }) {
   const reusable = reuseState === "available";
@@ -445,7 +509,8 @@ function UploadField({
   return (
     <div className="space-y-2">
       <label htmlFor={name} className="text-sm font-semibold text-[#000000]">
-        {label} {(required || showRequired) && <span className="text-red-500">*</span>}
+        {label}{" "}
+        {(required || showRequired) && <span className="text-red-500">*</span>}
       </label>
       <input
         id={name}

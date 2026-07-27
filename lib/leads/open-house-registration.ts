@@ -7,7 +7,10 @@ export const MAX_OPEN_HOUSE_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const PURCHASE_METHODS = new Set(["Financiamiento", "Cash"]);
+const PURCHASE_METHODS = new Set(["Financiamiento", "Cash", "Otro"]);
+const ATTENDANCE_ANSWERS = new Set(["Sí", "No"]);
+const CLOSING_FUNDS_ANSWERS = new Set(["Sí", "Parcialmente", "Aún no"]);
+const SOLAR_ANSWERS = new Set(["yes", "no"]);
 const BROKER_ANSWERS = new Set(["Sí", "No"]);
 const PUBLIC_PROPERTY_STATUSES = new Set([
   "disponible",
@@ -36,13 +39,14 @@ export type ParsedOpenHouseRegistration = {
   name: string;
   phone: string;
   email: string | null;
-  purchaseMethod: "Financiamiento" | "Cash";
+  purchaseMethod: "Financiamiento" | "Cash" | "Otro";
+  purchaseMethodOther: string | null;
   attendanceAvailability: string;
-  closingFunds: string | null;
+  closingFunds: "Sí" | "Parcialmente" | "Aún no";
   workingWithBroker: "Sí" | "No";
   brokerName: string | null;
   brokerPhone: string | null;
-  customAnswer: string | null;
+  solarContractAcceptance: "yes" | "no" | null;
   prequalificationFile: File | null;
   proofOfFundsFile: File | null;
   documentFile: File | null;
@@ -60,8 +64,7 @@ export type CanonicalOpenHouseProperty = {
   showingFormActive: boolean;
   showingAt: Date | null;
   requiresPrequalification: boolean;
-  customQuestion: string | null;
-  customQuestionRequired: boolean;
+  hasSolarLease: boolean;
 };
 
 export class OpenHouseValidationError extends Error {
@@ -90,12 +93,16 @@ export function parseOpenHouseRegistrationFormData(
   const phone = getText(formData, "telefono");
   const email = getText(formData, "email") || null;
   const purchaseMethod = getText(formData, "metodo_compra");
+  const purchaseMethodOther = getText(formData, "metodoCompraOtro") || null;
   const attendanceAvailability = getText(formData, "disponibilidad_visita");
-  const closingFunds = getText(formData, "fondos_gastos_cierre") || null;
+  const closingFunds = getText(formData, "fondos_gastos_cierre");
   const workingWithBroker = getText(formData, "trabajando_con_corredor");
   const brokerName = getText(formData, "nombre_corredor") || null;
   const brokerPhone = getText(formData, "telefono_corredor") || null;
-  const customAnswer = getText(formData, "respuesta_personalizada") || null;
+  const solarContractAcceptance =
+    getText(formData, "solarContractAcceptance") || null;
+  const legacyCustomAnswer =
+    getText(formData, "respuesta_personalizada") || null;
 
   requireUuid(idempotencyKey, "invalid_idempotency_key");
   requireUuid(propertyId, "invalid_property_id");
@@ -106,9 +113,17 @@ export function parseOpenHouseRegistrationFormData(
   const submittedShowingAt = parseIsoInstant(showingAtText);
   requireText(name, 200, "nombre");
   requireText(phone, 64, "telefono");
-  requireText(attendanceAvailability, 500, "disponibilidad_visita");
-  optionalText(closingFunds, 500, "fondos_gastos_cierre");
-  optionalText(customAnswer, 2000, "respuesta_personalizada");
+  requireText(attendanceAvailability, 32, "disponibilidad_visita");
+  requireText(closingFunds, 32, "fondos_gastos_cierre");
+  optionalText(purchaseMethodOther, 500, "metodoCompraOtro");
+  optionalText(solarContractAcceptance, 16, "solarContractAcceptance");
+  optionalText(legacyCustomAnswer, 2000, "respuesta_personalizada");
+  if (legacyCustomAnswer) {
+    invalid(
+      "La respuesta personalizada no aplica.",
+      "unexpected_custom_answer"
+    );
+  }
 
   if (!normalizePuertoRicoUsPhone(phone)) {
     invalid(
@@ -121,6 +136,30 @@ export function parseOpenHouseRegistrationFormData(
   }
   if (!PURCHASE_METHODS.has(purchaseMethod)) {
     invalid("Selecciona un método de compra válido.", "invalid_purchase_method");
+  }
+  if (purchaseMethod === "Otro" && !purchaseMethodOther) {
+    invalid(
+      "Especifica el método o programa de compra.",
+      "missing_purchase_method_other"
+    );
+  }
+  if (purchaseMethod !== "Otro" && purchaseMethodOther) {
+    invalid(
+      "La descripción de otro método no aplica.",
+      "unexpected_purchase_method_other"
+    );
+  }
+  if (!ATTENDANCE_ANSWERS.has(attendanceAvailability)) {
+    invalid(
+      "Confirma si podrás asistir al Open House.",
+      "invalid_attendance_answer"
+    );
+  }
+  if (!CLOSING_FUNDS_ANSWERS.has(closingFunds)) {
+    invalid(
+      "Selecciona una respuesta válida sobre los fondos de cierre.",
+      "invalid_closing_funds_answer"
+    );
   }
   if (!BROKER_ANSWERS.has(workingWithBroker)) {
     invalid("Selecciona una respuesta válida sobre el corredor.", "invalid_broker_answer");
@@ -184,12 +223,15 @@ export function parseOpenHouseRegistrationFormData(
     phone,
     email,
     purchaseMethod: purchaseMethod as ParsedOpenHouseRegistration["purchaseMethod"],
+    purchaseMethodOther:
+      purchaseMethod === "Otro" ? purchaseMethodOther : null,
     attendanceAvailability,
-    closingFunds,
+    closingFunds: closingFunds as ParsedOpenHouseRegistration["closingFunds"],
     workingWithBroker: workingWithBroker as ParsedOpenHouseRegistration["workingWithBroker"],
     brokerName: workingWithBroker === "Sí" ? brokerName : null,
     brokerPhone: workingWithBroker === "Sí" ? brokerPhone : null,
-    customAnswer,
+    solarContractAcceptance:
+      solarContractAcceptance as ParsedOpenHouseRegistration["solarContractAcceptance"],
     prequalificationFile,
     proofOfFundsFile,
     documentFile,
@@ -249,15 +291,21 @@ export function validateOpenHouseForProperty(
       "missing_required_proof_of_funds"
     );
   }
-  if (!property.customQuestion && input.customAnswer) {
-    invalid("La respuesta personalizada no aplica.", "unexpected_custom_answer");
-  }
-  if (
-    property.customQuestion &&
-    property.customQuestionRequired &&
-    !input.customAnswer
-  ) {
-    invalid("Completa la pregunta personalizada.", "missing_custom_answer");
+  if (property.hasSolarLease) {
+    if (
+      !input.solarContractAcceptance ||
+      !SOLAR_ANSWERS.has(input.solarContractAcceptance)
+    ) {
+      invalid(
+        "Selecciona una respuesta válida sobre el contrato o leasing de las placas solares.",
+        "invalid_solar_answer"
+      );
+    }
+  } else if (input.solarContractAcceptance) {
+    invalid(
+      "La respuesta sobre placas solares no aplica a esta propiedad.",
+      "unexpected_solar_answer"
+    );
   }
 }
 

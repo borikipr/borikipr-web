@@ -142,11 +142,11 @@ export async function createPropiedadAction(
     String(formData.get("fecha_showing_hora") || "").trim()
   );
   const requierePrecalificacion = formData.get("requiere_precalificacion") === "on";
-  const preguntaPersonalizada = String(formData.get("pregunta_personalizada") || "").trim();
-  const tienePlacasSolares = formData.get("tiene_placas_solares") === "on";
-  const cantidadPlacas = parsePositiveNumber(String(formData.get("cantidad_placas") || "0").trim() || "0");
+  const preguntaPersonalizada = "";
+  const tienePlacasSolares = false;
+  const cantidadPlacas = 0;
   const placasEnLease = formData.get("placas_en_lease") === "on";
-  const aceptaCdbg = formData.get("acepta_cdbg") === "on";
+  const aceptaCdbg = false;
   const notasCompradores = String(formData.get("notas_compradores") || "").trim();
 
   if (
@@ -208,7 +208,7 @@ export async function createPropiedadAction(
   }
 
   if (formularioShowingActivo && !fechaShowing) {
-    return { error: "Indica fecha y hora para activar el formulario de showing." };
+    return { error: "Indica fecha y hora para activar el formulario de Open House." };
   }
 
   if (
@@ -363,11 +363,7 @@ export async function updatePropiedadAction(
     String(formData.get("fecha_showing_hora") || "").trim()
   );
   const requierePrecalificacion = formData.get("requiere_precalificacion") === "on";
-  const preguntaPersonalizada = String(formData.get("pregunta_personalizada") || "").trim();
-  const tienePlacasSolares = formData.get("tiene_placas_solares") === "on";
-  const cantidadPlacas = parsePositiveNumber(String(formData.get("cantidad_placas") || "0").trim() || "0");
   const placasEnLease = formData.get("placas_en_lease") === "on";
-  const aceptaCdbg = formData.get("acepta_cdbg") === "on";
   const notasCompradores = String(formData.get("notas_compradores") || "").trim();
 
   if (!id) {
@@ -412,8 +408,19 @@ export async function updatePropiedadAction(
 
   const propiedadActualRows = await sql<{
     origen_listado: string;
+    pregunta_personalizada: string | null;
+    acepta_cdbg: boolean | null;
+    tiene_placas_solares: boolean | null;
+    cantidad_placas: number | null;
+    configuracion_formulario: Record<string, unknown> | null;
   }[]>`
-    SELECT origen_listado
+    SELECT
+      origen_listado,
+      pregunta_personalizada,
+      acepta_cdbg,
+      tiene_placas_solares,
+      cantidad_placas,
+      configuracion_formulario
     FROM propiedades
     WHERE id = ${id}
     LIMIT 1
@@ -424,6 +431,13 @@ export async function updatePropiedadAction(
   if (!origenActual) {
     return { error: "No se encontró la propiedad a editar." };
   }
+
+  const preguntaPersonalizada =
+    propiedadActual.pregunta_personalizada || "";
+  const aceptaCdbg = propiedadActual.acepta_cdbg === true;
+  const tienePlacasSolares =
+    propiedadActual.tiene_placas_solares === true;
+  const cantidadPlacas = propiedadActual.cantidad_placas ?? 0;
 
   if (origenListado === "externo" && origenActual !== "externo") {
     return {
@@ -453,7 +467,7 @@ export async function updatePropiedadAction(
   }
 
   if (formularioShowingActivo && !fechaShowing) {
-    return { error: "Indica fecha y hora para activar el formulario de showing." };
+    return { error: "Indica fecha y hora para activar el formulario de Open House." };
   }
 
   if (
@@ -564,7 +578,10 @@ export async function updatePropiedadAction(
           cantidadPlacas,
           placasEnLease,
           aceptaCdbg,
-          JSON.stringify({ notas_compradores: notasCompradores }),
+          JSON.stringify({
+            ...(propiedadActual.configuracion_formulario || {}),
+            notas_compradores: notasCompradores,
+          }),
           id,
         ]
       );

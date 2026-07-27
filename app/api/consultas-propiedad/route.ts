@@ -15,6 +15,10 @@ const ALLOWED_FILE_TYPES = new Set([
   "image/webp",
   "image/jpg",
 ]);
+const PURCHASE_METHODS = new Set(["Financiamiento", "Cash", "Otro"]);
+const ATTENDANCE_ANSWERS = new Set(["Sí", "No"]);
+const CLOSING_FUNDS_ANSWERS = new Set(["Sí", "Parcialmente", "Aún no"]);
+const SOLAR_ANSWERS = new Set(["yes", "no"]);
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) || "").trim();
@@ -59,16 +63,36 @@ export async function POST(request: Request) {
     const telefono = getText(formData, "telefono");
     const email = getText(formData, "email").toLowerCase();
     const metodoCompra = getText(formData, "metodo_compra");
+    const metodoCompraOtro = getText(formData, "metodoCompraOtro");
     const disponibilidadVisita = getText(formData, "disponibilidad_visita");
     const trabajandoConCorredor = getText(formData, "trabajando_con_corredor");
     const nombreCorredor = getText(formData, "nombre_corredor");
     const telefonoCorredor = getText(formData, "telefono_corredor");
     const fondosGastosCierre = getText(formData, "fondos_gastos_cierre");
-    const respuestaPersonalizada = getText(formData, "respuesta_personalizada");
+    const solarContractAcceptance = getText(
+      formData,
+      "solarContractAcceptance"
+    );
 
-    if (!propiedadId || !nombre || !telefono || !metodoCompra || !disponibilidadVisita) {
+    if (
+      !propiedadId ||
+      !nombre ||
+      !telefono ||
+      !PURCHASE_METHODS.has(metodoCompra) ||
+      !ATTENDANCE_ANSWERS.has(disponibilidadVisita) ||
+      !CLOSING_FUNDS_ANSWERS.has(fondosGastosCierre)
+    ) {
       return NextResponse.json(
         { ok: false, error: "Completa los campos requeridos." },
+        { status: 400 }
+      );
+    }
+    if (
+      (metodoCompra === "Otro" && !metodoCompraOtro) ||
+      (metodoCompra !== "Otro" && metodoCompraOtro)
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "Especifica un método de compra válido." },
         { status: 400 }
       );
     }
@@ -78,9 +102,9 @@ export async function POST(request: Request) {
       requiere_precalificacion: boolean | null;
       formulario_showing_activo: boolean;
       fecha_showing: string | Date | null;
-      pregunta_personalizada: string | null;
+      placas_en_lease: boolean | null;
     }[]>`
-      SELECT id, requiere_precalificacion, formulario_showing_activo, fecha_showing, pregunta_personalizada
+      SELECT id, requiere_precalificacion, formulario_showing_activo, fecha_showing, placas_en_lease
       FROM propiedades
       WHERE id = ${propiedadId}
       LIMIT 1
@@ -92,6 +116,20 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { ok: false, error: "Este formulario no esta activo para la propiedad." },
         { status: 403 }
+      );
+    }
+    if (
+      (propiedad.placas_en_lease &&
+        !SOLAR_ANSWERS.has(solarContractAcceptance)) ||
+      (!propiedad.placas_en_lease && solarContractAcceptance)
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Selecciona una respuesta válida sobre el contrato o leasing de las placas solares.",
+        },
+        { status: 400 }
       );
     }
 
@@ -157,8 +195,11 @@ export async function POST(request: Request) {
     }
 
     const respuestasPersonalizadas = {
-      pregunta_personalizada: propiedad.pregunta_personalizada,
-      respuesta_personalizada: respuestaPersonalizada || null,
+      purchase_method_other:
+        metodoCompra === "Otro" ? metodoCompraOtro : null,
+      solar_contract_acceptance: propiedad.placas_en_lease
+        ? solarContractAcceptance
+        : null,
       r2_configurado: isR2Configured(),
     };
 

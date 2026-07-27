@@ -18,11 +18,21 @@ export function buildOpenHouseInternalEmail({
     ? `<p style="margin:0 0 8px"><strong>${escapeHtml(registration.customQuestion)}</strong></p>
        <p style="margin:0 0 20px;white-space:pre-line">${escapeHtml(registration.customAnswer)}</p>`
     : "";
+  const purchaseMethodOther =
+    registration.purchaseMethod === "Otro"
+      ? detailRow("Método especificado", registration.purchaseMethodOther)
+      : "";
+  const solarAnswer = registration.solarContractAcceptance
+    ? detailRow(
+        "Disposición sobre contrato solar",
+        registration.solarContractAcceptance === "yes" ? "Sí" : "No"
+      )
+    : "";
 
   return {
     subject: `Nuevo registro de Open House - ${registration.property.title}`,
     html: emailShell(
-      "Nuevo registro de Open House / Showing",
+      "Nuevo registro de Open House",
       `<h3 style="margin:0 0 12px">Propiedad y evento</h3>
        <p style="margin:0 0 12px"><strong>Propiedad:</strong> ${escapeHtml(registration.property.title)}</p>
        <p style="margin:0 0 12px"><strong>Fecha:</strong> ${escapeHtml(formatPuertoRicoDate(registration.showingAt))}</p>
@@ -33,8 +43,10 @@ export function buildOpenHouseInternalEmail({
        ${detailRow("Email", registration.email, "20px")}
        <h3 style="margin:0 0 12px">Perfil</h3>
        <p style="margin:0 0 12px"><strong>Método de compra:</strong> ${escapeHtml(registration.purchaseMethod)}</p>
+       ${purchaseMethodOther}
        <p style="margin:0 0 12px"><strong>Disponibilidad:</strong> ${escapeHtml(registration.attendanceAvailability)}</p>
        ${detailRow("Fondos de cierre", registration.closingFunds)}
+       ${solarAnswer}
        <p style="margin:0 0 12px"><strong>Trabaja con corredor:</strong> ${escapeHtml(registration.workingWithBroker)}</p>
        ${brokerDetails}
        ${documentStatus === "uploaded" ? detailRow("Documento", "Documento adjunto", "20px") : ""}

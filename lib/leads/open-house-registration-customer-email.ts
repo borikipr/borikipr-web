@@ -22,7 +22,7 @@ export function buildOpenHouseCustomerEmail(
           <p style="margin:6px 0 0;color:rgba(255,255,255,.85);font-size:14px">Erickson Real Estate</p>
         </div>
         <div style="padding:24px">
-          <p style="margin:0 0 16px">Recibimos tu registro para el Open House / Showing.</p>
+          <p style="margin:0 0 16px">Recibimos tu confirmación de asistencia al Open House.</p>
           <p style="margin:0 0 12px"><strong>Propiedad:</strong> ${escapeHtml(registration.property.title)}</p>
           <p style="margin:0 0 12px"><strong>Fecha:</strong> ${escapeHtml(showingDate)}</p>
           <p style="margin:0 0 20px"><a href="${escapeHtml(propertyUrl)}">Ver la propiedad</a></p>

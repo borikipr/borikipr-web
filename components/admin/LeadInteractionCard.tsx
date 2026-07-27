@@ -31,6 +31,8 @@ function visible(value: unknown): boolean {
 }
 function display(key: string, value: unknown): string {
   if (typeof value === "boolean") return value ? "Sí" : "No";
+  if (key === "solar_contract_acceptance" && value === "yes") return "Sí";
+  if (key === "solar_contract_acceptance" && value === "no") return "No";
   if (Array.isArray(value)) return value.join(", ");
   if (key === "document_size_bytes" && typeof value === "number") return `${Math.max(1, Math.round(value / 1024))} KB`;
   if (key === "showing_at" && typeof value === "string") return formatDate(value);

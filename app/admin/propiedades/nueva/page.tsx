@@ -604,10 +604,10 @@ export default function NuevaPropiedadPage() {
               <div className="space-y-6 rounded-2xl border border-[#11518b]/20 bg-[#f7fbff] p-6">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#11518b]">
-                    Formulario de showing/open house
+                    Formulario de Open House
                   </p>
                   <p className="mt-2 text-sm text-[#4d4d4d]">
-                    Actívalo solo cuando haya una fecha y hora confirmada para recibir perfiles de compradores.
+                    Actívalo solo cuando haya una fecha y hora confirmadas para recibir registros de asistencia.
                   </p>
                 </div>
 
@@ -621,7 +621,7 @@ export default function NuevaPropiedadPage() {
                     className="h-4 w-4 rounded border-[#d9d9d9] accent-[#11518b]"
                   />
                   <label htmlFor="formulario_showing_activo" className="text-sm font-medium text-[#000000]">
-                    Activar formulario para showing/open house
+                    Activar formulario de Open House
                   </label>
                 </div>
 
@@ -630,7 +630,7 @@ export default function NuevaPropiedadPage() {
                     <div className="grid gap-6 md:grid-cols-3">
                       <div className="space-y-2">
                         <label htmlFor="fecha_showing_fecha" className="text-sm font-medium text-[#000000]">
-                          Fecha del showing/open house
+                          Fecha del Open House
                         </label>
                         <input
                           id="fecha_showing_fecha"
@@ -642,7 +642,7 @@ export default function NuevaPropiedadPage() {
 
                       <div className="space-y-2">
                         <label htmlFor="fecha_showing_hora" className="text-sm font-medium text-[#000000]">
-                          Hora del showing/open house
+                          Hora del Open House
                         </label>
                         <input
                           id="fecha_showing_hora"
@@ -665,22 +665,10 @@ export default function NuevaPropiedadPage() {
                       </div>
                     </div>
 
-                    <div className="grid gap-6 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <label htmlFor="pregunta_personalizada" className="text-sm font-medium text-[#000000]">
-                          Pregunta personalizada
-                        </label>
-                        <textarea
-                          id="pregunta_personalizada"
-                          name="pregunta_personalizada"
-                          rows={3}
-                          className="input-premium"
-                        />
-                      </div>
-
+                    <div>
                       <div className="space-y-2">
                         <label htmlFor="notas_compradores" className="text-sm font-medium text-[#000000]">
-                          Notas adicionales para compradores
+                          Nota adicional para compradores
                         </label>
                         <textarea
                           id="notas_compradores"
