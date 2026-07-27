@@ -306,6 +306,93 @@ test("Open House reuses only a valid document owned by the same canonical person
   assert.equal(result?.documentType, "prequalification_letter");
 });
 
+test("Open House accepts conservative name variations only with both canonical contacts", async () => {
+  const lead = candidateLead({
+    name: "María Elena Rivera Santiago",
+    email: "maria.rivera@example.test",
+    phone: "787-555-4321",
+  });
+  const document = reusableDocument(lead);
+  const variations = [
+    "  MARIA   ELENA RIVERA SANTIAGO  ",
+    "Maria Elena Rivera",
+    "Maria Rivera Santiago",
+    "M. Elena Rivera Santiago",
+  ];
+
+  for (const name of variations) {
+    const result = await findReusableFinancialDocument(
+      {
+        name,
+        email: "MARIA.RIVERA@example.test",
+        phone: "+1 (787) 555-4321",
+        purchaseMethod: "Financiamiento",
+      },
+      reusableDocumentDependencies([lead], [document])
+    );
+    assert.equal(result?.ownerLeadId, lead.id, name);
+  }
+
+  for (const contacts of [
+    { email: lead.emailOriginal, phone: null },
+    { email: null, phone: lead.phoneOriginal },
+  ]) {
+    const result = await findReusableFinancialDocument(
+      {
+        name: "Maria Rivera",
+        ...contacts,
+        purchaseMethod: "Financiamiento",
+      },
+      reusableDocumentDependencies([lead], [document])
+    );
+    assert.equal(result, null);
+  }
+});
+
+test("Open House rejects ambiguous or fuzzy name matches despite shared contacts", async () => {
+  const first = candidateLead({
+    name: "María Elena Rivera Santiago",
+    email: "household@example.test",
+    phone: "787-555-9876",
+  });
+  const second = candidateLead({
+    name: "María Rivera López",
+    email: "household@example.test",
+    phone: "787-555-9876",
+  });
+  const document = reusableDocument(first);
+  const dependencies = reusableDocumentDependencies(
+    [first, second],
+    [document]
+  );
+
+  assert.equal(
+    await findReusableFinancialDocument(
+      {
+        name: "Maria Rivera",
+        email: first.emailOriginal,
+        phone: first.phoneOriginal,
+        purchaseMethod: "Financiamiento",
+      },
+      dependencies
+    ),
+    null
+  );
+
+  assert.equal(
+    await findReusableFinancialDocument(
+      {
+        name: "Maria Elana Rivera Santiago",
+        email: first.emailOriginal,
+        phone: first.phoneOriginal,
+        purchaseMethod: "Financiamiento",
+      },
+      reusableDocumentDependencies([first], [document])
+    ),
+    null
+  );
+});
+
 test("shared contact details never reuse another canonical person's document", async () => {
   const owner = candidateLead({ name: "Persona Uno" });
   const registrant = candidateLead({ name: "Persona Dos" });

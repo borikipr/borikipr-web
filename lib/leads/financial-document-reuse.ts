@@ -89,11 +89,17 @@ export async function findReusableFinancialDocument(
     emailNormalized: identity.emailNormalized,
     phoneNormalized: identity.phoneNormalized,
   });
-  const lead = selectMatchingCanonicalLead(candidates, {
-    name,
-    emailNormalized: identity.emailNormalized,
-    phoneNormalized: identity.phoneNormalized,
-  });
+  const lead = selectMatchingCanonicalLead(
+    candidates,
+    {
+      name,
+      emailNormalized: identity.emailNormalized,
+      phoneNormalized: identity.phoneNormalized,
+    },
+    {
+      allowConservativeNameVariations: true,
+    }
+  );
   if (!lead) return null;
 
   const documents = await dependencies.loadDocuments(lead.id, documentType);

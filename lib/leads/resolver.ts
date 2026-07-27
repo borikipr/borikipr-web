@@ -134,11 +134,23 @@ export function selectMatchingCanonicalLead(
     name: string;
     emailNormalized: string | null;
     phoneNormalized: string | null;
-  }
+  },
+  options: {
+    allowConservativeNameVariations?: boolean;
+  } = {}
 ) {
   const compatibleName = normalizeNameForComparison(identity.name);
-  const hasCompatibleName = (lead: LeadRecord) =>
-    normalizeNameForComparison(lead.name) === compatibleName;
+  const hasCompatibleName = (lead: LeadRecord) => {
+    const candidateName = normalizeNameForComparison(lead.name);
+    if (candidateName === compatibleName) return true;
+
+    return Boolean(
+      options.allowConservativeNameVariations &&
+        identity.emailNormalized &&
+        identity.phoneNormalized &&
+        areConservativeNameVariations(candidateName, compatibleName)
+    );
+  };
 
   if (identity.emailNormalized && identity.phoneNormalized) {
     const exactMatches = candidates.filter(
@@ -161,6 +173,52 @@ export function selectMatchingCanonicalLead(
   });
   const compatibleMatches = identifierMatches.filter(hasCompatibleName);
   return compatibleMatches.length === 1 ? compatibleMatches[0] : null;
+}
+
+export function areConservativeNameVariations(
+  leftName: string,
+  rightName: string
+) {
+  const left = normalizeNameForComparison(leftName);
+  const right = normalizeNameForComparison(rightName);
+  if (!left || !right) return false;
+  if (left === right) return true;
+
+  const leftTokens = left.split(" ");
+  const rightTokens = right.split(" ");
+  if (leftTokens.length < 2 || rightTokens.length < 2) return false;
+
+  const [leftFirst, ...leftRest] = leftTokens;
+  const [rightFirst, ...rightRest] = rightTokens;
+  const firstNamesMatch =
+    leftFirst === rightFirst ||
+    (leftFirst.length === 1 && rightFirst.startsWith(leftFirst)) ||
+    (rightFirst.length === 1 && leftFirst.startsWith(rightFirst));
+  if (!firstNamesMatch) return false;
+
+  return (
+    isMeaningfulTokenSubsequence(leftRest, rightRest) ||
+    isMeaningfulTokenSubsequence(rightRest, leftRest)
+  );
+}
+
+function isMeaningfulTokenSubsequence(
+  possibleSubset: string[],
+  possibleSuperset: string[]
+) {
+  if (
+    possibleSubset.length === 0 ||
+    !possibleSubset.some((token) => token.length > 1)
+  ) {
+    return false;
+  }
+
+  let subsetIndex = 0;
+  for (const token of possibleSuperset) {
+    if (token === possibleSubset[subsetIndex]) subsetIndex += 1;
+    if (subsetIndex === possibleSubset.length) return true;
+  }
+  return false;
 }
 
 async function createLead(

@@ -167,6 +167,25 @@ test("matches the same compatible name, email, and phone", async () => {
   assert.equal(store.leads.length, 1);
 });
 
+test("canonical persistence does not infer a name variation from shared contacts", async () => {
+  const { store, resolver } = setupResolver();
+  const existing = store.seed({
+    name: "María Elena Rivera Santiago",
+    emailOriginal: "maria@example.com",
+    phoneOriginal: "787-555-1234",
+  });
+
+  const result = await resolver.resolveOrCreate({
+    name: "Maria Rivera",
+    email: "maria@example.com",
+    phone: "787-555-1234",
+  });
+
+  assert.equal(result.outcome, "conflict_created");
+  assert.notEqual(result.lead.id, existing.id);
+  assert.equal(store.leads.length, 2);
+});
+
 test("matches email-only when exactly one compatible-name candidate exists", async () => {
   const { store, resolver } = setupResolver();
   const existing = store.seed({
