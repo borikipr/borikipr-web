@@ -5,7 +5,7 @@ import { GoogleAnalytics } from "@next/third-parties/google";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { isAdminAnalyticsPath } from "@/lib/analytics-routes";
+import { shouldExcludeAnalyticsPath } from "@/lib/analytics-routes";
 
 const isProduction = process.env.NODE_ENV === "production";
 const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
@@ -13,13 +13,13 @@ const clarityProjectId = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID;
 
 export default function AnalyticsScripts() {
   const pathname = usePathname();
-  const isAdminRoute = isAdminAnalyticsPath(pathname);
+  const excludeAnalytics = shouldExcludeAnalyticsPath(pathname);
 
   useEffect(() => {
     if (!gaMeasurementId || typeof window === "undefined") return;
 
-    window[`ga-disable-${gaMeasurementId}`] = isAdminRoute;
-  }, [isAdminRoute]);
+    window[`ga-disable-${gaMeasurementId}`] = excludeAnalytics;
+  }, [excludeAnalytics]);
 
   if (!isProduction) {
     return null;
@@ -27,9 +27,9 @@ export default function AnalyticsScripts() {
 
   return (
     <>
-      {gaMeasurementId && !isAdminRoute && <GoogleAnalytics gaId={gaMeasurementId} />}
+      {gaMeasurementId && !excludeAnalytics && <GoogleAnalytics gaId={gaMeasurementId} />}
 
-      {clarityProjectId && !isAdminRoute && (
+      {clarityProjectId && !excludeAnalytics && (
         <Script id="microsoft-clarity" strategy="afterInteractive">
           {`
             (function(c,l,a,r,i,t,y){
@@ -43,7 +43,9 @@ export default function AnalyticsScripts() {
 
       <VercelAnalytics
         beforeSend={(event) =>
-          isAdminAnalyticsPath("url" in event ? event.url : pathname) ? null : event
+          shouldExcludeAnalyticsPath("url" in event ? event.url : pathname)
+            ? null
+            : event
         }
       />
     </>

@@ -4,6 +4,7 @@ import { isSafePrivateObjectKey } from "@/lib/r2";
 export const LEAD_DOCUMENT_SOURCE_LABELS = {
   property_buyer_profile: "Perfil comprador de propiedad",
   open_house_registration: "Registro Open House",
+  private_showing_registration: "Visita privada",
 } as const;
 
 export const LEAD_DOCUMENT_CATEGORY_LABELS = {
@@ -63,7 +64,10 @@ export function isPreviewableDocumentType(contentType: string | null) {
 function category(value: string | null, source: LeadDocumentSource): LeadDocumentCategory {
   if (value === "prequalification_letter") return "prequalification_letter";
   if (value === "proof_of_funds") return "proof_of_funds";
-  return source === "open_house_registration" ? "open_house_document" : "buyer_document";
+  return source === "open_house_registration" ||
+    source === "private_showing_registration"
+    ? "open_house_document"
+    : "buyer_document";
 }
 
 export function deriveLeadDocumentState(input: {
@@ -140,7 +144,11 @@ export function buildLead360DocumentsQuery(leadId: string): SqlQuery {
 
       SELECT
         cp.id::text,
-        'open_house_registration'::text,
+        CASE
+          WHEN cp.workflow_source = 'private_showing'
+            THEN 'private_showing_registration'
+          ELSE 'open_house_registration'
+        END::text,
         CASE
           WHEN cp.carta_precalificacion_key IS NOT NULL OR cp.carta_precalificacion_url IS NOT NULL
             THEN 'prequalification_letter'
@@ -212,7 +220,11 @@ export function buildLeadDocumentAccessQuery(
   return {
     text: `SELECT
       cp.id::text AS submission_id,
-      'open_house_registration'::text AS source_type,
+      CASE
+        WHEN cp.workflow_source = 'private_showing'
+          THEN 'private_showing_registration'
+        ELSE 'open_house_registration'
+      END::text AS source_type,
       CASE WHEN cp.carta_precalificacion_key IS NOT NULL THEN 'prequalification_letter'
            WHEN cp.evidencia_fondos_key IS NOT NULL THEN 'proof_of_funds'
            ELSE NULL END AS document_type,
@@ -227,9 +239,17 @@ export function buildLeadDocumentAccessQuery(
       cp.reused_property_buyer_profile_id IS NOT NULL AS reused_from_buyer_profile
     FROM public.consultas_propiedad cp
     INNER JOIN public.propiedades p ON p.id = cp.propiedad_id
-    WHERE cp.id = $2::uuid AND cp.lead_id = $1::uuid
+    WHERE cp.id = $2::uuid
+      AND cp.lead_id = $1::uuid
+      AND cp.workflow_source = $3
     LIMIT 1`,
-    values: [leadId, submissionId],
+    values: [
+      leadId,
+      submissionId,
+      source === "private_showing_registration"
+        ? "private_showing"
+        : "open_house",
+    ],
   };
 }
 

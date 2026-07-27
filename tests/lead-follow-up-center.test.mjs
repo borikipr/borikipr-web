@@ -71,7 +71,9 @@ before(async () => {
     );
     CREATE TABLE public.consultas_propiedad (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(), lead_id uuid NULL REFERENCES public.leads(id),
-      propiedad_id uuid NOT NULL REFERENCES public.propiedades(id), created_at timestamptz NOT NULL DEFAULT now()
+      propiedad_id uuid NOT NULL REFERENCES public.propiedades(id),
+      workflow_source text NOT NULL DEFAULT 'open_house',
+      created_at timestamptz NOT NULL DEFAULT now()
     );
   `);
   await db.exec(typedSql);

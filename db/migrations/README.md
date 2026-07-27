@@ -20,7 +20,7 @@ applies migrations to a remote database.
 Each migration file must include a matching rollback file. Rollbacks are
 manual review artifacts, not automatic deployment behavior.
 
-Migrations are validated in order through `0015`. The validator creates only
+Migrations are validated in order through `0016`. The validator creates only
 ephemeral local fixtures for the pre-existing `propiedades`,
 `consultas_propiedad`, Priority Registration, and email queue structures needed
 to exercise the reviewed foreign keys and rollback behavior. It verifies each
@@ -103,3 +103,11 @@ Migration `0015` adds the independent
 does not copy or change `placas_en_lease`, and therefore leaves the existing
 Buyer Profile configuration and historical Open House answers untouched. Its
 rollback refuses to discard an enabled Open House configuration.
+
+Migration `0016` adds one permanent, unique, high-entropy private Showing token
+to every property and an explicit `workflow_source` discriminator to the
+existing `consultas_propiedad` model. Historical rows remain `open_house`;
+private registrations use `private_showing` and persist only a sanitized source
+path without the raw token. The token is retrievable only through the
+authenticated, on-demand Admin action. Its rollback refuses to discard any
+private Showing registration.

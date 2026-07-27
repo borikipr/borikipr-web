@@ -210,7 +210,11 @@ export function buildLead360InteractionsQuery(leadId: string): SqlQuery {
 
       SELECT
         cp.id::text,
-        'open_house_registration'::text,
+        CASE
+          WHEN cp.workflow_source = 'private_showing'
+            THEN 'private_showing_registration'
+          ELSE 'open_house_registration'
+        END::text,
         cp.created_at,
         cp.propiedad_id::text,
         p.titulo,
@@ -226,6 +230,8 @@ export function buildLead360InteractionsQuery(leadId: string): SqlQuery {
           'visit_availability', cp.disponibilidad_visita,
           'showing_at', cp.showing_at,
           'showing_event_key', cp.showing_event_key,
+          'prequalification_document_status', cp.carta_precalificacion_status,
+          'proof_of_funds_status', cp.evidencia_fondos_status,
           'custom_answers', cp.respuestas_personalizadas - 'document_metadata'
         ))
       FROM public.consultas_propiedad cp

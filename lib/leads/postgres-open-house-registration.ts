@@ -5,11 +5,13 @@ import { createPostgresLeadResolverInTransaction } from "./postgres-resolver";
 import {
   buildOpenHouseDocumentObjectKey,
   buildOpenHouseShowingEventKey,
+  buildPrivateShowingDocumentObjectKey,
   type CanonicalOpenHouseProperty,
   OpenHouseValidationError,
   type OpenHouseDocumentStatus,
   type ParsedOpenHouseRegistration,
   validateOpenHouseForProperty,
+  validatePrivateShowingForProperty,
 } from "./open-house-registration";
 import type { ReusableFinancialDocument } from "./financial-document-reuse";
 
@@ -24,6 +26,7 @@ type PropertyRow = {
   showing_at: Date | string | null;
   requiere_precalificacion: boolean | null;
   open_house_solar_question_enabled: boolean;
+  private_showing_token: string;
   pregunta_personalizada: string | null;
   pregunta_personalizada_requerida: boolean;
 };
@@ -34,8 +37,9 @@ type RegistrationRow = {
   propiedad_id: string;
   property_slug: string;
   property_title: string;
-  showing_at: Date | string;
-  showing_event_key: string;
+  workflow_source: "open_house" | "private_showing";
+  showing_at: Date | string | null;
+  showing_event_key: string | null;
   nombre: string;
   telefono: string;
   email: string | null;
@@ -44,7 +48,7 @@ type RegistrationRow = {
   trabajando_con_corredor: "Sí" | "No";
   nombre_corredor: string | null;
   telefono_corredor: string | null;
-  disponibilidad_visita: string;
+  disponibilidad_visita: string | null;
   respuestas_personalizadas: OpenHouseAnswers | null;
   carta_precalificacion_key: string | null;
   carta_precalificacion_status: OpenHouseDocumentStatus;
@@ -67,6 +71,7 @@ type OpenHouseAnswers = {
 };
 
 export type PersistedOpenHouseRegistration = {
+  workflow: "open_house" | "private_showing";
   id: string;
   leadId: string;
   created: boolean;
@@ -75,14 +80,14 @@ export type PersistedOpenHouseRegistration = {
     slug: string;
     title: string;
   };
-  showingAt: Date;
-  showingEventKey: string;
+  showingAt: Date | null;
+  showingEventKey: string | null;
   name: string;
   phone: string;
   email: string | null;
   purchaseMethod: "Financiamiento" | "Cash" | "Otro";
   purchaseMethodOther: string | null;
-  attendanceAvailability: string;
+  attendanceAvailability: string | null;
   closingFunds: string | null;
   workingWithBroker: "Sí" | "No";
   brokerName: string | null;
@@ -115,6 +120,20 @@ export async function persistOpenHouseRegistration(
   input: ParsedOpenHouseRegistration,
   options: { reusableDocument?: ReusableFinancialDocument | null } = {}
 ): Promise<PersistedOpenHouseRegistration> {
+  return persistBuyerVisitRegistration(input, options);
+}
+
+export async function persistPrivateShowingRegistration(
+  input: ParsedOpenHouseRegistration,
+  options: { reusableDocument?: ReusableFinancialDocument | null } = {}
+): Promise<PersistedOpenHouseRegistration> {
+  return persistBuyerVisitRegistration(input, options);
+}
+
+async function persistBuyerVisitRegistration(
+  input: ParsedOpenHouseRegistration,
+  options: { reusableDocument?: ReusableFinancialDocument | null } = {}
+): Promise<PersistedOpenHouseRegistration> {
   try {
     const result = await sql.begin(async (transaction) => {
       const existing = await findByIdempotencyKey(
@@ -135,6 +154,7 @@ export async function persistOpenHouseRegistration(
            fecha_showing AT TIME ZONE 'America/Puerto_Rico' AS showing_at,
            requiere_precalificacion,
            open_house_solar_question_enabled,
+           private_showing_token,
            pregunta_personalizada,
            COALESCE(
              configuracion_formulario->>'pregunta_personalizada_requerida' = 'true',
@@ -170,26 +190,41 @@ export async function persistOpenHouseRegistration(
             input.purchaseMethod
           )
         : null;
-      validateOpenHouseForProperty(
-        input,
-        property,
-        new Date(),
-        Boolean(reusableDocument)
-      );
+      if (input.workflow === "private_showing") {
+        validatePrivateShowingForProperty(
+          input,
+          property,
+          Boolean(reusableDocument)
+        );
+      } else {
+        validateOpenHouseForProperty(
+          input,
+          property,
+          new Date(),
+          Boolean(reusableDocument)
+        );
+      }
 
       const registrationId = randomUUID();
-      const showingAt = property.showingAt!;
-      const showingEventKey = buildOpenHouseShowingEventKey(
-        property.id,
-        showingAt
-      );
+      const showingAt =
+        input.workflow === "open_house" ? property.showingAt! : null;
+      const showingEventKey =
+        input.workflow === "open_house" && showingAt
+          ? buildOpenHouseShowingEventKey(property.id, showingAt)
+          : null;
       const uploadedObjectKey =
         input.documentKind && input.documentExtension
-          ? buildOpenHouseDocumentObjectKey(
-              registrationId,
-              input.documentKind,
-              input.documentExtension
-            )
+          ? input.workflow === "private_showing"
+            ? buildPrivateShowingDocumentObjectKey(
+                registrationId,
+                input.documentKind,
+                input.documentExtension
+              )
+            : buildOpenHouseDocumentObjectKey(
+                registrationId,
+                input.documentKind,
+                input.documentExtension
+              )
           : null;
       const effectiveDocumentType =
         input.documentKind || reusableDocument?.documentType || null;
@@ -209,7 +244,8 @@ export async function persistOpenHouseRegistration(
         pregunta_personalizada: null,
         respuesta_personalizada: null,
         purchase_method_other: input.purchaseMethodOther,
-        solar_contract_acceptance: property.hasSolarLease
+        solar_contract_acceptance:
+          input.workflow === "open_house" && property.hasSolarLease
           ? input.solarContractAcceptance
           : null,
         document_metadata:
@@ -233,6 +269,7 @@ export async function persistOpenHouseRegistration(
            lead_id,
            idempotency_key,
            source_path,
+           workflow_source,
            showing_at,
            showing_event_key,
            nombre,
@@ -251,16 +288,17 @@ export async function persistOpenHouseRegistration(
            evidencia_fondos_status,
            reused_property_buyer_profile_id
          ) VALUES (
-           $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6::timestamptz,
-           $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb,
-           $18, $19, $20, $21, $22::uuid
+           $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7::timestamptz,
+           $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb,
+           $19, $20, $21, $22, $23::uuid
          )
          RETURNING
            id::text,
            lead_id::text,
            propiedad_id::text,
-           $23::text AS property_slug,
-           $24::text AS property_title,
+           $24::text AS property_slug,
+           $25::text AS property_title,
+           workflow_source,
            showing_at,
            showing_event_key,
            nombre,
@@ -283,8 +321,11 @@ export async function persistOpenHouseRegistration(
           property.id,
           resolved.lead.id,
           input.idempotencyKey,
-          `/listados/${property.slug}/registro-openhouse`,
-          showingAt.toISOString(),
+          input.workflow === "private_showing"
+            ? `/listados/${property.slug}/visita`
+            : `/listados/${property.slug}/registro-openhouse`,
+          input.workflow,
+          showingAt?.toISOString() || null,
           showingEventKey,
           input.name,
           input.phone,
@@ -374,6 +415,7 @@ const registrationLookupSql = `SELECT
    registration.propiedad_id::text,
    property.slug AS property_slug,
    property.titulo AS property_title,
+   registration.workflow_source,
    registration.showing_at,
    registration.showing_event_key,
    registration.nombre,
@@ -408,6 +450,7 @@ function mapProperty(row: PropertyRow): CanonicalOpenHouseProperty {
     showingAt: row.showing_at ? new Date(row.showing_at) : null,
     requiresPrequalification: row.requiere_precalificacion === true,
     hasSolarLease: row.open_house_solar_question_enabled === true,
+    privateShowingToken: row.private_showing_token,
   };
 }
 
@@ -416,6 +459,7 @@ function mapRegistration(
   created: boolean
 ): PersistedOpenHouseRegistration {
   return {
+    workflow: row.workflow_source,
     id: row.id,
     leadId: row.lead_id,
     created,
@@ -424,7 +468,7 @@ function mapRegistration(
       slug: row.property_slug,
       title: row.property_title,
     },
-    showingAt: new Date(row.showing_at),
+    showingAt: row.showing_at ? new Date(row.showing_at) : null,
     showingEventKey: row.showing_event_key,
     name: row.nombre,
     phone: row.telefono,

@@ -30,6 +30,59 @@ export default function PropiedadRowActions({
 }: Props) {
   const [isPending, startTransition] = useTransition();
   const [confirmandoBorrado, setConfirmandoBorrado] = useState(false);
+  const [showPrivateLink, setShowPrivateLink] = useState(false);
+  const [privateLink, setPrivateLink] = useState("");
+  const [privateLinkError, setPrivateLinkError] = useState("");
+  const [privateLinkPending, setPrivateLinkPending] = useState(false);
+
+  const loadPrivateLink = async () => {
+    setShowPrivateLink(true);
+    if (privateLink) return;
+    setPrivateLinkPending(true);
+    setPrivateLinkError("");
+    try {
+      const response = await fetch(
+        `/api/admin/propiedades/${id}/private-showing-link`,
+        { cache: "no-store" }
+      );
+      const result = (await response.json()) as { ok?: boolean; url?: string };
+      if (!response.ok || !result.url) throw new Error("link_unavailable");
+      setPrivateLink(result.url);
+    } catch {
+      setPrivateLinkError("No se pudo obtener el enlace privado.");
+    } finally {
+      setPrivateLinkPending(false);
+    }
+  };
+
+  const regeneratePrivateLink = async () => {
+    if (
+      !window.confirm(
+        "El enlace anterior dejará de funcionar inmediatamente. ¿Deseas regenerarlo?"
+      )
+    ) {
+      return;
+    }
+    setPrivateLinkPending(true);
+    setPrivateLinkError("");
+    try {
+      const response = await fetch(
+        `/api/admin/propiedades/${id}/private-showing-link`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ confirmation: "REGENERAR" }),
+        }
+      );
+      const result = (await response.json()) as { ok?: boolean; url?: string };
+      if (!response.ok || !result.url) throw new Error("regeneration_failed");
+      setPrivateLink(result.url);
+    } catch {
+      setPrivateLinkError("No se pudo regenerar el enlace privado.");
+    } finally {
+      setPrivateLinkPending(false);
+    }
+  };
 
   const handleEstadoChange = (nextEstado: string) => {
     const formData = new FormData();
@@ -122,6 +175,66 @@ export default function PropiedadRowActions({
           </svg>
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={() => void loadPrivateLink()}
+        className="text-left text-sm font-medium text-[#11518b] transition hover:text-[#0d406d]"
+      >
+        Enlace privado de visita
+      </button>
+
+      {showPrivateLink && (
+        <div className="space-y-3 rounded-2xl border border-[#d9d9d9] bg-[#f8f8f8] p-3">
+          {privateLinkPending && (
+            <p className="text-xs text-[#4d4d4d]">Preparando enlace...</p>
+          )}
+          {privateLink && (
+            <>
+              <p className="break-words text-xs text-[#4d4d4d]">
+                Enlace permanente disponible
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void navigator.clipboard.writeText(privateLink)}
+                  className="rounded-full bg-[#11518b] px-3 py-2 text-xs font-semibold text-white"
+                >
+                  Copiar enlace
+                </button>
+                <a
+                  href={privateLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-full border border-[#11518b] px-3 py-2 text-xs font-semibold text-[#11518b]"
+                >
+                  Abrir formulario
+                </a>
+              </div>
+              <button
+                type="button"
+                disabled={privateLinkPending}
+                onClick={() => void regeneratePrivateLink()}
+                className="text-xs font-semibold text-red-700 disabled:opacity-60"
+              >
+                Regenerar enlace privado
+              </button>
+            </>
+          )}
+          {privateLinkError && (
+            <p role="alert" className="text-xs text-red-700">
+              {privateLinkError}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowPrivateLink(false)}
+            className="block text-xs font-medium text-[#4d4d4d]"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
 
       <select
         defaultValue={estadoActual}

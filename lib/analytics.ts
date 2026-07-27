@@ -1,6 +1,6 @@
 "use client";
 
-import { isAdminAnalyticsPath } from "@/lib/analytics-routes";
+import { shouldExcludeAnalyticsPath } from "@/lib/analytics-routes";
 
 type AnalyticsValue = string | number | boolean | null | undefined;
 type AnalyticsParams = Record<string, AnalyticsValue>;
@@ -37,7 +37,7 @@ export function trackAnalyticsEvent(
   if (
     !isProduction ||
     typeof window === "undefined" ||
-    isAdminAnalyticsPath(window.location.pathname) ||
+    shouldExcludeAnalyticsPath(window.location.pathname) ||
     !isSafeEventName(eventName)
   ) {
     return;

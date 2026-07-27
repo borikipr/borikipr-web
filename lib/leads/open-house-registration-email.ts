@@ -28,14 +28,24 @@ export function buildOpenHouseInternalEmail({
         registration.solarContractAcceptance === "yes" ? "Sí" : "No"
       )
     : "";
+  const isPrivateShowing = registration.workflow === "private_showing";
+  const workflowTitle = isPrivateShowing
+    ? "Nuevo registro de visita privada"
+    : "Nuevo registro de Open House";
+  const eventDetails = isPrivateShowing
+    ? ""
+    : `<p style="margin:0 0 12px"><strong>Fecha:</strong> ${escapeHtml(formatPuertoRicoDate(registration.showingAt!))}</p>`;
+  const attendance = isPrivateShowing
+    ? ""
+    : detailRow("Disponibilidad", registration.attendanceAvailability);
 
   return {
-    subject: `Nuevo registro de Open House - ${registration.property.title}`,
+    subject: `${workflowTitle} - ${registration.property.title}`,
     html: emailShell(
-      "Nuevo registro de Open House",
-      `<h3 style="margin:0 0 12px">Propiedad y evento</h3>
+      workflowTitle,
+      `<h3 style="margin:0 0 12px">${isPrivateShowing ? "Propiedad y visita" : "Propiedad y evento"}</h3>
        <p style="margin:0 0 12px"><strong>Propiedad:</strong> ${escapeHtml(registration.property.title)}</p>
-       <p style="margin:0 0 12px"><strong>Fecha:</strong> ${escapeHtml(formatPuertoRicoDate(registration.showingAt))}</p>
+       ${eventDetails}
        <p style="margin:0 0 20px"><strong>Enlace:</strong> <a href="${escapeHtml(propertyUrl)}">${escapeHtml(propertyUrl)}</a></p>
        <h3 style="margin:0 0 12px">Contacto</h3>
        ${detailRow("Nombre", registration.name)}
@@ -44,7 +54,7 @@ export function buildOpenHouseInternalEmail({
        <h3 style="margin:0 0 12px">Perfil</h3>
        <p style="margin:0 0 12px"><strong>Método de compra:</strong> ${escapeHtml(registration.purchaseMethod)}</p>
        ${purchaseMethodOther}
-       <p style="margin:0 0 12px"><strong>Disponibilidad:</strong> ${escapeHtml(registration.attendanceAvailability)}</p>
+       ${attendance}
        ${detailRow("Fondos de cierre", registration.closingFunds)}
        ${solarAnswer}
        <p style="margin:0 0 12px"><strong>Trabaja con corredor:</strong> ${escapeHtml(registration.workingWithBroker)}</p>

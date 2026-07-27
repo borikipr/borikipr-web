@@ -20,16 +20,20 @@ type ReuseState =
   | "error";
 
 export default function PerfilCompradorPropiedadForm({
+  workflow,
   propiedadId,
   propiedadSlug,
   showingAt,
+  privateToken,
   requiresSolarContractAcceptance,
   r2Configured,
 }: {
+  workflow: "open_house" | "private_showing";
   propiedadId: string;
   propiedadSlug: string;
-  showingAt: string;
-  requiresSolarContractAcceptance: boolean;
+  showingAt?: string;
+  privateToken?: string;
+  requiresSolarContractAcceptance?: boolean;
   r2Configured: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -63,7 +67,11 @@ export default function PerfilCompradorPropiedadForm({
     formData.set("propiedad_id", propiedadId);
     formData.set("propertyId", propiedadId);
     formData.set("propertySlug", propiedadSlug);
-    formData.set("showingAt", showingAt);
+    if (workflow === "open_house") {
+      formData.set("showingAt", showingAt || "");
+    } else {
+      formData.set("privateToken", privateToken || "");
+    }
     formData.set("idempotencyKey", idempotencyKey || crypto.randomUUID());
 
     const requiresFinancialDocument =
@@ -114,10 +122,15 @@ export default function PerfilCompradorPropiedadForm({
     }
 
     try {
-      const response = await fetch("/api/consultas-propiedad", {
+      const response = await fetch(
+        workflow === "private_showing"
+          ? "/api/private-showing-registration"
+          : "/api/consultas-propiedad",
+        {
         method: "POST",
         body: formData,
-      });
+        }
+      );
       const result = await response.json();
 
       if (!response.ok) {
@@ -125,15 +138,24 @@ export default function PerfilCompradorPropiedadForm({
       }
 
       const cartaFile = formData.get("carta_precalificacion");
-      trackAnalyticsEvent("property_showing_profile_submit_success", {
+      trackAnalyticsEvent(
+        workflow === "private_showing"
+          ? "private_showing_form_submit_success"
+          : "property_showing_profile_submit_success",
+        {
         property_id: propiedadId,
         property_slug: propiedadSlug,
         metodo_compra: metodoCompra,
         has_prequalification_upload:
           cartaFile instanceof File && cartaFile.size > 0,
-      });
+        }
+      );
 
-      setMessage("Gracias. Tu asistencia quedó confirmada correctamente.");
+      setMessage(
+        workflow === "private_showing"
+          ? "Gracias. Tu visita quedó registrada correctamente."
+          : "Gracias. Tu asistencia quedó confirmada correctamente."
+      );
       formRef.current?.reset();
       setMetodoCompra("");
       setTrabajaCorredor("");
@@ -278,7 +300,7 @@ export default function PerfilCompradorPropiedadForm({
           onBlur={() => void checkReusableDocument()}
         />
         <Field
-          label="Correo electrónico"
+          label="Email"
           name="email"
           type="email"
           onInput={invalidateDocumentReuse}
@@ -353,11 +375,13 @@ export default function PerfilCompradorPropiedadForm({
         />
       )}
 
-      <RadioGroup
-        legend="¿Podrá asistir al Open House en la fecha y hora indicadas?"
-        name="disponibilidad_visita"
-        options={["Sí", "No"]}
-      />
+      {workflow === "open_house" && (
+        <RadioGroup
+          legend="¿Podrá asistir al Open House en la fecha y hora indicadas?"
+          name="disponibilidad_visita"
+          options={["Sí", "No"]}
+        />
+      )}
 
       <RadioGroup
         legend="¿Cuenta con fondos para el pronto y los gastos de cierre?"
@@ -407,7 +431,7 @@ export default function PerfilCompradorPropiedadForm({
         )}
       </div>
 
-      {requiresSolarContractAcceptance && (
+      {workflow === "open_house" && requiresSolarContractAcceptance && (
         <RadioGroup
           legend="Esta propiedad tiene placas solares con contrato o leasing vigente. ¿Estaría dispuesto(a) a asumir ese contrato o leasing como parte de la compra?"
           name="solarContractAcceptance"
@@ -435,7 +459,11 @@ export default function PerfilCompradorPropiedadForm({
         disabled={pending}
         className="btn-primary w-full justify-center py-3.5 disabled:opacity-60"
       >
-        {pending ? "Enviando..." : "Confirmar asistencia"}
+        {pending
+          ? "Enviando..."
+          : workflow === "private_showing"
+            ? "Registrar visita"
+            : "Confirmar asistencia"}
       </button>
     </form>
   );

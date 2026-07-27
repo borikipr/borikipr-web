@@ -4,6 +4,7 @@ import {
 } from "./property-buyer-profile-queue-attachment";
 
 export const OPEN_HOUSE_SUBMISSION_TYPE = "open_house_registration";
+export const PRIVATE_SHOWING_SUBMISSION_TYPE = "private_showing_registration";
 
 export type OpenHouseAttachmentMetadata = {
   objectKey: string | null;
@@ -31,8 +32,12 @@ export async function resolveOpenHouseInternalAttachment({
   ) => Promise<{ bytes: Uint8Array; contentType: string | null }>;
 }): Promise<EmailAttachment[] | undefined> {
   if (
-    emailType !== "open_house_registration_internal" ||
-    relatedSubmissionType !== OPEN_HOUSE_SUBMISSION_TYPE ||
+    !(
+      (emailType === "open_house_registration_internal" &&
+        relatedSubmissionType === OPEN_HOUSE_SUBMISSION_TYPE) ||
+      (emailType === "private_showing_registration_internal" &&
+        relatedSubmissionType === PRIVATE_SHOWING_SUBMISSION_TYPE)
+    ) ||
     !relatedSubmissionId
   ) {
     return undefined;

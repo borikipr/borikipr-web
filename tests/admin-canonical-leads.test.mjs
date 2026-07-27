@@ -90,6 +90,7 @@ before(async () => {
       created_at timestamp without time zone NULL DEFAULT CURRENT_TIMESTAMP,
       carta_precalificacion_key text NULL,
       reused_property_buyer_profile_id uuid NULL,
+      workflow_source text NOT NULL DEFAULT 'open_house',
       CONSTRAINT consultas_propiedad_propiedad_id_fkey
         FOREIGN KEY (propiedad_id) REFERENCES public.propiedades(id) ON DELETE CASCADE
     );
@@ -186,6 +187,7 @@ test("multiple linked source records do not duplicate a person", async () => {
 test("source badges use the reviewed Spanish labels", () => {
   assert.equal(CANONICAL_LEAD_SOURCE_LABELS.property_buyer_profile, "Perfil comprador de propiedad");
   assert.equal(CANONICAL_LEAD_SOURCE_LABELS.open_house_registration, "Registro Open House");
+  assert.equal(CANONICAL_LEAD_SOURCE_LABELS.private_showing_registration, "Visita privada");
 });
 
 test("Priority Registration is labeled correctly", () => {

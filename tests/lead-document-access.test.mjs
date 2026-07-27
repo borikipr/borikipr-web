@@ -35,6 +35,7 @@ let leadId;
 let otherLeadId;
 let profileId;
 let openHouseId;
+let privateShowingId;
 
 async function run(query) {
   return (await db.query(query.text, query.values)).rows;
@@ -55,6 +56,7 @@ before(async () => {
       carta_precalificacion_key text NULL, evidencia_fondos_key text NULL,
       carta_precalificacion_status text NULL, evidencia_fondos_status text NULL,
       reused_property_buyer_profile_id uuid NULL,
+      workflow_source text NOT NULL DEFAULT 'open_house',
       respuestas_personalizadas jsonb NULL, created_at timestamptz NOT NULL DEFAULT now()
     );
   `);
@@ -87,6 +89,15 @@ before(async () => {
       '{"document_metadata":{"original_name":"Fondos.png","content_type":"image/png","size_bytes":2048}}')
     RETURNING id::text`, [property.rows[0].id, leadId]);
   openHouseId = openHouse.rows[0].id;
+  const privateShowing = await db.query(`INSERT INTO public.consultas_propiedad (
+      propiedad_id, lead_id, metodo_compra, carta_precalificacion_key,
+      carta_precalificacion_status, workflow_source, respuestas_personalizadas
+    ) VALUES ($1::uuid, $2::uuid, 'Financiamiento',
+      'private/private-showing/prequalification.pdf', 'uploaded',
+      'private_showing',
+      '{"document_metadata":{"original_name":"Precalificación.pdf","content_type":"application/pdf","size_bytes":1024}}')
+    RETURNING id::text`, [property.rows[0].id, leadId]);
+  privateShowingId = privateShowing.rows[0].id;
 });
 
 after(async () => db.close());
@@ -103,6 +114,39 @@ test("Lead 360 lists Open House documents", async () => {
   const document = mapLeadDocumentRow(rows.find((row) => row.source_type === "open_house_registration"));
   assert.equal(document.categoryLabel, "Evidencia de fondos");
   assert.equal(document.propertyTitle, "Propiedad sintética");
+});
+
+test("Lead 360 lists Private Showing documents with distinct ownership source", async () => {
+  const rows = await run(buildLead360DocumentsQuery(leadId));
+  const document = mapLeadDocumentRow(
+    rows.find((row) => row.source_type === "private_showing_registration")
+  );
+  assert.equal(document.sourceLabel, "Visita privada");
+  assert.equal(document.categoryLabel, "Carta de precalificación");
+  assert.equal(
+    (
+      await run(
+        buildLeadDocumentAccessQuery(
+          leadId,
+          "private_showing_registration",
+          privateShowingId
+        )
+      )
+    ).length,
+    1
+  );
+  assert.equal(
+    (
+      await run(
+        buildLeadDocumentAccessQuery(
+          otherLeadId,
+          "private_showing_registration",
+          privateShowingId
+        )
+      )
+    ).length,
+    0
+  );
 });
 
 test("original filename and human-readable size are preserved for display", async () => {

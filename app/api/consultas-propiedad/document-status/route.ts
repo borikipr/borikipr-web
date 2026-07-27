@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   const rateLimit = checkRateLimit({
-    key: `open-house-document-status:${getClientIp(request)}`,
+    key: `buyer-visit-document-status:${getClientIp(request)}`,
     limit: 10,
     windowMs: 10 * 60 * 1000,
   });
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
       typeof error === "object" && error !== null && "code" in error
         ? String(error.code)
         : undefined;
-    console.error("OPEN HOUSE DOCUMENT STATUS", { code });
+    console.error("BUYER VISIT DOCUMENT STATUS", { code });
     return Response.json(
       { ok: false, reusable: false },
       { status: 503 }

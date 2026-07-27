@@ -32,16 +32,18 @@ export type OpenHouseDocumentStatus =
   | "failed";
 
 export type ParsedOpenHouseRegistration = {
+  workflow: "open_house" | "private_showing";
+  privateToken: string | null;
   idempotencyKey: string;
   propertyId: string;
   propertySlug: string;
-  submittedShowingAt: Date;
+  submittedShowingAt: Date | null;
   name: string;
   phone: string;
   email: string | null;
   purchaseMethod: "Financiamiento" | "Cash" | "Otro";
   purchaseMethodOther: string | null;
-  attendanceAvailability: string;
+  attendanceAvailability: string | null;
   closingFunds: "Sí" | "Parcialmente" | "Aún no";
   workingWithBroker: "Sí" | "No";
   brokerName: string | null;
@@ -65,6 +67,7 @@ export type CanonicalOpenHouseProperty = {
   showingAt: Date | null;
   requiresPrequalification: boolean;
   hasSolarLease: boolean;
+  privateShowingToken?: string;
 };
 
 export class OpenHouseValidationError extends Error {
@@ -85,16 +88,34 @@ export function isOpenHousePersistenceEnabled() {
 export function parseOpenHouseRegistrationFormData(
   formData: FormData
 ): ParsedOpenHouseRegistration {
+  return parseBuyerVisitRegistrationFormData(formData, "open_house");
+}
+
+export function parsePrivateShowingRegistrationFormData(
+  formData: FormData
+): ParsedOpenHouseRegistration {
+  return parseBuyerVisitRegistrationFormData(formData, "private_showing");
+}
+
+function parseBuyerVisitRegistrationFormData(
+  formData: FormData,
+  workflow: ParsedOpenHouseRegistration["workflow"]
+): ParsedOpenHouseRegistration {
   const idempotencyKey = getText(formData, "idempotencyKey");
   const propertyId = getText(formData, "propertyId");
   const propertySlug = getText(formData, "propertySlug");
+  const privateToken =
+    workflow === "private_showing" ? getText(formData, "privateToken") : null;
   const showingAtText = getText(formData, "showingAt");
   const name = getText(formData, "nombre");
   const phone = getText(formData, "telefono");
   const email = getText(formData, "email") || null;
   const purchaseMethod = getText(formData, "metodo_compra");
   const purchaseMethodOther = getText(formData, "metodoCompraOtro") || null;
-  const attendanceAvailability = getText(formData, "disponibilidad_visita");
+  const attendanceAvailability =
+    workflow === "open_house"
+      ? getText(formData, "disponibilidad_visita")
+      : null;
   const closingFunds = getText(formData, "fondos_gastos_cierre");
   const workingWithBroker = getText(formData, "trabajando_con_corredor");
   const brokerName = getText(formData, "nombre_corredor") || null;
@@ -109,11 +130,25 @@ export function parseOpenHouseRegistrationFormData(
   if (!SLUG_PATTERN.test(propertySlug) || propertySlug.length > 200) {
     invalid("La propiedad seleccionada no es válida.", "invalid_property_slug");
   }
+  if (
+    workflow === "private_showing" &&
+    (!privateToken || privateToken.length < 43 || privateToken.length > 200)
+  ) {
+    invalid("Este formulario no está disponible.", "invalid_private_token", 404);
+  }
 
-  const submittedShowingAt = parseIsoInstant(showingAtText);
+  const submittedShowingAt =
+    workflow === "open_house" ? parseIsoInstant(showingAtText) : null;
   requireText(name, 200, "nombre");
   requireText(phone, 64, "telefono");
-  requireText(attendanceAvailability, 32, "disponibilidad_visita");
+  if (workflow === "open_house") {
+    requireText(attendanceAvailability, 32, "disponibilidad_visita");
+  } else if (getText(formData, "disponibilidad_visita")) {
+    invalid(
+      "La confirmación de asistencia no aplica a este formulario.",
+      "unexpected_attendance_answer"
+    );
+  }
   requireText(closingFunds, 32, "fondos_gastos_cierre");
   optionalText(purchaseMethodOther, 500, "metodoCompraOtro");
   optionalText(solarContractAcceptance, 16, "solarContractAcceptance");
@@ -149,7 +184,11 @@ export function parseOpenHouseRegistrationFormData(
       "unexpected_purchase_method_other"
     );
   }
-  if (!ATTENDANCE_ANSWERS.has(attendanceAvailability)) {
+  if (
+    workflow === "open_house" &&
+    (!attendanceAvailability ||
+      !ATTENDANCE_ANSWERS.has(attendanceAvailability))
+  ) {
     invalid(
       "Confirma si podrás asistir al Open House.",
       "invalid_attendance_answer"
@@ -215,6 +254,8 @@ export function parseOpenHouseRegistrationFormData(
   }
 
   return {
+    workflow,
+    privateToken,
     idempotencyKey,
     propertyId,
     propertySlug,
@@ -250,6 +291,9 @@ export function validateOpenHouseForProperty(
   now = new Date(),
   hasReusableDocument = false
 ) {
+  if (input.workflow !== "open_house") {
+    invalid("Este formulario no está disponible.", "invalid_workflow");
+  }
   if (property.id !== input.propertyId || property.slug !== input.propertySlug) {
     invalid("La propiedad seleccionada cambió. Recarga la página.", "property_identity_mismatch");
   }
@@ -262,7 +306,7 @@ export function validateOpenHouseForProperty(
   if (!property.showingFormActive) {
     invalid("Este formulario de showing no está activo.", "inactive_showing", 403);
   }
-  if (!property.showingAt) {
+  if (!property.showingAt || !input.submittedShowingAt) {
     invalid("La fecha del showing no está disponible.", "missing_showing_date", 403);
   }
   if (property.showingAt.getTime() <= now.getTime()) {
@@ -271,6 +315,88 @@ export function validateOpenHouseForProperty(
   if (property.showingAt.getTime() !== input.submittedShowingAt.getTime()) {
     invalid("La fecha del showing cambió. Recarga la página.", "showing_mismatch");
   }
+  validateRequiredFinancialDocument(input, hasReusableDocument);
+  if (property.hasSolarLease) {
+    if (
+      !input.solarContractAcceptance ||
+      !SOLAR_ANSWERS.has(input.solarContractAcceptance)
+    ) {
+      invalid(
+        "Selecciona una respuesta válida sobre el contrato o leasing de las placas solares.",
+        "invalid_solar_answer"
+      );
+    }
+  } else if (input.solarContractAcceptance) {
+    invalid(
+      "La respuesta sobre placas solares no aplica a esta propiedad.",
+      "unexpected_solar_answer"
+    );
+  }
+}
+
+export function validatePrivateShowingForProperty(
+  input: ParsedOpenHouseRegistration,
+  property: CanonicalOpenHouseProperty,
+  hasReusableDocument = false
+) {
+  if (input.workflow !== "private_showing") {
+    invalid("Este formulario no está disponible.", "invalid_workflow", 404);
+  }
+  if (property.id !== input.propertyId || property.slug !== input.propertySlug) {
+    invalid("Este formulario no está disponible.", "property_identity_mismatch", 404);
+  }
+  const publiclyVisible =
+    property.origin === "propio" ||
+    (isCollaborativeOrigin(property.origin) && property.mayPublishOnWeb);
+  if (!publiclyVisible || !PUBLIC_PROPERTY_STATUSES.has(property.status)) {
+    invalid("Este formulario no está disponible.", "property_not_available", 404);
+  }
+  if (
+    !input.privateToken ||
+    !property.privateShowingToken ||
+    !constantTimeTokenEqual(input.privateToken, property.privateShowingToken)
+  ) {
+    invalid("Este formulario no está disponible.", "invalid_private_token", 404);
+  }
+  if (input.attendanceAvailability || input.solarContractAcceptance) {
+    invalid(
+      "Una respuesta enviada no aplica a este formulario.",
+      "unexpected_private_showing_field"
+    );
+  }
+  validateRequiredFinancialDocument(input, hasReusableDocument);
+}
+
+export function buildOpenHouseShowingEventKey(propertyId: string, showingAt: Date) {
+  requireUuid(propertyId, "invalid_property_id");
+  if (Number.isNaN(showingAt.getTime())) throw new Error("Invalid showing instant.");
+  return `open-house:v1:${propertyId}:${showingAt.toISOString()}`;
+}
+
+export function buildOpenHouseDocumentObjectKey(
+  registrationId: string,
+  kind: "prequalification_letter" | "proof_of_funds",
+  extension: string
+) {
+  requireUuid(registrationId, "invalid_registration_id");
+  if (!/^[a-z0-9]+$/.test(extension)) throw new Error("Invalid document extension.");
+  return `lead-documents/open-house-registrations/${registrationId}/${kind}.${extension}`;
+}
+
+export function buildPrivateShowingDocumentObjectKey(
+  registrationId: string,
+  kind: "prequalification_letter" | "proof_of_funds",
+  extension: string
+) {
+  requireUuid(registrationId, "invalid_registration_id");
+  if (!/^[a-z0-9]+$/.test(extension)) throw new Error("Invalid document extension.");
+  return `lead-documents/private-showing-registrations/${registrationId}/${kind}.${extension}`;
+}
+
+function validateRequiredFinancialDocument(
+  input: ParsedOpenHouseRegistration,
+  hasReusableDocument: boolean
+) {
   if (
     input.purchaseMethod === "Financiamiento" &&
     !input.prequalificationFile &&
@@ -291,38 +417,15 @@ export function validateOpenHouseForProperty(
       "missing_required_proof_of_funds"
     );
   }
-  if (property.hasSolarLease) {
-    if (
-      !input.solarContractAcceptance ||
-      !SOLAR_ANSWERS.has(input.solarContractAcceptance)
-    ) {
-      invalid(
-        "Selecciona una respuesta válida sobre el contrato o leasing de las placas solares.",
-        "invalid_solar_answer"
-      );
-    }
-  } else if (input.solarContractAcceptance) {
-    invalid(
-      "La respuesta sobre placas solares no aplica a esta propiedad.",
-      "unexpected_solar_answer"
-    );
+}
+
+function constantTimeTokenEqual(left: string, right: string) {
+  const maxLength = Math.max(left.length, right.length);
+  let difference = left.length ^ right.length;
+  for (let index = 0; index < maxLength; index += 1) {
+    difference |= (left.charCodeAt(index) || 0) ^ (right.charCodeAt(index) || 0);
   }
-}
-
-export function buildOpenHouseShowingEventKey(propertyId: string, showingAt: Date) {
-  requireUuid(propertyId, "invalid_property_id");
-  if (Number.isNaN(showingAt.getTime())) throw new Error("Invalid showing instant.");
-  return `open-house:v1:${propertyId}:${showingAt.toISOString()}`;
-}
-
-export function buildOpenHouseDocumentObjectKey(
-  registrationId: string,
-  kind: "prequalification_letter" | "proof_of_funds",
-  extension: string
-) {
-  requireUuid(registrationId, "invalid_registration_id");
-  if (!/^[a-z0-9]+$/.test(extension)) throw new Error("Invalid document extension.");
-  return `lead-documents/open-house-registrations/${registrationId}/${kind}.${extension}`;
+  return difference === 0;
 }
 
 function parseIsoInstant(value: string) {

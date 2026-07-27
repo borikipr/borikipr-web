@@ -65,6 +65,7 @@ async function setupDatabase() {
       carta_precalificacion_status text NULL,
       evidencia_fondos_key text NULL,
       evidencia_fondos_status text NULL,
+      workflow_source text NOT NULL DEFAULT 'open_house',
       created_at timestamptz NOT NULL DEFAULT now()
     );
     CREATE INDEX consultas_propiedad_lead_created_at_idx

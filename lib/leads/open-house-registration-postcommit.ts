@@ -177,22 +177,27 @@ async function queueInternal({
 }): Promise<QueueState> {
   try {
     const email = buildOpenHouseInternalEmail({ registration, documentStatus: documentState });
+    const isPrivateShowing = registration.workflow === "private_showing";
     if (
       (registration.prequalificationKey || registration.proofOfFundsKey) &&
       documentState !== "uploaded"
     ) {
-      throw new Error("Open House document is not durably available for email delivery.");
+      throw new Error("Buyer visit document is not durably available for email delivery.");
     }
     return await deliver({
       recipient,
       subject: email.subject,
       html: email.html,
-      emailType: "open_house_registration_internal",
+      emailType: isPrivateShowing
+        ? "private_showing_registration_internal"
+        : "open_house_registration_internal",
       relatedPropertyId: registration.property.id,
       canonicalLeadId: registration.leadId,
-      relatedSubmissionType: "open_house_registration",
+      relatedSubmissionType: isPrivateShowing
+        ? "private_showing_registration"
+        : "open_house_registration",
       relatedSubmissionId: registration.id,
-      dedupeKey: `open_house_registration:${registration.id}:internal:v1`,
+      dedupeKey: `${isPrivateShowing ? "private_showing_registration" : "open_house_registration"}:${registration.id}:internal:v1`,
       resolveAttachments: resolveInternalAttachments,
     }, onError);
   } catch (error) {
@@ -208,16 +213,21 @@ async function queueCustomer({ registration, deliver, onError }: {
 }): Promise<QueueState> {
   try {
     const email = buildOpenHouseCustomerEmail(registration);
+    const isPrivateShowing = registration.workflow === "private_showing";
     return await deliver({
       recipient: registration.email!,
       subject: email.subject,
       html: email.html,
-      emailType: "open_house_registration_customer",
+      emailType: isPrivateShowing
+        ? "private_showing_registration_customer"
+        : "open_house_registration_customer",
       relatedPropertyId: registration.property.id,
       canonicalLeadId: registration.leadId,
-      relatedSubmissionType: "open_house_registration",
+      relatedSubmissionType: isPrivateShowing
+        ? "private_showing_registration"
+        : "open_house_registration",
       relatedSubmissionId: registration.id,
-      dedupeKey: `open_house_registration:${registration.id}:customer:v1`,
+      dedupeKey: `${isPrivateShowing ? "private_showing_registration" : "open_house_registration"}:${registration.id}:customer:v1`,
     }, onError);
   } catch (error) {
     onError("permanent_send", error);

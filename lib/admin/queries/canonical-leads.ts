@@ -8,6 +8,7 @@ export const CANONICAL_LEAD_SOURCE_LABELS = {
   buyer_tenant_inquiry: "Comprador / arrendatario",
   seller_landlord_inquiry: "Vendedor / arrendador",
   open_house_registration: "Registro Open House",
+  private_showing_registration: "Visita privada",
 } as const;
 
 export type CanonicalLeadSourceType = keyof typeof CANONICAL_LEAD_SOURCE_LABELS;
@@ -149,7 +150,11 @@ source_records AS (
 
   SELECT
     cp.lead_id,
-    'open_house_registration'::text,
+    CASE
+      WHEN cp.workflow_source = 'private_showing'
+        THEN 'private_showing_registration'
+      ELSE 'open_house_registration'
+    END::text,
     cp.created_at,
     cp.propiedad_id,
     p.titulo,

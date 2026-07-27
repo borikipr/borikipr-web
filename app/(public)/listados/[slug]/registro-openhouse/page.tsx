@@ -149,6 +149,7 @@ export default async function OpenHouseRegistrationPage({
                   </div>
 
                   <PerfilCompradorPropiedadForm
+                    workflow="open_house"
                     propiedadId={propiedad.id}
                     propiedadSlug={propiedad.slug}
                     showingAt={canonicalShowingAt || ""}

@@ -40,6 +40,8 @@ const [
   financialDocumentReuseRollbackSql,
   openHouseSolarQuestionMigrationSql,
   openHouseSolarQuestionRollbackSql,
+  privateShowingMigrationSql,
+  privateShowingRollbackSql,
 ] =
   await Promise.all([
     readMigration("0001_create_leads.sql"),
@@ -71,6 +73,8 @@ const [
     readMigration("0014_link_open_house_reused_financial_documents.rollback.sql"),
     readMigration("0015_separate_open_house_solar_question.sql"),
     readMigration("0015_separate_open_house_solar_question.rollback.sql"),
+    readMigration("0016_add_private_showing_registration.sql"),
+    readMigration("0016_add_private_showing_registration.rollback.sql"),
   ]);
 
 const typedTables = [
@@ -920,6 +924,61 @@ try {
       open_house_solar_question_enabled: true,
     },
   ]);
+  await openHouseDb.exec(privateShowingMigrationSql);
+  const privateShowingColumns = await openHouseDb.query(
+    `SELECT table_name, column_name, data_type, is_nullable, column_default
+       FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND (
+          (table_name = 'propiedades' AND column_name = 'private_showing_token')
+          OR
+          (table_name = 'consultas_propiedad' AND column_name = 'workflow_source')
+        )
+      ORDER BY table_name, column_name`
+  );
+  assert.deepEqual(privateShowingColumns.rows, [
+    {
+      table_name: "consultas_propiedad",
+      column_name: "workflow_source",
+      data_type: "text",
+      is_nullable: "NO",
+      column_default: "'open_house'::text",
+    },
+    {
+      table_name: "propiedades",
+      column_name: "private_showing_token",
+      data_type: "text",
+      is_nullable: "NO",
+      column_default: null,
+    },
+  ]);
+  const privateTokenRows = await openHouseDb.query(
+    `SELECT count(*)::int AS total,
+            count(DISTINCT private_showing_token)::int AS unique_tokens,
+            min(char_length(private_showing_token))::int AS minimum_length
+       FROM public.propiedades`
+  );
+  assert.deepEqual(privateTokenRows.rows, [
+    { total: 1, unique_tokens: 1, minimum_length: 64 },
+  ]);
+  const privateRegistration = await openHouseDb.query(
+    `INSERT INTO public.consultas_propiedad (
+       propiedad_id, nombre, telefono, workflow_source, source_path
+     ) VALUES ($1::uuid, 'Private fixture', '787-555-0111',
+       'private_showing', '/listados/private-fixture/visita')
+     RETURNING workflow_source`,
+    [solarProperty.rows[0].id]
+  );
+  assert.deepEqual(privateRegistration.rows, [
+    { workflow_source: "private_showing" },
+  ]);
+  await assert.rejects(
+    openHouseDb.exec(privateShowingRollbackSql),
+    /private Showing registrations exist/
+  );
+  await openHouseDb.exec("ROLLBACK");
+  await openHouseDb.exec("DELETE FROM public.consultas_propiedad");
+  await openHouseDb.exec(privateShowingRollbackSql);
   await openHouseDb.query(
     `UPDATE public.propiedades
         SET open_house_solar_question_enabled = false
@@ -974,13 +1033,14 @@ try {
   );
   assert.deepEqual(await relationCatalog(openHouseDb, unrelatedTables), unrelatedCatalog);
 
-  console.log("Validated the ordered lead migration chain through 0015 in ephemeral local databases.");
+  console.log("Validated the ordered lead migration chain through 0016 in ephemeral local databases.");
   console.log("Verified 0004 adds eight nullable columns, one RESTRICT FK, nine checks, and five partial indexes.");
   console.log("Verified 0004 rollback restores the original consultas_propiedad catalog only.");
   console.log("Verified 0005 forward and rollback guards reject non-empty tables.");
   console.log("Verified 0005 hardens and restores property FK, nullability, and created_at semantics.");
   console.log("Verified 0014 adds one nullable RESTRICT source FK, one state check, one partial index, and a contained rollback.");
   console.log("Verified 0015 separates Open House solar-question configuration without changing Buyer Profile configuration.");
+  console.log("Verified 0016 adds unique permanent private Showing tokens and distinct workflow persistence.");
 } finally {
   await openHouseDb.close();
 }

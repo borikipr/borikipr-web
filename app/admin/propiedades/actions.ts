@@ -11,6 +11,7 @@ import {
   deliverAvailabilityNotifications,
 } from "@/lib/property-availability-enqueue";
 import { updatePropertyStatusWithAvailabilityQueue } from "@/lib/postgres-property-availability";
+import { generatePrivateShowingToken } from "@/lib/leads/private-showing-token";
 
 export type CreatePropiedadState = {
   error: string;
@@ -265,6 +266,7 @@ export async function createPropiedadAction(
         cantidad_placas,
         placas_en_lease,
         open_house_solar_question_enabled,
+        private_showing_token,
         acepta_cdbg,
         configuracion_formulario
       ) VALUES (
@@ -298,6 +300,7 @@ export async function createPropiedadAction(
         ${cantidadPlacas},
         ${placasEnLease},
         ${openHouseSolarQuestionEnabled},
+        ${generatePrivateShowingToken()},
         ${aceptaCdbg},
         ${sql.json({ notas_compradores: notasCompradores })}
       )

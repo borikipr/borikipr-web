@@ -13,6 +13,23 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: "/listados/:slug/visita/:privateToken",
+        headers: [
+          {
+            key: "Referrer-Policy",
+            value: "no-referrer",
+          },
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow, noarchive",
+          },
+          {
+            key: "Cache-Control",
+            value: "private, no-store",
+          },
+        ],
+      },
+      {
         source: "/:path*",
         headers: [
           {

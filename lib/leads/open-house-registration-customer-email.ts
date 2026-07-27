@@ -7,11 +7,17 @@ export function buildOpenHouseCustomerEmail(
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
     "https://borikipr.com";
   const propertyUrl = `${base}/listados/${registration.property.slug}`;
-  const showingDate = new Intl.DateTimeFormat("es-PR", {
-    dateStyle: "full",
-    timeStyle: "short",
-    timeZone: "America/Puerto_Rico",
-  }).format(registration.showingAt);
+  const isPrivateShowing = registration.workflow === "private_showing";
+  const showingDate = registration.showingAt
+    ? new Intl.DateTimeFormat("es-PR", {
+        dateStyle: "full",
+        timeStyle: "short",
+        timeZone: "America/Puerto_Rico",
+      }).format(registration.showingAt)
+    : null;
+  const confirmationCopy = isPrivateShowing
+    ? "Recibimos correctamente tu registro de visita privada."
+    : "Recibimos tu confirmación de asistencia al Open House.";
 
   return {
     subject: `Confirmación de registro - ${registration.property.title}`,
@@ -22,9 +28,9 @@ export function buildOpenHouseCustomerEmail(
           <p style="margin:6px 0 0;color:rgba(255,255,255,.85);font-size:14px">Erickson Real Estate</p>
         </div>
         <div style="padding:24px">
-          <p style="margin:0 0 16px">Recibimos tu confirmación de asistencia al Open House.</p>
+          <p style="margin:0 0 16px">${confirmationCopy}</p>
           <p style="margin:0 0 12px"><strong>Propiedad:</strong> ${escapeHtml(registration.property.title)}</p>
-          <p style="margin:0 0 12px"><strong>Fecha:</strong> ${escapeHtml(showingDate)}</p>
+          ${showingDate ? `<p style="margin:0 0 12px"><strong>Fecha:</strong> ${escapeHtml(showingDate)}</p>` : ""}
           <p style="margin:0 0 20px"><a href="${escapeHtml(propertyUrl)}">Ver la propiedad</a></p>
           <p style="margin:0">Erickson Real Estate se comunicará contigo si necesita información adicional.</p>
         </div>

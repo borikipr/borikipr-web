@@ -94,6 +94,7 @@ before(async () => {
       carta_precalificacion_status text NULL,
       evidencia_fondos_status text NULL
       ,reused_property_buyer_profile_id uuid NULL
+      ,workflow_source text NOT NULL DEFAULT 'open_house'
     );
     CREATE TABLE public.email_queue (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -167,6 +168,15 @@ before(async () => {
       'Cash', now() + interval '3 days', 'synthetic-open-house', 'none', 'none')
   `, [propertyId, primaryLeadId]);
   await db.query(`
+    INSERT INTO public.consultas_propiedad (
+      propiedad_id, lead_id, nombre, telefono, metodo_compra,
+      workflow_source, source_path, carta_precalificacion_status,
+      evidencia_fondos_status
+    ) VALUES ($1::uuid, $2::uuid, 'Persona Sintética Uno', '787-555-0100',
+      'Otro', 'private_showing', '/listados/propiedad-sintetica/visita',
+      'none', 'none')
+  `, [propertyId, primaryLeadId]);
+  await db.query(`
     INSERT INTO public.email_queue (canonical_lead_id, status, sent_at)
     VALUES ($1::uuid, 'sent', now())
   `, [primaryLeadId]);
@@ -199,7 +209,7 @@ test("Lead 360 migration creates the smallest CRM tables and supporting indexes"
   assert.deepEqual(followUp.rows, [{ data_type: "timestamp with time zone", is_nullable: "YES" }]);
 });
 
-test("one Lead 360 query returns all five persisted source types", async () => {
+test("one Lead 360 query distinguishes all persisted source types", async () => {
   const rows = await run(buildLead360InteractionsQuery(primaryLeadId));
   assert.deepEqual(new Set(rows.map((row) => row.source_type)), new Set([
     "priority_registration",
@@ -207,6 +217,7 @@ test("one Lead 360 query returns all five persisted source types", async () => {
     "buyer_tenant_inquiry",
     "seller_landlord_inquiry",
     "open_house_registration",
+    "private_showing_registration",
   ]));
   assert.ok(rows.every((row) => row.details && typeof row.details === "object"));
 });
