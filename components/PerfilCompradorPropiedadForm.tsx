@@ -12,7 +12,12 @@ const allowedDocumentTypes = new Set([
   "image/webp",
 ]);
 
-type ReuseState = "idle" | "checking" | "available" | "unavailable";
+type ReuseState =
+  | "idle"
+  | "checking"
+  | "available"
+  | "unavailable"
+  | "error";
 
 export default function PerfilCompradorPropiedadForm({
   propiedadId,
@@ -36,9 +41,16 @@ export default function PerfilCompradorPropiedadForm({
   const [idempotencyKey, setIdempotencyKey] = useState("");
   const [documentReuseState, setDocumentReuseState] =
     useState<ReuseState>("idle");
+  const [useNewDocument, setUseNewDocument] = useState(false);
+  const verificationAbortRef = useRef<AbortController | null>(null);
+  const verificationKeyRef = useRef("");
+  const verificationPromiseRef = useRef<Promise<boolean> | null>(null);
+  const verificationResultRef = useRef(false);
+  const verificationRequestRef = useRef(0);
 
   useEffect(() => {
     setIdempotencyKey(crypto.randomUUID());
+    return () => verificationAbortRef.current?.abort();
   }, []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -125,7 +137,7 @@ export default function PerfilCompradorPropiedadForm({
       formRef.current?.reset();
       setMetodoCompra("");
       setTrabajaCorredor("");
-      setDocumentReuseState("idle");
+      invalidateDocumentReuse();
       setIdempotencyKey(crypto.randomUUID());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido.");
@@ -134,12 +146,24 @@ export default function PerfilCompradorPropiedadForm({
     }
   };
 
-  const resetDocumentReuse = () => setDocumentReuseState("idle");
+  function invalidateDocumentReuse() {
+    verificationAbortRef.current?.abort();
+    verificationAbortRef.current = null;
+    verificationRequestRef.current += 1;
+    verificationKeyRef.current = "";
+    verificationPromiseRef.current = null;
+    verificationResultRef.current = false;
+    setDocumentReuseState("idle");
+    setUseNewDocument(false);
+  }
 
-  async function checkReusableDocument(form = formRef.current) {
+  async function checkReusableDocument(
+    form = formRef.current,
+    purchaseMethod = metodoCompra
+  ) {
     if (
       !form ||
-      (metodoCompra !== "Financiamiento" && metodoCompra !== "Cash")
+      (purchaseMethod !== "Financiamiento" && purchaseMethod !== "Cash")
     ) {
       return false;
     }
@@ -147,30 +171,84 @@ export default function PerfilCompradorPropiedadForm({
     const name = String(data.get("nombre") || "").trim();
     const phone = String(data.get("telefono") || "").trim();
     const email = String(data.get("email") || "").trim();
-    if (!name || !phone) {
-      setDocumentReuseState("unavailable");
+    if (!name || (!phone && !email)) {
+      setDocumentReuseState("idle");
       return false;
     }
+
+    const verificationKey = [
+      purchaseMethod,
+      name.toLocaleLowerCase("es"),
+      email.toLowerCase(),
+      phone.replace(/\D/g, ""),
+    ].join("|");
+    if (verificationKeyRef.current === verificationKey) {
+      if (verificationPromiseRef.current) {
+        return verificationPromiseRef.current;
+      }
+      return verificationResultRef.current;
+    }
+
+    verificationAbortRef.current?.abort();
+    const controller = new AbortController();
+    const requestId = verificationRequestRef.current + 1;
+    verificationAbortRef.current = controller;
+    verificationRequestRef.current = requestId;
+    verificationKeyRef.current = verificationKey;
+    verificationResultRef.current = false;
+    setUseNewDocument(false);
     setDocumentReuseState("checking");
-    try {
-      const response = await fetch("/api/consultas-propiedad/document-status", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name,
-          phone,
-          email,
-          purchaseMethod: metodoCompra,
-        }),
-      });
-      const result = await response.json();
-      const reusable = response.ok && result.reusable === true;
-      setDocumentReuseState(reusable ? "available" : "unavailable");
-      return reusable;
-    } catch {
-      setDocumentReuseState("unavailable");
-      return false;
-    }
+
+    const request = (async () => {
+      try {
+        const response = await fetch(
+          "/api/consultas-propiedad/document-status",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name,
+              phone,
+              email,
+              purchaseMethod,
+            }),
+            signal: controller.signal,
+          }
+        );
+        const result = (await response.json()) as {
+          ok?: boolean;
+          reusable?: boolean;
+        };
+        if (!response.ok || result.ok !== true) {
+          throw new Error("verification_failed");
+        }
+        const reusable = result.reusable === true;
+        if (verificationRequestRef.current === requestId) {
+          verificationResultRef.current = reusable;
+          setDocumentReuseState(reusable ? "available" : "unavailable");
+        }
+        return reusable;
+      } catch (lookupError) {
+        if (
+          lookupError instanceof Error &&
+          lookupError.name === "AbortError"
+        ) {
+          return false;
+        }
+        if (verificationRequestRef.current === requestId) {
+          verificationResultRef.current = false;
+          setDocumentReuseState("error");
+        }
+        return false;
+      } finally {
+        if (verificationRequestRef.current === requestId) {
+          verificationAbortRef.current = null;
+          verificationPromiseRef.current = null;
+        }
+      }
+    })();
+    verificationPromiseRef.current = request;
+    return request;
   }
 
   return (
@@ -188,20 +266,23 @@ export default function PerfilCompradorPropiedadForm({
           label="Nombre completo"
           name="nombre"
           required
-          onInput={resetDocumentReuse}
+          onInput={invalidateDocumentReuse}
+          onBlur={() => void checkReusableDocument()}
         />
         <Field
           label="Teléfono"
           name="telefono"
           type="tel"
           required
-          onInput={resetDocumentReuse}
+          onInput={invalidateDocumentReuse}
+          onBlur={() => void checkReusableDocument()}
         />
         <Field
           label="Correo electrónico"
           name="email"
           type="email"
-          onInput={resetDocumentReuse}
+          onInput={invalidateDocumentReuse}
+          onBlur={() => void checkReusableDocument()}
         />
       </div>
 
@@ -226,8 +307,10 @@ export default function PerfilCompradorPropiedadForm({
                 required
                 checked={metodoCompra === option.value}
                 onChange={(event) => {
-                  setMetodoCompra(event.target.value);
-                  setDocumentReuseState("idle");
+                  const nextMethod = event.target.value;
+                  setMetodoCompra(nextMethod);
+                  invalidateDocumentReuse();
+                  void checkReusableDocument(formRef.current, nextMethod);
                 }}
                 className="h-4 w-4 shrink-0 border-[#d9d9d9] accent-[#11518b]"
               />
@@ -253,7 +336,8 @@ export default function PerfilCompradorPropiedadForm({
           name="carta_precalificacion"
           r2Configured={r2Configured}
           reuseState={documentReuseState}
-          onCheck={() => checkReusableDocument()}
+          useNewDocument={useNewDocument}
+          onUseNewDocument={() => setUseNewDocument(true)}
         />
       )}
 
@@ -264,7 +348,8 @@ export default function PerfilCompradorPropiedadForm({
           name="evidencia_fondos_archivo"
           r2Configured={r2Configured}
           reuseState={documentReuseState}
-          onCheck={() => checkReusableDocument()}
+          useNewDocument={useNewDocument}
+          onUseNewDocument={() => setUseNewDocument(true)}
         />
       )}
 
@@ -405,6 +490,7 @@ function Field({
   placeholder,
   disabled,
   onInput,
+  onBlur,
 }: {
   label: string;
   name: string;
@@ -413,6 +499,7 @@ function Field({
   placeholder?: string;
   disabled?: boolean;
   onInput?: () => void;
+  onBlur?: () => void;
 }) {
   return (
     <div className="space-y-2">
@@ -427,6 +514,7 @@ function Field({
         placeholder={placeholder}
         disabled={disabled}
         onInput={onInput}
+        onBlur={onBlur}
         className="input-premium disabled:bg-[#eeeeee]"
       />
     </div>
@@ -438,56 +526,81 @@ function FinancialDocumentField({
   name,
   r2Configured,
   reuseState,
-  onCheck,
+  useNewDocument,
+  onUseNewDocument,
 }: {
   label: string;
   name: string;
   r2Configured: boolean;
   reuseState: ReuseState;
-  onCheck: () => void;
+  useNewDocument: boolean;
+  onUseNewDocument: () => void;
 }) {
   const reusable = reuseState === "available";
+  const showUpload =
+    reuseState === "unavailable" ||
+    reuseState === "error" ||
+    useNewDocument;
   return (
     <div className="space-y-3 rounded-2xl border border-[#e8e8e8] bg-[#f8f8f8] p-5">
       <p className="text-sm leading-relaxed text-[#4d4d4d]">
         Este documento financiero es requerido. Si ya está asociado de forma
         segura con tu perfil de comprador, podrás continuar sin subirlo otra vez.
       </p>
-      <button
-        type="button"
-        onClick={onCheck}
-        disabled={reuseState === "checking"}
-        className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#11518b] px-4 py-2 text-sm font-semibold text-[#11518b] disabled:cursor-wait disabled:opacity-60"
-      >
-        {reuseState === "checking"
-          ? "Verificando…"
-          : "Verificar documento existente"}
-      </button>
-      {reusable && (
+      {reuseState === "idle" && (
+        <div
+          role="status"
+          className="rounded-xl border border-[#d9d9d9] bg-white p-4 text-sm text-[#4d4d4d]"
+        >
+          Completa tu nombre y teléfono o correo electrónico para verificar
+          automáticamente si ya tenemos el documento requerido.
+        </div>
+      )}
+      {reuseState === "checking" && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-xl border border-[#d9d9d9] bg-white p-4 text-sm text-[#4d4d4d]"
+        >
+          Verificando si ya tienes un documento financiero registrado...
+        </div>
+      )}
+      {reusable && !useNewDocument && (
         <div
           role="status"
           className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800"
         >
-          Ya tenemos el documento financiero requerido asociado con tu perfil
-          de comprador. No necesitas subirlo nuevamente.
+          <p>
+            ✓ Encontramos un documento financiero válido asociado a tu perfil.
+          </p>
+          <p className="mt-1 font-normal">No necesitas volver a subirlo.</p>
+          <button
+            type="button"
+            onClick={onUseNewDocument}
+            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl border border-green-700 px-4 py-2 text-sm font-semibold text-green-800"
+          >
+            Subir un documento nuevo
+          </button>
         </div>
       )}
-      {reuseState === "unavailable" && (
+      {reuseState === "error" && (
         <div
-          role="status"
+          role="alert"
           className="rounded-xl border border-[#d4af37] bg-[#fff9e6] p-4 text-sm text-[#4d4d4d]"
         >
-          No pudimos confirmar un documento reutilizable. Adjunta el archivo
-          requerido para completar el registro.
+          No pudimos verificar documentos previamente enviados. Por favor
+          adjunta el documento requerido.
         </div>
       )}
-      <UploadField
-        label={label}
-        name={name}
-        required={reuseState === "unavailable" && r2Configured}
-        showRequired
-        disabled={reusable || !r2Configured}
-      />
+      {showUpload && (
+        <UploadField
+          label={label}
+          name={name}
+          required={r2Configured}
+          showRequired
+          disabled={!r2Configured}
+        />
+      )}
     </div>
   );
 }

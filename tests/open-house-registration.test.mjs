@@ -791,3 +791,70 @@ test("Open House radio questions use full-width responsive blocks without clippe
   assert.ok(!form.includes("truncate"));
   assert.ok(!form.includes("text-ellipsis"));
 });
+
+test("Open House verifies reusable documents automatically without weakening replacement behavior", async () => {
+  const [form, statusRoute, handler] = await Promise.all([
+    readFile(
+      fileURLToPath(
+        new URL(
+          "../components/PerfilCompradorPropiedadForm.tsx",
+          import.meta.url
+        )
+      ),
+      "utf8"
+    ),
+    readFile(
+      fileURLToPath(
+        new URL(
+          "../app/api/consultas-propiedad/document-status/route.ts",
+          import.meta.url
+        )
+      ),
+      "utf8"
+    ),
+    readFile(
+      fileURLToPath(
+        new URL(
+          "../lib/leads/open-house-registration-handler.ts",
+          import.meta.url
+        )
+      ),
+      "utf8"
+    ),
+  ]);
+
+  assert.ok(!form.includes("Verificar documento existente"));
+  assert.match(form, /onBlur=\{\(\) => void checkReusableDocument\(\)\}/);
+  assert.match(
+    form,
+    /void checkReusableDocument\(formRef\.current, nextMethod\)/
+  );
+  assert.match(form, /new AbortController\(\)/);
+  assert.match(form, /verificationPromiseRef/);
+  assert.match(form, /verificationKeyRef/);
+  assert.match(form, /signal: controller\.signal/);
+  assert.match(
+    form,
+    /Verificando si ya tienes un documento financiero registrado\.\.\./
+  );
+  assert.match(
+    form,
+    /Encontramos un documento financiero válido asociado a tu perfil/
+  );
+  assert.match(form, /No necesitas volver a subirlo/);
+  assert.match(form, /Subir un documento nuevo/);
+  assert.match(
+    form,
+    /No pudimos verificar documentos previamente enviados\. Por favor/
+  );
+  assert.match(
+    form,
+    /reuseState === "unavailable" \|\|\s+reuseState === "error" \|\|\s+useNewDocument/
+  );
+  assert.match(form, /className="block w-full/);
+  assert.match(statusRoute, /\{ ok: false, reusable: false \}/);
+  assert.match(statusRoute, /\{ status: 503 \}/);
+
+  // A newly uploaded replacement continues to bypass reuse on the server.
+  assert.match(handler, /const reusableDocument = input\.documentFile\s+\? null/);
+});

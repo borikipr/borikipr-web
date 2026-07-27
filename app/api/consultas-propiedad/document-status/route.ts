@@ -29,7 +29,10 @@ export async function POST(request: Request) {
         ? String(error.code)
         : undefined;
     console.error("OPEN HOUSE DOCUMENT STATUS", { code });
-    return Response.json({ ok: true, reusable: false });
+    return Response.json(
+      { ok: false, reusable: false },
+      { status: 503 }
+    );
   }
 }
 
