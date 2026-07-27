@@ -38,6 +38,8 @@ const [
   adminAuthRollbackSql,
   financialDocumentReuseMigrationSql,
   financialDocumentReuseRollbackSql,
+  openHouseSolarQuestionMigrationSql,
+  openHouseSolarQuestionRollbackSql,
 ] =
   await Promise.all([
     readMigration("0001_create_leads.sql"),
@@ -67,6 +69,8 @@ const [
     readMigration("0013_extend_admin_authentication.rollback.sql"),
     readMigration("0014_link_open_house_reused_financial_documents.sql"),
     readMigration("0014_link_open_house_reused_financial_documents.rollback.sql"),
+    readMigration("0015_separate_open_house_solar_question.sql"),
+    readMigration("0015_separate_open_house_solar_question.rollback.sql"),
   ]);
 
 const typedTables = [
@@ -607,7 +611,8 @@ try {
   await openHouseDb.exec(`
     CREATE TABLE public.propiedades (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      validation_marker text NOT NULL DEFAULT 'unchanged'
+      validation_marker text NOT NULL DEFAULT 'unchanged',
+      placas_en_lease boolean NOT NULL DEFAULT false
     );
 
     CREATE TABLE public.consultas_propiedad (
@@ -862,6 +867,78 @@ try {
   );
   assert.deepEqual(reuseRollback.rows, [{ removed: true }]);
 
+  await openHouseDb.exec(openHouseSolarQuestionMigrationSql);
+  const openHouseSolarQuestionColumn = await openHouseDb.query(
+    `SELECT data_type, is_nullable, column_default
+       FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'propiedades'
+        AND column_name = 'open_house_solar_question_enabled'`
+  );
+  assert.deepEqual(openHouseSolarQuestionColumn.rows, [
+    {
+      data_type: "boolean",
+      is_nullable: "NO",
+      column_default: "false",
+    },
+  ]);
+  const solarProperty = await openHouseDb.query(
+    `INSERT INTO public.propiedades DEFAULT VALUES
+     RETURNING id::text, placas_en_lease, open_house_solar_question_enabled`
+  );
+  assert.deepEqual(solarProperty.rows, [
+    {
+      id: solarProperty.rows[0].id,
+      placas_en_lease: false,
+      open_house_solar_question_enabled: false,
+    },
+  ]);
+  const buyerProfileOnly = await openHouseDb.query(
+    `UPDATE public.propiedades
+        SET placas_en_lease = true
+      WHERE id = $1::uuid
+      RETURNING placas_en_lease, open_house_solar_question_enabled`,
+    [solarProperty.rows[0].id]
+  );
+  assert.deepEqual(buyerProfileOnly.rows, [
+    {
+      placas_en_lease: true,
+      open_house_solar_question_enabled: false,
+    },
+  ]);
+  const openHouseOnly = await openHouseDb.query(
+    `UPDATE public.propiedades
+        SET placas_en_lease = false,
+            open_house_solar_question_enabled = true
+      WHERE id = $1::uuid
+      RETURNING placas_en_lease, open_house_solar_question_enabled`,
+    [solarProperty.rows[0].id]
+  );
+  assert.deepEqual(openHouseOnly.rows, [
+    {
+      placas_en_lease: false,
+      open_house_solar_question_enabled: true,
+    },
+  ]);
+  await openHouseDb.query(
+    `UPDATE public.propiedades
+        SET open_house_solar_question_enabled = false
+      WHERE id = $1::uuid`,
+    [solarProperty.rows[0].id]
+  );
+  await openHouseDb.exec(openHouseSolarQuestionRollbackSql);
+  const openHouseSolarQuestionRollback = await openHouseDb.query(
+    `SELECT NOT EXISTS (
+       SELECT 1
+         FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'propiedades'
+          AND column_name = 'open_house_solar_question_enabled'
+     ) AS removed`
+  );
+  assert.deepEqual(openHouseSolarQuestionRollback.rows, [{ removed: true }]);
+  await openHouseDb.exec("DELETE FROM public.propiedades");
+
   const property = await openHouseDb.query(
     `INSERT INTO public.propiedades DEFAULT VALUES RETURNING id::text`
   );
@@ -897,12 +974,13 @@ try {
   );
   assert.deepEqual(await relationCatalog(openHouseDb, unrelatedTables), unrelatedCatalog);
 
-  console.log("Validated the ordered lead migration chain through 0014 in ephemeral local databases.");
+  console.log("Validated the ordered lead migration chain through 0015 in ephemeral local databases.");
   console.log("Verified 0004 adds eight nullable columns, one RESTRICT FK, nine checks, and five partial indexes.");
   console.log("Verified 0004 rollback restores the original consultas_propiedad catalog only.");
   console.log("Verified 0005 forward and rollback guards reject non-empty tables.");
   console.log("Verified 0005 hardens and restores property FK, nullability, and created_at semantics.");
   console.log("Verified 0014 adds one nullable RESTRICT source FK, one state check, one partial index, and a contained rollback.");
+  console.log("Verified 0015 separates Open House solar-question configuration without changing Buyer Profile configuration.");
 } finally {
   await openHouseDb.close();
 }

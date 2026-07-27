@@ -45,6 +45,7 @@ export type AdminPropiedadDetalle = {
   tiene_placas_solares?: boolean | null;
   cantidad_placas?: number | null;
   placas_en_lease?: boolean | null;
+  open_house_solar_question_enabled: boolean;
   requiere_precalificacion?: boolean | null;
   acepta_cdbg?: boolean | null;
   fecha_showing?: string | null;
@@ -145,6 +146,7 @@ export async function getAdminPropiedadById(id: string) {
       p.tiene_placas_solares,
       p.cantidad_placas,
       p.placas_en_lease,
+      p.open_house_solar_question_enabled,
       p.requiere_precalificacion,
       p.acepta_cdbg,
       p.fecha_showing,

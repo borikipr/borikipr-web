@@ -102,9 +102,14 @@ export async function POST(request: Request) {
       requiere_precalificacion: boolean | null;
       formulario_showing_activo: boolean;
       fecha_showing: string | Date | null;
-      placas_en_lease: boolean | null;
+      open_house_solar_question_enabled: boolean;
     }[]>`
-      SELECT id, requiere_precalificacion, formulario_showing_activo, fecha_showing, placas_en_lease
+      SELECT
+        id,
+        requiere_precalificacion,
+        formulario_showing_activo,
+        fecha_showing,
+        open_house_solar_question_enabled
       FROM propiedades
       WHERE id = ${propiedadId}
       LIMIT 1
@@ -119,9 +124,9 @@ export async function POST(request: Request) {
       );
     }
     if (
-      (propiedad.placas_en_lease &&
+      (propiedad.open_house_solar_question_enabled &&
         !SOLAR_ANSWERS.has(solarContractAcceptance)) ||
-      (!propiedad.placas_en_lease && solarContractAcceptance)
+      (!propiedad.open_house_solar_question_enabled && solarContractAcceptance)
     ) {
       return NextResponse.json(
         {
@@ -197,7 +202,7 @@ export async function POST(request: Request) {
     const respuestasPersonalizadas = {
       purchase_method_other:
         metodoCompra === "Otro" ? metodoCompraOtro : null,
-      solar_contract_acceptance: propiedad.placas_en_lease
+      solar_contract_acceptance: propiedad.open_house_solar_question_enabled
         ? solarContractAcceptance
         : null,
       r2_configurado: isR2Configured(),

@@ -38,6 +38,7 @@ type EditarPropiedadFormProps = {
   tiene_placas_solares?: boolean | null;
   cantidad_placas?: number | null;
   placas_en_lease?: boolean | null;
+  open_house_solar_question_enabled: boolean;
   requiere_precalificacion?: boolean | null;
   acepta_cdbg?: boolean | null;
   fecha_showing?: string | null;
@@ -672,6 +673,29 @@ export default function EditarPropiedadForm({
         </label>
        </div>
 
+      </div>
+
+      <div className="space-y-2 rounded-2xl border border-[#11518b]/15 bg-white p-5">
+       <div className="flex items-start gap-3">
+        <input
+         id="open_house_solar_question_enabled"
+         name="open_house_solar_question_enabled"
+         type="checkbox"
+         defaultChecked={propiedad.open_house_solar_question_enabled}
+         className="mt-0.5 h-4 w-4 rounded border-[#d9d9d9] accent-[#11518b]"
+        />
+        <label
+         htmlFor="open_house_solar_question_enabled"
+         className="text-sm font-medium text-[#000000]"
+        >
+         Preguntar sobre el contrato o leasing de las placas solares en el Open
+         House
+        </label>
+       </div>
+       <p className="pl-7 text-sm text-[#4d4d4d]">
+        Activa esta opción para preguntar a los asistentes si estarían dispuestos
+        a asumir el contrato o leasing vigente de las placas solares.
+       </p>
       </div>
 
       <div>

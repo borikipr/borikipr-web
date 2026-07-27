@@ -20,7 +20,7 @@ applies migrations to a remote database.
 Each migration file must include a matching rollback file. Rollbacks are
 manual review artifacts, not automatic deployment behavior.
 
-Migrations are validated in order through `0013`. The validator creates only
+Migrations are validated in order through `0015`. The validator creates only
 ephemeral local fixtures for the pre-existing `propiedades`,
 `consultas_propiedad`, Priority Registration, and email queue structures needed
 to exercise the reviewed foreign keys and rollback behavior. It verifies each
@@ -93,3 +93,13 @@ display/profile fields and session versioning. It adds hashed, expiring,
 single-use password-reset tokens and pseudonymous rate-limit attempt records;
 it does not create another administrator store or add account-management UI.
 Its rollback is guarded once any new authentication data exists.
+
+Migration `0014` links an Open House registration to the Property Buyer Profile
+whose private financial document was safely reused. It preserves both source
+records, uses `ON DELETE RESTRICT`, and adds no public document reference.
+
+Migration `0015` adds the independent
+`propiedades.open_house_solar_question_enabled` boolean. It defaults to `false`,
+does not copy or change `placas_en_lease`, and therefore leaves the existing
+Buyer Profile configuration and historical Open House answers untouched. Its
+rollback refuses to discard an enabled Open House configuration.

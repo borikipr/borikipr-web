@@ -146,6 +146,8 @@ export async function createPropiedadAction(
   const tienePlacasSolares = false;
   const cantidadPlacas = 0;
   const placasEnLease = formData.get("placas_en_lease") === "on";
+  const openHouseSolarQuestionEnabled =
+    formData.get("open_house_solar_question_enabled") === "on";
   const aceptaCdbg = false;
   const notasCompradores = String(formData.get("notas_compradores") || "").trim();
 
@@ -262,6 +264,7 @@ export async function createPropiedadAction(
         tiene_placas_solares,
         cantidad_placas,
         placas_en_lease,
+        open_house_solar_question_enabled,
         acepta_cdbg,
         configuracion_formulario
       ) VALUES (
@@ -294,6 +297,7 @@ export async function createPropiedadAction(
         ${tienePlacasSolares},
         ${cantidadPlacas},
         ${placasEnLease},
+        ${openHouseSolarQuestionEnabled},
         ${aceptaCdbg},
         ${sql.json({ notas_compradores: notasCompradores })}
       )
@@ -364,6 +368,8 @@ export async function updatePropiedadAction(
   );
   const requierePrecalificacion = formData.get("requiere_precalificacion") === "on";
   const placasEnLease = formData.get("placas_en_lease") === "on";
+  const openHouseSolarQuestionEnabled =
+    formData.get("open_house_solar_question_enabled") === "on";
   const notasCompradores = String(formData.get("notas_compradores") || "").trim();
 
   if (!id) {
@@ -543,9 +549,10 @@ export async function updatePropiedadAction(
                 tiene_placas_solares = $27,
                 cantidad_placas = $28,
                 placas_en_lease = $29,
-                acepta_cdbg = $30,
-                configuracion_formulario = $31::jsonb
-          WHERE id = $32::uuid
+                open_house_solar_question_enabled = $30,
+                acepta_cdbg = $31,
+                configuracion_formulario = $32::jsonb
+          WHERE id = $33::uuid
           RETURNING id::text`,
         [
           slug,
@@ -577,6 +584,7 @@ export async function updatePropiedadAction(
           tienePlacasSolares,
           cantidadPlacas,
           placasEnLease,
+          openHouseSolarQuestionEnabled,
           aceptaCdbg,
           JSON.stringify({
             ...(propiedadActual.configuracion_formulario || {}),

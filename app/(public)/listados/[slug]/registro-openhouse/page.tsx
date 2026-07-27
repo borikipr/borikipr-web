@@ -153,7 +153,7 @@ export default async function OpenHouseRegistrationPage({
                     propiedadSlug={propiedad.slug}
                     showingAt={canonicalShowingAt || ""}
                     requiresSolarContractAcceptance={
-                      propiedad.placas_en_lease === true
+                      propiedad.open_house_solar_question_enabled === true
                     }
                     r2Configured={
                       openHouseV2Enabled

@@ -23,7 +23,7 @@ type PropertyRow = {
   formulario_showing_activo: boolean | null;
   showing_at: Date | string | null;
   requiere_precalificacion: boolean | null;
-  placas_en_lease: boolean | null;
+  open_house_solar_question_enabled: boolean;
   pregunta_personalizada: string | null;
   pregunta_personalizada_requerida: boolean;
 };
@@ -134,7 +134,7 @@ export async function persistOpenHouseRegistration(
            formulario_showing_activo,
            fecha_showing AT TIME ZONE 'America/Puerto_Rico' AS showing_at,
            requiere_precalificacion,
-           placas_en_lease,
+           open_house_solar_question_enabled,
            pregunta_personalizada,
            COALESCE(
              configuracion_formulario->>'pregunta_personalizada_requerida' = 'true',
@@ -407,7 +407,7 @@ function mapProperty(row: PropertyRow): CanonicalOpenHouseProperty {
     showingFormActive: row.formulario_showing_activo === true,
     showingAt: row.showing_at ? new Date(row.showing_at) : null,
     requiresPrequalification: row.requiere_precalificacion === true,
-    hasSolarLease: row.placas_en_lease === true,
+    hasSolarLease: row.open_house_solar_question_enabled === true,
   };
 }
 

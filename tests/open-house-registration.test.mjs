@@ -638,9 +638,70 @@ test("Open House UI and admin configuration use the dedicated attendance workflo
   assert.ok(!newPage.includes("Pregunta personalizada"));
   assert.match(editForm, /name="placas_en_lease"/);
   assert.match(newPage, /name="placas_en_lease"/);
+  assert.match(editForm, /name="open_house_solar_question_enabled"/);
+  assert.match(newPage, /name="open_house_solar_question_enabled"/);
+  assert.match(
+    page,
+    /propiedad\.open_house_solar_question_enabled === true/
+  );
+  assert.ok(!page.includes("propiedad.placas_en_lease === true"));
   assert.match(leadQuery, /'purchase_method_other'/);
   assert.match(leadQuery, /'solar_contract_acceptance'/);
   assert.match(casePage, /LeadInteractionCard/);
+});
+
+test("Buyer Profile and Open House solar configuration remain independent", async () => {
+  const [buyerProfilePage, openHousePersistence, legacyRoute, actions] =
+    await Promise.all([
+      readFile(
+        fileURLToPath(
+          new URL(
+            "../app/(public)/listados/[slug]/perfil-comprador/page.tsx",
+            import.meta.url
+          )
+        ),
+        "utf8"
+      ),
+      readFile(
+        fileURLToPath(
+          new URL(
+            "../lib/leads/postgres-open-house-registration.ts",
+            import.meta.url
+          )
+        ),
+        "utf8"
+      ),
+      readFile(
+        fileURLToPath(
+          new URL("../app/api/consultas-propiedad/route.ts", import.meta.url)
+        ),
+        "utf8"
+      ),
+      readFile(
+        fileURLToPath(
+          new URL("../app/admin/propiedades/actions.ts", import.meta.url)
+        ),
+        "utf8"
+      ),
+    ]);
+
+  assert.match(
+    buyerProfilePage,
+    /requiresSolarContractAcceptance=\{Boolean\(propiedad\.placas_en_lease\)\}/
+  );
+  assert.ok(!buyerProfilePage.includes("open_house_solar_question_enabled"));
+  assert.match(openHousePersistence, /open_house_solar_question_enabled/);
+  assert.ok(!openHousePersistence.includes("row.placas_en_lease"));
+  assert.match(legacyRoute, /open_house_solar_question_enabled/);
+  assert.match(actions, /formData\.get\("placas_en_lease"\) === "on"/);
+  assert.match(
+    actions,
+    /formData\.get\("open_house_solar_question_enabled"\) === "on"/
+  );
+  assert.match(
+    actions,
+    /placas_en_lease,\s+open_house_solar_question_enabled,/
+  );
 });
 
 test("feature flag is enabled only by exact lowercase true", () => {
