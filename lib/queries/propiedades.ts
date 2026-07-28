@@ -57,6 +57,7 @@ export type PropiedadQueryRow = {
   formulario_showing_activo?: boolean;
   placas_en_lease?: boolean | null;
   open_house_solar_question_enabled?: boolean;
+  content_updated_at?: string | Date | null;
 };
 
 export type PropiedadHomeDestacada = {
@@ -103,6 +104,10 @@ export async function getPropiedadesDestacadas(limit = 3) {
       p.pregunta_personalizada,
       p.formulario_showing_activo,
       COALESCE(
+        (to_jsonb(p)->>'updated_at')::timestamptz,
+        p.created_at
+      ) AS content_updated_at,
+      COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'
       ) AS imagenes
@@ -143,6 +148,10 @@ export async function getPropiedades() {
       p.fecha_showing,
       p.pregunta_personalizada,
       p.formulario_showing_activo,
+      COALESCE(
+        (to_jsonb(p)->>'updated_at')::timestamptz,
+        p.created_at
+      ) AS content_updated_at,
       COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'
