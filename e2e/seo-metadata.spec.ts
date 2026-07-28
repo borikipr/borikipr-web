@@ -1,0 +1,51 @@
+import { expect, test } from "@playwright/test";
+
+const propertySlug = process.env.E2E_SEO_PROPERTY_SLUG;
+
+test.describe("transactional property route SEO", () => {
+  test.skip(!propertySlug, "Set E2E_SEO_PROPERTY_SLUG for GET-only SEO checks.");
+
+  test("property and ordinary transactional routes expose the intended indexing policy", async ({
+    page,
+  }) => {
+    const propertyPath = `/listados/${propertySlug}`;
+    const canonical = new URL(propertyPath, test.info().project.use.baseURL).href;
+
+    await page.goto(propertyPath);
+    await expect(page).toHaveURL(new RegExp(`${propertyPath}/?$`));
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+      "href",
+      canonical
+    );
+    await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
+
+    for (const formPath of [
+      `${propertyPath}/perfil-comprador`,
+      `${propertyPath}/registro-openhouse`,
+      `/properties/${propertySlug}/registro-prioritario`,
+    ]) {
+      const response = await page.goto(formPath);
+      expect(response?.status()).toBe(200);
+      await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+        "content",
+        /noindex,\s*follow/i
+      );
+      await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+        "href",
+        canonical
+      );
+    }
+  });
+
+  test("transactional forms remain absent from the sitemap", async ({ request }) => {
+    const response = await request.get("/sitemap.xml");
+    expect(response.ok()).toBeTruthy();
+    const sitemap = await response.text();
+
+    expect(sitemap).toContain(`/listados/${propertySlug}`);
+    expect(sitemap).not.toContain("perfil-comprador");
+    expect(sitemap).not.toContain("registro-openhouse");
+    expect(sitemap).not.toContain("registro-prioritario");
+    expect(sitemap).not.toContain("/visita/");
+  });
+});

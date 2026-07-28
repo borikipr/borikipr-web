@@ -1,5 +1,6 @@
 import Header from "@/components/Header";
 import Image from "next/image";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPropiedadBySlug } from "@/lib/queries/propiedades";
@@ -11,6 +12,24 @@ import { getCanonicalOpenHouseShowingAt } from "@/lib/leads/postgres-open-house-
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+
+  return {
+    robots: {
+      index: false,
+      follow: true,
+      googleBot: {
+        index: false,
+        follow: true,
+      },
+    },
+    alternates: {
+      canonical: `/listados/${slug}`,
+    },
+  };
+}
 
 function formatoPrecio(precio: string | number) {
   const numericPrice = Number(precio);

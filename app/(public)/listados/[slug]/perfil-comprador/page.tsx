@@ -1,5 +1,6 @@
 import Header from "@/components/Header";
 import FormularioPerfilComprador from "@/components/FormularioPerfilComprador";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPropiedadBySlug } from "@/lib/queries/propiedades";
@@ -8,6 +9,24 @@ import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+
+  return {
+    robots: {
+      index: false,
+      follow: true,
+      googleBot: {
+        index: false,
+        follow: true,
+      },
+    },
+    alternates: {
+      canonical: `/listados/${slug}`,
+    },
+  };
+}
 
 function formatoPrecio(precio: string | number, tipoNegocio: "venta" | "renta") {
   const numericPrice = Number(precio);

@@ -29,17 +29,34 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return {
       title: "Registro prioritario",
       description: pageDescription,
+      robots: {
+        index: false,
+        follow: true,
+        googleBot: {
+          index: false,
+          follow: true,
+        },
+      },
     };
   }
 
   const title = `Registro prioritario - ${propiedad.titulo}`;
   const path = `/properties/${propiedad.slug}/registro-prioritario`;
+  const propertyPath = `/listados/${propiedad.slug}`;
 
   return {
     title,
     description: pageDescription,
+    robots: {
+      index: false,
+      follow: true,
+      googleBot: {
+        index: false,
+        follow: true,
+      },
+    },
     alternates: {
-      canonical: path,
+      canonical: propertyPath,
     },
     openGraph: {
       title,
