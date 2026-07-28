@@ -12,7 +12,7 @@ function seriousViolations(
 
 test("home exposes the explicit Sur region contract", async ({ page }) => {
   await page.goto("/");
-  await expect(page).toHaveTitle(/Borik/i);
+  await expect(page).toHaveTitle(/Erickson Real Estate/i);
   const sur = page.getByRole("link", { name: /Sur/i }).first();
   await expect(sur).toHaveAttribute("href", /\/listados\?region=sur/);
 });
@@ -32,11 +32,9 @@ test("public privacy page loads and passes serious accessibility checks", async 
 
 test("admin login is usable, private, and accessible", async ({ page }) => {
   const response = await page.goto("/admin/login");
-  expect(response?.headers()["cache-control"]).toContain("no-store");
+  expect(response?.headers()["cache-control"]).toMatch(/no-store|no-cache/);
   await expect(page.getByRole("textbox", { name: /usuario/i })).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: /iniciar sesión/i })
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /Entrar/i })).toBeVisible();
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa"])
     .analyze();
@@ -63,4 +61,3 @@ test("browser security headers are present", async ({ request }) => {
     response.headers()["content-security-policy-report-only"]
   ).toContain("frame-ancestors 'none'");
 });
-

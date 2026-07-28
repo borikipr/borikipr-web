@@ -12,7 +12,7 @@ export default function LoginForm() {
     <main className="min-h-screen bg-[#f8f8f8] px-6 py-10">
       <div className="mx-auto flex min-h-[80vh] max-w-md items-center">
         <div className="surface-card w-full p-8 md:p-10">
-          <p className="eyebrow">Acceso privado</p>
+          <p className="eyebrow !text-[#765f12]">Acceso privado</p>
           <h1 className="mt-4 text-3xl font-bold text-[#000000]">Panel admin</h1>
           <p className="body-base mt-4">Ingresa con tus credenciales para administrar Borikí.</p>
           <form action={formAction} className="mt-8 space-y-5">

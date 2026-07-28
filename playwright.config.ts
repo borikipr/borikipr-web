@@ -19,7 +19,12 @@ export default defineConfig({
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
     {
       name: "mobile-chromium",
-      use: { ...devices["iPhone 13"], viewport: { width: 390, height: 844 } },
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+      },
     },
   ],
   webServer: externalBaseUrl

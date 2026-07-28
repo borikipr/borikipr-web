@@ -13,7 +13,7 @@ export default function PrivacyPage() {
       <Header />
       <main className="section-shell py-14 sm:py-20">
         <article className="mx-auto max-w-3xl text-[#263746]">
-          <p className="eyebrow">Privacidad</p>
+          <p className="eyebrow !text-[#765f12]">Privacidad</p>
           <h1 className="mt-3 text-4xl font-bold text-[#0d1b2a]">
             Cómo utilizamos tu información
           </h1>
