@@ -189,8 +189,9 @@ export default async function AdminPropiedadesPage({
                               <span className="font-bold text-[#000000]">
                                 {item.total_interactions}
                               </span>{" "}
-                              interacción
-                              {item.total_interactions === 1 ? "" : "es"}
+                              {item.total_interactions === 1
+                                ? "interacción"
+                                : "interacciones"}
                             </p>
                           </div>
                           <Link
