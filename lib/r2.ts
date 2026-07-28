@@ -1,6 +1,8 @@
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -177,6 +179,72 @@ export async function downloadPrivateR2Object(key: string) {
   }
 }
 
+export type ManagedR2Object = {
+  key: string;
+  size: number | null;
+  lastModified: Date | null;
+};
+
+export async function listManagedR2ObjectsPage(input: {
+  prefix: string;
+  continuationToken?: string;
+  maxKeys?: number;
+}) {
+  const config = getPrivateR2Config();
+  if (!config) throw new Error("Cloudflare R2 no esta configurado.");
+  if (!isSafeManagedPrefix(input.prefix)) {
+    throw new Error("Invalid managed R2 prefix.");
+  }
+
+  const r2 = createPrivateR2Client(config);
+  try {
+    const result = await r2.send(
+      new ListObjectsV2Command({
+        Bucket: config.bucketName,
+        Prefix: input.prefix,
+        ContinuationToken: input.continuationToken,
+        MaxKeys: Math.min(Math.max(input.maxKeys ?? 500, 1), 1000),
+      })
+    );
+    return {
+      objects: (result.Contents ?? [])
+        .filter((object): object is typeof object & { Key: string } => Boolean(object.Key))
+        .map((object) => ({
+          key: object.Key,
+          size: object.Size === undefined ? null : Number(object.Size),
+          lastModified: object.LastModified ?? null,
+        })),
+      nextContinuationToken: result.NextContinuationToken,
+    };
+  } finally {
+    r2.destroy();
+  }
+}
+
+export async function deleteEligiblePublicMediaObject(key: string) {
+  const config = getPrivateR2Config();
+  if (!config) throw new Error("Cloudflare R2 no esta configurado.");
+  if (!isSafePublicMediaObjectKey(key)) {
+    throw new Error("R2 deletion is limited to managed public media.");
+  }
+
+  const r2 = createPrivateR2Client(config);
+  try {
+    await r2.send(
+      new DeleteObjectCommand({ Bucket: config.bucketName, Key: key })
+    );
+  } finally {
+    r2.destroy();
+  }
+}
+
+export function extractManagedPublicObjectKey(url: string) {
+  const publicBaseUrl = process.env.R2_PUBLIC_BASE_URL?.replace(/\/$/, "");
+  if (!publicBaseUrl || !url.startsWith(`${publicBaseUrl}/`)) return null;
+  const key = decodeURIComponent(url.slice(publicBaseUrl.length + 1));
+  return isSafePublicMediaObjectKey(key) ? key : null;
+}
+
 function createPrivateR2Client(config: NonNullable<ReturnType<typeof getPrivateR2Config>>) {
   return new S3Client({
     region: "auto",
@@ -207,5 +275,20 @@ export function isSafePrivateObjectKey(key: string) {
     !key.startsWith("/") &&
     !key.includes("..") &&
     /^[a-zA-Z0-9/_+.-]+$/.test(key)
+  );
+}
+
+export function isSafePublicMediaObjectKey(key: string) {
+  return (
+    isSafePrivateObjectKey(key) &&
+    (key.startsWith("propiedades/") || key.startsWith("testimonios/"))
+  );
+}
+
+function isSafeManagedPrefix(prefix: string) {
+  return (
+    prefix === "propiedades/" ||
+    prefix === "testimonios/" ||
+    prefix === "lead-documents/"
   );
 }
