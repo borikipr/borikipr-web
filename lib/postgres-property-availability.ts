@@ -1,7 +1,8 @@
 import { sql } from "@/lib/db";
 import {
   collectAvailabilityRegistrationsInTransaction,
-  deliverAvailabilityNotifications,
+  deliverAvailabilityNotificationIntents,
+  queueAvailabilityNotificationIntentsInTransaction,
 } from "@/lib/property-availability-enqueue";
 
 type PropertyRow = {
@@ -43,11 +44,18 @@ export async function updatePropertyStatusWithAvailabilityQueue({
           property.id
         )
       : null;
+    const intent = registrations
+      ? await queueAvailabilityNotificationIntentsInTransaction(
+          transaction,
+          { id: property.id, slug: property.slug, title: property.titulo },
+          registrations
+        )
+      : null;
 
     return {
       previousStatus: property.estado,
       newStatus,
-      registrations,
+      intent,
       property: {
         id: property.id,
         slug: property.slug,
@@ -55,15 +63,13 @@ export async function updatePropertyStatusWithAvailabilityQueue({
       },
     };
   });
-  const delivery = transition.registrations
-    ? await deliverAvailabilityNotifications(
-        transition.property,
-        transition.registrations
-      )
+  const delivery = transition.intent
+    ? await deliverAvailabilityNotificationIntents(transition.intent.dedupeKeys)
     : null;
   return {
     previousStatus: transition.previousStatus,
     newStatus: transition.newStatus,
+    intent: transition.intent,
     queue: delivery,
   };
 }

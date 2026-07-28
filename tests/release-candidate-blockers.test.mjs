@@ -163,12 +163,13 @@ test("availability transition collects registrations before immediate post-commi
   assert.equal(collected[0].leadId, registrations[0].lead_id);
 });
 
-test("property transition commits before the shared immediate delivery boundary", () => {
+test("property transition records durable intent before the post-commit delivery boundary", () => {
   assert.doesNotMatch(actionSource, /from "resend"|new Resend|emails\.send/);
   assert.match(actionSource, /sql\.begin\(async \(transaction\)/);
   assert.match(actionSource, /FOR UPDATE/);
   assert.match(actionSource, /collectAvailabilityRegistrationsInTransaction/);
-  assert.match(actionSource, /deliverAvailabilityNotifications/);
+  assert.match(actionSource, /queueAvailabilityNotificationIntentsInTransaction/);
+  assert.match(actionSource, /deliverAvailabilityNotificationIntents/);
   assert.doesNotMatch(actionSource, /AVAILABILITY EMAIL SENT TO|email:\s*registration\.email/);
 });
 

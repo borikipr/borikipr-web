@@ -264,6 +264,25 @@ export async function deliverCanonicalLeadEmail(
 export async function processPendingEmailQueue(
   limit = DEFAULT_EMAIL_QUEUE_BATCH_SIZE
 ) {
+  return processEmailQueue({ limit });
+}
+
+export async function processEmailQueueByDedupeKeys(dedupeKeys: string[]) {
+  const uniqueKeys = [...new Set(dedupeKeys.filter(Boolean))];
+  if (uniqueKeys.length === 0) return { processed: 0, sent: 0, failed: 0 };
+  return processEmailQueue({
+    limit: Math.min(uniqueKeys.length, DEFAULT_EMAIL_QUEUE_BATCH_SIZE),
+    dedupeKeys: uniqueKeys,
+  });
+}
+
+async function processEmailQueue({
+  limit,
+  dedupeKeys,
+}: {
+  limit: number;
+  dedupeKeys?: string[];
+}) {
   if (!process.env.RESEND_API_KEY) {
     throw new Error("RESEND_API_KEY is not configured.");
   }
@@ -272,7 +291,7 @@ export async function processPendingEmailQueue(
   const resend = new Resend(process.env.RESEND_API_KEY);
   const fromEmail =
     process.env.CONTACT_FROM_EMAIL?.trim() || "onboarding@resend.dev";
-  const rows = await claimPendingEmails(invocationId, limit);
+  const rows = await claimPendingEmails(invocationId, limit, dedupeKeys);
 
   let sent = 0;
   let failed = 0;
@@ -430,7 +449,11 @@ async function finalizeSuccessfulEmail(
   });
 }
 
-async function claimPendingEmails(invocationId: string, limit: number) {
+async function claimPendingEmails(
+  invocationId: string,
+  limit: number,
+  dedupeKeys?: string[]
+) {
   return sql.begin(async (tx) => {
     await tx.unsafe(
       `
@@ -445,6 +468,16 @@ async function claimPendingEmails(invocationId: string, limit: number) {
     `
     );
 
+    const dedupeCondition = dedupeKeys
+      ? "AND dedupe_key = ANY($4::text[])"
+      : "";
+    const parameters: unknown[] = [
+      MAX_EMAIL_ATTEMPTS,
+      limit,
+      invocationId,
+    ];
+    if (dedupeKeys) parameters.push(dedupeKeys);
+
     return tx.unsafe<PendingEmailRow[]>(
       `
       WITH candidates AS (
@@ -452,6 +485,7 @@ async function claimPendingEmails(invocationId: string, limit: number) {
         FROM email_queue
         WHERE status = 'pending'
           AND attempts < $1
+          ${dedupeCondition}
           AND updated_at <= now() - CASE attempts
             WHEN 0 THEN interval '0 seconds'
             WHEN 1 THEN interval '5 minutes'
@@ -483,7 +517,7 @@ async function claimPendingEmails(invocationId: string, limit: number) {
         email_queue.dedupe_key,
         email_queue.attempts
     `,
-      [MAX_EMAIL_ATTEMPTS, limit, invocationId]
+      parameters as never[]
     );
   });
 }

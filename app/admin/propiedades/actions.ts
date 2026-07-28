@@ -8,7 +8,8 @@ import { getAdminSessionUser } from "@/lib/admin/auth";
 import { normalizeSectorForMunicipio } from "@/lib/puerto-rico-sectores";
 import {
   collectAvailabilityRegistrationsInTransaction,
-  deliverAvailabilityNotifications,
+  deliverAvailabilityNotificationIntents,
+  queueAvailabilityNotificationIntentsInTransaction,
 } from "@/lib/property-availability-enqueue";
 import { updatePropertyStatusWithAvailabilityQueue } from "@/lib/postgres-property-availability";
 import { generatePrivateShowingToken } from "@/lib/leads/private-showing-token";
@@ -614,13 +615,19 @@ export async function updatePropiedadAction(
         locked.estado === "coming_soon" && estado === "disponible"
           ? await collectAvailabilityRegistrationsInTransaction(transaction, id)
           : null;
-      return { previousStatus: locked.estado, registrations };
+      const availabilityIntent = registrations
+        ? await queueAvailabilityNotificationIntentsInTransaction(
+            transaction,
+            { id, slug, title: titulo },
+            registrations
+          )
+        : null;
+      return { previousStatus: locked.estado, availabilityIntent };
     });
 
-    const availabilityDelivery = transition.registrations
-      ? await deliverAvailabilityNotifications(
-          { id, slug, title: titulo },
-          transition.registrations
+    const availabilityDelivery = transition.availabilityIntent
+      ? await deliverAvailabilityNotificationIntents(
+          transition.availabilityIntent.dedupeKeys
         )
       : null;
 
@@ -629,6 +636,16 @@ export async function updatePropiedadAction(
       propertyId: id,
       previousStatus: transition.previousStatus,
       newStatus: estado,
+      availabilityIntent: transition.availabilityIntent
+        ? {
+            eligibleRegistrations:
+              transition.availabilityIntent.eligibleRegistrations,
+            inserted: transition.availabilityIntent.inserted,
+            alreadyRecorded: transition.availabilityIntent.alreadyRecorded,
+            skippedInvalidEmail:
+              transition.availabilityIntent.skippedInvalidEmail,
+          }
+        : null,
       availabilityDelivery,
     });
 

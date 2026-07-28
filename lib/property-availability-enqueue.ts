@@ -37,20 +37,18 @@ export async function collectAvailabilityRegistrationsInTransaction(
   }));
 }
 
-export async function deliverAvailabilityNotifications(
+export async function queueAvailabilityNotificationIntentsInTransaction(
+  transaction: postgres.TransactionSql,
   property: AvailabilityProperty,
   registrations: AvailabilityRegistration[]
 ) {
-  const { deliverCanonicalLeadEmail } = await import("@/lib/email-queue");
   const totals = {
     eligibleRegistrations: 0,
-    sent: 0,
-    queued: 0,
-    alreadyHandled: 0,
-    permanentFailures: 0,
-    failedToQueue: 0,
+    inserted: 0,
+    alreadyRecorded: 0,
     skippedInvalidEmail: 0,
   };
+  const dedupeKeys: string[] = [];
 
   for (const registration of registrations) {
     if (!isEligibleAvailabilityEmail(registration.email)) {
@@ -59,56 +57,71 @@ export async function deliverAvailabilityNotifications(
     }
     totals.eligibleRegistrations += 1;
     const email = buildPropertyAvailabilityEmail({ property, registration });
-    const state = await deliverCanonicalLeadEmail(
-      {
-        recipient: registration.email,
-        subject: email.subject,
-        html: email.html,
-        emailType: PROPERTY_AVAILABILITY_EMAIL_TYPE,
-        relatedPropertyId: property.id,
-        canonicalLeadId: registration.leadId,
-        relatedSubmissionType: PROPERTY_AVAILABILITY_SUBMISSION_TYPE,
-        relatedSubmissionId: registration.id,
-        dedupeKey: buildPropertyAvailabilityDedupeKey(
-          property.id,
-          registration.id
-        ),
-      },
-      (stage, error) => {
-        console.error("PROPERTY AVAILABILITY EMAIL", {
-          stage,
-          registrationId: registration.id,
-          error: safeError(error),
-        });
-      }
+    const dedupeKey = buildPropertyAvailabilityDedupeKey(
+      property.id,
+      registration.id
     );
-
-    if (state === "sent" || state === "already_sent") {
-      if (state === "sent") totals.sent += 1;
-      else totals.alreadyHandled += 1;
-      await markAvailabilityNotified(registration.id);
-    } else if (state === "queued") totals.queued += 1;
-    else if (state === "already_queued") totals.alreadyHandled += 1;
-    else if (state === "failed_to_queue") totals.failedToQueue += 1;
-    else totals.permanentFailures += 1;
+    const inserted = await transaction.unsafe<{ dedupe_key: string }[]>(
+      `INSERT INTO public.email_queue (
+         recipient,
+         subject,
+         html,
+         email_type,
+         related_property_id,
+         related_lead_id,
+         canonical_lead_id,
+         related_submission_type,
+         related_submission_id,
+         dedupe_key,
+         status,
+         attempts,
+         last_error
+       ) VALUES (
+         $1, $2, $3, $4, $5::uuid, $6::uuid, $7::uuid, $8, $9::uuid,
+         $10, 'pending', 0, NULL
+       )
+       ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL
+       DO NOTHING
+       RETURNING dedupe_key`,
+      [
+        registration.email,
+        email.subject,
+        email.html,
+        PROPERTY_AVAILABILITY_EMAIL_TYPE,
+        property.id,
+        registration.id,
+        registration.leadId,
+        PROPERTY_AVAILABILITY_SUBMISSION_TYPE,
+        registration.id,
+        dedupeKey,
+      ]
+    );
+    if (inserted.length > 0) {
+      totals.inserted += 1;
+      dedupeKeys.push(dedupeKey);
+    } else {
+      totals.alreadyRecorded += 1;
+    }
   }
-  return totals;
+  return { ...totals, dedupeKeys };
 }
 
-async function markAvailabilityNotified(registrationId: string) {
+export async function deliverAvailabilityNotificationIntents(
+  dedupeKeys: string[]
+) {
+  if (dedupeKeys.length === 0) {
+    return { processed: 0, sent: 0, failed: 0 };
+  }
   try {
-    const { sql } = await import("@/lib/db");
-    await sql`
-      UPDATE public.property_priority_registrations
-      SET notified_at = now()
-      WHERE id = ${registrationId}
-        AND notified_at IS NULL
-    `;
+    const { processEmailQueueByDedupeKeys } = await import("@/lib/email-queue");
+    return await processEmailQueueByDedupeKeys(dedupeKeys);
   } catch (error) {
-    console.error("PROPERTY AVAILABILITY NOTIFIED_AT", {
-      registrationId,
+    console.error("PROPERTY AVAILABILITY DELIVERY", {
+      event: "property_availability_immediate_processing_failed",
+      intentCount: dedupeKeys.length,
       error: safeError(error),
     });
+    return { processed: 0, sent: 0, failed: dedupeKeys.length };
   }
 }
 
