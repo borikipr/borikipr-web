@@ -4,9 +4,6 @@ import {
   MAX_BUYER_PROFILE_DOCUMENT_BYTES,
 } from "./property-buyer-profile-upload";
 
-export const PROPERTY_BUYER_PROFILE_FEATURE_FLAG =
-  "PROPERTY_BUYER_PROFILE_PERSISTENCE_V1";
-
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -67,10 +64,6 @@ export class BuyerProfileValidationError extends Error {
     super(publicMessage);
     this.name = "BuyerProfileValidationError";
   }
-}
-
-export function isPropertyBuyerProfilePersistenceEnabled() {
-  return process.env[PROPERTY_BUYER_PROFILE_FEATURE_FLAG] === "true";
 }
 
 export function parsePropertyBuyerProfileFormData(

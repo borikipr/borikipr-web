@@ -8,7 +8,6 @@ import { PGlite } from "@electric-sql/pglite";
 import {
   buildOpenHouseDocumentObjectKey,
   buildOpenHouseShowingEventKey,
-  isOpenHousePersistenceEnabled,
   OpenHouseValidationError,
   parseOpenHouseRegistrationFormData,
   validateOpenHouseForProperty,
@@ -779,7 +778,7 @@ test("Buyer Profile and Open House solar configuration remain independent", asyn
   assert.ok(!buyerProfilePage.includes("open_house_solar_question_enabled"));
   assert.match(openHousePersistence, /open_house_solar_question_enabled/);
   assert.ok(!openHousePersistence.includes("row.placas_en_lease"));
-  assert.match(legacyRoute, /open_house_solar_question_enabled/);
+  assert.match(legacyRoute, /handleOpenHouseRegistrationV2/);
   assert.match(actions, /formData\.get\("placas_en_lease"\) === "on"/);
   assert.match(
     actions,
@@ -789,21 +788,6 @@ test("Buyer Profile and Open House solar configuration remain independent", asyn
     actions,
     /placas_en_lease,\s+open_house_solar_question_enabled,/
   );
-});
-
-test("feature flag is enabled only by exact lowercase true", () => {
-  const original = process.env.OPEN_HOUSE_PERSISTENCE_V2;
-  try {
-    delete process.env.OPEN_HOUSE_PERSISTENCE_V2;
-    assert.equal(isOpenHousePersistenceEnabled(), false);
-    process.env.OPEN_HOUSE_PERSISTENCE_V2 = "TRUE";
-    assert.equal(isOpenHousePersistenceEnabled(), false);
-    process.env.OPEN_HOUSE_PERSISTENCE_V2 = "true";
-    assert.equal(isOpenHousePersistenceEnabled(), true);
-  } finally {
-    if (original === undefined) delete process.env.OPEN_HOUSE_PERSISTENCE_V2;
-    else process.env.OPEN_HOUSE_PERSISTENCE_V2 = original;
-  }
 });
 
 test("V2 source uses row locking, canonical PR timezone, and leaves legacy URL columns unwritten", async () => {
@@ -824,7 +808,8 @@ test("V2 source uses row locking, canonical PR timezone, and leaves legacy URL c
   const insertColumns = persistence.match(/INSERT INTO public\.consultas_propiedad \(([\s\S]*?)\) VALUES/)?.[1] || "";
   assert.ok(!insertColumns.includes("carta_precalificacion_url"));
   assert.ok(!insertColumns.includes("evidencia_fondos,"));
-  assert.match(route, /if \(isOpenHousePersistenceEnabled\(\)\)/);
+  assert.match(route, /return handleOpenHouseRegistrationV2\(request\)/);
+  assert.doesNotMatch(route, /OPEN_HOUSE_PERSISTENCE_V2|isOpenHousePersistenceEnabled/);
   assert.match(form, /value: "Cash"/);
   assert.match(form, /label: "Otros", value: "Otro"/);
   assert.match(form, /¿Podrá asistir al Open House en la fecha y hora indicadas\?/);

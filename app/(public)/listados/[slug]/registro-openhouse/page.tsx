@@ -3,10 +3,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPropiedadBySlug } from "@/lib/queries/propiedades";
-import { isPrivateR2Configured, isR2Configured } from "@/lib/r2";
+import { isPrivateR2Configured } from "@/lib/r2";
 import PerfilCompradorPropiedadForm from "@/components/PerfilCompradorPropiedadForm";
 import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
-import { isOpenHousePersistenceEnabled } from "@/lib/leads/open-house-registration";
 import { getCanonicalOpenHouseShowingAt } from "@/lib/leads/postgres-open-house-registration";
 
 type PageProps = {
@@ -48,10 +47,7 @@ export default async function OpenHouseRegistrationPage({
     notFound();
   }
 
-  const openHouseV2Enabled = isOpenHousePersistenceEnabled();
-  const canonicalShowingAt = openHouseV2Enabled
-    ? await getCanonicalOpenHouseShowingAt(propiedad.id)
-    : "";
+  const canonicalShowingAt = await getCanonicalOpenHouseShowingAt(propiedad.id);
 
   const imagenPrincipal =
     Array.isArray(propiedad.imagenes) && propiedad.imagenes.length > 0
@@ -156,11 +152,7 @@ export default async function OpenHouseRegistrationPage({
                     requiresSolarContractAcceptance={
                       propiedad.open_house_solar_question_enabled === true
                     }
-                    r2Configured={
-                      openHouseV2Enabled
-                        ? isPrivateR2Configured()
-                        : isR2Configured()
-                    }
+                    r2Configured={isPrivateR2Configured()}
                   />
                 </>
               ) : (

@@ -3,8 +3,6 @@ import {
   normalizePuertoRicoUsPhone,
 } from "./normalization";
 
-export const BUYER_TENANT_FEATURE_FLAG = "BUYER_TENANT_PERSISTENCE_V1";
-
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -72,10 +70,6 @@ export class BuyerTenantValidationError extends Error {
     super(publicMessage);
     this.name = "BuyerTenantValidationError";
   }
-}
-
-export function isBuyerTenantPersistenceEnabled() {
-  return process.env[BUYER_TENANT_FEATURE_FLAG] === "true";
 }
 
 export function parseBuyerTenantInquiryBody(

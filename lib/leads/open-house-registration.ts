@@ -1,7 +1,5 @@
 import { normalizeEmail, normalizePuertoRicoUsPhone } from "./normalization";
 
-export const OPEN_HOUSE_PERSISTENCE_FEATURE_FLAG =
-  "OPEN_HOUSE_PERSISTENCE_V2";
 export const MAX_OPEN_HOUSE_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
 const UUID_PATTERN =
@@ -79,10 +77,6 @@ export class OpenHouseValidationError extends Error {
     super(publicMessage);
     this.name = "OpenHouseValidationError";
   }
-}
-
-export function isOpenHousePersistenceEnabled() {
-  return process.env[OPEN_HOUSE_PERSISTENCE_FEATURE_FLAG] === "true";
 }
 
 export function parseOpenHouseRegistrationFormData(

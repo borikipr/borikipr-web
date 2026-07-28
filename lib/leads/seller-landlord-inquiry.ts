@@ -3,9 +3,6 @@ import {
   normalizePuertoRicoUsPhone,
 } from "./normalization";
 
-export const SELLER_LANDLORD_FEATURE_FLAG =
-  "SELLER_LANDLORD_PERSISTENCE_V1";
-
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -56,10 +53,6 @@ export class SellerLandlordValidationError extends Error {
     super(publicMessage);
     this.name = "SellerLandlordValidationError";
   }
-}
-
-export function isSellerLandlordPersistenceEnabled() {
-  return process.env[SELLER_LANDLORD_FEATURE_FLAG] === "true";
 }
 
 export function parseSellerLandlordInquiryBody(

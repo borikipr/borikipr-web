@@ -7,7 +7,6 @@ import { PGlite } from "@electric-sql/pglite";
 import {
   BUYER_QUALIFICATION_VALUES,
   BuyerTenantValidationError,
-  isBuyerTenantPersistenceEnabled,
   parseBuyerTenantInquiryBody,
 } from "../lib/leads/buyer-tenant-inquiry.ts";
 import { queueBuyerTenantInternalNotification } from "../lib/leads/buyer-tenant-inquiry-postcommit.ts";
@@ -459,22 +458,5 @@ test("existing Priority Registration queue FK and timestamps remain compatible",
     assert.equal(after.rows[0].updated_at.getTime(), legacy.rows[0].updated_at.getTime());
   } finally {
     await db.close();
-  }
-});
-
-test("Buyer/Tenant feature flag is enabled only by the exact true value", () => {
-  const previous = process.env.BUYER_TENANT_PERSISTENCE_V1;
-  try {
-    delete process.env.BUYER_TENANT_PERSISTENCE_V1;
-    assert.equal(isBuyerTenantPersistenceEnabled(), false);
-    process.env.BUYER_TENANT_PERSISTENCE_V1 = "false";
-    assert.equal(isBuyerTenantPersistenceEnabled(), false);
-    process.env.BUYER_TENANT_PERSISTENCE_V1 = "TRUE";
-    assert.equal(isBuyerTenantPersistenceEnabled(), false);
-    process.env.BUYER_TENANT_PERSISTENCE_V1 = "true";
-    assert.equal(isBuyerTenantPersistenceEnabled(), true);
-  } finally {
-    if (previous === undefined) delete process.env.BUYER_TENANT_PERSISTENCE_V1;
-    else process.env.BUYER_TENANT_PERSISTENCE_V1 = previous;
   }
 });

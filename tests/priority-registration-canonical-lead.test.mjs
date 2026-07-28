@@ -6,7 +6,6 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import {
-  isPriorityRegistrationCanonicalLeadEnabled,
   persistPriorityRegistrationWithStore,
 } from "../lib/leads/priority-registration-persistence.ts";
 import { planPriorityRegistrationBackfill } from "../lib/leads/priority-registration-backfill.ts";
@@ -186,13 +185,6 @@ test("0006 adds only nullable canonical lead linkage and rolls back cleanly", as
   } finally {
     await db.close();
   }
-});
-
-test("feature flag is disabled unless its value is exactly true", () => {
-  assert.equal(isPriorityRegistrationCanonicalLeadEnabled(undefined), false);
-  assert.equal(isPriorityRegistrationCanonicalLeadEnabled("false"), false);
-  assert.equal(isPriorityRegistrationCanonicalLeadEnabled("TRUE"), false);
-  assert.equal(isPriorityRegistrationCanonicalLeadEnabled("true"), true);
 });
 
 test("backfill CLI uses an async entry point without top-level execution awaits", () => {

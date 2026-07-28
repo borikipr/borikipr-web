@@ -66,12 +66,6 @@ export class PriorityRegistrationPersistenceError extends Error {
   }
 }
 
-export function isPriorityRegistrationCanonicalLeadEnabled(
-  value = process.env.PRIORITY_REGISTRATION_CANONICAL_LEAD_V1
-) {
-  return value === "true";
-}
-
 export async function persistPriorityRegistrationWithStore(
   store: PriorityRegistrationStore,
   input: PriorityRegistrationPersistenceInput

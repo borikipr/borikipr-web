@@ -10,7 +10,6 @@ import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit
 import { absoluteUrl } from "@/lib/seo";
 import { persistPriorityRegistrationWithCanonicalLead } from "@/lib/leads/postgres-priority-registration";
 import {
-  isPriorityRegistrationCanonicalLeadEnabled,
   PriorityRegistrationPersistenceError,
 } from "@/lib/leads/priority-registration-persistence";
 
@@ -176,149 +175,42 @@ export async function POST(req: Request) {
     const propertyUrl = absoluteUrl(`/listados/${property.slug}`);
 
     let insertedId = "";
-    const canonicalLeadEnabled = isPriorityRegistrationCanonicalLeadEnabled();
+    try {
+      const persisted = await persistPriorityRegistrationWithCanonicalLead({
+        propertyId: property.id,
+        propertySlug: property.slug,
+        name,
+        phone,
+        email,
+        purchaseType,
+        purchaseOther: requiresPurchaseOther ? purchaseOther : null,
+        prequalifiedStatus: requiresPrequalifiedStatus
+          ? prequalifiedStatus
+          : null,
+        propertySize,
+        searchRange,
+        wantsVisit: wantsVisitBoolean,
+        additionalInfo: additionalInfo || null,
+      });
 
-    if (canonicalLeadEnabled) {
-      try {
-        const persisted = await persistPriorityRegistrationWithCanonicalLead({
-          propertyId: property.id,
-          propertySlug: property.slug,
-          name,
-          phone,
-          email,
-          purchaseType,
-          purchaseOther: requiresPurchaseOther ? purchaseOther : null,
-          prequalifiedStatus: requiresPrequalifiedStatus
-            ? prequalifiedStatus
-            : null,
-          propertySize,
-          searchRange,
-          wantsVisit: wantsVisitBoolean,
-          additionalInfo: additionalInfo || null,
-        });
-
-        if (!persisted.created) {
-          return duplicateResponse();
-        }
-
-        insertedId = persisted.id;
-        property.titulo = persisted.property.title;
-      } catch (error) {
-        if (error instanceof PriorityRegistrationPersistenceError) {
-          return Response.json(
-            { ok: false, error: error.message },
-            { status: error.status }
-          );
-        }
-        logPriorityRegistrationError(
-          "Canonical Priority Registration persistence failed",
-          error
-        );
-        throw error;
-      }
-    } else {
-      const duplicate = await sql<{ id: string }[]>`
-        SELECT id::text
-        FROM property_priority_registrations
-        WHERE property_id = ${property.id}
-          AND lower(email) = lower(${email})
-        LIMIT 1
-      `;
-
-      if (duplicate.length > 0) {
+      if (!persisted.created) {
         return duplicateResponse();
       }
 
-      try {
-        const inserted = await sql<{ id: string }[]>`
-          INSERT INTO property_priority_registrations (
-            property_id,
-            property_slug,
-            property_title,
-            name,
-            phone,
-            email,
-            purchase_type,
-            purchase_other,
-            prequalified_status,
-            property_size,
-            search_range,
-            wants_visit,
-            additional_info,
-            source
-          ) VALUES (
-            ${property.id},
-            ${property.slug},
-            ${property.titulo},
-            ${name},
-            ${phone},
-            ${email},
-            ${purchaseType},
-            ${requiresPurchaseOther ? purchaseOther : null},
-            ${requiresPrequalifiedStatus ? prequalifiedStatus : null},
-            ${propertySize},
-            ${searchRange},
-            ${wantsVisitBoolean},
-            ${additionalInfo || null},
-            'registro_prioritario'
-          )
-          RETURNING id::text
-        `;
-        insertedId = inserted[0]?.id || "";
-      } catch (error) {
-        if (isUniqueViolation(error)) {
-          return duplicateResponse();
-        }
-
-        if (isUndefinedColumn(error)) {
-          logPriorityRegistrationError("Missing priority registration migration columns", error);
-
-          try {
-            const inserted = await sql<{ id: string }[]>`
-              INSERT INTO property_priority_registrations (
-                property_id,
-                property_slug,
-                property_title,
-                name,
-                phone,
-                email,
-                purchase_type,
-                prequalified_status,
-                search_range,
-                wants_visit,
-                source
-              ) VALUES (
-                ${property.id},
-                ${property.slug},
-                ${property.titulo},
-                ${name},
-                ${phone},
-                ${email},
-                ${purchaseType},
-                ${requiresPrequalifiedStatus ? prequalifiedStatus : null},
-                ${searchRange},
-                ${wantsVisitBoolean},
-                'registro_prioritario'
-              )
-              RETURNING id::text
-            `;
-            insertedId = inserted[0]?.id || "";
-          } catch (fallbackError) {
-            if (isUniqueViolation(fallbackError)) {
-              return duplicateResponse();
-            }
-
-            logPriorityRegistrationError("Legacy priority registration insert failed", fallbackError);
-            throw fallbackError;
-          }
-        } else {
-          if (isCheckViolation(error)) {
-            logPriorityRegistrationError("Priority registration insert check constraint failed", error);
-          }
-          logPriorityRegistrationError("Priority registration insert failed", error);
-          throw error;
-        }
+      insertedId = persisted.id;
+      property.titulo = persisted.property.title;
+    } catch (error) {
+      if (error instanceof PriorityRegistrationPersistenceError) {
+        return Response.json(
+          { ok: false, error: error.message },
+          { status: error.status }
+        );
       }
+      logPriorityRegistrationError(
+        "Canonical Priority Registration persistence failed",
+        error
+      );
+      throw error;
     }
 
     if (!process.env.RESEND_API_KEY) {
@@ -588,33 +480,6 @@ async function safelyQueuePriorityRegistrationEmail({
       queueError
     );
   }
-}
-
-function isUniqueViolation(error: unknown) {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === "23505"
-  );
-}
-
-function isUndefinedColumn(error: unknown) {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === "42703"
-  );
-}
-
-function isCheckViolation(error: unknown) {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === "23514"
-  );
 }
 
 function logPriorityRegistrationError(message: string, error: unknown) {
