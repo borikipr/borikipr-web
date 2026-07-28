@@ -131,7 +131,11 @@ export default function RegistroPrioritarioForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-8"
+      data-clarity-mask="true"
+    >
       <div className="grid gap-5 md:grid-cols-2">
         <Field label="Nombre completo" htmlFor="name" required>
           <input id="name" name="name" type="text" required className="input-premium" />

@@ -98,6 +98,9 @@ export default function Footer() {
               <Link href="/contact" className="transition hover:text-white">
                 Contacto
               </Link>
+              <Link href="/privacidad" className="transition hover:text-white">
+                Privacidad
+              </Link>
             </nav>
           </div>
 
@@ -150,7 +153,10 @@ export default function Footer() {
             <p>
               Ivonne Erickson · Corredora de Bienes Raíces · Licencia C-25961
             </p>
-            <p>© 2026 Erickson Real Estate. Todos los derechos reservados.</p>
+            <p>
+              © {new Date().getFullYear()} Erickson Real Estate. Todos los
+              derechos reservados.
+            </p>
           </div>
         </div>
       </div>

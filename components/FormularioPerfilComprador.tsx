@@ -133,7 +133,12 @@ export default function FormularioPerfilComprador({
   };
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="space-y-8">
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      className="space-y-8"
+      data-clarity-mask="true"
+    >
       <SectionHeader
         title="Información de contacto"
         description="Comparte cómo podemos comunicarnos contigo para dar seguimiento a tu proceso de compra."

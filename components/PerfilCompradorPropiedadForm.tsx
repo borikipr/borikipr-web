@@ -274,7 +274,12 @@ export default function PerfilCompradorPropiedadForm({
   }
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      className="space-y-6"
+      data-clarity-mask="true"
+    >
       {!r2Configured && (
         <div className="rounded-xl border border-[#d4af37] bg-[#fff9e6] p-4 text-sm text-[#4d4d4d]">
           La carga segura de documentos no está disponible en este momento.

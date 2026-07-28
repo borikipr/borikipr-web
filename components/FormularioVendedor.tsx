@@ -148,7 +148,12 @@ export default function FormularioVendedor() {
   };
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="space-y-7">
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      className="space-y-7"
+      data-clarity-mask="true"
+    >
       <div>
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#d4af37]">
           Información de contacto
