@@ -17,10 +17,11 @@ async function main() {
   const { reconcileR2 } = await import("../../lib/r2-reconciliation");
   const report = await reconcileR2({ applyPublicMedia: apply });
   console.log(JSON.stringify(report, null, 2));
+  const { sql } = await import("../../lib/db");
+  await sql.end({ timeout: 2 });
 }
 
 main().catch(() => {
   console.error("R2 reconciliation failed; sensitive details were suppressed.");
   process.exitCode = 1;
 });
-

@@ -282,6 +282,7 @@ test("cron is scheduled daily after the email queue job", () => {
   assert.deepEqual(vercelConfig.crons, [
     { path: "/api/cron/process-email-queue", schedule: "0 9 * * *" },
     { path: "/api/cron/cleanup-admin-auth", schedule: "17 9 * * *" },
+    { path: "/api/cron/operational-health", schedule: "47 9 * * *" },
   ]);
 });
 

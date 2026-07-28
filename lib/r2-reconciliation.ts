@@ -105,7 +105,8 @@ export async function reconcileR2(input?: {
   const financialRows: FinancialReference[] = [
     ...profileRows.map((row) => ({
       key: row.key,
-      expectedSize: row.expected_size,
+      expectedSize:
+        row.expected_size === null ? null : Number(row.expected_size),
       expectedMime: row.expected_mime,
     })),
     ...registrationRows.flatMap((row) => {
@@ -113,14 +114,15 @@ export async function reconcileR2(input?: {
       if (row.pre_key) {
         refs.push({
           key: row.pre_key,
-          expectedSize: row.pre_size,
+          expectedSize: row.pre_size === null ? null : Number(row.pre_size),
           expectedMime: row.pre_mime,
         });
       }
       if (row.funds_key) {
         refs.push({
           key: row.funds_key,
-          expectedSize: row.funds_size,
+          expectedSize:
+            row.funds_size === null ? null : Number(row.funds_size),
           expectedMime: row.funds_mime,
         });
       }
