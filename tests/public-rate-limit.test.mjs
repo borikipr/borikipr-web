@@ -5,7 +5,7 @@ import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 
 process.env.DATABASE_URL ||= "postgresql://local-test.invalid/neondb";
-process.env.PUBLIC_RATE_LIMIT_SECRET =
+process.env.RATE_LIMIT_HASH_SECRET =
   "synthetic-public-rate-limit-secret-at-least-32-characters";
 
 const {
@@ -156,8 +156,8 @@ test("IP parsing normalizes IPv4 and IPv6 and trusts only deployment headers", (
 });
 
 test("a missing HMAC secret fails closed before writing a bucket", async () => {
-  const originalSecret = process.env.PUBLIC_RATE_LIMIT_SECRET;
-  delete process.env.PUBLIC_RATE_LIMIT_SECRET;
+  const originalSecret = process.env.RATE_LIMIT_HASH_SECRET;
+  delete process.env.RATE_LIMIT_HASH_SECRET;
   try {
     await assert.rejects(
       checkRateLimit(
@@ -171,7 +171,7 @@ test("a missing HMAC secret fails closed before writing a bucket", async () => {
       /not configured securely/
     );
   } finally {
-    process.env.PUBLIC_RATE_LIMIT_SECRET = originalSecret;
+    process.env.RATE_LIMIT_HASH_SECRET = originalSecret;
   }
 });
 

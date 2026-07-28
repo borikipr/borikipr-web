@@ -23,6 +23,15 @@
 5. Re-run `npm run schema:audit` and the migration-specific read-only checks.
 6. Deploy the code that consumes the new schema.
 
+The hardening release has a one-purpose guarded runner:
+
+```bash
+node scripts/migrations/apply-hardening-0017-0018.mjs --confirm=APPLY_0017_0018
+```
+
+It refuses partial or repeated application and reports only aggregate row
+counts. It must not be repurposed for later migrations.
+
 The repository currently infers historical versions through structural
 fingerprints because the original migrations predate an application migration
 ledger. The audit command does not claim that old files were run automatically.
@@ -37,4 +46,3 @@ data or break an older deployment. Never roll back a destructive data
 transformation blindly. For a partial migration, stop traffic to the affected
 workflow, inspect transaction state, and use the migration-specific recovery
 plan or Neon restore point.
-

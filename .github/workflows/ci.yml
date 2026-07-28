@@ -17,7 +17,7 @@ jobs:
       CI: "true"
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
       SESSION_SECRET: ci-session-secret-with-at-least-32-characters
-      PUBLIC_RATE_LIMIT_SECRET: ci-rate-limit-secret-with-at-least-32-characters
+      RATE_LIMIT_HASH_SECRET: ci-rate-limit-secret-with-at-least-32-characters
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

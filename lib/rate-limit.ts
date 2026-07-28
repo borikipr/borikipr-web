@@ -84,9 +84,9 @@ function parseRateLimitKey(key: string) {
 }
 
 function identifierHash(identifier: string) {
-  const secret = process.env.PUBLIC_RATE_LIMIT_SECRET?.trim();
+  const secret = process.env.RATE_LIMIT_HASH_SECRET?.trim();
   if (!secret || secret.length < 32) {
-    throw new Error("PUBLIC_RATE_LIMIT_SECRET is not configured securely.");
+    throw new Error("RATE_LIMIT_HASH_SECRET is not configured securely.");
   }
   return createHmac("sha256", secret).update(identifier).digest("hex");
 }

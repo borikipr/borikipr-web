@@ -36,8 +36,8 @@ export default defineConfig({
           SESSION_SECRET:
             process.env.SESSION_SECRET ||
             "e2e-session-secret-with-at-least-32-characters",
-          PUBLIC_RATE_LIMIT_SECRET:
-            process.env.PUBLIC_RATE_LIMIT_SECRET ||
+          RATE_LIMIT_HASH_SECRET:
+            process.env.RATE_LIMIT_HASH_SECRET ||
             "e2e-rate-limit-secret-with-at-least-32-characters",
           NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3000",
           NEXT_PUBLIC_GA_MEASUREMENT_ID: "",
@@ -45,4 +45,3 @@ export default defineConfig({
         },
       },
 });
-
