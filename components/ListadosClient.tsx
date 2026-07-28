@@ -5,7 +5,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { buscarSugerencias } from "@/data/zonas";
+import {
+  buscarSugerencias,
+  getRegionByName,
+  getRegionLabel,
+  type RegionSlug,
+} from "@/data/zonas";
 import {
   formatoPrecio,
   estadoClasses,
@@ -56,6 +61,7 @@ type PropiedadDB = {
 
 type InitialFilters = {
   q: string;
+  region: "" | RegionSlug;
   tipoNegocio: "" | TipoNegocio;
   municipio: string;
   tipoPropiedad: TipoPropiedad[];
@@ -69,6 +75,7 @@ type InitialFilters = {
 type ActiveChip = {
   key:
     | "q"
+    | "region"
     | "tipoNegocio"
     | "municipio"
     | "tipoPropiedad"
@@ -205,6 +212,7 @@ export default function ListadosClient({
 
   // Filtros aplicados (se actualizan solo al hacer clic en buscar o presionar Enter)
   const [q, setQ] = useState(initialFilters.q);
+  const [region, setRegion] = useState<"" | RegionSlug>(initialFilters.region);
   const [tipoNegocio, setTipoNegocio] = useState<TipoNegocio>(
     initialFilters.tipoNegocio || "venta"
   );
@@ -255,6 +263,7 @@ export default function ListadosClient({
   const limpiarFiltros = () => {
     setQ("");
     setQTemp("");
+    setRegion("");
     setTipoNegocio("venta");
     setMunicipio("");
     setTipoPropiedad([]);
@@ -270,6 +279,7 @@ export default function ListadosClient({
     // Actualizar URL
     updateUrl({
       q: "",
+      region: "",
       tipoNegocio: "venta",
       municipio: "",
       tipoPropiedad: [],
@@ -284,6 +294,7 @@ export default function ListadosClient({
   // Función para actualizar la URL con los filtros actuales
   const updateUrl = (filters: {
     q?: string;
+    region?: "" | RegionSlug;
     tipoNegocio?: TipoNegocio;
     municipio?: string;
     tipoPropiedad?: TipoPropiedad[];
@@ -296,6 +307,7 @@ export default function ListadosClient({
     const params = new URLSearchParams();
 
     if (filters.q?.trim()) params.set("q", filters.q.trim());
+    if (filters.region) params.set("region", filters.region);
     if (filters.tipoNegocio) params.set("tipoNegocio", filters.tipoNegocio);
     if (filters.municipio?.trim()) params.set("municipio", filters.municipio.trim());
     if (filters.tipoPropiedad && filters.tipoPropiedad.length > 0) {
@@ -323,6 +335,7 @@ export default function ListadosClient({
     // Actualizar URL con los nuevos valores
     updateUrl({
       q: qTemp,
+      region,
       tipoNegocio,
       municipio,
       tipoPropiedad,
@@ -350,6 +363,9 @@ export default function ListadosClient({
       case "q":
         setQ("");
         setQTemp("");
+        break;
+      case "region":
+        setRegion("");
         break;
       case "tipoNegocio":
         setTipoNegocio("venta");
@@ -430,6 +446,9 @@ export default function ListadosClient({
     if (q.trim()) {
       chips.push({ key: "q", label: `Buscar: ${q.trim()}` });
     }
+    if (region) {
+      chips.push({ key: "region", label: `Región: ${getRegionLabel(region)}` });
+    }
     if (tipoNegocio) {
       chips.push({
         key: "tipoNegocio",
@@ -459,7 +478,7 @@ export default function ListadosClient({
     }
 
     return chips;
-  }, [q, tipoNegocio, municipio, tipoPropiedad, precioMin, precioMax, habitaciones, banos, orden]);
+  }, [q, region, tipoNegocio, municipio, tipoPropiedad, precioMin, precioMax, habitaciones, banos, orden]);
 
   const shareUrl = useMemo(() => {
     const query = searchParams.toString();
@@ -494,6 +513,7 @@ export default function ListadosClient({
     // Actualizar URL inmediatamente
     updateUrl({
       q,
+      region,
       tipoNegocio,
       municipio,
       tipoPropiedad: newTipos,
@@ -589,12 +609,16 @@ export default function ListadosClient({
                                 key={zona}
                                 type="button"
                                 onClick={() => {
-                                  setQTemp(zona);
-                                  setQ(zona);
+                                  const selectedRegion = getRegionByName(zona);
+                                  if (!selectedRegion) return;
+                                  setQTemp("");
+                                  setQ("");
+                                  setRegion(selectedRegion);
                                   setMostrarSugerencias(false);
                                   setSugerencias({ zonas: [], municipios: [] });
                                   updateUrl({
-                                    q: zona,
+                                    q: "",
+                                    region: selectedRegion,
                                     tipoNegocio,
                                     municipio,
                                     tipoPropiedad,
@@ -628,6 +652,7 @@ export default function ListadosClient({
                                   setSugerencias({ zonas: [], municipios: [] });
                                   updateUrl({
                                     q: mun,
+                                    region,
                                     tipoNegocio,
                                     municipio,
                                     tipoPropiedad,
@@ -823,6 +848,27 @@ export default function ListadosClient({
         {/* ══════════════════════════════════════════════════════════════════ */}
 
         {/* Resultados y compartir */}
+        {region && (
+          <div className="mb-5 flex flex-wrap items-center gap-2" aria-label="Filtros activos">
+            <button
+              type="button"
+              onClick={() => {
+                setRegion("");
+                const next = new URLSearchParams(searchParams.toString());
+                next.delete("region");
+                next.delete("page");
+                router.replace(next.size > 0 ? `${pathname}?${next.toString()}` : pathname, {
+                  scroll: false,
+                });
+              }}
+              className="inline-flex items-center gap-2 rounded-full border border-[#11518b]/25 bg-[#eef6fc] px-3 py-1.5 text-sm font-semibold text-[#11518b]"
+              aria-label={`Quitar filtro Región: ${getRegionLabel(region)}`}
+            >
+              Región: {getRegionLabel(region)}
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+        )}
         <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-sm text-[#4d4d4d]">

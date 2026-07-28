@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import ListadosClient from "@/components/ListadosClient";
 import PropiedadSkeleton from "@/components/PropiedadSkeleton";
 import { getPropiedadesPaginadas } from "@/lib/queries/propiedades";
+import { isRegionSlug } from "@/data/zonas";
 import {
   DEFAULT_OG_IMAGE,
   SITE_NAME,
@@ -50,6 +51,7 @@ type TipoPropiedad =
 
 type SearchParams = Promise<{
   municipio?: string;
+  region?: string;
   tipoNegocio?: string;
   tipoPropiedad?: string;
   precioMin?: string;
@@ -68,6 +70,7 @@ export default async function ListadosPage({
   searchParams: SearchParams;
 }) {
   const params = await searchParams;
+  const region = isRegionSlug(params.region) ? params.region : "";
   const requestedPage = parseInt(params.page || "1", 10);
   const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
 
@@ -87,6 +90,7 @@ export default async function ListadosPage({
 
   const data = await getPropiedadesPaginadas(page, 12, {
     q: params.q ?? "",
+    region: region || undefined,
     municipio: params.municipio ?? "",
     tipoNegocio:
       params.tipoNegocio === "venta" || params.tipoNegocio === "renta"
@@ -188,6 +192,7 @@ export default async function ListadosPage({
             }}
             initialFilters={{
               q: params.q ?? "",
+              region,
               municipio: params.municipio ?? "",
               tipoNegocio:
                 params.tipoNegocio === "venta" || params.tipoNegocio === "renta"

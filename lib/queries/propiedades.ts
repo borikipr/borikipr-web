@@ -1,4 +1,8 @@
 import { sql } from "@/lib/db";
+import {
+  getMunicipiosForRegion,
+  type RegionSlug,
+} from "@/data/zonas";
 
 type TipoNegocio = "venta" | "renta";
 type EstadoPropiedad =
@@ -262,6 +266,7 @@ export type PropiedadesPaginadas = {
 
 export type PropiedadesFiltros = {
   q?: string;
+  region?: RegionSlug;
   tipoNegocio?: "" | TipoNegocio;
   municipio?: string;
   tipoPropiedad?: string[];
@@ -292,6 +297,9 @@ export async function getPropiedadesPaginadas(
   const habitaciones = parseNumericFilter(filtros.habitaciones);
   const banos = parseNumericFilter(filtros.banos);
   const tipoPropiedad = filtros.tipoPropiedad?.filter(Boolean) ?? [];
+  const regionMunicipios = filtros.region
+    ? [...getMunicipiosForRegion(filtros.region)]
+    : [];
 
   const conditions = [
     filtros.estado
@@ -316,6 +324,10 @@ export async function getPropiedadesPaginadas(
 
   if (filtros.municipio?.trim()) {
     conditions.push(sql`p.municipio = ${filtros.municipio.trim()}`);
+  }
+
+  if (regionMunicipios.length > 0) {
+    conditions.push(sql`p.municipio IN ${sql(regionMunicipios)}`);
   }
 
   if (tipoPropiedad.length > 0) {

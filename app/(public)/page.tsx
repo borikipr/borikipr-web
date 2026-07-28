@@ -15,6 +15,7 @@ import {
   UserCheck,
   Waves,
 } from "lucide-react";
+import { getRegionByName } from "@/data/zonas";
 import {
   getPropiedades,
   getPropiedadesDestacadas,
@@ -391,7 +392,7 @@ export default async function Home() {
               {zonasHome.map((zona) => (
                 <Link
                   key={zona.nombre}
-                  href={`/listados?q=${encodeURIComponent(zona.nombre)}`}
+                  href={`/listados?region=${getRegionByName(zona.nombre) ?? ""}`}
                   className="group rounded-2xl border border-[#e8e8e8] bg-white p-7 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-[#11518b]/30"
                 >
                   <div className="flex items-center gap-4">

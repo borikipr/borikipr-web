@@ -100,7 +100,30 @@ export const zonasPR = {
       "Villalba",
     ],
   },
-};
+} as const;
+
+export type RegionSlug = keyof typeof zonasPR;
+
+export const regionesPR = Object.keys(zonasPR) as RegionSlug[];
+
+export function isRegionSlug(value: string | null | undefined): value is RegionSlug {
+  return Boolean(value && Object.hasOwn(zonasPR, value));
+}
+
+export function getRegionByName(value: string) {
+  const normalized = value.trim().toLocaleLowerCase("es-PR");
+  return regionesPR.find(
+    (region) => zonasPR[region].nombre.toLocaleLowerCase("es-PR") === normalized
+  );
+}
+
+export function getMunicipiosForRegion(region: RegionSlug): readonly string[] {
+  return zonasPR[region].municipios;
+}
+
+export function getRegionLabel(region: RegionSlug): string {
+  return zonasPR[region].nombre;
+}
 
 export const todasLasZonas = Object.values(zonasPR).map((z) => z.nombre);
 
