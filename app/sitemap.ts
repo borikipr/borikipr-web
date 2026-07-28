@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { getPropiedades, type PropiedadQueryRow } from "@/lib/queries/propiedades";
+import type { PropiedadQueryRow } from "@/lib/queries/propiedades";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://borikipr.com";
@@ -35,6 +35,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let propiedades: PropiedadQueryRow[] = [];
 
   try {
+    const { getPropiedades } = await import("@/lib/queries/propiedades");
     propiedades = await getPropiedades();
   } catch (error) {
     console.warn(
