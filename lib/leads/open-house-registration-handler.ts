@@ -27,7 +27,7 @@ async function handleBuyerVisitRegistration(
   request: Request,
   workflow: "open_house" | "private_showing"
 ) {
-  const rateLimit = checkRateLimit({
+  const rateLimit = await checkRateLimit({
     key: `${workflow}-registration:${getClientIp(request)}`,
     limit: 5,
     windowMs: 10 * 60 * 1000,

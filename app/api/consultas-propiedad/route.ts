@@ -47,7 +47,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const rateLimit = checkRateLimit({
+    const rateLimit = await checkRateLimit({
       key: `consultas-propiedad:${getClientIp(request)}`,
       limit: 5,
       windowMs: 10 * 60 * 1000,

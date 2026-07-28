@@ -20,7 +20,7 @@ import {
 import { resolvePropertyBuyerProfileAttachment } from "./property-buyer-profile-queue-attachment";
 
 export async function handlePersistedPropertyBuyerProfile(req: Request) {
-  const rateLimit = checkRateLimit({
+  const rateLimit = await checkRateLimit({
     key: `perfil-comprador:${getClientIp(req)}`,
     limit: 5,
     windowMs: 10 * 60 * 1000,

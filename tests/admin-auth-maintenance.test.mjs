@@ -16,6 +16,7 @@ const [
   adminLayoutSource,
   adminFooterSource,
   vercelConfig,
+  publicRateLimitMigration,
 ] = await Promise.all([
   readFile(`${root}/db/migrations/0013_extend_admin_authentication.sql`, "utf8"),
   readFile(`${root}/lib/admin/auth-maintenance.ts`, "utf8"),
@@ -24,10 +25,12 @@ const [
   readFile(`${root}/app/admin/layout.tsx`, "utf8"),
   readFile(`${root}/components/admin/AdminFooter.tsx`, "utf8"),
   readFile(`${root}/vercel.json`, "utf8").then(JSON.parse),
+  readFile(`${root}/db/migrations/0017_create_public_rate_limits.sql`, "utf8"),
 ]);
 
 const {
   AUTH_ATTEMPT_RETENTION_DAYS,
+  PUBLIC_RATE_LIMIT_RETENTION_DAYS,
   RESET_TOKEN_RETENTION_DAYS,
   cleanupAdminAuthenticationRecords,
 } = await import("../lib/admin/auth-maintenance.ts");
@@ -65,12 +68,22 @@ before(async () => {
     );
   `);
   await db.exec(migration);
+  await db.exec(publicRateLimitMigration);
   await db.query(
     `INSERT INTO public.admin_users (
        id, username, password_hash, activo, display_name, email, session_version
      ) VALUES ($1::uuid, 'synthetic-admin', 'unchanged-password-hash', true,
        'Synthetic Admin', 'synthetic@example.test', 7)`,
     [adminId]
+  );
+  await db.query(
+    `INSERT INTO public.public_rate_limit_buckets (
+       action_type, identifier_hash, bucket_start, window_seconds,
+       request_count, expires_at
+     ) VALUES
+       ('fixture', $1, now() - interval '3 days', 600, 1, now() - interval '2 days'),
+       ('fixture', $2, now(), 600, 1, now() + interval '10 minutes')`,
+    ["3".repeat(64), "4".repeat(64)]
   );
 
   const tokens = [
@@ -111,6 +124,7 @@ after(async () => {
 test("retention constants preserve valid security windows", () => {
   assert.equal(RESET_TOKEN_RETENTION_DAYS, 7);
   assert.equal(AUTH_ATTEMPT_RETENTION_DAYS, 90);
+  assert.equal(PUBLIC_RATE_LIMIT_RETENTION_DAYS, 1);
 });
 
 test("cleanup removes only old expired, used, and attempt records", async () => {
@@ -127,6 +141,7 @@ test("cleanup removes only old expired, used, and attempt records", async () => 
     expiredResetTokensDeleted: 1,
     usedResetTokensDeleted: 1,
     oldAuthAttemptsDeleted: 1,
+    expiredPublicRateLimitBucketsDeleted: 1,
   });
 
   const tokenRows = (
@@ -167,6 +182,7 @@ test("cleanup is idempotent", async () => {
     expiredResetTokensDeleted: 0,
     usedResetTokensDeleted: 0,
     oldAuthAttemptsDeleted: 0,
+    expiredPublicRateLimitBucketsDeleted: 0,
   });
 });
 
@@ -193,6 +209,7 @@ test("cron rejects unauthorized requests without running cleanup", async () => {
         expiredResetTokensDeleted: 0,
         usedResetTokensDeleted: 0,
         oldAuthAttemptsDeleted: 0,
+        expiredPublicRateLimitBucketsDeleted: 0,
       };
     }
   );
@@ -213,6 +230,7 @@ test("authorized cron returns aggregate counts only", async () => {
         expiredResetTokensDeleted: 2,
         usedResetTokensDeleted: 3,
         oldAuthAttemptsDeleted: 4,
+        expiredPublicRateLimitBucketsDeleted: 5,
       })
     );
     const body = await response.json();
@@ -221,6 +239,7 @@ test("authorized cron returns aggregate counts only", async () => {
     assert.equal(body.expiredResetTokensDeleted, 2);
     assert.equal(body.usedResetTokensDeleted, 3);
     assert.equal(body.oldAuthAttemptsDeleted, 4);
+    assert.equal(body.expiredPublicRateLimitBucketsDeleted, 5);
     assert.equal(typeof body.durationMs, "number");
     assert.deepEqual(
       Object.keys(body).sort(),
@@ -229,6 +248,7 @@ test("authorized cron returns aggregate counts only", async () => {
         "expiredResetTokensDeleted",
         "ok",
         "oldAuthAttemptsDeleted",
+        "expiredPublicRateLimitBucketsDeleted",
         "usedResetTokensDeleted",
       ].sort()
     );

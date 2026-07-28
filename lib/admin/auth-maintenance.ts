@@ -2,11 +2,13 @@ import { sql } from "@/lib/db";
 
 export const RESET_TOKEN_RETENTION_DAYS = 7;
 export const AUTH_ATTEMPT_RETENTION_DAYS = 90;
+export const PUBLIC_RATE_LIMIT_RETENTION_DAYS = 1;
 
 export type AdminAuthCleanupResult = {
   expiredResetTokensDeleted: number;
   usedResetTokensDeleted: number;
   oldAuthAttemptsDeleted: number;
+  expiredPublicRateLimitBucketsDeleted: number;
 };
 
 type CountRow = { count: number };
@@ -71,10 +73,22 @@ export async function cleanupAdminAuthenticationRecords(
       AUTH_ATTEMPT_RETENTION_DAYS
     );
 
+    const expiredPublicRateLimitBucketsDeleted = await deleteAndCount(
+      transaction,
+      `WITH deleted AS (
+         DELETE FROM public.public_rate_limit_buckets
+          WHERE expires_at < now() - ($1::int * interval '1 day')
+         RETURNING 1
+       )
+       SELECT count(*)::int AS count FROM deleted`,
+      PUBLIC_RATE_LIMIT_RETENTION_DAYS
+    );
+
     return {
       expiredResetTokensDeleted,
       usedResetTokensDeleted,
       oldAuthAttemptsDeleted,
+      expiredPublicRateLimitBucketsDeleted,
     };
   });
 }

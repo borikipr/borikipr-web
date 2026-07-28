@@ -6,7 +6,7 @@ const EVENT_TYPES = new Set(["contact_click", "whatsapp_click"]);
 
 export async function POST(req: Request) {
   try {
-    const rateLimit = checkRateLimit({
+    const rateLimit = await checkRateLimit({
       key: `track:${getClientIp(req)}`,
       limit: 60,
       windowMs: 10 * 60 * 1000,

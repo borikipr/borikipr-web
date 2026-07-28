@@ -4,7 +4,7 @@ import { findReusableFinancialDocument } from "@/lib/leads/financial-document-re
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const rateLimit = checkRateLimit({
+  const rateLimit = await checkRateLimit({
     key: `buyer-visit-document-status:${getClientIp(request)}`,
     limit: 10,
     windowMs: 10 * 60 * 1000,

@@ -1504,3 +1504,49 @@ try {
 } finally {
   await adminAuthDb.close();
 }
+
+const publicRateLimitMigrationSql = await readMigration(
+  "0017_create_public_rate_limits.sql"
+);
+const publicRateLimitRollbackSql = await readMigration(
+  "0017_create_public_rate_limits.rollback.sql"
+);
+const publicRateLimitDb = new PGlite();
+try {
+  await publicRateLimitDb.exec(publicRateLimitMigrationSql);
+  const catalog = await publicRateLimitDb.query(`
+    SELECT
+      to_regclass('public.public_rate_limit_buckets')::text AS table_name,
+      EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname='public'
+          AND indexname='public_rate_limit_buckets_expires_at_idx'
+      ) AS has_expiry_index,
+      (
+        SELECT count(*)::int FROM pg_constraint
+        WHERE conrelid='public.public_rate_limit_buckets'::regclass
+          AND contype='c'
+      ) AS check_count
+  `);
+  assert.deepEqual(catalog.rows, [{
+    table_name: "public_rate_limit_buckets",
+    has_expiry_index: true,
+    check_count: 5,
+  }]);
+  await assert.rejects(
+    publicRateLimitDb.query(`
+      INSERT INTO public.public_rate_limit_buckets (
+        action_type, identifier_hash, bucket_start, window_seconds, expires_at
+      ) VALUES ('invalid action', '${"a".repeat(64)}', now(), 60, now() + interval '1 minute')
+    `)
+  );
+  await publicRateLimitDb.exec(publicRateLimitRollbackSql);
+  const removed = await publicRateLimitDb.query(
+    `SELECT to_regclass('public.public_rate_limit_buckets') IS NULL AS removed`
+  );
+  assert.deepEqual(removed.rows, [{ removed: true }]);
+  console.log("Validated the ordered migration chain through 0017.");
+  console.log("Verified durable pseudonymous public rate-limit buckets and expiry index.");
+} finally {
+  await publicRateLimitDb.close();
+}

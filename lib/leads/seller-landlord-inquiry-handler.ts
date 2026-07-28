@@ -8,7 +8,7 @@ import {
 import { queueSellerLandlordInternalNotification } from "./seller-landlord-inquiry-postcommit";
 
 export async function handlePersistedSellerLandlordInquiry(req: Request) {
-  const rateLimit = checkRateLimit({
+  const rateLimit = await checkRateLimit({
     key: `formulario-vendedor:${getClientIp(req)}`,
     limit: 5,
     windowMs: 10 * 60 * 1000,

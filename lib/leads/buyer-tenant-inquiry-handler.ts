@@ -8,7 +8,7 @@ import { queueBuyerTenantInternalNotification } from "./buyer-tenant-inquiry-pos
 import { persistBuyerTenantInquiry } from "./postgres-buyer-tenant-inquiry";
 
 export async function handlePersistedBuyerTenantInquiry(req: Request) {
-  const rateLimit = checkRateLimit({
+  const rateLimit = await checkRateLimit({
     key: `formulario-comprador:${getClientIp(req)}`,
     limit: 5,
     windowMs: 10 * 60 * 1000,
