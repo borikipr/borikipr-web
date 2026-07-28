@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BorikíPR / Erickson Real Estate
 
-## Getting Started
+Production web application for Erickson Real Estate in Puerto Rico. It combines
+the public property catalog and qualification forms with an authenticated admin,
+canonical Lead 360 identities, shared client cases, secure financial documents,
+follow-up workflows, analytics, and recoverable email delivery.
 
-First, run the development server:
+## Architecture
+
+- **Next.js 16 / React 19**: App Router public and admin experiences.
+- **Neon PostgreSQL**: source of truth for properties, leads, form submissions,
+  admin authentication metadata, email queue, audit history, and rate limits.
+- **Cloudflare R2**: private financial documents and managed media. Neon stores
+  metadata and ownership references, never document bytes.
+- **Resend**: immediate transactional delivery. Retryable failures use the
+  durable `email_queue`.
+- **Vercel**: production hosting and protected cron execution.
+- **Analytics**: GA4, Microsoft Clarity, and Vercel Analytics on eligible public
+  routes. Admin and private-token workflows are excluded.
+
+The mature identity, Shared Case 360, Lead 360, document authorization, and
+email queue designs are shared infrastructure; do not create parallel versions.
+
+## Main modules
+
+- Public: home, listings, property details, About, Contact, testimonials,
+  Priority Registration, Buyer Profile, Open House, and Private Showing.
+- Admin: properties, testimonials, analytics, unified leads, Lead 360, Shared
+  Case 360, follow-ups, secure documents, profile, and password recovery.
+- Operations: email processing, availability-intent recovery, authentication
+  cleanup, schema audit, health monitoring, and R2 reconciliation.
+
+## Local setup
+
+Requirements: Node.js 24 LTS-compatible runtime, npm, and isolated development
+credentials for Neon and R2. Never point automated tests at production.
 
 ```bash
+npm ci
+copy .env.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`. Public tests use isolated PGlite fixtures and do
+not require production secrets.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Validation
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm test
+npm run migration:validate
+npm run lint
+npm run type-check
+npm run build
+npm run test:e2e
+git diff --check
+```
 
-## Learn More
+Operational read-only commands:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run schema:audit
+npm run availability:recovery:dry-run
+npm run r2:reconcile
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deployment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Database migrations are reviewed and applied before deploying code that depends
+on them. Application requests never auto-apply migrations. Vercel Production
+and Preview must use the same durable persistence architecture and have all
+required server-only variables configured.
 
-## Deploy on Vercel
+See:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- [Migration runbook](docs/migrations.md)
+- [Deployment runbook](docs/deployment.md)
+- [Incident runbook](docs/incidents.md)
+- [Security and privacy operations](docs/security-privacy.md)
+- [R2 lifecycle policy](docs/r2-lifecycle.md)
+- [Operational monitoring](docs/monitoring.md)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Security
+
+Never commit `.env.local`, credentials, signed URLs, private object keys,
+customer PII, form bodies, session/reset/private-showing tokens, or financial
+documents. Public mutations are server-validated and durably rate limited.
+Admin authorization and document ownership checks must remain server-side.
