@@ -48,4 +48,28 @@ test.describe("transactional property route SEO", () => {
     expect(sitemap).not.toContain("registro-prioritario");
     expect(sitemap).not.toContain("/visita/");
   });
+
+  test("production host canonical and trailing-slash behavior remain unchanged", async ({
+    request,
+  }) => {
+    const baseURL = test.info().project.use.baseURL;
+    const trailingResponse = await request.get(`/listados/${propertySlug}/`, {
+      maxRedirects: 0,
+    });
+
+    expect(trailingResponse.status()).toBe(308);
+    expect(trailingResponse.headers().location).toBe(
+      `/listados/${propertySlug}`
+    );
+
+    if (!baseURL || new URL(baseURL).hostname !== "borikipr.com") {
+      return;
+    }
+
+    const wwwResponse = await request.get("https://www.borikipr.com/");
+    expect(wwwResponse.status()).toBe(200);
+    expect(await wwwResponse.text()).toContain(
+      '<link rel="canonical" href="https://borikipr.com"'
+    );
+  });
 });
