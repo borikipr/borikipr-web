@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { getOperationalPropertyCounts } from "@/lib/admin/queries/unified-lead-directory";
 
 export type AdminPropiedadRow = {
   id: string;
@@ -12,7 +13,8 @@ export type AdminPropiedadRow = {
   estado: "disponible" | "coming_soon" | "bajo_contrato" | "vendida" | "rentada";
   destacado: boolean;
   created_at: string;
-  total_leads: number;
+  total_interactions: number;
+  total_contacts: number;
   origen_listado: "propio" | "co_broke" | "externo";
 };
 
@@ -90,30 +92,39 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
 }
 
 export async function getAdminPropiedades(tipo?: string) {
-  const rows = await sql<AdminPropiedadRow[]>`
-    SELECT
-      p.id,
-      p.slug,
-      p.titulo,
-      p.municipio,
-      to_jsonb(p)->>'sector_comunidad' AS sector_comunidad,
-      p.precio,
-      p.tipo_negocio,
-      p.tipo_propiedad,
-      p.estado,
-      p.destacado,
-      p.created_at,
-      p.origen_listado,
-      COUNT(le.id)::int AS total_leads
-    FROM propiedades p
-    LEFT JOIN lead_events le ON le.propiedad_slug = p.slug
-    WHERE 1=1
-    ${tipo ? sql`AND p.tipo_propiedad = ${tipo}` : sql``}
-    GROUP BY p.id
-    ORDER BY p.created_at DESC
-  `;
+  const [rows, operationalCounts] = await Promise.all([
+    sql<Omit<AdminPropiedadRow, "total_contacts">[]>`
+      SELECT
+        p.id,
+        p.slug,
+        p.titulo,
+        p.municipio,
+        to_jsonb(p)->>'sector_comunidad' AS sector_comunidad,
+        p.precio,
+        p.tipo_negocio,
+        p.tipo_propiedad,
+        p.estado,
+        p.destacado,
+        p.created_at,
+        p.origen_listado,
+        COUNT(le.id)::int AS total_interactions
+      FROM propiedades p
+      LEFT JOIN lead_events le ON le.propiedad_slug = p.slug
+      WHERE 1=1
+      ${tipo ? sql`AND p.tipo_propiedad = ${tipo}` : sql``}
+      GROUP BY p.id
+      ORDER BY p.created_at DESC
+    `,
+    getOperationalPropertyCounts(),
+  ]);
+  const countsByProperty = new Map(
+    operationalCounts.map((row) => [row.propertyId, row.contactCount])
+  );
 
-  return rows;
+  return rows.map((row) => ({
+    ...row,
+    total_contacts: countsByProperty.get(row.id) ?? 0,
+  }));
 }
 
 export async function getAdminPropiedadById(id: string) {

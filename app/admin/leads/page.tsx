@@ -8,6 +8,7 @@ import {
   CANONICAL_LEAD_SOURCE_LABELS,
   getCanonicalLeadDirectory,
   normalizeCanonicalLeadFilters,
+  resolveCanonicalLeadPropertyFilter,
   type CanonicalLeadSourceType,
 } from "@/lib/admin/queries/canonical-leads";
 import {
@@ -74,7 +75,16 @@ export default async function AdminLeadsPage({ searchParams }: { searchParams: P
   const user = await getAdminSessionUser();
   if (!user) redirect("/admin/login");
   const raw = await searchParams;
-  const canonicalFilters = normalizeCanonicalLeadFilters(raw);
+  const rawProperty = Array.isArray(raw.property)
+    ? raw.property[0]
+    : raw.property;
+  const propertyResolution = await resolveCanonicalLeadPropertyFilter(
+    rawProperty ?? null
+  );
+  const normalizedRaw = propertyResolution.property
+    ? { ...raw, property: propertyResolution.property.id }
+    : raw;
+  const canonicalFilters = normalizeCanonicalLeadFilters(normalizedRaw);
   const filters = normalizeUnifiedDirectoryFilters(canonicalFilters, raw);
   let directory;
   let reference;
@@ -89,6 +99,22 @@ export default async function AdminLeadsPage({ searchParams }: { searchParams: P
     directory = { items: [], total: 0, totalPages: 1 };
     reference = { items: [], total: 0, totalPages: 1, summary: { total: 0, newToday: 0, newLast7Days: 0, withPriorityRegistration: 0, withMultipleInteractions: 0 }, properties: [], relatedDataUnavailable: false };
   }
+  const propertyOptions = [...reference.properties];
+  if (
+    propertyResolution.property &&
+    !propertyOptions.some(
+      (property) => property.id === propertyResolution.property?.id
+    )
+  ) {
+    propertyOptions.push(propertyResolution.property);
+    propertyOptions.sort((left, right) =>
+      left.title.localeCompare(right.title, "es-PR")
+    );
+  }
+  const selectedProperty =
+    propertyResolution.property ??
+    propertyOptions.find((property) => property.id === filters.propertyId) ??
+    null;
   const hasFilters = Boolean(filters.search || filters.status !== "all" || filters.source !== "all" || filters.range !== "all" || filters.propertyId);
   return (
     <AdminPageShell>
@@ -103,6 +129,31 @@ export default async function AdminLeadsPage({ searchParams }: { searchParams: P
           {[["Identidades", reference.summary.total, "Personas canónicas activas"], ["Nuevos hoy", reference.summary.newToday, "Creados hoy"], ["Últimos 7 días", reference.summary.newLast7Days, "Personas recientes"], ["Registro prioritario", reference.summary.withPriorityRegistration, "Con esta fuente"], ["Múltiples interacciones", reference.summary.withMultipleInteractions, "Más de un formulario"]].map(([label, value, detail]) => <div className="surface-card p-5" key={String(label)}><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d4af37]">{label}</p><p className="mt-3 text-3xl font-bold">{value}</p><p className="mt-2 text-sm text-[#4d4d4d]">{detail}</p></div>)}
         </section>
         <section className="surface-card p-5">
+          {selectedProperty && (
+            <div
+              className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3"
+              role="status"
+            >
+              <p className="text-sm text-[#334155]">
+                Filtrando por propiedad:{" "}
+                <strong>{selectedProperty.title}</strong>
+              </p>
+              <Link
+                className="text-sm font-semibold text-[#11518b] hover:underline"
+                href="/admin/leads"
+              >
+                Quitar filtro
+              </Link>
+            </div>
+          )}
+          {propertyResolution.invalid && (
+            <div
+              className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-[#6b4f00]"
+              role="alert"
+            >
+              La propiedad seleccionada no está disponible para filtrar.
+            </div>
+          )}
           <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label="Vista del directorio">
             <Link className={!filters.showIndividuals ? "btn-primary" : "btn-secondary"} href={directoryHref({ ...filters, showIndividuals: false }, 1)}>Vista operativa</Link>
             <Link className={filters.showIndividuals ? "btn-primary" : "btn-secondary"} href={directoryHref({ ...filters, showIndividuals: true }, 1)}>Mostrar personas individuales</Link>
@@ -112,7 +163,7 @@ export default async function AdminLeadsPage({ searchParams }: { searchParams: P
             <label className="lg:col-span-2"><span className="mb-2 block text-sm font-semibold">Buscar</span><input className="input-field w-full" defaultValue={filters.search} maxLength={320} name="q" placeholder="Nombre, correo, teléfono o propiedad" type="search" /></label>
             <label><span className="mb-2 block text-sm font-semibold">Estado</span><select className="input-field w-full" defaultValue={filters.status} name="status"><option value="all">Todos</option>{Object.entries(UNIFIED_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
             <label><span className="mb-2 block text-sm font-semibold">Fuente</span><select className="input-field w-full" defaultValue={filters.source} name="source"><option value="all">Todas</option>{Object.entries(CANONICAL_LEAD_SOURCE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-            <label><span className="mb-2 block text-sm font-semibold">Propiedad</span><select className="input-field w-full" defaultValue={filters.propertyId ?? ""} name="property"><option value="">Todas</option>{reference.properties.map((property) => <option key={property.id} value={property.id}>{property.title}</option>)}</select></label>
+            <label><span className="mb-2 block text-sm font-semibold">Propiedad</span><select className="input-field w-full" defaultValue={filters.propertyId ?? ""} name="property"><option value="">Todas</option>{propertyOptions.map((property) => <option key={property.id} value={property.id}>{property.title}</option>)}</select></label>
             <label><span className="mb-2 block text-sm font-semibold">Fecha</span><select className="input-field w-full" defaultValue={filters.range} name="range"><option value="all">Todo</option><option value="today">Hoy</option><option value="7d">7 días</option><option value="30d">30 días</option></select></label>
             <label><span className="mb-2 block text-sm font-semibold">Orden</span><select className="input-field w-full" defaultValue={filters.sort} name="sort"><option value="recent">Más recientes</option><option value="oldest">Más antiguos</option><option value="name_asc">Nombre A–Z</option><option value="name_desc">Nombre Z–A</option></select></label>
             <div className="flex flex-wrap items-end gap-3 lg:col-span-5"><button className="btn-primary" type="submit">Aplicar filtros</button><Link className="btn-secondary" href="/admin/leads">Limpiar</Link></div>
@@ -120,7 +171,7 @@ export default async function AdminLeadsPage({ searchParams }: { searchParams: P
         </section>
         <section className="surface-card overflow-hidden">
           <header className="border-b border-[#eeeeee] px-5 py-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="eyebrow">{filters.showIndividuals ? "Vista de identidades" : "Vista operativa"}</p><h2 className="mt-2 text-2xl font-semibold">{filters.showIndividuals ? "Personas individuales" : "Personas y casos compartidos"}</h2></div><p className="text-sm text-[#4d4d4d]">{directory.total} resultado{directory.total === 1 ? "" : "s"} · {CANONICAL_LEAD_PAGE_SIZE} por página</p></div></header>
-          {directory.items.length ? <div className="grid min-w-0 gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">{directory.items.map((item) => <LeadResultCard item={item} key={`${item.entityType}-${item.id}`} />)}</div> : <div className="px-6 py-14 text-center"><UsersRound className="mx-auto h-8 w-8 text-[#11518b]" /><h3 className="mt-3 text-lg font-semibold">{hasFilters ? "No hay resultados" : "No hay leads todavía"}</h3><p className="mt-2 text-sm text-[#4d4d4d]">{hasFilters ? "Ajusta o limpia los filtros." : "Las personas y casos aparecerán aquí."}</p></div>}
+          {directory.items.length ? <div className="grid min-w-0 gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">{directory.items.map((item) => <LeadResultCard item={item} key={`${item.entityType}-${item.id}`} />)}</div> : <div className="px-6 py-14 text-center"><UsersRound className="mx-auto h-8 w-8 text-[#11518b]" /><h3 className="mt-3 text-lg font-semibold">{hasFilters ? "No hay resultados" : "No hay leads todavía"}</h3><p className="mt-2 text-sm text-[#4d4d4d]">{propertyResolution.invalid ? "La propiedad seleccionada no está disponible para filtrar." : selectedProperty && propertyResolution.rawInteractionCount > 0 ? "Esta propiedad tiene actividad registrada, pero todavía no hay personas o casos identificados para mostrar." : selectedProperty ? "No hay personas o casos asociados con esta propiedad." : hasFilters ? "Ajusta o limpia los filtros." : "Las personas y casos aparecerán aquí."}</p></div>}
           {directory.totalPages > 1 && <nav aria-label="Paginación de leads" className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eeeeee] px-5 py-4"><p className="text-sm">Página {filters.page} de {directory.totalPages}</p><div className="flex gap-2">{filters.page > 1 && <Link className="btn-secondary" href={directoryHref(filters, filters.page - 1)}>Anterior</Link>}{filters.page < directory.totalPages && <Link className="btn-secondary" href={directoryHref(filters, filters.page + 1)}>Siguiente</Link>}</div></nav>}
         </section>
       </>}

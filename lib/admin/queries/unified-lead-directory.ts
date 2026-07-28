@@ -46,6 +46,16 @@ export type UnifiedDirectory = {
   totalPages: number;
 };
 
+type SqlQuery = {
+  text: string;
+  values: unknown[];
+};
+
+export type OperationalPropertyCount = {
+  propertyId: string;
+  contactCount: number;
+};
+
 function iso(value: string | Date) {
   return new Date(value).toISOString();
 }
@@ -69,27 +79,10 @@ export function normalizeUnifiedDirectoryFilters(
   };
 }
 
-export async function getUnifiedLeadDirectory(filters: UnifiedDirectoryFilters): Promise<UnifiedDirectory> {
-  const values: unknown[] = [filters.showIndividuals];
-  const add = (value: unknown) => { values.push(value); return `$${values.length}`; };
-  const conditions: string[] = [];
-  if (filters.search) conditions.push(`search_text ILIKE ${add(`%${filters.search}%`)}`);
-  if (filters.status !== "all") conditions.push(`status=${add(filters.status)}`);
-  if (filters.source !== "all") conditions.push(`${add(filters.source)}=ANY(source_types)`);
-  if (filters.propertyId) conditions.push(`${add(filters.propertyId)}=ANY(property_ids)`);
-  if (filters.range === "today") conditions.push("created_at >= date_trunc('day', now())");
-  else if (filters.range === "7d") conditions.push("created_at >= now() - interval '7 days'");
-  else if (filters.range === "30d") conditions.push("created_at >= now() - interval '30 days'");
-  const orderBy = {
-    recent: "last_activity_at DESC, id DESC",
-    oldest: "created_at ASC, id ASC",
-    name_asc: "lower(name) ASC, id ASC",
-    name_desc: "lower(name) DESC, id DESC",
-  }[filters.sort];
-  const limit = add(CANONICAL_LEAD_PAGE_SIZE);
-  const offset = add((filters.page - 1) * CANONICAL_LEAD_PAGE_SIZE);
-  const rows = await sql.unsafe<Array<Record<string, unknown>>>(
-    `WITH ${CANONICAL_LEAD_SOURCE_RECORDS_CTE},
+export function buildUnifiedDirectoryEntitiesCte(
+  showIndividualsExpression: string
+) {
+  return `${CANONICAL_LEAD_SOURCE_RECORDS_CTE},
     active_members AS (
       SELECT gm.group_id, gm.lead_id, gm.role, gm.is_primary_contact
       FROM public.lead_group_members gm
@@ -168,7 +161,7 @@ export async function getUnifiedLeadDirectory(filters: UnifiedDirectoryFilters):
       LEFT JOIN source_aggregates sa ON sa.lead_id=l.id
       LEFT JOIN source_ranked recent ON recent.lead_id=l.id AND recent.source_rank=1
       WHERE l.merged_into_lead_id IS NULL
-        AND ($1::boolean OR NOT EXISTS (
+        AND (${showIndividualsExpression} OR NOT EXISTS (
           SELECT 1 FROM public.lead_group_members gm JOIN public.lead_groups g ON g.id=gm.group_id
           WHERE gm.lead_id=l.id AND gm.removed_at IS NULL AND g.archived_at IS NULL
         ))
@@ -176,12 +169,76 @@ export async function getUnifiedLeadDirectory(filters: UnifiedDirectoryFilters):
     entities AS (
       SELECT * FROM lead_entities
       UNION ALL
-      SELECT * FROM group_entities WHERE NOT $1::boolean
-    )
+      SELECT * FROM group_entities WHERE NOT ${showIndividualsExpression}
+    )`;
+}
+
+export function buildUnifiedLeadDirectoryQuery(
+  filters: UnifiedDirectoryFilters
+): SqlQuery {
+  const values: unknown[] = [filters.showIndividuals];
+  const add = (value: unknown) => { values.push(value); return `$${values.length}`; };
+  const conditions: string[] = [];
+  if (filters.search) conditions.push(`search_text ILIKE ${add(`%${filters.search}%`)}`);
+  if (filters.status !== "all") conditions.push(`status=${add(filters.status)}`);
+  if (filters.source !== "all") conditions.push(`${add(filters.source)}=ANY(source_types)`);
+  if (filters.propertyId) conditions.push(`${add(filters.propertyId)}=ANY(property_ids)`);
+  if (filters.range === "today") conditions.push("created_at >= date_trunc('day', now())");
+  else if (filters.range === "7d") conditions.push("created_at >= now() - interval '7 days'");
+  else if (filters.range === "30d") conditions.push("created_at >= now() - interval '30 days'");
+  const orderBy = {
+    recent: "last_activity_at DESC, id DESC",
+    oldest: "created_at ASC, id ASC",
+    name_asc: "lower(name) ASC, id ASC",
+    name_desc: "lower(name) DESC, id DESC",
+  }[filters.sort];
+  const limit = add(CANONICAL_LEAD_PAGE_SIZE);
+  const offset = add((filters.page - 1) * CANONICAL_LEAD_PAGE_SIZE);
+  return {
+    text: `WITH ${buildUnifiedDirectoryEntitiesCte("$1::boolean")}
     SELECT *, count(*) OVER () AS filtered_total FROM entities
     ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
     ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`,
-    values as never[]
+    values,
+  };
+}
+
+export function buildOperationalPropertyCountsQuery(): SqlQuery {
+  return {
+    text: `WITH ${buildUnifiedDirectoryEntitiesCte("FALSE")},
+      entity_properties AS (
+        SELECT DISTINCT
+          entity_type,
+          id,
+          unnest(property_ids) AS property_id
+        FROM entities
+      )
+      SELECT
+        property_id,
+        count(*)::int AS contact_count
+      FROM entity_properties
+      GROUP BY property_id`,
+    values: [],
+  };
+}
+
+export async function getOperationalPropertyCounts() {
+  const query = buildOperationalPropertyCountsQuery();
+  const rows = await sql.unsafe<Array<{
+    property_id: string;
+    contact_count: number | string;
+  }>>(query.text, query.values as never[]);
+  return rows.map((row) => ({
+    propertyId: row.property_id,
+    contactCount: Number(row.contact_count),
+  })) satisfies OperationalPropertyCount[];
+}
+
+export async function getUnifiedLeadDirectory(filters: UnifiedDirectoryFilters): Promise<UnifiedDirectory> {
+  const query = buildUnifiedLeadDirectoryQuery(filters);
+  const rows = await sql.unsafe<Array<Record<string, unknown>>>(
+    query.text,
+    query.values as never[]
   );
   const total = Number(rows[0]?.filtered_total ?? 0);
   return {

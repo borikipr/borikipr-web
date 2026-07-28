@@ -54,6 +54,13 @@ export type CanonicalLeadPropertyOption = {
   slug: string;
 };
 
+export type CanonicalLeadPropertyResolution = {
+  rawValue: string | null;
+  property: CanonicalLeadPropertyOption | null;
+  rawInteractionCount: number;
+  invalid: boolean;
+};
+
 export type CanonicalLeadDirectory = {
   items: CanonicalLeadListItem[];
   total: number;
@@ -216,6 +223,53 @@ export function normalizeCanonicalLeadFilters(
         ? sortValue
         : "recent",
     page: Number.isFinite(pageValue) && pageValue > 0 ? pageValue : 1,
+  };
+}
+
+export function buildCanonicalLeadPropertyResolutionQuery(
+  value: string
+): SqlQuery {
+  return {
+    text: `SELECT
+        p.id::text AS id,
+        p.titulo AS title,
+        p.slug,
+        (
+          SELECT count(*)::int
+          FROM public.lead_events le
+          WHERE le.propiedad_slug = p.slug
+        ) AS raw_interaction_count
+      FROM public.propiedades p
+      WHERE p.id::text = $1 OR p.slug = $1
+      LIMIT 1`,
+    values: [value],
+  };
+}
+
+export async function resolveCanonicalLeadPropertyFilter(
+  rawValue: string | null
+): Promise<CanonicalLeadPropertyResolution> {
+  const value = rawValue?.trim() ?? "";
+  if (!value) {
+    return {
+      rawValue: null,
+      property: null,
+      rawInteractionCount: 0,
+      invalid: false,
+    };
+  }
+  const query = buildCanonicalLeadPropertyResolutionQuery(value);
+  const rows = await executeQuery<PropertyRow & {
+    raw_interaction_count: number | string;
+  }>(query);
+  const row = rows[0];
+  return {
+    rawValue: value,
+    property: row
+      ? { id: row.id, title: row.title, slug: row.slug }
+      : null,
+    rawInteractionCount: Number(row?.raw_interaction_count ?? 0),
+    invalid: !row,
   };
 }
 
