@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { processPendingEmailQueue } from "@/lib/email-queue";
+import { recordCronHeartbeat } from "@/lib/operational-monitoring";
+import { queueMissingAvailabilityNotificationIntents } from "@/lib/property-availability-recovery";
 
 export const runtime = "nodejs";
 
@@ -14,10 +16,19 @@ async function handleEmailQueueRequest(req: Request) {
     );
   }
 
+  await recordCronHeartbeat("email_queue", "started").catch(() => undefined);
   try {
+    const availabilityRecovery =
+      await queueMissingAvailabilityNotificationIntents();
     const result = await processPendingEmailQueue();
-    return NextResponse.json({ ok: true, ...result });
+    await recordCronHeartbeat("email_queue", "succeeded").catch(
+      () => undefined
+    );
+    return NextResponse.json({ ok: true, availabilityRecovery, ...result });
   } catch (error) {
+    await recordCronHeartbeat("email_queue", "failed", error).catch(
+      () => undefined
+    );
     console.error("EMAIL QUEUE PROCESSOR ERROR", {
       message: error instanceof Error ? error.message : "Unknown error",
     });

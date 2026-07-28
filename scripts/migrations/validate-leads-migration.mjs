@@ -1550,3 +1550,49 @@ try {
 } finally {
   await publicRateLimitDb.close();
 }
+
+const operationalMonitoringMigrationSql = await readMigration(
+  "0018_add_operational_monitoring.sql"
+);
+const operationalMonitoringRollbackSql = await readMigration(
+  "0018_add_operational_monitoring.rollback.sql"
+);
+const operationalMonitoringDb = new PGlite();
+try {
+  await operationalMonitoringDb.exec(operationalMonitoringMigrationSql);
+  const catalog = await operationalMonitoringDb.query(`
+    SELECT
+      to_regclass('public.operational_cron_heartbeats')::text AS heartbeat_table,
+      to_regclass('public.operational_alert_state')::text AS alert_table,
+      EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname='public'
+          AND indexname='operational_alert_state_active_idx'
+      ) AS has_active_index
+  `);
+  assert.deepEqual(catalog.rows, [{
+    heartbeat_table: "operational_cron_heartbeats",
+    alert_table: "operational_alert_state",
+    has_active_index: true,
+  }]);
+  await assert.rejects(
+    operationalMonitoringDb.query(`
+      INSERT INTO public.operational_cron_heartbeats (job_name)
+      VALUES ('unknown_job')
+    `)
+  );
+  await operationalMonitoringDb.exec(operationalMonitoringRollbackSql);
+  const removed = await operationalMonitoringDb.query(`
+    SELECT
+      to_regclass('public.operational_cron_heartbeats') IS NULL AS heartbeat_removed,
+      to_regclass('public.operational_alert_state') IS NULL AS alert_removed
+  `);
+  assert.deepEqual(removed.rows, [{
+    heartbeat_removed: true,
+    alert_removed: true,
+  }]);
+  console.log("Validated the ordered migration chain through 0018.");
+  console.log("Verified cron heartbeats, alert deduplication state, and guarded rollback.");
+} finally {
+  await operationalMonitoringDb.close();
+}

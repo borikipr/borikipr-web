@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/cleanup-admin-auth",
       "schedule": "17 9 * * *"
+    },
+    {
+      "path": "/api/cron/operational-health",
+      "schedule": "47 9 * * *"
     }
   ]
 }

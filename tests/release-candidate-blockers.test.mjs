@@ -21,10 +21,10 @@ import { deliverClaimedEmail } from "../lib/email-queue-delivery.ts";
 if (!globalThis.File) globalThis.File = NodeFile;
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const [formSource, routeSource, actionSource, queueSource, vercelConfig] =
+const [formSource, validationSource, actionSource, queueSource, vercelConfig] =
   await Promise.all([
     readFile(`${root}/components/FormularioPerfilComprador.tsx`, "utf8"),
-    readFile(`${root}/app/api/formulario/perfil-comprador/route.ts`, "utf8"),
+    readFile(`${root}/lib/leads/property-buyer-profile.ts`, "utf8"),
     readFile(`${root}/app/admin/propiedades/actions.ts`, "utf8"),
     readFile(`${root}/lib/email-queue.ts`, "utf8"),
     readFile(`${root}/vercel.json`, "utf8"),
@@ -120,8 +120,8 @@ test("Buyer Profile keeps MIME validation, required uploads, and both document p
 test("all Buyer Profile upload guidance and validation share the 4 MB limit", () => {
   assert.match(formSource, /BUYER_PROFILE_UPLOAD_HELPER/);
   assert.match(formSource, /MAX_BUYER_PROFILE_DOCUMENT_BYTES/);
-  assert.match(routeSource, /MAX_BUYER_PROFILE_DOCUMENT_BYTES/);
-  assert.doesNotMatch(`${formSource}\n${routeSource}`, /10\s*MB|10MB/);
+  assert.match(validationSource, /MAX_BUYER_PROFILE_DOCUMENT_BYTES/);
+  assert.doesNotMatch(`${formSource}\n${validationSource}`, /10\s*MB|10MB/);
 });
 
 class FakeAvailabilityTransaction {
@@ -306,5 +306,6 @@ test("current free-compatible queue run can process all 84 recipients in one dai
   assert.deepEqual(config.crons, [
     { path: "/api/cron/process-email-queue", schedule: "0 9 * * *" },
     { path: "/api/cron/cleanup-admin-auth", schedule: "17 9 * * *" },
+    { path: "/api/cron/operational-health", schedule: "47 9 * * *" },
   ]);
 });

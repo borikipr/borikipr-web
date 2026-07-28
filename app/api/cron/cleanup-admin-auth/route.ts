@@ -3,6 +3,7 @@ import {
   cleanupAdminAuthenticationRecords,
   type AdminAuthCleanupResult,
 } from "@/lib/admin/auth-maintenance";
+import { recordCronHeartbeat } from "@/lib/operational-monitoring";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,8 +25,14 @@ export async function handleAdminAuthCleanupRequest(
   }
 
   const startedAt = Date.now();
+  await recordCronHeartbeat("admin_auth_cleanup", "started").catch(
+    () => undefined
+  );
   try {
     const result = await cleanup();
+    await recordCronHeartbeat("admin_auth_cleanup", "succeeded").catch(
+      () => undefined
+    );
     const durationMs = Date.now() - startedAt;
     console.info("ADMIN AUTH CLEANUP COMPLETE", {
       ...result,
@@ -35,7 +42,10 @@ export async function handleAdminAuthCleanupRequest(
       { ok: true, ...result, durationMs },
       { headers: { "Cache-Control": "no-store" } }
     );
-  } catch {
+  } catch (error) {
+    await recordCronHeartbeat("admin_auth_cleanup", "failed", error).catch(
+      () => undefined
+    );
     console.error("ADMIN AUTH CLEANUP FAILED");
     return NextResponse.json(
       { ok: false, error: "Authentication maintenance failed." },

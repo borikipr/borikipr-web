@@ -186,3 +186,17 @@ test("recovery remains dry-run by default and never sends historical email", asy
   assert.match(recovery, /NOT EXISTS/);
   assert.match(recovery, /q\.dedupe_key/);
 });
+
+test("the protected queue cron recovers missing availability intents before delivery", async () => {
+  const route = await readFile(
+    new URL("../app/api/cron/process-email-queue/route.ts", import.meta.url),
+    "utf8"
+  );
+  const recoveryIndex = route.indexOf(
+    "queueMissingAvailabilityNotificationIntents()"
+  );
+  const deliveryIndex = route.indexOf("processPendingEmailQueue()");
+  assert.ok(recoveryIndex > 0);
+  assert.ok(deliveryIndex > recoveryIndex);
+  assert.match(route, /availabilityRecovery/);
+});
