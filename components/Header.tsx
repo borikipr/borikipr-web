@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { trackAnalyticsEvent } from "@/lib/analytics";
@@ -11,6 +11,24 @@ import { getEquivalentRoute } from "@/lib/i18n/routing";
 type HeaderProps = {
   transparent?: boolean;
 };
+
+function LanguageSelectorFallback() {
+  return (
+    <span
+      aria-hidden="true"
+      className="block min-h-11 min-w-52 max-w-full"
+      data-language-selector-fallback
+    />
+  );
+}
+
+function GuardedLanguageSelector() {
+  return (
+    <Suspense fallback={<LanguageSelectorFallback />}>
+      <LanguageSelector />
+    </Suspense>
+  );
+}
 
 export default function Header({ transparent = false }: HeaderProps) {
   const [scrolled, setScrolled] = useState(false);
@@ -118,7 +136,7 @@ export default function Header({ transparent = false }: HeaderProps) {
             </div>
 
             <div className="flex items-center gap-5">
-              {multilingualEnabled && <LanguageSelector />}
+              {multilingualEnabled && <GuardedLanguageSelector />}
               <Link
                 href="https://wa.me/17876774900"
                 target="_blank"
@@ -291,7 +309,7 @@ export default function Header({ transparent = false }: HeaderProps) {
 
           {multilingualEnabled && (
             <div className="border-b border-[#f1f1f1] py-4">
-              <LanguageSelector />
+              <GuardedLanguageSelector />
             </div>
           )}
 

@@ -5,7 +5,9 @@ import test from "node:test";
 import {
   DEFAULT_LOCALE,
   ENGLISH_LOCALE,
+  PUBLIC_LOCALE_REQUEST_HEADER,
   SUPPORTED_LOCALES,
+  getPublicRequestLocale,
   isMultilingualEnabled,
   isSupportedLocale,
 } from "../lib/i18n/locales.ts";
@@ -160,6 +162,16 @@ test("feature flag defaults to disabled and accepts only explicit true", () => {
   assert.equal(getEnabledEquivalentRoute("/listados", "en-US", false), null);
 });
 
+test("server request locales are added only for enabled public routes", () => {
+  assert.equal(PUBLIC_LOCALE_REQUEST_HEADER, "x-boriki-public-locale");
+  assert.equal(getPublicRequestLocale("/about", false), null);
+  assert.equal(getPublicRequestLocale("/about", true), "es-PR");
+  assert.equal(getPublicRequestLocale("/en", true), "en-US");
+  assert.equal(getPublicRequestLocale("/en/about", true), "en-US");
+  assert.equal(getPublicRequestLocale("/admin/leads", true), null);
+  assert.equal(getPublicRequestLocale("/api/track", true), null);
+});
+
 test("admin, API, private-token and transactional routes are not remapped", () => {
   assert.equal(getEquivalentRoute("/admin/leads", "en-US"), null);
   assert.equal(getEquivalentRoute("/api/track", "en-US"), null);
@@ -186,23 +198,38 @@ test("Phase 2 selector is limited to static routes while property previews are d
 });
 
 test("Spanish shell, sitemap and redirect behavior remain stable while locale UI is gated", async () => {
-  const [layout, sitemap, nextConfig, publicLayout, header, environmentExample] =
+  const [
+    layout,
+    sitemap,
+    nextConfig,
+    publicLayout,
+    header,
+    proxy,
+    environmentExample,
+  ] =
     await Promise.all([
       source("app/layout.tsx"),
       source("app/sitemap.ts"),
       source("next.config.ts"),
       source("app/(public)/layout.tsx"),
       source("components/Header.tsx"),
+      source("proxy.ts"),
       source(".env.example"),
     ]);
 
-  assert.match(layout, /<html lang="es"/);
+  assert.match(layout, /let documentLanguage = "es"/);
+  assert.match(layout, /PUBLIC_LOCALE_REQUEST_HEADER/);
+  assert.match(layout, /<html lang=\{documentLanguage\}/);
   assert.doesNotMatch(layout, /hreflang|languages:/);
   assert.doesNotMatch(sitemap, /\/en(?:\/|`|")/);
   assert.doesNotMatch(nextConfig, /Accept-Language|MULTILINGUAL_ENABLED/);
   assert.match(publicLayout, /isMultilingualEnabled\(\)/);
   assert.match(publicLayout, /PublicLocaleProvider/);
-  assert.match(header, /multilingualEnabled && <LanguageSelector/);
+  assert.match(header, /multilingualEnabled && <GuardedLanguageSelector/);
+  assert.match(header, /<Suspense fallback=\{<LanguageSelectorFallback \/>/);
+  assert.match(proxy, /getPublicRequestLocale\(pathname\)/);
+  assert.match(proxy, /PUBLIC_LOCALE_REQUEST_HEADER/);
+  assert.match(proxy, /adminMiddleware\(request\)/);
   assert.match(environmentExample, /MULTILINGUAL_ENABLED=false/);
 });
 
@@ -235,12 +262,13 @@ test("English preview routes are gated by the server-side feature flag", async (
   assert.match(englishListings, /from "\.\.\/\.\.\/listados\/page"/);
 });
 
-test("locale provider changes html lang only while multilingual mode is active", async () => {
+test("locale provider synchronizes client navigation without owning initial html lang", async () => {
   const provider = await source("components/PublicLocaleProvider.tsx");
 
   assert.match(provider, /if \(!multilingualEnabled\) return/);
   assert.match(provider, /document\.documentElement\.lang = locale/);
   assert.doesNotMatch(provider, /document\.documentElement\.lang = "es"/);
+  assert.doesNotMatch(provider, /return \(\) =>/);
   assert.match(provider, /getRouteLocale\(pathname\)/);
 });
 

@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import AnalyticsScripts from "@/components/AnalyticsScripts";
+import {
+  isMultilingualEnabled,
+  isSupportedLocale,
+  PUBLIC_LOCALE_REQUEST_HEADER,
+} from "@/lib/i18n/locales";
 import {
   DEFAULT_OG_IMAGE,
   SITE_NAME,
@@ -47,13 +53,22 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  let documentLanguage = "es";
+
+  if (isMultilingualEnabled()) {
+    const requestedLocale = (await headers()).get(PUBLIC_LOCALE_REQUEST_HEADER);
+    if (requestedLocale && isSupportedLocale(requestedLocale)) {
+      documentLanguage = requestedLocale;
+    }
+  }
+
   return (
-    <html lang="es" data-scroll-behavior="smooth">
+    <html lang={documentLanguage} data-scroll-behavior="smooth">
       <body>
         <script
           type="application/ld+json"

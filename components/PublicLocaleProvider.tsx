@@ -49,7 +49,9 @@ export default function PublicLocaleProvider({
 
   useLayoutEffect(() => {
     if (!multilingualEnabled) return;
-    document.documentElement.lang = locale;
+    if (document.documentElement.lang !== locale) {
+      document.documentElement.lang = locale;
+    }
   }, [locale, multilingualEnabled]);
 
   const value = useMemo(

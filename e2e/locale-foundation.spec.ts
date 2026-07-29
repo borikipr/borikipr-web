@@ -10,7 +10,8 @@ test("disabled multilingual mode preserves the Spanish production shell", async 
 }) => {
   test.skip(multilingualEnabled, "This assertion covers the disabled mode.");
 
-  await page.goto("/about");
+  const response = await page.goto("/about");
+  expect(await response?.text()).toContain('<html lang="es"');
   await expect(page.locator("html")).toHaveAttribute("lang", "es");
   await expect(page.locator("[data-language-selector]")).toHaveCount(0);
 
@@ -31,7 +32,15 @@ test("enabled preview switches static routes and updates the document language",
 }) => {
   test.skip(!multilingualEnabled, "English preview is intentionally disabled.");
 
-  await page.goto("/en/about");
+  const hydrationWarnings: string[] = [];
+  page.on("console", (message) => {
+    if (/hydration|did not match/i.test(message.text())) {
+      hydrationWarnings.push(message.text());
+    }
+  });
+
+  const response = await page.goto("/en/about");
+  expect(await response?.text()).toContain('<html lang="en-US"');
   await expect(page.locator("html")).toHaveAttribute("lang", "en-US");
   await expect(
     page.getByRole("heading", {
@@ -58,6 +67,44 @@ test("enabled preview switches static routes and updates the document language",
       .first()
       .locator('a[aria-label="Español (ES)"]')
   ).toHaveAttribute("href", "/contact?q=Ponce&page=2");
+  expect(hydrationWarnings).toEqual([]);
+});
+
+test("enabled direct loads and client navigation never leave a stale document locale", async ({
+  page,
+  viewport,
+}) => {
+  test.skip(!multilingualEnabled, "English preview is intentionally disabled.");
+
+  const englishHome = await page.goto("/en");
+  expect(await englishHome?.text()).toContain('<html lang="en-US"');
+  await expect(page.locator("html")).toHaveAttribute("lang", "en-US");
+
+  const spanishAbout = await page.goto("/about");
+  expect(await spanishAbout?.text()).toContain('<html lang="es-PR"');
+  await expect(page.locator("html")).toHaveAttribute("lang", "es-PR");
+
+  if ((viewport?.width ?? 1280) < 1024) {
+    await page.getByRole("button", { name: /Abrir men/ }).click();
+  }
+
+  await page
+    .locator("[data-language-selector]:visible")
+    .getByRole("link", { name: "English (EN)" })
+    .click();
+  await expect(page).toHaveURL(/\/en\/about$/);
+  await expect(page.locator("html")).toHaveAttribute("lang", "en-US");
+
+  if ((viewport?.width ?? 1280) < 1024) {
+    await page.getByRole("button", { name: "Open menu" }).click();
+  }
+
+  await page
+    .locator("[data-language-selector]:visible")
+    .getByRole("link", { name: /Espa.*ol \(ES\)/ })
+    .click();
+  await expect(page).toHaveURL(/\/about$/);
+  await expect(page.locator("html")).toHaveAttribute("lang", "es-PR");
 });
 
 test("enabled preview renders all Phase 2.5 static page interfaces in English", async ({
