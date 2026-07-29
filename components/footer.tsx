@@ -1,7 +1,15 @@
+"use client";
+
 import Link from "next/link";
 import AnalyticsLink from "@/components/AnalyticsLink";
+import { usePublicLocale } from "@/components/PublicLocaleProvider";
+import { getEquivalentRoute } from "@/lib/i18n/routing";
 
 export default function Footer() {
+  const { locale, dictionary } = usePublicLocale();
+  const localizedHref = (href: string) =>
+    getEquivalentRoute(href, locale) ?? href;
+
   return (
     <footer className="bg-[#0d1b2a] text-white">
       <div className="section-shell py-16">
@@ -18,8 +26,7 @@ export default function Footer() {
             </p>
 
             <p className="mt-6 max-w-sm text-sm leading-relaxed text-white/75">
-              Una presencia profesional para comprar, vender o invertir en
-              Puerto Rico con estrategia, claridad y confianza.
+              {dictionary.footer.brandDescription}
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -79,27 +86,27 @@ export default function Footer() {
           {/* NAV */}
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#d4af37]">
-              Navegación
+              {dictionary.footer.navigationHeading}
             </p>
 
             <nav className="mt-6 flex flex-col gap-4 text-sm text-white/75">
-              <Link href="/" className="transition hover:text-white">
-                Inicio
+              <Link href={localizedHref("/")} className="transition hover:text-white">
+                {dictionary.navigation.home}
               </Link>
-              <Link href="/listados" className="transition hover:text-white">
-                Listados
+              <Link href={localizedHref("/listados")} className="transition hover:text-white">
+                {dictionary.navigation.listings}
               </Link>
-              <Link href="/testimonios" className="transition hover:text-white">
-                Testimonios
+              <Link href={localizedHref("/testimonios")} className="transition hover:text-white">
+                {dictionary.navigation.testimonials}
               </Link>
-              <Link href="/about" className="transition hover:text-white">
-                Sobre mí
+              <Link href={localizedHref("/about")} className="transition hover:text-white">
+                {dictionary.navigation.about}
               </Link>
-              <Link href="/contact" className="transition hover:text-white">
-                Contacto
+              <Link href={localizedHref("/contact")} className="transition hover:text-white">
+                {dictionary.navigation.contact}
               </Link>
-              <Link href="/privacidad" className="transition hover:text-white">
-                Privacidad
+              <Link href={localizedHref("/privacidad")} className="transition hover:text-white">
+                {dictionary.navigation.privacy}
               </Link>
             </nav>
           </div>
@@ -107,26 +114,26 @@ export default function Footer() {
           {/* SERVICIOS */}
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#d4af37]">
-              Servicios
+              {dictionary.footer.servicesHeading}
             </p>
 
             <div className="mt-6 flex flex-col gap-4 text-sm text-white/75">
-              <p>Compra de propiedades</p>
-              <p>Venta de propiedades</p>
-              <p>Consultoría inmobiliaria</p>
-              <p>Orientación estratégica</p>
+              <p>{dictionary.footer.services.buying}</p>
+              <p>{dictionary.footer.services.selling}</p>
+              <p>{dictionary.footer.services.consulting}</p>
+              <p>{dictionary.footer.services.strategy}</p>
             </div>
           </div>
 
           {/* CONTACTO */}
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#d4af37]">
-              Contacto
+              {dictionary.footer.contactHeading}
             </p>
 
             <div className="mt-6 space-y-4 text-sm text-white/75">
               <div>
-                <p className="font-medium text-white">Email</p>
+                <p className="font-medium text-white">{dictionary.footer.email}</p>
                 <p className="mt-1">ivonneerickson@borikipr.com</p>
               </div>
 
@@ -136,12 +143,12 @@ export default function Footer() {
               </div>
 
               <div>
-                <p className="font-medium text-white">Ubicación</p>
+                <p className="font-medium text-white">{dictionary.footer.location}</p>
                 <p className="mt-1">Puerto Rico</p>
               </div>
 
               <div>
-                <p className="font-medium text-white">Licencia</p>
+                <p className="font-medium text-white">{dictionary.footer.license}</p>
                 <p className="mt-1">C-25961</p>
               </div>
             </div>
@@ -151,11 +158,10 @@ export default function Footer() {
         <div className="mt-14 border-t border-white/10 pt-6">
           <div className="flex flex-col gap-4 text-sm text-white/60 md:flex-row md:items-center md:justify-between">
             <p>
-              Ivonne Erickson · Corredora de Bienes Raíces · Licencia C-25961
+              {dictionary.footer.professionalLine}
             </p>
             <p>
-              © {new Date().getFullYear()} Erickson Real Estate. Todos los
-              derechos reservados.
+              © {new Date().getFullYear()} {dictionary.footer.copyright}
             </p>
           </div>
         </div>

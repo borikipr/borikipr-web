@@ -31,7 +31,8 @@ test("the public region taxonomy is typed, exact, and preserves the existing six
 
 test("home region cards use the explicit region contract instead of free-text search", async () => {
   const source = await readFile(new URL("../app/(public)/page.tsx", import.meta.url), "utf8");
-  assert.match(source, /href=\{`\/listados\?region=/);
+  assert.match(source, /getEquivalentRoute\("\/listados", locale\)/);
+  assert.match(source, /href=\{`\$\{listingsHref\}\?region=/);
   assert.doesNotMatch(source, /href=\{`\/listados\?q=\$\{encodeURIComponent\(zona\.nombre\)\}/);
 });
 

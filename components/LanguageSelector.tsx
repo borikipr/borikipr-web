@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { usePublicLocale } from "@/components/PublicLocaleProvider";
 import {
   DEFAULT_LOCALE,
   ENGLISH_LOCALE,
@@ -10,47 +11,27 @@ import {
 import {
   getEquivalentRoute,
   getRouteLocale,
+  isStaticLocalePreviewRoute,
 } from "@/lib/i18n/routing";
 
-type Props = {
-  enabled?: boolean;
-};
-
-const options: ReadonlyArray<{
-  locale: AppLocale;
-  flag: string;
-  language: string;
-  shortCode: string;
-}> = [
-  {
-    locale: DEFAULT_LOCALE,
-    flag: "🇵🇷",
-    language: "Español",
-    shortCode: "ES",
-  },
-  {
-    locale: ENGLISH_LOCALE,
-    flag: "🇺🇸",
-    language: "English",
-    shortCode: "EN",
-  },
+const options: ReadonlyArray<{ locale: AppLocale; flag: string }> = [
+  { locale: DEFAULT_LOCALE, flag: "🇵🇷" },
+  { locale: ENGLISH_LOCALE, flag: "🇺🇸" },
 ];
 
-export default function LanguageSelector({ enabled = false }: Props) {
+export default function LanguageSelector() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-
-  if (!enabled) return null;
-
+  const { dictionary } = usePublicLocale();
   const query = searchParams.toString();
   const currentHref = `${pathname}${query ? `?${query}` : ""}`;
   const currentLocale = getRouteLocale(pathname);
 
-  if (!currentLocale) return null;
+  if (!currentLocale || !isStaticLocalePreviewRoute(pathname)) return null;
 
   return (
     <nav
-      aria-label="Seleccionar idioma / Select language"
+      aria-label={dictionary.language.selectorLabel}
       className="flex max-w-full flex-wrap items-center gap-2"
       data-language-selector
     >
@@ -59,6 +40,14 @@ export default function LanguageSelector({ enabled = false }: Props) {
         if (!href) return null;
 
         const isCurrent = option.locale === currentLocale;
+        const language =
+          option.locale === DEFAULT_LOCALE
+            ? dictionary.language.spanish
+            : dictionary.language.english;
+        const shortCode =
+          option.locale === DEFAULT_LOCALE
+            ? dictionary.language.spanishShort
+            : dictionary.language.englishShort;
 
         return (
           <Link
@@ -67,12 +56,16 @@ export default function LanguageSelector({ enabled = false }: Props) {
             hrefLang={option.locale}
             lang={option.locale}
             aria-current={isCurrent ? "page" : undefined}
-            aria-label={`${option.language} (${option.shortCode})`}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-current/20 px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+            aria-label={`${language} (${shortCode})`}
+            className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 ${
+              isCurrent
+                ? "border-[#d4af37] bg-[#d4af37]/10"
+                : "border-current/20"
+            }`}
           >
             <span aria-hidden="true">{option.flag}</span>
-            <span>{option.language}</span>
-            <span aria-hidden="true">({option.shortCode})</span>
+            <span>{language}</span>
+            <span aria-hidden="true">({shortCode})</span>
           </Link>
         );
       })}

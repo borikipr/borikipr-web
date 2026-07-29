@@ -5,6 +5,16 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { buscarSugerencias } from "@/data/zonas";
+import { usePublicLocale } from "@/components/PublicLocaleProvider";
+import { getEquivalentRoute } from "@/lib/i18n/routing";
+
+const propertyTypeValues = [
+  "Apartamento",
+  "Comercial",
+  "Casas",
+  "Terreno",
+  "Multi-Familia",
+] as const;
 
 export default function HomeHeroClient({
   totalPropiedades,
@@ -12,6 +22,10 @@ export default function HomeHeroClient({
   totalPropiedades: number;
 }) {
   const router = useRouter();
+  const { locale, dictionary } = usePublicLocale();
+  const copy = dictionary.home.hero;
+  const listingsHref = getEquivalentRoute("/listados", locale) ?? "/listados";
+  const contactHref = getEquivalentRoute("/contact", locale) ?? "/contact";
 
   const [q, setQ] = useState("");
   const [tipoNegocio, setTipoNegocio] = useState("venta");
@@ -59,7 +73,7 @@ export default function HomeHeroClient({
     if (tipoPropiedad.length > 0) params.set("tipoPropiedad", tipoPropiedad.join(","));
 
     const query = params.toString();
-    router.push(query ? `/listados?${query}` : "/listados");
+    router.push(query ? `${listingsHref}?${query}` : listingsHref);
   };
 
   const toggleTipoNegocio = (tipo: "venta" | "renta") => {
@@ -80,7 +94,7 @@ export default function HomeHeroClient({
       <div className="absolute inset-0">
         <Image
           src="/hero-new-image.png"
-          alt="Residencia de lujo en Puerto Rico"
+          alt={copy.imageAlt}
           fill
           priority
           className="object-cover"
@@ -101,7 +115,7 @@ export default function HomeHeroClient({
           </p>
 
           <h1 className="mx-auto max-w-[20rem] text-center text-[1.24rem] font-bold leading-[1.08] text-white sm:max-w-4xl sm:text-[1.45rem] sm:leading-[1.04] md:text-[2.1rem] xl:text-[2.55rem]">
-            Propiedades con estrategia, intención y presencia.
+            {copy.title}
           </h1>
 
           {/* Barra de búsqueda rectangular */}
@@ -116,7 +130,7 @@ export default function HomeHeroClient({
                 type="button"
                 onClick={() => setMostrarFiltros(!mostrarFiltros)}
                 className="flex h-14 w-12 flex-shrink-0 items-center justify-center border-r border-[#e0e0e0] text-2xl font-bold text-[#11518b] transition hover:bg-[#f7f7f7] sm:w-14"
-                title={mostrarFiltros ? "Cerrar filtros" : "Mostrar filtros"}
+                title={mostrarFiltros ? copy.hideFilters : copy.showFilters}
               >
                 {mostrarFiltros ? "−" : "+"}
               </button>
@@ -125,7 +139,7 @@ export default function HomeHeroClient({
               <div className="relative min-w-0 flex-1">
                 <input
                   type="text"
-                  placeholder="Buscar por ubicación"
+                  placeholder={copy.locationPlaceholder}
                   value={q}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   onFocus={() => q.trim() && setMostrarSugerencias(true)}
@@ -141,7 +155,7 @@ export default function HomeHeroClient({
                       {sugerencias.zonas.length > 0 && (
                         <div className="border-b border-[#e8e8e8] p-2">
                           <p className="px-3 py-1 text-xs font-semibold uppercase text-[#11518b]">
-                            Zonas
+                            {copy.zones}
                           </p>
                           {sugerencias.zonas.map((zona) => (
                             <button
@@ -159,7 +173,7 @@ export default function HomeHeroClient({
                       {sugerencias.municipios.length > 0 && (
                         <div className="p-2">
                           <p className="px-3 py-1 text-xs font-semibold uppercase text-[#11518b]">
-                            Municipios
+                            {copy.municipalities}
                           </p>
                           {sugerencias.municipios.map((municipio) => (
                             <button
@@ -181,7 +195,7 @@ export default function HomeHeroClient({
               <button
                 type="submit"
                 className="flex h-14 w-12 flex-shrink-0 items-center justify-center border-l border-[#e0e0e0] bg-[#11518b] text-white transition hover:bg-[#0d3a63] sm:w-14"
-                title="Buscar"
+                title={dictionary.common.search}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8"></circle>
@@ -208,7 +222,7 @@ export default function HomeHeroClient({
                               : "bg-[#f5f5f5] text-[#333] border border-[#d9d9d9]"
                           }`}
                         >
-                          Venta
+                          {copy.sale}
                         </button>
                         <button
                           type="button"
@@ -219,7 +233,7 @@ export default function HomeHeroClient({
                               : "bg-[#f5f5f5] text-[#333] border border-[#d9d9d9]"
                           }`}
                         >
-                          Alquiler
+                          {copy.rent}
                         </button>
                       </div>
                     </div>
@@ -227,12 +241,12 @@ export default function HomeHeroClient({
                     {/* Rango de Precio */}
                     <div>
                       <label className="block text-sm font-semibold text-[#333] mb-2">
-                        Rango de Precio
+                        {copy.priceRange}
                       </label>
                       <div className="flex gap-4">
                         <div className="flex-1">
                           <label className="block text-xs text-[#666] mb-1">
-                            Mín
+                            {copy.minimum}
                           </label>
                           <input
                             type="number"
@@ -254,7 +268,7 @@ export default function HomeHeroClient({
                         </div>
                         <div className="flex-1">
                           <label className="block text-xs text-[#666] mb-1">
-                            Máx
+                            {copy.maximum}
                           </label>
                           <input
                             type="number"
@@ -280,7 +294,7 @@ export default function HomeHeroClient({
                     {/* Habitaciones */}
                     <div>
                       <label className="block text-sm font-semibold text-[#333] mb-3">
-                        Habitaciones
+                        {copy.bedrooms}
                       </label>
                       <div className="flex flex-wrap gap-2">
                         {["Todos", "1+", "2+", "3+", "4+", "5+"].map((opt) => (
@@ -295,7 +309,7 @@ export default function HomeHeroClient({
                                 : "border border-[#d9d9d9] text-[#333] hover:border-[#11518b]"
                             }`}
                           >
-                            {opt}
+                            {opt === "Todos" ? copy.all : opt}
                           </button>
                         ))}
                       </div>
@@ -304,7 +318,7 @@ export default function HomeHeroClient({
                     {/* Baños */}
                     <div>
                       <label className="block text-sm font-semibold text-[#333] mb-3">
-                        Baños
+                        {copy.bathrooms}
                       </label>
                       <div className="flex flex-wrap gap-2">
                         {["Todos", "1+", "2+", "3+", "4+", "5+"].map((opt) => (
@@ -318,7 +332,7 @@ export default function HomeHeroClient({
                                 : "border border-[#d9d9d9] text-[#333] hover:border-[#11518b]"
                             }`}
                           >
-                            {opt}
+                            {opt === "Todos" ? copy.all : opt}
                           </button>
                         ))}
                       </div>
@@ -328,11 +342,11 @@ export default function HomeHeroClient({
                   {/* Columna derecha - Tipo de Propiedad */}
                   <div className="lg:col-span-1">
                     <h3 className="text-sm font-semibold text-[#333] mb-4">
-                      Tipo de Propiedad
+                      {copy.propertyType}
                     </h3>
                     <div className="space-y-3">
-                      {["Apartamento", "Comercial", "Casas", "Terreno", "Multi-Familia"].map(
-                        (tipo) => (
+                      {propertyTypeValues.map(
+                        (tipo, index) => (
                           <label
                             key={tipo}
                             className="flex items-center gap-3 cursor-pointer"
@@ -358,7 +372,9 @@ export default function HomeHeroClient({
                                 }`}
                               />
                             </div>
-                            <span className="text-sm text-[#333]">{tipo}</span>
+                            <span className="text-sm text-[#333]">
+                              {copy.propertyTypes[index]}
+                            </span>
                           </label>
                         )
                       )}
@@ -376,14 +392,14 @@ export default function HomeHeroClient({
                       <circle cx="11" cy="11" r="8"></circle>
                       <path d="m21 21-4.35-4.35"></path>
                     </svg>
-                    Buscar
+                    {dictionary.common.search}
                   </button>
                   <button
                     type="button"
                     onClick={() => setMostrarFiltros(false)}
                     className="rounded border border-[#d9d9d9] text-[#333] font-semibold py-2.5 px-6 hover:bg-[#f5f5f5] transition"
                   >
-                    Cerrar
+                    {dictionary.common.close}
                   </button>
                 </div>
               </div>
@@ -392,26 +408,28 @@ export default function HomeHeroClient({
             {totalPropiedades > 0 && (
               <p className="mt-4 text-center text-sm text-white/85">
                 {totalPropiedades}{" "}
-                {totalPropiedades === 1 ? "listado disponible" : "listados disponibles"}
+                {totalPropiedades === 1
+                  ? copy.availableSingular
+                  : copy.availablePlural}
               </p>
             )}
           </form>
 
           <p className="mx-auto mt-4 max-w-[19rem] text-center text-[1.1rem] leading-[1.65] text-white/90 sm:mt-6 sm:max-w-xl sm:text-base md:mt-8 md:max-w-2xl md:text-xl md:leading-relaxed">
-            Compra, vende o invierte con guía clara, estrategia y confianza desde el inicio.
+            {copy.description}
           </p>
 
           {/* CTA Buttons */}
           <div className="mx-auto mt-5 flex w-full max-w-xs flex-col gap-3 justify-center sm:mt-7 sm:max-w-none sm:flex-row sm:flex-wrap sm:gap-4 md:mt-9">
-            <Link href="/listados" className="btn-primary min-h-[50px] w-full sm:w-auto">
-              Explorar listados
+            <Link href={listingsHref} className="btn-primary min-h-[50px] w-full sm:w-auto">
+              {copy.exploreListings}
             </Link>
 
             <Link
-              href="/contact"
+              href={contactHref}
               className="inline-flex min-h-[50px] w-full items-center justify-center rounded-full border border-white/60 bg-white/10 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 sm:w-auto"
             >
-              Agendar consulta
+              {copy.scheduleConsultation}
             </Link>
           </div>
         </div>

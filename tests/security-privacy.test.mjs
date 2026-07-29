@@ -46,5 +46,5 @@ test("privacy page is public and linked from the public footer", async () => {
   assert.match(page, /Google Analytics/);
   assert.match(page, /Microsoft\s+Clarity/);
   assert.match(page, /documentos\s+financieros/);
-  assert.match(footer, /href="\/privacidad"/);
+  assert.match(footer, /localizedHref\("\/privacidad"\)/);
 });

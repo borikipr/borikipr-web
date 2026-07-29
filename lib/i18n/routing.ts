@@ -124,6 +124,13 @@ export function getRouteLocale(pathname: string): AppLocale | null {
   return findMatch(pathname)?.locale ?? null;
 }
 
+export function isStaticLocalePreviewRoute(pathname: string) {
+  const match = findMatch(pathname);
+  if (!match) return false;
+
+  return !match.definition.es.includes("[");
+}
+
 export function getEquivalentRoute(
   currentHref: string,
   targetLocale: AppLocale

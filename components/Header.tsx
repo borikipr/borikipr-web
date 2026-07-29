@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { trackAnalyticsEvent } from "@/lib/analytics";
+import LanguageSelector from "@/components/LanguageSelector";
+import { usePublicLocale } from "@/components/PublicLocaleProvider";
+import { getEquivalentRoute } from "@/lib/i18n/routing";
 
 type HeaderProps = {
   transparent?: boolean;
@@ -12,6 +15,9 @@ type HeaderProps = {
 export default function Header({ transparent = false }: HeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const { locale, dictionary, multilingualEnabled } = usePublicLocale();
+  const localizedHref = (href: string) =>
+    getEquivalentRoute(href, locale) ?? href;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -112,6 +118,7 @@ export default function Header({ transparent = false }: HeaderProps) {
             </div>
 
             <div className="flex items-center gap-5">
+              {multilingualEnabled && <LanguageSelector />}
               <Link
                 href="https://wa.me/17876774900"
                 target="_blank"
@@ -134,8 +141,8 @@ export default function Header({ transparent = false }: HeaderProps) {
             <span className={logoContainerClass}>
               {logoImage}
               <Link
-                href="/"
-                aria-label="Ir al inicio"
+                href={localizedHref("/")}
+                aria-label={dictionary.navigation.homeAriaLabel}
                 className={logoHitAreaClass}
               />
             </span>
@@ -143,40 +150,40 @@ export default function Header({ transparent = false }: HeaderProps) {
             <nav
               className={`hidden items-center gap-6 text-sm font-medium lg:flex xl:gap-8 ${desktopText}`}
             >
-              <Link href="/" className="transition hover:text-[#d4af37]">
-                Inicio
+              <Link href={localizedHref("/")} className="transition hover:text-[#d4af37]">
+                {dictionary.navigation.home}
               </Link>
 
               <Link
-                href="/listados"
+                href={localizedHref("/listados")}
                 className="transition hover:text-[#d4af37]"
               >
-                Listados
+                {dictionary.navigation.listings}
               </Link>
 
               <Link
-                href="/about"
+                href={localizedHref("/about")}
                 className="transition hover:text-[#d4af37]"
               >
-                Sobre mí
+                {dictionary.navigation.about}
               </Link>
 
               <Link
-                href="/testimonios"
+                href={localizedHref("/testimonios")}
                 className="transition hover:text-[#d4af37]"
               >
-                Testimonios
+                {dictionary.navigation.testimonials}
               </Link>
 
               <Link
-                href="/contact"
+                href={localizedHref("/contact")}
                 className="transition hover:text-[#d4af37]"
               >
-                Contacto
+                {dictionary.navigation.contact}
               </Link>
 
-              <Link href="/contact" className="btn-primary ml-2 px-5 py-2.5">
-                Consulta
+              <Link href={localizedHref("/contact")} className="btn-primary ml-2 px-5 py-2.5">
+                {dictionary.navigation.consultation}
               </Link>
             </nav>
 
@@ -184,7 +191,7 @@ export default function Header({ transparent = false }: HeaderProps) {
               type="button"
               onClick={() => setMenuOpen(true)}
               className={`inline-flex h-11 w-11 items-center justify-center rounded-full border transition lg:hidden ${mobileButtonStyle}`}
-              aria-label="Abrir menú"
+              aria-label={dictionary.navigation.openMenu}
             >
               <div className="flex flex-col gap-[4px]">
                 <span className="block h-[2px] w-4 rounded-full bg-current" />
@@ -219,7 +226,7 @@ export default function Header({ transparent = false }: HeaderProps) {
         <div className="flex items-center justify-between border-b border-[#ededed] px-6 py-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#d4af37]">
-              Navegación
+              {dictionary.navigation.menu}
             </p>
             <p className="mt-1 text-sm text-[#4d4d4d]">
               Erickson Real Estate
@@ -230,7 +237,7 @@ export default function Header({ transparent = false }: HeaderProps) {
             type="button"
             onClick={() => setMenuOpen(false)}
             className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d9d9d9] text-[#11518b] transition hover:bg-[#f7f7f7]"
-            aria-label="Cerrar menú"
+            aria-label={dictionary.navigation.closeMenu}
           >
             ✕
           </button>
@@ -243,44 +250,50 @@ export default function Header({ transparent = false }: HeaderProps) {
 
         <nav className="flex flex-col px-6 py-6 text-[15px] font-medium text-[#2f2f2f]">
           <Link
-            href="/"
+            href={localizedHref("/")}
             onClick={() => setMenuOpen(false)}
             className="border-b border-[#f1f1f1] py-4 transition hover:text-[#11518b]"
           >
-            Inicio
+            {dictionary.navigation.home}
           </Link>
 
           <Link
-            href="/listados"
+            href={localizedHref("/listados")}
             onClick={() => setMenuOpen(false)}
             className="border-b border-[#f1f1f1] py-4 transition hover:text-[#11518b]"
           >
-            Listados
+            {dictionary.navigation.listings}
           </Link>
 
           <Link
-            href="/about"
+            href={localizedHref("/about")}
             onClick={() => setMenuOpen(false)}
             className="border-b border-[#f1f1f1] py-4 transition hover:text-[#11518b]"
           >
-            Sobre mí
+            {dictionary.navigation.about}
           </Link>
 
           <Link
-            href="/testimonios"
+            href={localizedHref("/testimonios")}
             onClick={() => setMenuOpen(false)}
             className="border-b border-[#f1f1f1] py-4 transition hover:text-[#11518b]"
           >
-            Testimonios
+            {dictionary.navigation.testimonials}
           </Link>
 
           <Link
-            href="/contact"
+            href={localizedHref("/contact")}
             onClick={() => setMenuOpen(false)}
             className="border-b border-[#f1f1f1] py-4 transition hover:text-[#11518b]"
           >
-            Contacto
+            {dictionary.navigation.contact}
           </Link>
+
+          {multilingualEnabled && (
+            <div className="border-b border-[#f1f1f1] py-4">
+              <LanguageSelector />
+            </div>
+          )}
 
           <Link
             href="https://wa.me/17876774900"
@@ -298,11 +311,11 @@ export default function Header({ transparent = false }: HeaderProps) {
           </Link>
 
           <Link
-            href="/contact"
+            href={localizedHref("/contact")}
             onClick={() => setMenuOpen(false)}
             className="btn-primary mt-4 justify-center"
           >
-            Agendar consulta
+            {dictionary.navigation.scheduleConsultation}
           </Link>
         </nav>
       </aside>

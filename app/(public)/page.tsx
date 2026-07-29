@@ -24,6 +24,9 @@ import {
 import { getTestimoniosPublicos, type TestimonioPublico } from "@/lib/queries/testimonios";
 import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
 import { DEFAULT_OG_IMAGE, SITE_NAME, SITE_URL } from "@/lib/seo";
+import { getDictionary } from "@/lib/i18n/get-dictionary";
+import { DEFAULT_LOCALE, type AppLocale } from "@/lib/i18n/locales";
+import { getEquivalentRoute } from "@/lib/i18n/routing";
 
 const pageTitle = "Bienes Raíces en Puerto Rico";
 const pageDescription =
@@ -59,9 +62,9 @@ type EstadoPropiedad =
   | "vendida"
   | "rentada";
 
-function formatoPrecio(precio: number, tipo: TipoNegocio) {
+function formatoPrecio(precio: number, tipo: TipoNegocio, priceSoon: string) {
   if (!Number.isFinite(precio) || precio <= 0) {
-    return "Precio próximamente";
+    return priceSoon;
   }
 
   return tipo === "renta"
@@ -69,18 +72,21 @@ function formatoPrecio(precio: number, tipo: TipoNegocio) {
     : `$${precio.toLocaleString("en-US")}`;
 }
 
-function estadoLabel(estado: EstadoPropiedad) {
+function estadoLabel(
+  estado: EstadoPropiedad,
+  statuses: ReturnType<typeof getDictionary>["home"]["listings"]["statuses"]
+) {
   switch (estado) {
     case "disponible":
-      return "Disponible";
+      return statuses.available;
     case "coming_soon":
-      return "Próximamente";
+      return statuses.comingSoon;
     case "bajo_contrato":
-      return "Bajo contrato";
+      return statuses.underContract;
     case "vendida":
-      return "Vendida";
+      return statuses.sold;
     case "rentada":
-      return "Alquilada";
+      return statuses.rented;
     default:
       return estado;
   }
@@ -105,37 +111,39 @@ function estadoClasses(estado: EstadoPropiedad) {
 const zonasHome = [
   {
     nombre: "Metropolitana",
-    descripcion: "San Juan, Guaynabo, Carolina, Bayamón y más.",
     Icon: Building2,
   },
   {
     nombre: "Norte",
-    descripcion: "Dorado, Arecibo, Manatí, Vega Baja y más.",
     Icon: Waves,
   },
   {
     nombre: "Sur",
-    descripcion: "Ponce, Guayama, Salinas, Coamo y más.",
     Icon: Sun,
   },
   {
     nombre: "Este",
-    descripcion: "Fajardo, Río Grande, Luquillo, Vieques y más.",
     Icon: Trees,
   },
   {
     nombre: "Oeste",
-    descripcion: "Mayagüez, Cabo Rojo, Rincón, Isabela y más.",
     Icon: Sunset,
   },
   {
     nombre: "Central",
-    descripcion: "Cayey, Aibonito, Barranquitas, Orocovis y más.",
     Icon: Mountain,
   },
 ];
 
-export default async function Home() {
+export async function renderHomePage(locale: AppLocale) {
+  const dictionary = getDictionary(locale);
+  const copy = dictionary.home;
+  const listingsHref =
+    getEquivalentRoute("/listados", locale) ?? "/listados";
+  const contactHref = getEquivalentRoute("/contact", locale) ?? "/contact";
+  const testimonialsHref =
+    getEquivalentRoute("/testimonios", locale) ?? "/testimonios";
+  const aboutHref = getEquivalentRoute("/about", locale) ?? "/about";
   let rows: { id: string }[] = [];
   let destacadas: PropiedadHomeDestacada[] = [];
   let allTestimonios: TestimonioPublico[] = [];
@@ -179,14 +187,14 @@ export default async function Home() {
         <section className="bg-white py-24">
           <div className="section-shell">
             <div className="text-center max-w-3xl mx-auto">
-              <p className="eyebrow">¿Por qué Erickson Real Estate?</p>
+              <p className="eyebrow">{copy.reasons.eyebrow}</p>
 
               <h2 className="heading-section mt-4 !text-[#11518B]">
-                Estrategia clara. Ejecución precisa. Resultados con intención.
+                {copy.reasons.title}
               </h2>
 
               <p className="body-lg mt-6">
-                Más que un servicio inmobiliario, es una experiencia guiada con estrategia, transparencia y acompañamiento real para que tomes decisiones seguras en cada etapa del proceso.
+                {copy.reasons.description}
               </p>
             </div>
 
@@ -196,10 +204,10 @@ export default async function Home() {
                   <UserCheck className="h-7 w-7 text-white" strokeWidth={1.9} aria-hidden="true" />
                 </div>
                 <h3 className="mt-5 text-lg font-semibold text-[#000000]">
-                  Atención personalizada
+                  {copy.reasons.items[0].title}
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
-                  Cada cliente recibe una estrategia adaptada a sus objetivos, estilo de vida y visión a futuro.
+                  {copy.reasons.items[0].description}
                 </p>
               </div>
 
@@ -208,10 +216,10 @@ export default async function Home() {
                   <TrendingUp className="h-7 w-7 text-white" strokeWidth={1.9} aria-hidden="true" />
                 </div>
                 <h3 className="mt-5 text-lg font-semibold text-[#000000]">
-                  Estrategia de mercado
+                  {copy.reasons.items[1].title}
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
-                  Conocimiento actualizado del mercado para ayudarte a tomar decisiones informadas y aprovechar las mejores oportunidades.
+                  {copy.reasons.items[1].description}
                 </p>
               </div>
 
@@ -220,10 +228,10 @@ export default async function Home() {
                   <Camera className="h-7 w-7 text-white" strokeWidth={1.9} aria-hidden="true" />
                 </div>
                 <h3 className="mt-5 text-lg font-semibold text-[#000000]">
-                  Presentación premium
+                  {copy.reasons.items[2].title}
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
-                  Presentación profesional y estrategias de mercadeo diseñadas para destacar el potencial de cada propiedad.
+                  {copy.reasons.items[2].description}
                 </p>
               </div>
 
@@ -232,10 +240,10 @@ export default async function Home() {
                   <HeartHandshake className="h-7 w-7 text-white" strokeWidth={1.9} aria-hidden="true" />
                 </div>
                 <h3 className="mt-5 text-lg font-semibold text-[#000000]">
-                  Acompañamiento completo
+                  {copy.reasons.items[3].title}
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
-                  Acompañamiento cercano y constante desde la primera conversación hasta el cierre del proceso.
+                  {copy.reasons.items[3].description}
                 </p>
               </div>
             </div>
@@ -247,20 +255,20 @@ export default async function Home() {
           <div className="section-shell">
             <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
               <div className="max-w-3xl">
-                <p className="eyebrow">Nuevos listados</p>
+                <p className="eyebrow">{copy.listings.eyebrow}</p>
 
                 <h2 className="heading-section mt-4 !text-[#11518B]">
-                  Conoce los nuevos listados disponibles.
+                  {copy.listings.title}
                 </h2>
 
                 <p className="body-lg mt-5 max-w-2xl">
-                  Descubre propiedades recientemente incorporadas al mercado en venta y alquiler. Explora nuevas oportunidades con información clara y actualizada para ayudarte a tomar decisiones con confianza.
+                  {copy.listings.description}
                 </p>
               </div>
 
               <div>
-                <Link href="/listados" className="btn-secondary">
-                  Ver todos los listados
+                <Link href={listingsHref} className="btn-secondary">
+                  {dictionary.common.viewListings}
                 </Link>
               </div>
             </div>
@@ -269,20 +277,20 @@ export default async function Home() {
               {destacadas.length === 0 ? (
                 <div className="mx-auto max-w-4xl rounded-2xl border border-[#e8e8e8] bg-white p-8 text-center shadow-sm sm:p-10">
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                    Próximamente
+                    {copy.listings.comingSoon}
                   </p>
                   <h3 className="mt-3 text-2xl font-bold text-[#000000]">
-                    Muy pronto habrá nuevos listados disponibles
+                    {copy.listings.emptyTitle}
                   </h3>
                   <p className="mt-3 max-w-lg mx-auto text-[#4d4d4d] leading-relaxed">
-                    Esta sección se actualizará regularmente con nuevas propiedades en venta y alquiler. Vuelve pronto para descubrir las oportunidades más recientes disponibles.
+                    {copy.listings.emptyDescription}
                   </p>
                   <div className="mt-6 flex flex-wrap gap-4 justify-center">
-                    <Link href="/listados" className="btn-primary">
-                      Ver todos los listados
+                    <Link href={listingsHref} className="btn-primary">
+                      {dictionary.common.viewListings}
                     </Link>
-                    <Link href="/contact" className="btn-secondary">
-                      Contactar a Ivonne
+                    <Link href={contactHref} className="btn-secondary">
+                      {dictionary.common.contactIvonne}
                     </Link>
                   </div>
                 </div>
@@ -314,12 +322,12 @@ export default async function Home() {
                                 item.estado
                               )}`}
                             >
-                              {estadoLabel(item.estado)}
+                              {estadoLabel(item.estado, copy.listings.statuses)}
                             </span>
 
                             {item.destacado && (
                               <span className="rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#11518b]">
-                                Destacado
+                                {copy.listings.featured}
                               </span>
                             )}
                           </div>
@@ -328,7 +336,9 @@ export default async function Home() {
                         <div className="p-8">
                           <div className="mb-4 flex justify-between gap-4">
                             <span className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                              {item.tipo_negocio === "venta" ? "Venta" : "Alquiler"}
+                              {item.tipo_negocio === "venta"
+                                ? copy.listings.sale
+                                : copy.listings.rent}
                             </span>
 
                             <span className="text-sm text-[#4d4d4d]">
@@ -344,14 +354,24 @@ export default async function Home() {
                           </h3>
 
                           <p className="mt-4 text-2xl font-bold tracking-tight text-[#000000]">
-                            {formatoPrecio(Number(item.precio), item.tipo_negocio)}
+                            {formatoPrecio(
+                              Number(item.precio),
+                              item.tipo_negocio,
+                              copy.listings.priceSoon
+                            )}
                           </p>
 
                           <div className="mt-4 flex flex-wrap gap-3 text-sm text-[#4d4d4d]">
                             {item.habitaciones && (
-                              <span>{item.habitaciones} hab</span>
+                              <span>
+                                {item.habitaciones} {copy.listings.bedroomsShort}
+                              </span>
                             )}
-                            {item.banos && <span>{item.banos} baños</span>}
+                            {item.banos && (
+                              <span>
+                                {item.banos} {copy.listings.bathroomsShort}
+                              </span>
+                            )}
                             <span>{item.tipo_propiedad}</span>
                           </div>
 
@@ -360,7 +380,7 @@ export default async function Home() {
                               href={`/listados/${item.slug}`}
                               className="inline-flex items-center justify-center rounded-full border border-[#11518b] px-5 py-2.5 text-sm font-semibold text-[#11518b] transition-all duration-300 hover:bg-[#11518b] hover:text-white"
                             >
-                              Ver detalles
+                              {dictionary.common.viewProperty}
                             </Link>
                           </div>
                         </div>
@@ -377,22 +397,24 @@ export default async function Home() {
         <section className="bg-[#f8f8f8] py-24">
           <div className="section-shell">
             <div className="text-center max-w-3xl mx-auto">
-              <p className="eyebrow">Zonas</p>
+              <p className="eyebrow">{copy.regions.eyebrow}</p>
 
               <h2 className="heading-section mt-4 !text-[#11518B]">
-                Presencia en toda la isla de Puerto Rico.
+                {copy.regions.title}
               </h2>
 
               <p className="body-lg mt-6">
-                Desde la zona metropolitana hasta las costas y montañas, conectamos contigo oportunidades inmobiliarias en cada región de Puerto Rico.
+                {copy.regions.description}
               </p>
             </div>
 
             <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {zonasHome.map((zona) => (
+              {zonasHome.map((zona, index) => (
                 <Link
                   key={zona.nombre}
-                  href={`/listados?region=${getRegionByName(zona.nombre) ?? ""}`}
+                  href={`${listingsHref}?region=${
+                    getRegionByName(zona.nombre) ?? ""
+                  }`}
                   className="group rounded-2xl border border-[#e8e8e8] bg-white p-7 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-[#11518b]/30"
                 >
                   <div className="flex items-center gap-4">
@@ -404,7 +426,7 @@ export default async function Home() {
                         {zona.nombre}
                       </h3>
                       <p className="mt-1 text-sm text-[#4d4d4d]">
-                        {zona.descripcion}
+                        {copy.regions.descriptions[index]}
                       </p>
                     </div>
                   </div>
@@ -420,20 +442,20 @@ export default async function Home() {
             <div className="section-shell">
               <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
                 <div className="max-w-3xl">
-                  <p className="eyebrow">Testimonios</p>
+                  <p className="eyebrow">{copy.testimonials.eyebrow}</p>
 
                   <h2 className="heading-section mt-4 !text-[#11518B]">
-                    Experiencias reales que hablan por sí solas.
+                    {copy.testimonials.title}
                   </h2>
 
                   <p className="body-lg mt-6 max-w-2xl">
-                    Historias de personas que confiaron para comprar, vender o invertir en Puerto Rico.
+                    {copy.testimonials.description}
                   </p>
                 </div>
 
                 <div>
-                  <Link href="/testimonios" className="btn-secondary">
-                    Ver todos los testimonios
+                  <Link href={testimonialsHref} className="btn-secondary">
+                    {copy.testimonials.viewAll}
                   </Link>
                 </div>
               </div>
@@ -474,8 +496,8 @@ export default async function Home() {
 
                     <p className="text-sm font-semibold uppercase tracking-[0.15em] text-[#d4af37] mb-3">
                       {testimonio.tipo === "comprador"
-                        ? "Compra"
-                        : "Venta"}
+                        ? copy.testimonials.buyer
+                        : copy.testimonials.seller}
                     </p>
 
                     <p className="text-[#4d4d4d] leading-relaxed line-clamp-4">
@@ -495,28 +517,28 @@ export default async function Home() {
               <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
                 <div className="max-w-3xl">
                   <p className="text-sm font-semibold uppercase tracking-[0.25em] text-[#d4af37]">
-                    Comencemos
+                    {copy.cta.eyebrow}
                   </p>
 
                   <h2 className="mt-4 text-4xl font-bold leading-tight md:text-5xl">
-                    Una buena decisión empieza con una buena conversación.
+                    {copy.cta.title}
                   </h2>
 
                   <p className="mt-6 text-lg leading-relaxed text-white/85">
-                    Ya sea que estés comprando, vendiendo o invirtiendo, estoy aquí para brindarte una atención personalizada, estrátegica y enfocada en tus objetivos, y ayudarte a tomar decisiones con confianza.
+                    {copy.cta.description}
                   </p>
                 </div>
 
                 <div className="flex flex-wrap gap-4">
-                  <Link href="/contact" className="btn-gold">
-                    Solicitar orientación
+                  <Link href={contactHref} className="btn-gold">
+                    {copy.cta.requestGuidance}
                   </Link>
 
                   <Link
-                    href="/about"
+                    href={aboutHref}
                     className="inline-flex items-center justify-center rounded-full border border-white/30 px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10"
                   >
-                    Conocer a Ivonne
+                    {copy.cta.meetIvonne}
                   </Link>
                 </div>
               </div>
@@ -526,4 +548,8 @@ export default async function Home() {
       </main>
     </>
   );
+}
+
+export default function Home() {
+  return renderHomePage(DEFAULT_LOCALE);
 }
