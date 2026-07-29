@@ -2,23 +2,24 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import {
   buscarSugerencias,
   getRegionByName,
-  getRegionLabel,
   type RegionSlug,
 } from "@/data/zonas";
 import {
   formatoPrecio,
   estadoClasses,
-  estadoLabel,
   Orden,
 } from "@/lib/propiedades";
 import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
 import { trackAnalyticsEvent } from "@/lib/analytics";
+import { usePublicLocale } from "@/components/PublicLocaleProvider";
+import type { DictionaryShape } from "@/lib/i18n/get-dictionary";
+import { getEquivalentRoute } from "@/lib/i18n/routing";
 
 type TipoNegocio = "venta" | "renta";
 type TipoPropiedad =
@@ -87,16 +88,18 @@ type ActiveChip = {
   label: string;
 };
 
-function ordenLabel(orden: Orden) {
+type ListingsCopy = DictionaryShape["listingsPage"];
+
+function ordenLabel(orden: Orden, copy: ListingsCopy) {
   switch (orden) {
     case "precio-asc":
-      return "Precio: menor a mayor";
+      return copy.sort.priceAsc;
     case "precio-desc":
-      return "Precio: mayor a menor";
+      return copy.sort.priceDesc;
     case "municipio-asc":
-      return "Municipio: A-Z";
+      return copy.sort.municipalityAsc;
     case "municipio-desc":
-      return "Municipio: Z-A";
+      return copy.sort.municipalityDesc;
     default:
       return "";
   }
@@ -106,10 +109,16 @@ function PaginationControls({
   currentPage,
   totalPages,
   queryString,
+  pathname,
+  previousLabel,
+  nextLabel,
 }: {
   currentPage: number;
   totalPages: number;
   queryString: string;
+  pathname: string;
+  previousLabel: string;
+  nextLabel: string;
 }) {
   const pages = [];
   for (let i = 1; i <= totalPages; i++) {
@@ -119,7 +128,7 @@ function PaginationControls({
   const pageHref = (page: number) => {
     const params = new URLSearchParams(queryString);
     params.set("page", String(page));
-    return `/listados?${params.toString()}`;
+    return `${pathname}?${params.toString()}`;
   };
 
   return (
@@ -129,7 +138,7 @@ function PaginationControls({
           href={pageHref(currentPage - 1)}
           className="rounded-lg border border-[#d9d9d9] px-4 py-2 text-sm font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
         >
-          Anterior
+          {previousLabel}
         </Link>
       )}
 
@@ -152,7 +161,7 @@ function PaginationControls({
           href={pageHref(currentPage + 1)}
           className="rounded-lg border border-[#d9d9d9] px-4 py-2 text-sm font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
         >
-          Siguiente
+          {nextLabel}
         </Link>
       )}
     </div>
@@ -163,15 +172,18 @@ function PaginationControls({
 function Toggle({
   checked,
   onChange,
+  ariaLabel,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
+  ariaLabel: string;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={ariaLabel}
       onClick={() => onChange(!checked)}
       className={`relative inline-flex h-[22px] w-[42px] flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
         checked ? "bg-[#11518b]" : "bg-[#d9d9d9]"
@@ -202,6 +214,17 @@ export default function ListadosClient({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { locale, dictionary } = usePublicLocale();
+  const copy = dictionary.listingsPage;
+  const contactHref = getEquivalentRoute("/contact", locale) || "/contact";
+  const regionLabel = useCallback(
+    (value: RegionSlug) => copy.regionLabels[value],
+    [copy]
+  );
+  const propertyTypeLabel = useCallback(
+    (value: TipoPropiedad) => copy.propertyTypes[value],
+    [copy]
+  );
 
   // Filtros temporales (se actualizan mientras el usuario escribe)
   const [qTemp, setQTemp] = useState(initialFilters.q);
@@ -444,41 +467,58 @@ export default function ListadosClient({
     const chips: ActiveChip[] = [];
 
     if (q.trim()) {
-      chips.push({ key: "q", label: `Buscar: ${q.trim()}` });
+      chips.push({ key: "q", label: `${copy.filters.search}: ${q.trim()}` });
     }
     if (region) {
-      chips.push({ key: "region", label: `Región: ${getRegionLabel(region)}` });
+      chips.push({ key: "region", label: `${copy.filters.region}: ${regionLabel(region)}` });
     }
     if (tipoNegocio) {
       chips.push({
         key: "tipoNegocio",
-        label: tipoNegocio === "venta" ? "Venta" : "Alquiler",
+        label: tipoNegocio === "venta" ? copy.sale : copy.rent,
       });
     }
     if (municipio.trim()) {
-      chips.push({ key: "municipio", label: `Municipio: ${municipio.trim()}` });
+      chips.push({ key: "municipio", label: `${copy.filters.municipality}: ${municipio.trim()}` });
     }
     if (tipoPropiedad.length > 0) {
-      chips.push({ key: "tipoPropiedad", label: `Tipos: ${tipoPropiedad.join(", ")}` });
+      chips.push({
+        key: "tipoPropiedad",
+        label: `${copy.filters.types}: ${tipoPropiedad.map(propertyTypeLabel).join(", ")}`,
+      });
     }
     if (precioMin.trim()) {
-      chips.push({ key: "precioMin", label: `Desde: $${Number(precioMin).toLocaleString("en-US")}` });
+      chips.push({ key: "precioMin", label: `${copy.filters.from}: $${Number(precioMin).toLocaleString("en-US")}` });
     }
     if (precioMax.trim()) {
-      chips.push({ key: "precioMax", label: `Hasta: $${Number(precioMax).toLocaleString("en-US")}` });
+      chips.push({ key: "precioMax", label: `${copy.filters.to}: $${Number(precioMax).toLocaleString("en-US")}` });
     }
     if (habitaciones.trim()) {
-      chips.push({ key: "habitaciones", label: `${habitaciones} hab.` });
+      chips.push({ key: "habitaciones", label: `${habitaciones} ${copy.filters.bedroomsShort}` });
     }
     if (banos.trim()) {
-      chips.push({ key: "banos", label: `${banos} baños` });
+      chips.push({ key: "banos", label: `${banos} ${copy.filters.bathroomsShort}` });
     }
     if (orden) {
-      chips.push({ key: "orden", label: ordenLabel(orden) });
+      chips.push({ key: "orden", label: ordenLabel(orden, copy) });
     }
 
     return chips;
-  }, [q, region, tipoNegocio, municipio, tipoPropiedad, precioMin, precioMax, habitaciones, banos, orden]);
+  }, [
+    q,
+    region,
+    tipoNegocio,
+    municipio,
+    tipoPropiedad,
+    precioMin,
+    precioMax,
+    habitaciones,
+    banos,
+    orden,
+    copy,
+    propertyTypeLabel,
+    regionLabel,
+  ]);
 
   const shareUrl = useMemo(() => {
     const query = searchParams.toString();
@@ -492,9 +532,9 @@ export default function ListadosClient({
           ? `${window.location.origin}${shareUrl}`
           : shareUrl;
       await navigator.clipboard.writeText(fullUrl);
-      setShareMessage("Enlace copiado");
+      setShareMessage(copy.linkCopied);
     } catch {
-      setShareMessage("No se pudo copiar");
+      setShareMessage(copy.copyFailed);
     }
   };
 
@@ -550,7 +590,7 @@ export default function ListadosClient({
                       : "bg-white text-[#333] border border-[#d9d9d9] hover:bg-[#f5f5f5]"
                   }`}
                 >
-                  Venta
+                  {copy.sale}
                 </button>
 
                 {/* Renta tab */}
@@ -563,14 +603,14 @@ export default function ListadosClient({
                       : "bg-white text-[#333] border-[#d9d9d9] hover:bg-[#f5f5f5]"
                   }`}
                 >
-                  Alquiler
+                  {copy.rent}
                 </button>
 
                 {/* Search by Location input */}
                 <div className="relative flex-1">
                   <input
                     type="text"
-                    placeholder="Buscar por ubicación"
+                    placeholder={copy.searchByLocation}
                     value={qTemp}
                     onChange={(e) => {
                       setQTemp(e.target.value);
@@ -602,7 +642,7 @@ export default function ListadosClient({
                         {sugerencias.zonas.length > 0 && (
                           <div className="border-b border-[#e8e8e8] p-2">
                             <p className="px-3 py-1 text-xs font-semibold uppercase text-[#11518b]">
-                              Zonas
+                              {copy.zones}
                             </p>
                             {sugerencias.zonas.map((zona) => (
                               <button
@@ -631,7 +671,12 @@ export default function ListadosClient({
                                 }}
                                 className="block w-full px-3 py-2 text-left text-sm text-[#4d4d4d] hover:bg-[#f7f7f7]"
                               >
-                                {zona}
+                                {(() => {
+                                  const suggestionRegion = getRegionByName(zona);
+                                  return suggestionRegion
+                                    ? regionLabel(suggestionRegion)
+                                    : zona;
+                                })()}
                               </button>
                             ))}
                           </div>
@@ -639,7 +684,7 @@ export default function ListadosClient({
                         {sugerencias.municipios.length > 0 && (
                           <div className="p-2">
                             <p className="px-3 py-1 text-xs font-semibold uppercase text-[#11518b]">
-                              Municipios
+                              {copy.municipalities}
                             </p>
                             {sugerencias.municipios.map((mun) => (
                               <button
@@ -679,7 +724,8 @@ export default function ListadosClient({
                   type="button"
                   onClick={aplicarBusqueda}
                   className="flex items-center justify-center bg-[#11518b] hover:bg-[#0d406d] text-white px-4 rounded-r transition"
-                  title="Buscar"
+                  title={dictionary.common.search}
+                  aria-label={dictionary.common.search}
                 >
                   {/* Magnifier icon */}
                   <svg
@@ -704,7 +750,7 @@ export default function ListadosClient({
 
                 {/* Min $ */}
                 <div className="flex items-center gap-2 rounded border border-[#d9d9d9] bg-white px-3 py-2.5 hover:border-[#11518b] transition">
-                  <span className="text-sm font-medium text-[#555] whitespace-nowrap">Mín $</span>
+                  <span className="text-sm font-medium text-[#555] whitespace-nowrap">{copy.minimumPrice}</span>
                   <input
                     type="number"
                     min="0"
@@ -728,7 +774,7 @@ export default function ListadosClient({
 
                 {/* Max $ */}
                 <div className="flex items-center gap-2 rounded border border-[#d9d9d9] bg-white px-3 py-2.5 hover:border-[#11518b] transition">
-                  <span className="text-sm font-medium text-[#555] whitespace-nowrap">Máx $</span>
+                  <span className="text-sm font-medium text-[#555] whitespace-nowrap">{copy.maximumPrice}</span>
                   <input
                     type="number"
                     min="0"
@@ -765,7 +811,7 @@ export default function ListadosClient({
                   </svg>
                   <input
                     type="number"
-                    placeholder="Habitaciones"
+                    placeholder={copy.bedrooms}
                     min="0"
                     value={habitacionesTemp}
                     onChange={(e) => setHabitacionesTemp(e.target.value)}
@@ -792,7 +838,7 @@ export default function ListadosClient({
                   </svg>
                   <input
                     type="number"
-                    placeholder="Baños"
+                    placeholder={copy.bathrooms}
                     min="0"
                     value={banosTemp}
                     onChange={(e) => setBanosTemp(e.target.value)}
@@ -811,13 +857,14 @@ export default function ListadosClient({
             <div className="p-5 lg:w-[380px]">
               {/* Header row */}
               <div className="flex items-center justify-between mb-4">
-                <span className="text-base font-semibold text-[#222]">Tipo de Propiedad</span>
+                <span className="text-base font-semibold text-[#222]">{copy.propertyType}</span>
                 <div className="flex items-center gap-2">
                   <Toggle
                     checked={allSelected}
                     onChange={(v) => setTipoPropiedad(v ? [...ALL_TIPOS] : [])}
+                    ariaLabel={copy.all}
                   />
-                  <span className="text-sm text-[#555]">Todos</span>
+                  <span className="text-sm text-[#555]">{copy.all}</span>
                 </div>
               </div>
 
@@ -825,17 +872,18 @@ export default function ListadosClient({
               <div className="grid grid-cols-2 gap-x-8 gap-y-3">
                 {(
                   [
-                    { tipo: "Apartamento", label: "Apartamento" },
-                    { tipo: "Comercial",   label: "Comercial" },
-                    { tipo: "Casa",        label: "Casa" },
-                    { tipo: "Terreno",     label: "Terreno" },
-                    { tipo: "Condominio",  label: "Condominio" },
+                    { tipo: "Apartamento", label: copy.propertyTypes.Apartamento },
+                    { tipo: "Comercial",   label: copy.propertyTypes.Comercial },
+                    { tipo: "Casa",        label: copy.propertyTypes.Casa },
+                    { tipo: "Terreno",     label: copy.propertyTypes.Terreno },
+                    { tipo: "Condominio",  label: copy.propertyTypes.Condominio },
                   ] as { tipo: TipoPropiedad; label: string }[]
                 ).map(({ tipo, label }) => (
                   <div key={tipo} className="flex items-center gap-2">
                     <Toggle
                       checked={tipoPropiedad.includes(tipo)}
                       onChange={() => toggleTipo(tipo)}
+                      ariaLabel={label}
                     />
                     <span className="text-sm text-[#444]">{label}</span>
                   </div>
@@ -849,7 +897,7 @@ export default function ListadosClient({
 
         {/* Resultados y compartir */}
         {region && (
-          <div className="mb-5 flex flex-wrap items-center gap-2" aria-label="Filtros activos">
+          <div className="mb-5 flex flex-wrap items-center gap-2" aria-label={copy.filters.active}>
             <button
               type="button"
               onClick={() => {
@@ -862,9 +910,9 @@ export default function ListadosClient({
                 });
               }}
               className="inline-flex items-center gap-2 rounded-full border border-[#11518b]/25 bg-[#eef6fc] px-3 py-1.5 text-sm font-semibold text-[#11518b]"
-              aria-label={`Quitar filtro Región: ${getRegionLabel(region)}`}
+              aria-label={`${copy.filters.remove} ${copy.filters.region}: ${regionLabel(region)}`}
             >
-              Región: {getRegionLabel(region)}
+              {copy.filters.region}: {regionLabel(region)}
               <span aria-hidden="true">×</span>
             </button>
           </div>
@@ -872,8 +920,10 @@ export default function ListadosClient({
         <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-sm text-[#4d4d4d]">
-              {paginationData.totalItems} resultado
-              {paginationData.totalItems !== 1 ? "s" : ""}
+              {paginationData.totalItems}{" "}
+              {paginationData.totalItems === 1
+                ? copy.resultsSingular
+                : copy.resultsPlural}
             </p>
           </div>
 
@@ -883,7 +933,7 @@ export default function ListadosClient({
               onClick={handleShare}
               className="inline-flex items-center justify-center rounded-full border border-[#d9d9d9] bg-white px-5 py-2.5 text-sm font-semibold text-[#4d4d4d] transition hover:border-[#11518b] hover:text-[#11518b]"
             >
-              Compartir búsqueda
+              {copy.shareSearch}
             </button>
 
             {shareMessage && (
@@ -896,17 +946,16 @@ export default function ListadosClient({
         {propiedadesFiltradas.length === 0 ? (
           <div className="rounded-3xl border border-[#e8e8e8] bg-gradient-to-br from-white to-[#f8f8f8] p-10 text-center shadow-sm md:p-16">
             <h2 className="text-3xl font-semibold text-[#000000]">
-              No encontramos propiedades con esos filtros
+              {copy.emptyTitle}
             </h2>
 
             <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-[#4d4d4d]">
-              Ajusta la búsqueda o contáctanos para ayudarte a encontrar una
-              opción alineada con lo que estás buscando en Puerto Rico.
+              {copy.emptyDescription}
             </p>
 
             <div className="mt-10 flex flex-wrap justify-center gap-4">
-              <Link href="/contact" className="btn-primary px-8 py-3">
-                Solicitar orientación
+              <Link href={contactHref} className="btn-primary px-8 py-3">
+                {copy.requestGuidance}
               </Link>
 
               <a
@@ -920,7 +969,7 @@ export default function ListadosClient({
                 }
                 className="btn-secondary px-8 py-3"
               >
-                Escribir por WhatsApp
+                {copy.whatsapp}
               </a>
             </div>
           </div>
@@ -965,12 +1014,12 @@ export default function ListadosClient({
                           propiedad.estado
                         )}`}
                       >
-                        {estadoLabel(propiedad.estado)}
+                        {copy.statuses[propiedad.estado]}
                       </span>
 
                       {propiedad.destacado && (
                         <span className="rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#11518b]">
-                          Destacado
+                          {copy.featured}
                         </span>
                       )}
                     </div>
@@ -979,7 +1028,8 @@ export default function ListadosClient({
                       type="button"
                       onClick={() => toggleFavorite(propiedad.id)}
                       className="absolute right-4 top-4 rounded-full bg-white/90 p-2 text-xl transition hover:bg-white"
-                      title={favorites.has(propiedad.id) ? "Quitar de favoritos" : "Agregar a favoritos"}
+                      title={favorites.has(propiedad.id) ? copy.removeFavorite : copy.addFavorite}
+                      aria-label={favorites.has(propiedad.id) ? copy.removeFavorite : copy.addFavorite}
                     >
                       {favorites.has(propiedad.id) ? "❤️" : "🤍"}
                     </button>
@@ -988,16 +1038,16 @@ export default function ListadosClient({
                   <div className="p-6">
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                        {propiedad.tipoNegocio === "venta" ? "Venta" : "Alquiler"}
+                        {propiedad.tipoNegocio === "venta" ? copy.sale : copy.rent}
                       </span>
                       {propiedad.origen_listado === "co_broke" && (
                         <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37] bg-[#fff9e6] px-2 py-1 rounded">
-                          En colaboración
+                          {copy.collaboration}
                         </span>
                       )}
                       {propiedad.origen_listado === "externo" && (
                         <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37] bg-[#fff9e6] px-2 py-1 rounded">
-                          Referencia externa
+                          {copy.externalReference}
                         </span>
                       )}
                     </div>
@@ -1025,13 +1075,13 @@ export default function ListadosClient({
 
                     <div className="mb-4 grid grid-cols-3 gap-2 border-t border-[#e8e8e8] pt-4">
                       <div className="text-center">
-                        <p className="text-xs text-[#4d4d4d]">Habitaciones</p>
+                        <p className="text-xs text-[#4d4d4d]">{copy.bedroomsCard}</p>
                         <p className="text-lg font-bold text-[#000000]">
                           {propiedad.habitaciones}
                         </p>
                       </div>
                       <div className="text-center">
-                        <p className="text-xs text-[#4d4d4d]">Baños</p>
+                        <p className="text-xs text-[#4d4d4d]">{copy.bathroomsCard}</p>
                         <p className="text-lg font-bold text-[#000000]">
                           {propiedad.banos}
                         </p>
@@ -1048,7 +1098,7 @@ export default function ListadosClient({
                       href={`/listados/${propiedad.slug}`}
                       className="btn-primary w-full text-center py-2.5"
                     >
-                      Ver detalles
+                      {dictionary.common.viewProperty}
                     </Link>
                   </div>
                 </article>
@@ -1061,6 +1111,9 @@ export default function ListadosClient({
                 currentPage={paginationData.currentPage}
                 totalPages={paginationData.totalPages}
                 queryString={searchParams.toString()}
+                pathname={pathname}
+                previousLabel={dictionary.common.previous}
+                nextLabel={dictionary.common.next}
               />
             </div>
           </>

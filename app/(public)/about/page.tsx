@@ -3,6 +3,9 @@ import Header from "@/components/Header";
 import AnalyticsLink from "@/components/AnalyticsLink";
 import Image from "next/image";
 import Link from "next/link";
+import { getDictionary } from "@/lib/i18n/get-dictionary";
+import { DEFAULT_LOCALE, type AppLocale } from "@/lib/i18n/locales";
+import { getEquivalentRoute } from "@/lib/i18n/routing";
 import {
   DEFAULT_OG_IMAGE,
   SITE_NAME,
@@ -38,7 +41,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default function About() {
+export function renderAboutPage(locale: AppLocale) {
+  const copy = getDictionary(locale).about;
+  const contactHref = getEquivalentRoute("/contact", locale) || "/contact";
+  const listingsHref = getEquivalentRoute("/listados", locale) || "/listados";
+
   return (
     <>
       <script
@@ -59,7 +66,7 @@ export default function About() {
               <div className="w-full max-w-md">
                 <Image
                   src="/ivonne.png"
-                  alt="Ivonne Erickson - Corredora de Bienes Raíces en Puerto Rico"
+                  alt={copy.imageAlt}
                   width={700}
                   height={900}
                   priority
@@ -69,34 +76,24 @@ export default function About() {
             </div>
 
             <div className="order-1 xl:order-2">
-              <p className="eyebrow">Sobre mí</p>
+              <p className="eyebrow">{copy.hero.eyebrow}</p>
 
               <h1 className="heading-display heading-display-blue mt-4 max-w-3xl">
-                Experiencia, estrategia y acompañamiento en cada decisión.
+                {copy.hero.title}
               </h1>
 
-              <p className="body-lg mt-8 max-w-2xl">
-                Soy Ivonne Erickson, corredora de bienes raíces en Puerto Rico,
-                comprometida a guiarte con claridad, estrategia y una atención
-                personalizada que inspire confianza en cada etapa del proceso.
-              </p>
-
-              <p className="body-lg mt-6 max-w-2xl">
-                Comprar, vender o invertir en una propiedad no es simplemente
-                una transacción; es una decisión importante que requiere
-                conocimiento del mercado, orientación precisa y una asesoría
-                profesional sólida.
-              </p>
-
-              <p className="body-lg mt-6 max-w-2xl">
-                Mi compromiso es acompañarte de principio a fin, brindándote
-                una experiencia fluida, transparente y enfocada en ayudarte
-                a alcanzar tus objetivos.
-              </p>
+              {copy.hero.paragraphs.map((paragraph, index) => (
+                <p
+                  key={paragraph}
+                  className={`body-lg max-w-2xl ${index === 0 ? "mt-8" : "mt-6"}`}
+                >
+                  {paragraph}
+                </p>
+              ))}
 
               <div className="mt-10 flex flex-wrap gap-4">
-                <Link href="/contact" className="btn-primary">
-                  Agendar una consulta
+                <Link href={contactHref} className="btn-primary">
+                  {copy.hero.schedule}
                 </Link>
 
                 <AnalyticsLink
@@ -107,7 +104,7 @@ export default function About() {
                   eventParams={{ source_route: "/about" }}
                   className="btn-secondary"
                 >
-                  Escribir por WhatsApp
+                  {copy.hero.whatsapp}
                 </AnalyticsLink>
               </div>
             </div>
@@ -117,53 +114,32 @@ export default function About() {
         <section className="bg-[#f8f8f8] py-24">
   <div className="section-shell">
     <div className="max-w-3xl">
-      <p className="eyebrow">Filosofía de servicio</p>
+      <p className="eyebrow">{copy.philosophy.eyebrow}</p>
 
       <h2 className="heading-section mt-4 !text-[#11518B]">
-        Cada propiedad merece una estrategia bien pensada
+        {copy.philosophy.title}
       </h2>
 
       <p className="body-lg mt-6">
-        Mi enfoque va más allá de una simple transacción. Trabajo cada
-        propiedad con intención, claridad y estrategia, creando una experiencia
-        inmobiliaria organizada y profesional donde cada cliente se siente
-        acompañado, informado y seguro en cada decisión.
+        {copy.philosophy.description}
       </p>
     </div>
 
     <div className="mt-14 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-      <article className="surface-card card-hover p-8">
-        <div className="mb-5 h-1.5 w-14 rounded-full bg-[#d4af37]" />
-        <h3 className="text-2xl font-semibold text-[#11518b]">
-          Claridad
-        </h3>
-        <p className="body-base mt-4">
-          Comunicación directa, orientación transparente y cada paso explicado
-          con precisión para que tomes decisiones con seguridad.
-        </p>
-      </article>
-
-      <article className="surface-card card-hover p-8">
-        <div className="mb-5 h-1.5 w-14 rounded-full bg-[#d4af37]" />
-        <h3 className="text-2xl font-semibold text-[#11518b]">
-          Estrategia
-        </h3>
-        <p className="body-base mt-4">
-          Cada propiedad es única. Diseño un enfoque personalizado basado en
-          objetivos reales, análisis del mercado y decisiones inteligentes.
-        </p>
-      </article>
-
-      <article className="surface-card card-hover p-8 md:col-span-2 xl:col-span-1">
-        <div className="mb-5 h-1.5 w-14 rounded-full bg-[#d4af37]" />
-        <h3 className="text-2xl font-semibold text-[#11518b]">
-          Confianza
-        </h3>
-        <p className="body-base mt-4">
-          Más que cerrar negocios, construyo relaciones. Presencia profesional,
-          consistencia y acompañamiento en cada etapa del proceso.
-        </p>
-      </article>
+      {copy.philosophy.values.map((value, index) => (
+        <article
+          key={value.title}
+          className={`surface-card card-hover p-8 ${
+            index === 2 ? "md:col-span-2 xl:col-span-1" : ""
+          }`}
+        >
+          <div className="mb-5 h-1.5 w-14 rounded-full bg-[#d4af37]" />
+          <h3 className="text-2xl font-semibold text-[#11518b]">
+            {value.title}
+          </h3>
+          <p className="body-base mt-4">{value.description}</p>
+        </article>
+      ))}
     </div>
   </div>
 </section>
@@ -171,38 +147,36 @@ export default function About() {
         <section className="bg-white py-24">
           <div className="section-shell grid gap-12 xl:grid-cols-[1fr_1fr]">
             <div className="surface-muted card-hover p-8 md:p-10">
-              <p className="eyebrow">Presencia profesional</p>
+              <p className="eyebrow">{copy.presentation.eyebrow}</p>
 
 <h2 className="mt-4 text-3xl font-bold leading-tight text-[#11518B] md:text-4xl">
-  La forma en que se presenta una propiedad define su valor
+  {copy.presentation.title}
 </h2>
 
 <p className="body-base mt-6">
-  Cada detalle comunica. Desde la presentación de una propiedad hasta la manera en que se guía una decisión, todo influye en la percepción y en los resultados. Mi enfoque integra estrategia, servicio y una imagen profesional coherente para elevar cada experiencia.
+  {copy.presentation.description}
 </p>
             </div>
 
             <div className="surface-card card-hover p-8 md:p-10">
-              <p className="eyebrow">Credenciales</p>
+              <p className="eyebrow">{copy.credentials.eyebrow}</p>
 
 <div className="mt-6 space-y-5 text-[#4d4d4d]">
   <div className="border-b border-[#efefef] pb-5">
     <p className="font-semibold text-[#000000]">
-      Corredora de Bienes Raíces
+      {copy.credentials.role}
     </p>
-    <p className="mt-1">Puerto Rico</p>
+    <p className="mt-1">{copy.credentials.location}</p>
   </div>
 
   <div className="border-b border-[#efefef] pb-5">
-    <p className="font-semibold text-[#000000]">Licencia</p>
-    <p className="mt-1">C-25961</p>
+    <p className="font-semibold text-[#000000]">{copy.credentials.licenseLabel}</p>
+    <p className="mt-1">{copy.credentials.license}</p>
   </div>
 
   <div>
-    <p className="font-semibold text-[#000000]">Enfoque</p>
-    <p className="mt-1">
-      Asesoría clara para compra, venta e inversión inmobiliaria.
-    </p>
+    <p className="font-semibold text-[#000000]">{copy.credentials.focusLabel}</p>
+    <p className="mt-1">{copy.credentials.focus}</p>
   </div>
 </div>
             </div>
@@ -215,30 +189,28 @@ export default function About() {
               <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
                 <div className="max-w-3xl">
                   <p className="text-sm font-semibold uppercase tracking-[0.25em] text-[#d4af37]">
-  Siguiente paso
+  {copy.cta.eyebrow}
 </p>
 
 <h2 className="mt-4 text-4xl font-bold leading-tight md:text-5xl">
-  Tomar la decisión correcta empieza con una buena conversación
+  {copy.cta.title}
 </h2>
 
 <p className="mt-6 text-lg leading-relaxed text-white/85">
-  Si estás considerando comprar, vender o invertir en Puerto Rico,
-  te orientaré con claridad, estrategia y una experiencia profesional
-  desde el primer momento.
+  {copy.cta.description}
 </p>
                 </div>
 
                 <div className="flex flex-wrap gap-4">
-                  <Link href="/contact" className="btn-gold">
-  Agendar consulta
+                  <Link href={contactHref} className="btn-gold">
+  {copy.cta.schedule}
 </Link>
 
 <Link
-  href="/listados"
+  href={listingsHref}
   className="inline-flex items-center justify-center rounded-full border border-white/30 px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10"
 >
-  Explorar propiedades
+  {copy.cta.listings}
 </Link>
                 </div>
               </div>
@@ -248,4 +220,8 @@ export default function About() {
       </main>
     </>
   );
+}
+
+export default function About() {
+  return renderAboutPage(DEFAULT_LOCALE);
 }

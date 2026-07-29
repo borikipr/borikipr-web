@@ -170,6 +170,229 @@ const enUS = {
       meetIvonne: "Meet Ivonne",
     },
   },
+  about: {
+    imageAlt: "Ivonne Erickson - Real Estate Broker in Puerto Rico",
+    hero: {
+      eyebrow: "About me",
+      title: "Experience, strategy, and support in every decision.",
+      paragraphs: [
+        "I am Ivonne Erickson, a real estate broker in Puerto Rico, committed to guiding you with clarity, strategy, and personalized attention that inspires confidence at every stage of the process.",
+        "Buying, selling, or investing in a property is not simply a transaction; it is an important decision that requires market knowledge, precise guidance, and solid professional advice.",
+        "My commitment is to support you from beginning to end, providing a smooth, transparent experience focused on helping you achieve your goals.",
+      ],
+      schedule: "Schedule a consultation",
+      whatsapp: "Message me on WhatsApp",
+    },
+    philosophy: {
+      eyebrow: "Service philosophy",
+      title: "Every property deserves a well-considered strategy",
+      description:
+        "My approach goes beyond a simple transaction. I work with each property intentionally, clearly, and strategically, creating an organized and professional real estate experience where every client feels supported, informed, and confident in every decision.",
+      values: [
+        {
+          title: "Clarity",
+          description:
+            "Direct communication, transparent guidance, and every step explained precisely so you can make decisions with confidence.",
+        },
+        {
+          title: "Strategy",
+          description:
+            "Every property is unique. I design a personalized approach based on real goals, market analysis, and smart decisions.",
+        },
+        {
+          title: "Trust",
+          description:
+            "More than closing deals, I build relationships through professional presence, consistency, and support at every stage of the process.",
+        },
+      ],
+    },
+    presentation: {
+      eyebrow: "Professional presence",
+      title: "How a property is presented defines its value",
+      description:
+        "Every detail communicates. From the presentation of a property to the way a decision is guided, everything influences perception and results. My approach combines strategy, service, and a consistent professional image to elevate every experience.",
+    },
+    credentials: {
+      eyebrow: "Credentials",
+      role: "Real Estate Broker",
+      location: "Puerto Rico",
+      licenseLabel: "License",
+      license: "C-25961",
+      focusLabel: "Focus",
+      focus: "Clear guidance for buying, selling, and investing in real estate.",
+    },
+    cta: {
+      eyebrow: "Next step",
+      title: "Making the right decision starts with a good conversation",
+      description:
+        "If you are considering buying, selling, or investing in Puerto Rico, I will guide you with clarity, strategy, and a professional experience from the very first moment.",
+      schedule: "Schedule consultation",
+      listings: "Explore properties",
+    },
+  },
+  contactHub: {
+    eyebrow: "Contact",
+    title: "How can I guide you?",
+    description:
+      "Choose the option that best matches what you need so I can guide you with greater clarity, strategy, and an experience aligned with your goals in Puerto Rico.",
+    options: [
+      {
+        eyebrow: "BUYERS AND TENANTS",
+        title: "I want to buy or rent",
+        description:
+          "Register to join my active buyer and tenant network. This will allow me to offer more personalized guidance and share opportunities aligned with your needs.",
+        label: "Register",
+      },
+      {
+        eyebrow: "SELLERS AND LANDLORDS",
+        title: "I want to sell or rent",
+        description:
+          "Share information about your property and receive guidance on the next steps to sell or rent it with a strategy tailored to your goals.",
+        label: "Request guidance",
+      },
+      {
+        eyebrow: "GENERAL INQUIRY",
+        title: "I need general guidance",
+        description:
+          "If you have questions, need additional guidance, or prefer a more direct conversation, you can also message me on WhatsApp.",
+        label: "Message me on WhatsApp",
+      },
+    ],
+  },
+  listingsPage: {
+    eyebrow: "Listings",
+    title: "Properties for sale and rent",
+    description:
+      "Explore properties by municipality, price range, and type to find options aligned with your goals.",
+    sale: "For sale",
+    rent: "For rent",
+    searchByLocation: "Search by location",
+    zones: "Regions",
+    municipalities: "Municipalities",
+    minimumPrice: "Min $",
+    maximumPrice: "Max $",
+    bedrooms: "Bedrooms",
+    bathrooms: "Bathrooms",
+    propertyType: "Property type",
+    all: "All",
+    propertyTypes: {
+      Casa: "House",
+      Apartamento: "Apartment",
+      Condominio: "Condominium",
+      Terreno: "Land",
+      Comercial: "Commercial",
+    },
+    regionLabels: {
+      metropolitana: "Metropolitan",
+      norte: "North",
+      sur: "South",
+      este: "East",
+      oeste: "West",
+      central: "Central",
+    },
+    statuses: {
+      disponible: "Available",
+      coming_soon: "Coming soon",
+      bajo_contrato: "Under contract",
+      vendida: "Sold",
+      rentada: "Rented",
+    },
+    sort: {
+      priceAsc: "Price: low to high",
+      priceDesc: "Price: high to low",
+      municipalityAsc: "Municipality: A-Z",
+      municipalityDesc: "Municipality: Z-A",
+    },
+    filters: {
+      search: "Search",
+      region: "Region",
+      municipality: "Municipality",
+      types: "Types",
+      from: "From",
+      to: "To",
+      bedroomsShort: "bd",
+      bathroomsShort: "ba",
+      active: "Active filters",
+      remove: "Remove filter",
+    },
+    resultsSingular: "result",
+    resultsPlural: "results",
+    shareSearch: "Share search",
+    linkCopied: "Link copied",
+    copyFailed: "Could not copy link",
+    emptyTitle: "We couldn't find properties matching those filters",
+    emptyDescription:
+      "Adjust your search or contact us so we can help you find an option aligned with what you are looking for in Puerto Rico.",
+    requestGuidance: "Request guidance",
+    whatsapp: "Message me on WhatsApp",
+    featured: "Featured",
+    collaboration: "In collaboration",
+    externalReference: "External referral",
+    addFavorite: "Add to favorites",
+    removeFavorite: "Remove from favorites",
+    bedroomsCard: "Bedrooms",
+    bathroomsCard: "Bathrooms",
+  },
+  testimonialsPage: {
+    imageAltSuffix: "Testimonial",
+    defaultTag: "Real experience",
+    buyer: "Buyer",
+    seller: "Seller",
+    readLess: "Read less",
+    readMore: "Read more",
+    eyebrow: "Testimonials",
+    title: "Real experiences. Results built on trust.",
+    description:
+      "Every real estate process has a story. These experiences reflect the support, strategy, and clarity Ivonne brings to each client.",
+    filters: {
+      all: "All",
+      buyers: "Buyers",
+      sellers: "Sellers",
+    },
+    emptyTitle: "More real experiences are coming soon",
+    emptyDescription:
+      "We are preparing more real stories from clients who trusted Erickson Real Estate in Puerto Rico.",
+    cta: {
+      eyebrow: "Would you like a similar experience?",
+      title: "Let's talk about your next real estate decision in Puerto Rico",
+      description:
+        "Every client deserves clear guidance, a solid strategy, and professional support from the first conversation.",
+      contact: "Contact Ivonne",
+      listings: "View properties",
+    },
+  },
+  privacyPage: {
+    eyebrow: "Privacy",
+    title: "How we use your information",
+    introduction:
+      "BorikíPR and Erickson Real Estate collect information you voluntarily share to respond to real estate inquiries, evaluate your interest in properties, and follow up on the purchase, sale, rental, Open House, or private showing process.",
+    sections: [
+      {
+        title: "Information and documents",
+        body:
+          "Forms may request contact details, real estate preferences, qualification responses, and, when applicable, prequalification letters or proof of funds. Financial documents are stored privately and can only be accessed through authorized administrative controls.",
+      },
+      {
+        title: "Communications and follow-up",
+        body:
+          "We use the information to respond, coordinate follow-up, confirm registrations, and send notices related to the property or request that originated the contact. We do not publish your documents or their private links.",
+      },
+      {
+        title: "Analytics and browser data",
+        body:
+          "Public pages may use Google Analytics, Microsoft Clarity, and Vercel Analytics to understand usage, performance, and errors. Sensitive forms are marked to hide their content in recordings. The admin area and routes with private links are excluded from client-side analytics.",
+      },
+    ],
+    retention: {
+      title: "Retention and your requests",
+      beforeEmail:
+        "We retain information for the time reasonably necessary to provide the service, maintain continuity of the process, and meet applicable obligations. You may request access, correction, or deletion by writing to",
+      afterEmail:
+        "Some requests may require us to verify your identity.",
+    },
+    notice:
+      "This page describes how the system currently operates for informational purposes and should be reviewed periodically with applicable business or legal counsel.",
+  },
   notFound: {
     eyebrow: "Page not found",
     title: "We couldn't find this page.",

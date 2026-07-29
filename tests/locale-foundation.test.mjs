@@ -24,6 +24,22 @@ async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
+function dictionaryShape(value) {
+  if (Array.isArray(value)) {
+    return value.map(dictionaryShape);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, dictionaryShape(nested)])
+    );
+  }
+
+  return typeof value;
+}
+
 test("supported locales are typed around es-PR and en-US with Spanish as default", () => {
   assert.deepEqual(SUPPORTED_LOCALES, ["es-PR", "en-US"]);
   assert.equal(DEFAULT_LOCALE, "es-PR");
@@ -49,6 +65,33 @@ test("expanded dictionaries share a complete shape and Spanish is the fallback",
   assert.equal(
     getDictionaryForUnknownLocale(undefined).language.spanish,
     "Español"
+  );
+});
+
+test("Phase 2.5 dictionaries have exact key and collection parity", () => {
+  assert.deepEqual(
+    dictionaryShape(getDictionary("en-US")),
+    dictionaryShape(getDictionary("es-PR"))
+  );
+  assert.equal(getDictionary("es-PR").about.hero.eyebrow, "Sobre mí");
+  assert.equal(getDictionary("en-US").about.hero.eyebrow, "About me");
+  assert.equal(getDictionary("es-PR").contactHub.title, "¿Cómo puedo orientarte?");
+  assert.equal(getDictionary("en-US").contactHub.title, "How can I guide you?");
+  assert.equal(
+    getDictionary("es-PR").listingsPage.title,
+    "Propiedades en venta y alquiler"
+  );
+  assert.equal(
+    getDictionary("en-US").listingsPage.title,
+    "Properties for sale and rent"
+  );
+  assert.equal(
+    getDictionary("en-US").testimonialsPage.filters.buyers,
+    "Buyers"
+  );
+  assert.equal(
+    getDictionary("en-US").privacyPage.sections.length,
+    getDictionary("es-PR").privacyPage.sections.length
   );
 });
 
@@ -197,7 +240,7 @@ test("locale provider changes html lang only while multilingual mode is active",
 
   assert.match(provider, /if \(!multilingualEnabled\) return/);
   assert.match(provider, /document\.documentElement\.lang = locale/);
-  assert.match(provider, /document\.documentElement\.lang = "es"/);
+  assert.doesNotMatch(provider, /document\.documentElement\.lang = "es"/);
   assert.match(provider, /getRouteLocale\(pathname\)/);
 });
 
@@ -216,6 +259,64 @@ test("Home, Header and Footer consume shared static dictionaries", async () => {
   assert.match(hero, /dictionary\.home\.hero/);
   assert.match(header, /dictionary\.navigation\.home/);
   assert.match(footer, /dictionary\.footer\.brandDescription/);
+});
+
+test("Phase 2.5 pages consume shared dictionaries without duplicating page JSX", async () => {
+  const [
+    about,
+    englishAbout,
+    contact,
+    englishContact,
+    listings,
+    englishListings,
+    listingsClient,
+    testimonialsClient,
+    privacy,
+    englishPrivacy,
+  ] = await Promise.all([
+    source("app/(public)/about/page.tsx"),
+    source("app/(public)/en/about/page.tsx"),
+    source("app/(public)/contact/page.tsx"),
+    source("app/(public)/en/contact/page.tsx"),
+    source("app/(public)/listados/page.tsx"),
+    source("app/(public)/en/listings/page.tsx"),
+    source("components/ListadosClient.tsx"),
+    source("app/(public)/testimonios/TestimoniosClientPage.tsx"),
+    source("app/(public)/privacidad/page.tsx"),
+    source("app/(public)/en/privacy/page.tsx"),
+  ]);
+
+  assert.match(about, /getDictionary\(locale\)\.about/);
+  assert.match(englishAbout, /renderAboutPage\(ENGLISH_LOCALE\)/);
+  assert.match(contact, /getDictionary\(locale\)\.contactHub/);
+  assert.match(englishContact, /renderContactPage\(ENGLISH_LOCALE\)/);
+  assert.match(listings, /getDictionary\(locale\)\.listingsPage/);
+  assert.match(englishListings, /locale: ENGLISH_LOCALE/);
+  assert.match(listingsClient, /dictionary\.listingsPage/);
+  assert.match(testimonialsClient, /dictionary\.testimonialsPage/);
+  assert.match(privacy, /getDictionary\(locale\)\.privacyPage/);
+  assert.match(englishPrivacy, /renderPrivacyPage\(ENGLISH_LOCALE\)/);
+
+  assert.match(listingsClient, /\{propiedad\.titulo\}/);
+  assert.match(listingsClient, /\{propiedad\.descripcion\}/);
+  assert.match(testimonialsClient, /\{item\.texto\}/);
+  assert.match(testimonialsClient, /\{item\.titulo \|\| item\.nombre\}/);
+  assert.doesNotMatch(englishAbout, /<main|<Header/);
+  assert.doesNotMatch(englishContact, /<main|<Header/);
+  assert.doesNotMatch(englishListings, /<main|<Header/);
+  assert.doesNotMatch(englishPrivacy, /<main|<Header/);
+});
+
+test("Phase 2.5 does not introduce a dynamic English property route or localized SEO", async () => {
+  const [sitemap, robots, englishTree] = await Promise.all([
+    source("app/sitemap.ts"),
+    source("app/robots.ts"),
+    source("app/(public)/en/listings/page.tsx"),
+  ]);
+
+  assert.doesNotMatch(sitemap, /\/en(?:\/|`|")/);
+  assert.doesNotMatch(robots, /\/en(?:\/|`|")/);
+  assert.doesNotMatch(englishTree, /generateMetadata|alternates|jsonLd/);
 });
 
 test("localized 404s exist without locale redirects", async () => {

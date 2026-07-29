@@ -43,8 +43,10 @@ test("admin and private-token routes remain excluded from analytics", async () =
 test("privacy page is public and linked from the public footer", async () => {
   const page = await source("app/(public)/privacidad/page.tsx");
   const footer = await source("components/footer.tsx");
-  assert.match(page, /Google Analytics/);
-  assert.match(page, /Microsoft\s+Clarity/);
-  assert.match(page, /documentos\s+financieros/);
+  const spanishDictionary = await source("locales/es-PR.ts");
+  assert.match(page, /getDictionary\(locale\)\.privacyPage/);
+  assert.match(spanishDictionary, /Google Analytics/);
+  assert.match(spanishDictionary, /Microsoft\s+Clarity/);
+  assert.match(spanishDictionary, /documentos\s+financieros/);
   assert.match(footer, /localizedHref\("\/privacidad"\)/);
 });

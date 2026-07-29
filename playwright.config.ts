@@ -47,6 +47,8 @@ export default defineConfig({
           NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3000",
           NEXT_PUBLIC_GA_MEASUREMENT_ID: "",
           NEXT_PUBLIC_CLARITY_PROJECT_ID: "",
+          MULTILINGUAL_ENABLED:
+            process.env.MULTILINGUAL_ENABLED || "false",
         },
       },
 });

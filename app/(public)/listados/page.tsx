@@ -5,6 +5,8 @@ import ListadosClient from "@/components/ListadosClient";
 import PropiedadSkeleton from "@/components/PropiedadSkeleton";
 import { getPropiedadesPaginadas } from "@/lib/queries/propiedades";
 import { isRegionSlug } from "@/data/zonas";
+import { getDictionary } from "@/lib/i18n/get-dictionary";
+import { DEFAULT_LOCALE, type AppLocale } from "@/lib/i18n/locales";
 import {
   DEFAULT_OG_IMAGE,
   SITE_NAME,
@@ -49,7 +51,7 @@ type TipoPropiedad =
 
 
 
-type SearchParams = Promise<{
+export type ListingsSearchParams = Promise<{
   municipio?: string;
   region?: string;
   tipoNegocio?: string;
@@ -64,11 +66,14 @@ type SearchParams = Promise<{
   page?: string;
 }>;
 
-export default async function ListadosPage({
+export async function renderListingsPage({
   searchParams,
+  locale,
 }: {
-  searchParams: SearchParams;
+  searchParams: ListingsSearchParams;
+  locale: AppLocale;
 }) {
+  const copy = getDictionary(locale).listingsPage;
   const params = await searchParams;
   const region = isRegionSlug(params.region) ? params.region : "";
   const requestedPage = parseInt(params.page || "1", 10);
@@ -157,16 +162,13 @@ export default async function ListadosPage({
       <main className="bg-white pt-[96px] lg:pt-[128px]">
         <section className="section-shell py-20">
           <div className="max-w-3xl">
-            <p className="eyebrow">Listados</p>
+            <p className="eyebrow">{copy.eyebrow}</p>
 
             <h1 className="heading-section heading-section-blue mt-4">
-            Propiedades en venta y alquiler
+              {copy.title}
             </h1>
 
-            <p className="body-lg mt-6">
-              Explora propiedades por municipio, rango de precio y tipo para
-              encontrar opciones alineadas con tus objetivos.
-            </p>
+            <p className="body-lg mt-6">{copy.description}</p>
           </div>
         </section>
 
@@ -216,4 +218,12 @@ export default async function ListadosPage({
       </main>
     </>
   );
+}
+
+export default function ListadosPage({
+  searchParams,
+}: {
+  searchParams: ListingsSearchParams;
+}) {
+  return renderListingsPage({ searchParams, locale: DEFAULT_LOCALE });
 }

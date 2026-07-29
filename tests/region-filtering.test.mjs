@@ -37,16 +37,20 @@ test("home region cards use the explicit region contract instead of free-text se
 });
 
 test("listing parsing, query filtering, UI chips, and pagination preserve region", async () => {
-  const [pageSource, querySource, clientSource] = await Promise.all([
+  const [pageSource, querySource, clientSource, spanishDictionary] = await Promise.all([
     readFile(new URL("../app/(public)/listados/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/queries/propiedades.ts", import.meta.url), "utf8"),
     readFile(new URL("../components/ListadosClient.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../locales/es-PR.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(pageSource, /isRegionSlug\(params\.region\)/);
   assert.match(pageSource, /region: region \|\| undefined/);
   assert.match(querySource, /p\.municipio IN \$\{sql\(regionMunicipios\)\}/);
   assert.match(clientSource, /params\.set\("region", filters\.region\)/);
-  assert.match(clientSource, /Región: \{getRegionLabel\(region\)\}/);
+  assert.match(clientSource, /copy\.filters\.region/);
+  assert.match(clientSource, /regionLabel\(region\)/);
+  assert.match(spanishDictionary, /region:\s*"Región"/);
+  assert.match(spanishDictionary, /sur:\s*"Sur"/);
   assert.match(clientSource, /new URLSearchParams\(queryString\)/);
 });

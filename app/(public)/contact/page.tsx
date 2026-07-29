@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Header from "@/components/Header";
 import AnalyticsLink from "@/components/AnalyticsLink";
+import { getDictionary } from "@/lib/i18n/get-dictionary";
+import { DEFAULT_LOCALE, type AppLocale } from "@/lib/i18n/locales";
 import {
   DEFAULT_OG_IMAGE,
   SITE_NAME,
@@ -42,6 +44,7 @@ function ContactOptionCard({
   description,
   href,
   label,
+  analyticsOption,
   variant = "primary",
 }: {
   eyebrow: string;
@@ -49,6 +52,7 @@ function ContactOptionCard({
   description: string;
   href: string;
   label: string;
+  analyticsOption: string;
   variant?: "primary" | "secondary";
 }) {
   return (
@@ -78,7 +82,7 @@ function ContactOptionCard({
           eventParams={
             href.startsWith("https://wa.me/")
               ? { source_route: "/contact" }
-              : { option: eyebrow.toLowerCase(), destination: href }
+              : { option: analyticsOption, destination: href }
           }
           className={variant === "primary" ? "btn-primary" : "btn-secondary"}
         >
@@ -89,7 +93,9 @@ function ContactOptionCard({
   );
 }
 
-export default function ContactPage() {
+export function renderContactPage(locale: AppLocale) {
+  const copy = getDictionary(locale).contactHub;
+
   return (
     <>
       <script
@@ -106,14 +112,14 @@ export default function ContactPage() {
       <main className="bg-white pt-[96px] lg:pt-[128px]">
         <section className="section-shell py-20">
           <div className="max-w-4xl">
-            <p className="eyebrow">Contacto</p>
+            <p className="eyebrow">{copy.eyebrow}</p>
 
             <h1 className="heading-display mt-4 !text-[#11518B]">
-              ¿Cómo puedo orientarte?
+              {copy.title}
             </h1>
 
             <p className="body-lg mt-8 max-w-3xl">
-              Elige la opción que mejor se ajuste a lo que necesitas. Así puedo orientarte con más claridad, estrategia y una experiencia alineada a tus objetivos en Puerto Rico.
+              {copy.description}
             </p>
           </div>
         </section>
@@ -121,29 +127,32 @@ export default function ContactPage() {
         <section className="section-shell pb-24">
           <div className="grid gap-6 xl:grid-cols-3">
             <ContactOptionCard
-              eyebrow="COMPRADORES Y ARRENDATARIOS"
-              title="Quiero comprar o alquilar"
-              description="Regístrate para formar parte de mi base de compradores y arrendatarios activos. Así podré orientarte de manera más personalizada y compartir contigo oportunidades alineadas con tus necesidades."
+              eyebrow={copy.options[0].eyebrow}
+              title={copy.options[0].title}
+              description={copy.options[0].description}
               href="/contact/compradores-arrendatarios"
-              label="Registrarme"
+              label={copy.options[0].label}
+              analyticsOption="compradores y arrendatarios"
               variant="primary"
             />
 
             <ContactOptionCard
-              eyebrow="Vendedores y arrendadores"
-              title="Quiero vender o alquilar"
-              description="Comparte la información de tu propiedad y recibirás orientación sobre los próximos pasos para venderla o alquilarla con una estrategia adaptada a tus objetivos."
+              eyebrow={copy.options[1].eyebrow}
+              title={copy.options[1].title}
+              description={copy.options[1].description}
               href="/contact/vendedor-arrendador"
-              label="Solicitar orientación"
+              label={copy.options[1].label}
+              analyticsOption="vendedores y arrendadores"
               variant="primary"
             />
 
             <ContactOptionCard
-              eyebrow="Consulta general"
-              title="Necesito orientación general"
-              description="Si tienes dudas, necesitas orientación adicional o prefieres una conversación más directa, también puedes escribir por WhatsApp."
+              eyebrow={copy.options[2].eyebrow}
+              title={copy.options[2].title}
+              description={copy.options[2].description}
               href="https://wa.me/17876774900"
-              label="Escribir por WhatsApp"
+              label={copy.options[2].label}
+              analyticsOption="consulta general"
               variant="secondary"
             />
           </div>
@@ -152,4 +161,8 @@ export default function ContactPage() {
       </main>
     </>
   );
+}
+
+export default function ContactPage() {
+  return renderContactPage(DEFAULT_LOCALE);
 }

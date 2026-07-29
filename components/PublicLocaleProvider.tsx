@@ -50,9 +50,6 @@ export default function PublicLocaleProvider({
   useLayoutEffect(() => {
     if (!multilingualEnabled) return;
     document.documentElement.lang = locale;
-    return () => {
-      document.documentElement.lang = "es";
-    };
   }, [locale, multilingualEnabled]);
 
   const value = useMemo(
