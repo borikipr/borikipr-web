@@ -20,7 +20,7 @@ applies migrations to a remote database.
 Each migration file must include a matching rollback file. Rollbacks are
 manual review artifacts, not automatic deployment behavior.
 
-Migrations are validated in order through `0016`. The validator creates only
+Migrations are validated in order through `0019`. The validator creates only
 ephemeral local fixtures for the pre-existing `propiedades`,
 `consultas_propiedad`, Priority Registration, and email queue structures needed
 to exercise the reviewed foreign keys and rollback behavior. It verifies each
@@ -111,3 +111,12 @@ private registrations use `private_showing` and persist only a sanitized source
 path without the raw token. The token is retrievable only through the
 authenticated, on-demand Admin action. Its rollback refuses to discard any
 private Showing registration.
+
+Migration `0019` adds the provider-independent multilingual persistence
+foundation. `content_translations` uses real nullable foreign keys to properties
+and testimonials plus an exactly-one-owner constraint; it does not use a weak
+polymorphic entity ID. `translation_jobs` stores durable translation intent
+without source text or credentials, and `translation_revision_events` provides
+append-only audit storage. All three tables contain derived content only. The
+guarded rollback refuses to discard any translation, job, or revision row and
+never alters Spanish property or testimonial data.

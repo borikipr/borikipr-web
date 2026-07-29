@@ -89,7 +89,10 @@ if (!process.env.DATABASE_URL) {
           ) AS v0016,
           to_regclass('public.public_rate_limit_buckets') IS NOT NULL AS v0017,
           to_regclass('public.operational_cron_heartbeats') IS NOT NULL
-            AND to_regclass('public.operational_alert_state') IS NOT NULL AS v0018
+            AND to_regclass('public.operational_alert_state') IS NOT NULL AS v0018,
+          to_regclass('public.content_translations') IS NOT NULL
+            AND to_regclass('public.translation_jobs') IS NOT NULL
+            AND to_regclass('public.translation_revision_events') IS NOT NULL AS v0019
       )
       SELECT * FROM facts
     `;

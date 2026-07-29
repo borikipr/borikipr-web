@@ -23,6 +23,12 @@
 5. Re-run `npm run schema:audit` and the migration-specific read-only checks.
 6. Deploy the code that consumes the new schema.
 
+For migration `0019`, deploy schema and repository primitives before any
+translation write-flow integration. Do not run a backfill or a provider worker
+as part of the migration. Its rollback is allowed only while all three
+translation tables are empty; otherwise retain the additive schema and roll
+back application usage first.
+
 The hardening release has a one-purpose guarded runner:
 
 ```bash

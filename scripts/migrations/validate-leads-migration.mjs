@@ -1596,3 +1596,154 @@ try {
 } finally {
   await operationalMonitoringDb.close();
 }
+
+const translationPersistenceMigrationSql = await readMigration(
+  "0019_create_translation_persistence.sql"
+);
+const translationPersistenceRollbackSql = await readMigration(
+  "0019_create_translation_persistence.rollback.sql"
+);
+const translationPersistenceDb = new PGlite();
+try {
+  await translationPersistenceDb.exec(`
+    CREATE TABLE public.propiedades (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      titulo text NOT NULL,
+      descripcion text NOT NULL
+    );
+    CREATE TABLE public.testimonios (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      texto text NOT NULL
+    );
+    CREATE TABLE public.admin_users (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      username text NOT NULL UNIQUE
+    );
+  `);
+  await translationPersistenceDb.exec(translationPersistenceMigrationSql);
+
+  const tables = await translationPersistenceDb.query(`
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema='public'
+      AND table_name IN (
+        'content_translations',
+        'translation_jobs',
+        'translation_revision_events'
+      )
+    ORDER BY table_name
+  `);
+  assert.deepEqual(tables.rows.map((row) => row.table_name), [
+    "content_translations",
+    "translation_jobs",
+    "translation_revision_events",
+  ]);
+
+  const foreignKeys = await translationPersistenceDb.query(`
+    SELECT source.relname AS source_table,
+           target.relname AS target_table,
+           con.confdeltype
+    FROM pg_constraint con
+    JOIN pg_class source ON source.oid=con.conrelid
+    JOIN pg_class target ON target.oid=con.confrelid
+    WHERE source.relname IN (
+      'content_translations',
+      'translation_jobs',
+      'translation_revision_events'
+    )
+      AND con.contype='f'
+    ORDER BY source.relname, target.relname
+  `);
+  assert.deepEqual(foreignKeys.rows, [
+    { source_table: "content_translations", target_table: "admin_users", confdeltype: "r" },
+    { source_table: "content_translations", target_table: "propiedades", confdeltype: "c" },
+    { source_table: "content_translations", target_table: "testimonios", confdeltype: "c" },
+    { source_table: "translation_jobs", target_table: "content_translations", confdeltype: "c" },
+    { source_table: "translation_revision_events", target_table: "admin_users", confdeltype: "r" },
+    { source_table: "translation_revision_events", target_table: "content_translations", confdeltype: "c" },
+    { source_table: "translation_revision_events", target_table: "translation_jobs", confdeltype: "n" },
+  ]);
+
+  const indexes = await translationPersistenceDb.query(`
+    SELECT indexname
+    FROM pg_indexes
+    WHERE schemaname='public'
+      AND indexname IN (
+        'content_translations_property_locale_field_uidx',
+        'content_translations_testimonial_locale_field_uidx',
+        'content_translations_property_id_idx',
+        'content_translations_testimonial_id_idx',
+        'content_translations_status_updated_at_idx',
+        'translation_jobs_active_source_uidx',
+        'translation_jobs_claim_idx',
+        'translation_jobs_processing_locked_at_idx',
+        'translation_jobs_status_updated_at_idx',
+        'translation_revision_events_translation_created_at_idx',
+        'translation_revision_events_actor_created_at_idx'
+      )
+    ORDER BY indexname
+  `);
+  assert.equal(indexes.rows.length, 11);
+
+  const property = await translationPersistenceDb.query(`
+    INSERT INTO public.propiedades (titulo, descripcion)
+    VALUES ('Casa', 'Descripción')
+    RETURNING id::text
+  `);
+  const testimonial = await translationPersistenceDb.query(`
+    INSERT INTO public.testimonios (texto)
+    VALUES ('Excelente servicio')
+    RETURNING id::text
+  `);
+  const hash = "a".repeat(64);
+  await translationPersistenceDb.query(
+    `INSERT INTO public.content_translations (
+       property_id, target_locale, field_key, source_hash
+     ) VALUES ($1::uuid, 'en-US', 'title', $2)`,
+    [property.rows[0].id, hash]
+  );
+  await translationPersistenceDb.query(
+    `INSERT INTO public.content_translations (
+       testimonial_id, target_locale, field_key, source_hash
+     ) VALUES ($1::uuid, 'en-US', 'body', $2)`,
+    [testimonial.rows[0].id, hash]
+  );
+  await assert.rejects(
+    translationPersistenceDb.query(
+      `INSERT INTO public.content_translations (
+         property_id, testimonial_id, target_locale, field_key, source_hash
+       ) VALUES ($1::uuid, $2::uuid, 'en-US', 'title', $3)`,
+      [property.rows[0].id, testimonial.rows[0].id, hash]
+    )
+  );
+
+  await assert.rejects(
+    translationPersistenceDb.exec(translationPersistenceRollbackSql)
+  );
+  await translationPersistenceDb.exec(`ROLLBACK`);
+  await translationPersistenceDb.exec(`
+    DELETE FROM public.translation_revision_events;
+    DELETE FROM public.translation_jobs;
+    DELETE FROM public.content_translations;
+  `);
+  await translationPersistenceDb.exec(translationPersistenceRollbackSql);
+  const removed = await translationPersistenceDb.query(`
+    SELECT
+      to_regclass('public.content_translations') IS NULL AS translations_removed,
+      to_regclass('public.translation_jobs') IS NULL AS jobs_removed,
+      to_regclass('public.translation_revision_events') IS NULL AS revisions_removed,
+      (SELECT count(*)::int FROM public.propiedades) AS properties_preserved,
+      (SELECT count(*)::int FROM public.testimonios) AS testimonials_preserved
+  `);
+  assert.deepEqual(removed.rows, [{
+    translations_removed: true,
+    jobs_removed: true,
+    revisions_removed: true,
+    properties_preserved: 1,
+    testimonials_preserved: 1,
+  }]);
+  console.log("Validated the ordered migration chain through 0019.");
+  console.log("Verified typed translation owners, lifecycle constraints, queue indexes, audit FKs, and guarded rollback.");
+} finally {
+  await translationPersistenceDb.close();
+}
