@@ -13,6 +13,7 @@ import {
 } from "@/lib/property-availability-enqueue";
 import { updatePropertyStatusWithAvailabilityQueue } from "@/lib/postgres-property-availability";
 import { generatePrivateShowingToken } from "@/lib/leads/private-showing-token";
+import { syncPropertyTranslationIntents } from "@/lib/i18n/translations/source-intents";
 
 export type CreatePropiedadState = {
   error: string;
@@ -235,8 +236,9 @@ export async function createPropiedadAction(
   let insertadaId = "";
 
   try {
-    const insertadas = await sql<{ id: string }[]>`
-      INSERT INTO propiedades (
+    insertadaId = await sql.begin(async (transaction) => {
+      const insertadas = await transaction.unsafe<{ id: string }[]>(
+        `INSERT INTO public.propiedades (
         slug,
         titulo,
         descripcion,
@@ -271,52 +273,67 @@ export async function createPropiedadAction(
         acepta_cdbg,
         configuracion_formulario
       ) VALUES (
-        ${slug},
-        ${titulo},
-        ${descripcion},
-        ${municipio},
-        ${sectorComunidad || null},
-        ${precio},
-        ${tipoNegocio},
-        ${tipoPropiedad},
-        ${habitaciones},
-        ${banos},
-        ${estacionamientos},
-        ${metrosCuadrados},
-        ${estado},
-        ${destacado},
-        ${origenListado},
-        ${corredorNombre || null},
-        ${corredorEmpresa || null},
-        ${corredorContacto || null},
-        ${enlaceOriginal || null},
-        ${permisoPublicar},
-        ${permisoFotos},
-        ${notasInternas || null},
-        ${formularioShowingActivo},
-        ${fechaShowing},
-        ${requierePrecalificacion},
-        ${preguntaPersonalizada || null},
-        ${tienePlacasSolares},
-        ${cantidadPlacas},
-        ${placasEnLease},
-        ${openHouseSolarQuestionEnabled},
-        ${generatePrivateShowingToken()},
-        ${aceptaCdbg},
-        ${sql.json({ notas_compradores: notasCompradores })}
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+        $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25,
+        $26, $27, $28, $29, $30, $31, $32, $33::jsonb
       )
-      RETURNING id
-    `;
+      RETURNING id::text`,
+        [
+          slug,
+          titulo,
+          descripcion,
+          municipio,
+          sectorComunidad || null,
+          precio,
+          tipoNegocio,
+          tipoPropiedad,
+          habitaciones,
+          banos,
+          estacionamientos,
+          metrosCuadrados,
+          estado,
+          destacado,
+          origenListado,
+          corredorNombre || null,
+          corredorEmpresa || null,
+          corredorContacto || null,
+          enlaceOriginal || null,
+          permisoPublicar,
+          permisoFotos,
+          notasInternas || null,
+          formularioShowingActivo,
+          fechaShowing,
+          requierePrecalificacion,
+          preguntaPersonalizada || null,
+          tienePlacasSolares,
+          cantidadPlacas,
+          placasEnLease,
+          openHouseSolarQuestionEnabled,
+          generatePrivateShowingToken(),
+          aceptaCdbg,
+          JSON.stringify({ notas_compradores: notasCompradores }),
+        ]
+      );
 
-    const insertada = insertadas[0];
-    insertadaId = insertada.id;
+      const insertada = insertadas[0];
+      if (!insertada) throw new Error("Property was not created.");
 
-    for (let i = 0; i < imagenes.length; i++) {
-      await sql`
-        INSERT INTO propiedad_imagenes (propiedad_id, url, orden)
-        VALUES (${insertada.id}, ${imagenes[i]}, ${i + 1})
-      `;
-    }
+      for (let i = 0; i < imagenes.length; i++) {
+        await transaction.unsafe(
+          `INSERT INTO public.propiedad_imagenes (propiedad_id, url, orden)
+           VALUES ($1::uuid, $2, $3)`,
+          [insertada.id, imagenes[i], i + 1]
+        );
+      }
+
+      await syncPropertyTranslationIntents(transaction, {
+        propertyId: insertada.id,
+        title: titulo,
+        description: descripcion,
+        highlighted: destacado,
+      });
+      return insertada.id;
+    });
 
     revalidatePath("/admin/propiedades");
     revalidatePath("/listados");
@@ -511,8 +528,12 @@ export async function updatePropiedadAction(
 
   try {
     const transition = await sql.begin(async (transaction) => {
-      const lockedRows = await transaction.unsafe<{ estado: string }[]>(
-        `SELECT estado
+      const lockedRows = await transaction.unsafe<{
+        estado: string;
+        titulo: string;
+        descripcion: string;
+      }[]>(
+        `SELECT estado, titulo, descripcion
            FROM public.propiedades
           WHERE id = $1::uuid
           LIMIT 1
@@ -610,6 +631,13 @@ export async function updatePropiedadAction(
           [id, imagenes[i], i + 1]
         );
       }
+
+      await syncPropertyTranslationIntents(transaction, {
+        propertyId: id,
+        title: titulo,
+        description: descripcion,
+        highlighted: destacado,
+      });
 
       const registrations =
         locked.estado === "coming_soon" && estado === "disponible"

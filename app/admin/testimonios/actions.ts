@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { sql } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { getAdminSessionUser } from "@/lib/admin/auth";
+import { syncTestimonialTranslationIntent } from "@/lib/i18n/translations/source-intents";
 
 export type CreateTestimonioState = {
   error: string;
@@ -60,8 +61,9 @@ export async function createTestimonioAction(
   let insertadoId = "";
 
   try {
-    const rows = await sql<{ id: string }[]>`
-      INSERT INTO testimonios (
+    insertadoId = await sql.begin(async (transaction) => {
+      const rows = await transaction.unsafe<{ id: string }[]>(
+        `INSERT INTO public.testimonios (
         nombre,
         texto,
         ubicacion,
@@ -70,20 +72,28 @@ export async function createTestimonioAction(
         activo,
         destacado,
         orden
-      ) VALUES (
-        ${nombre},
-        ${texto},
-        ${ubicacion || null},
-        ${fotoUrl || null},
-        ${tipo},
-        ${activo},
-        ${destacado},
-        ${orden}
-      )
-      RETURNING id
-    `;
-
-    insertadoId = rows[0].id;
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id::text`,
+        [
+          nombre,
+          texto,
+          ubicacion || null,
+          fotoUrl || null,
+          tipo,
+          activo,
+          destacado,
+          orden,
+        ]
+      );
+      const testimonial = rows[0];
+      if (!testimonial) throw new Error("Testimonial was not created.");
+      await syncTestimonialTranslationIntent(transaction, {
+        testimonialId: testimonial.id,
+        body: texto,
+        active: activo,
+      });
+      return testimonial.id;
+    });
 
     revalidatePath("/admin/testimonios");
     revalidatePath("/");
@@ -131,20 +141,46 @@ export async function updateTestimonioAction(
   }
 
   try {
-    const rows = await sql<{ id: string }[]>`
-      UPDATE testimonios
-      SET
-        nombre = ${nombre},
-        texto = ${texto},
-        ubicacion = ${ubicacion || null},
-        foto_url = ${fotoUrl || null},
-        tipo = ${tipo},
-        activo = ${activo},
-        destacado = ${destacado},
-        orden = ${orden}
-      WHERE id = ${id}
-      RETURNING id
-    `;
+    const rows = await sql.begin(async (transaction) => {
+      const locked = await transaction.unsafe<{ id: string; texto: string }[]>(
+        `SELECT id::text, texto
+           FROM public.testimonios
+          WHERE id = $1::uuid
+          FOR UPDATE`,
+        [id]
+      );
+      if (!locked[0]) return [];
+      const updated = await transaction.unsafe<{ id: string }[]>(
+        `UPDATE public.testimonios
+            SET nombre = $2,
+                texto = $3,
+                ubicacion = $4,
+                foto_url = $5,
+                tipo = $6,
+                activo = $7,
+                destacado = $8,
+                orden = $9
+          WHERE id = $1::uuid
+          RETURNING id::text`,
+        [
+          id,
+          nombre,
+          texto,
+          ubicacion || null,
+          fotoUrl || null,
+          tipo,
+          activo,
+          destacado,
+          orden,
+        ]
+      );
+      await syncTestimonialTranslationIntent(transaction, {
+        testimonialId: id,
+        body: texto,
+        active: activo,
+      });
+      return updated;
+    });
 
     if (!rows[0]) {
       return { error: "No se encontró el testimonio." };
