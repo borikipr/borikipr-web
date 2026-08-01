@@ -9,9 +9,12 @@ async function source(path) {
 
 test("main property detail remains indexable, self-canonical, and authoritative for property JSON-LD", async () => {
   const page = await source("app/(public)/listados/[slug]/page.tsx");
+  const seo = await source("lib/i18n/seo.ts");
 
-  assert.match(page, /canonical:\s*url/);
-  assert.match(page, /absoluteUrl\(`\/listados\/\$\{row\.slug\}`\)/);
+  assert.match(page, /buildPropertySeoMetadata/);
+  assert.match(page, /generateLocalizedPropertyMetadata\(params, DEFAULT_LOCALE\)/);
+  assert.match(seo, /spanishPath:\s*`\/listados\/\$\{input\.slug\}`/);
+  assert.match(seo, /indexable:\s*input\.locale !== ENGLISH_LOCALE \|\| input\.englishCoverageComplete/);
   assert.doesNotMatch(page, /robots:\s*\{[\s\S]*?index:\s*false/);
   assert.match(page, /"@type":\s*"Offer"/);
   assert.match(page, /"@type":\s*"Residence"/);

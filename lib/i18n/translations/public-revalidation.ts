@@ -17,6 +17,7 @@ export function getEnglishPublicTranslationPaths(
   return [
     "/en",
     "/en/listings",
+    "/sitemap.xml",
     ...(target.propertySlug ? [`/en/listings/${target.propertySlug}`] : []),
   ];
 }

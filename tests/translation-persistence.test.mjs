@@ -797,5 +797,6 @@ test("translation persistence leaves Spanish repositories and SEO isolated while
   assert.match(englishLayout, /isMultilingualEnabled\(\)/);
   assert.match(englishLayout, /notFound\(\)/);
   assert.match(englishPropertyRoute, /renderPropertyDetailPage/);
-  assert.doesNotMatch(englishPropertyRoute, /<main|generateMetadata/);
+  assert.match(englishPropertyRoute, /generateLocalizedPropertyMetadata/);
+  assert.doesNotMatch(englishPropertyRoute, /<main|content_translations|translation_jobs/);
 });

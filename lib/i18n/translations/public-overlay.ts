@@ -1,11 +1,6 @@
-import { sql } from "@/lib/db";
 import { ENGLISH_LOCALE, type AppLocale } from "@/lib/i18n/locales";
-import { getTranslatedValueOrSpanishFallback } from "@/lib/i18n/translations/publishable";
-import {
-  createPostgresTranslationDatabase,
-  createTranslationRepository,
-  type ContentTranslation,
-} from "@/lib/i18n/translations/repository";
+import { getTranslatedValueOrSpanishFallback, isPublishableTranslation } from "@/lib/i18n/translations/publishable";
+import type { ContentTranslation } from "@/lib/i18n/translations/repository";
 
 type PublicTranslationCandidate = Pick<
   ContentTranslation,
@@ -98,7 +93,12 @@ export function applyTestimonialTranslationOverlay<
   }));
 }
 
-function defaultReader(): PublicTranslationReader {
+async function defaultReader(): Promise<PublicTranslationReader> {
+  const [{ sql }, { createPostgresTranslationDatabase, createTranslationRepository }] =
+    await Promise.all([
+      import("@/lib/db"),
+      import("@/lib/i18n/translations/repository"),
+    ]);
   return createTranslationRepository(createPostgresTranslationDatabase(sql));
 }
 
@@ -113,7 +113,8 @@ export async function overlayPropertyTranslations<
     return [...input.properties];
   }
 
-  const translations = await (input.reader ?? defaultReader()).fetchPropertyTranslations(
+  const reader = input.reader ?? (await defaultReader());
+  const translations = await reader.fetchPropertyTranslations(
     uniqueIds(input.properties),
     "en-US",
     ["title", "description"]
@@ -136,6 +137,28 @@ export async function overlayPropertyTranslation<
   return property;
 }
 
+export async function getPropertyTranslationSeoState<T extends PublicPropertySource>(input: {
+  property: T;
+  locale: AppLocale;
+  reader?: PublicTranslationReader;
+}) {
+  if (input.locale !== ENGLISH_LOCALE) {
+    return { property: input.property, titlePublishable: false, descriptionPublishable: false };
+  }
+  const reader = input.reader ?? (await defaultReader());
+  const translations = await reader.fetchPropertyTranslations(
+    [input.property.id], "en-US", ["title", "description"]
+  );
+  const candidates = byOwnerAndField(translations);
+  const title = candidates.get(`${input.property.id}:title`);
+  const description = candidates.get(`${input.property.id}:description`);
+  return {
+    property: applyPropertyTranslationOverlay([input.property], translations)[0],
+    titlePublishable: isPublishableTranslation(title),
+    descriptionPublishable: isPublishableTranslation(description),
+  };
+}
+
 export async function overlayTestimonialTranslations<
   T extends PublicTestimonialSource,
 >(input: {
@@ -147,7 +170,8 @@ export async function overlayTestimonialTranslations<
     return [...input.testimonials];
   }
 
-  const translations = await (input.reader ?? defaultReader()).fetchTestimonialTranslations(
+  const reader = input.reader ?? (await defaultReader());
+  const translations = await reader.fetchTestimonialTranslations(
     uniqueIds(input.testimonials),
     "en-US",
     ["body"]

@@ -186,7 +186,7 @@ test("admin, API, private-token and transactional routes are not remapped", () =
   assert.equal(getRouteLocale("/admin"), null);
 });
 
-test("Phase 2 selector is limited to static routes while property previews are deferred", () => {
+test("route classification distinguishes static, dynamic property, and excluded routes", () => {
   assert.equal(isStaticLocalePreviewRoute("/"), true);
   assert.equal(isStaticLocalePreviewRoute("/en/about"), true);
   assert.equal(isStaticLocalePreviewRoute("/listados/casa-cotolaurel-ponce"), false);
@@ -243,6 +243,8 @@ test("the feature-gated selector is accessible and has no analytics integration"
   assert.match(selector, /🇺🇸/);
   assert.match(selector, /aria-hidden="true"/);
   assert.match(selector, /aria-label=/);
+  assert.match(selector, /getEquivalentRoute\(currentHref, option\.locale\)/);
+  assert.doesNotMatch(selector, /isStaticLocalePreviewRoute/);
   assert.doesNotMatch(selector, /Analytics|trackAnalytics|privateToken/);
 });
 

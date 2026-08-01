@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { trackAnalyticsEvent } from "@/lib/analytics";
@@ -22,10 +22,10 @@ function LanguageSelectorFallback() {
   );
 }
 
-function GuardedLanguageSelector() {
+function GuardedLanguageSelector({ onNavigate }: { onNavigate?: () => void } = {}) {
   return (
     <Suspense fallback={<LanguageSelectorFallback />}>
-      <LanguageSelector />
+      <LanguageSelector onNavigate={onNavigate} />
     </Suspense>
   );
 }
@@ -33,6 +33,8 @@ function GuardedLanguageSelector() {
 export default function Header({ transparent = false }: HeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const { locale, dictionary, multilingualEnabled } = usePublicLocale();
   const localizedHref = (href: string) =>
     getEquivalentRoute(href, locale) ?? href;
@@ -52,6 +54,26 @@ export default function Header({ transparent = false }: HeaderProps) {
       document.body.style.overflow = "";
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    closeButtonRef.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMenuOpen(false);
+      menuButtonRef.current?.focus();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [menuOpen]);
+
+  const closeMobileMenu = (restoreFocus = true) => {
+    setMenuOpen(false);
+    if (restoreFocus) {
+      requestAnimationFrame(() => menuButtonRef.current?.focus());
+    }
+  };
 
   const isTransparent = transparent && !scrolled;
   const desktopText = isTransparent ? "text-white" : "text-[#4d4d4d]";
@@ -135,7 +157,7 @@ export default function Header({ transparent = false }: HeaderProps) {
               <span>Licencia C-25961</span>
             </div>
 
-            <div className="flex items-center gap-5">
+            <div className="flex items-center gap-5 text-white">
               {multilingualEnabled && <GuardedLanguageSelector />}
               <Link
                 href="https://wa.me/17876774900"
@@ -206,6 +228,7 @@ export default function Header({ transparent = false }: HeaderProps) {
             </nav>
 
             <button
+              ref={menuButtonRef}
               type="button"
               onClick={() => setMenuOpen(true)}
               className={`inline-flex h-11 w-11 items-center justify-center rounded-full border transition lg:hidden ${mobileButtonStyle}`}
@@ -233,15 +256,18 @@ export default function Header({ transparent = false }: HeaderProps) {
             ? "pointer-events-auto bg-black/45 opacity-100"
             : "pointer-events-none bg-black/0 opacity-0"
         }`}
-        onClick={() => setMenuOpen(false)}
+        onClick={() => closeMobileMenu()}
       />
 
       <aside
-        className={`fixed right-0 top-0 z-[110] h-full w-[88%] max-w-[380px] transform bg-white shadow-2xl transition-transform duration-300 lg:hidden ${
+        aria-hidden={!menuOpen}
+        data-mobile-menu
+        inert={!menuOpen}
+        className={`fixed right-0 top-0 z-[110] flex h-dvh w-[88%] max-w-[380px] transform flex-col overflow-hidden bg-white shadow-2xl transition-transform duration-300 lg:hidden ${
           menuOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between border-b border-[#ededed] px-6 py-5">
+        <div className="flex shrink-0 items-center justify-between border-b border-[#ededed] px-6 py-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#d4af37]">
               {dictionary.navigation.menu}
@@ -252,8 +278,9 @@ export default function Header({ transparent = false }: HeaderProps) {
           </div>
 
           <button
+            ref={closeButtonRef}
             type="button"
-            onClick={() => setMenuOpen(false)}
+            onClick={() => closeMobileMenu()}
             className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d9d9d9] text-[#11518b] transition hover:bg-[#f7f7f7]"
             aria-label={dictionary.navigation.closeMenu}
           >
@@ -261,12 +288,15 @@ export default function Header({ transparent = false }: HeaderProps) {
           </button>
         </div>
 
-        <div className="border-b border-[#f1f1f1] px-6 py-4 text-sm text-[#4d4d4d]">
+        <div className="shrink-0 border-b border-[#f1f1f1] px-6 py-4 text-sm text-[#4d4d4d]">
           <p className="font-medium text-[#000000]">Licencia C-25961</p>
           <p className="mt-1">Puerto Rico</p>
         </div>
 
-        <nav className="flex flex-col px-6 py-6 text-[15px] font-medium text-[#2f2f2f]">
+        <nav
+          data-mobile-menu-scroll
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-6 text-[15px] font-medium text-[#2f2f2f]"
+        >
           <Link
             href={localizedHref("/")}
             onClick={() => setMenuOpen(false)}
@@ -309,7 +339,7 @@ export default function Header({ transparent = false }: HeaderProps) {
 
           {multilingualEnabled && (
             <div className="border-b border-[#f1f1f1] py-4">
-              <GuardedLanguageSelector />
+              <GuardedLanguageSelector onNavigate={() => closeMobileMenu(false)} />
             </div>
           )}
 

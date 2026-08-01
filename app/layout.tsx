@@ -12,7 +12,7 @@ import {
   SITE_NAME,
   SITE_URL,
   jsonLdScript,
-  realEstateAgentJsonLd,
+  realEstateAgentJsonLdForLocale,
 } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -72,7 +72,11 @@ export default async function RootLayout({
       <body>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={jsonLdScript(realEstateAgentJsonLd)}
+          dangerouslySetInnerHTML={jsonLdScript(
+            realEstateAgentJsonLdForLocale(
+              documentLanguage === "en-US" ? "en-US" : "es-PR"
+            )
+          )}
         />
         {children}
         <AnalyticsScripts />

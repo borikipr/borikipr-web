@@ -11,7 +11,6 @@ import {
 import {
   getEquivalentRoute,
   getRouteLocale,
-  isStaticLocalePreviewRoute,
 } from "@/lib/i18n/routing";
 
 const options: ReadonlyArray<{ locale: AppLocale; flag: string }> = [
@@ -19,7 +18,11 @@ const options: ReadonlyArray<{ locale: AppLocale; flag: string }> = [
   { locale: ENGLISH_LOCALE, flag: "🇺🇸" },
 ];
 
-export default function LanguageSelector() {
+export default function LanguageSelector({
+  onNavigate,
+}: {
+  onNavigate?: () => void;
+} = {}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { dictionary } = usePublicLocale();
@@ -27,7 +30,7 @@ export default function LanguageSelector() {
   const currentHref = `${pathname}${query ? `?${query}` : ""}`;
   const currentLocale = getRouteLocale(pathname);
 
-  if (!currentLocale || !isStaticLocalePreviewRoute(pathname)) return null;
+  if (!currentLocale) return null;
 
   return (
     <nav
@@ -53,6 +56,7 @@ export default function LanguageSelector() {
           <Link
             key={option.locale}
             href={href}
+            onClick={onNavigate}
             hrefLang={option.locale}
             lang={option.locale}
             aria-current={isCurrent ? "page" : undefined}

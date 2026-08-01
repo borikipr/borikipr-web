@@ -9,6 +9,7 @@
     "lint": "eslint",
     "type-check": "tsc --noEmit",
     "test:e2e": "playwright test",
+    "test:i18n:seo": "tsx --test --test-concurrency=1 tests/multilingual-seo.test.mjs",
     "test:translations:operational": "tsx --test --test-concurrency=1 tests/translation-worker-operational.test.mjs",
     "test:translations:admin": "tsx --test --test-concurrency=1 tests/translation-admin.test.mjs",
     "test:translations:public": "tsx --test --test-concurrency=1 tests/translation-public-reads.test.mjs",

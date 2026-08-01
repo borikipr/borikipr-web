@@ -88,8 +88,10 @@ test("enabled direct loads and client navigation never leave a stale document lo
     await page.getByRole("button", { name: /Abrir men/ }).click();
   }
 
-  await page
-    .locator("[data-language-selector]:visible")
+  const spanishSelector = (viewport?.width ?? 1280) < 1024
+    ? page.locator('[data-mobile-menu][aria-hidden="false"] [data-language-selector]')
+    : page.locator("[data-language-selector]:visible");
+  await spanishSelector
     .getByRole("link", { name: "English (EN)" })
     .click();
   await expect(page).toHaveURL(/\/en\/about$/);
@@ -99,12 +101,69 @@ test("enabled direct loads and client navigation never leave a stale document lo
     await page.getByRole("button", { name: "Open menu" }).click();
   }
 
-  await page
-    .locator("[data-language-selector]:visible")
+  const englishSelector = (viewport?.width ?? 1280) < 1024
+    ? page.locator('[data-mobile-menu][aria-hidden="false"] [data-language-selector]')
+    : page.locator("[data-language-selector]:visible");
+  await englishSelector
     .getByRole("link", { name: /Espa.*ol \(ES\)/ })
     .click();
   await expect(page).toHaveURL(/\/about$/);
   await expect(page.locator("html")).toHaveAttribute("lang", "es-PR");
+});
+
+test("enabled mobile drawer keeps the selector reachable and closes safely after locale navigation", async ({
+  page,
+  viewport,
+}) => {
+  test.skip(!multilingualEnabled, "English preview is intentionally disabled.");
+  test.skip((viewport?.width ?? 1280) >= 1024, "This assertion covers the mobile drawer.");
+
+  const hydrationWarnings: string[] = [];
+  page.on("console", (message) => {
+    if (/hydration|did not match/i.test(message.text())) hydrationWarnings.push(message.text());
+  });
+
+  await page.goto("/about?q=Ponce&page=2");
+  const openButton = page.getByRole("button", { name: /Abrir men/ });
+  await openButton.click();
+
+  const drawer = page.locator('[data-mobile-menu][aria-hidden="false"]');
+  const scrollRegion = drawer.locator("[data-mobile-menu-scroll]");
+  const selector = drawer.locator("[data-language-selector]");
+  await expect(drawer).toBeVisible();
+  await expect(page.getByRole("button", { name: /Cerrar men/ })).toBeFocused();
+  expect(await scrollRegion.evaluate((element) => getComputedStyle(element).overflowY)).toMatch(
+    /auto|scroll/
+  );
+
+  await selector.scrollIntoViewIfNeeded();
+  const bounds = await selector.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.y).toBeGreaterThanOrEqual(0);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport!.height);
+
+  await selector.getByRole("link", { name: "English (EN)" }).click();
+  await expect(page).toHaveURL(/\/en\/about\?q=Ponce&page=2$/);
+  await expect(page.locator("html")).toHaveAttribute("lang", "en-US");
+  await expect(page.locator('[data-mobile-menu][aria-hidden="true"]')).toHaveCount(1);
+
+  await page.getByRole("button", { name: "Open menu" }).click();
+  await page
+    .locator('[data-mobile-menu][aria-hidden="false"]')
+    .getByRole("link", { name: /Espa.*ol \(ES\)/ })
+    .click();
+  await expect(page).toHaveURL(/\/about\?q=Ponce&page=2$/);
+  await expect(page.locator("html")).toHaveAttribute("lang", "es-PR");
+
+  await page.getByRole("button", { name: /Abrir men/ }).click();
+  await page.keyboard.press("Escape");
+  await expect(openButton).toBeFocused();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    )
+  ).toBeLessThanOrEqual(1);
+  expect(hydrationWarnings).toEqual([]);
 });
 
 test("enabled preview renders all Phase 2.5 static page interfaces in English", async ({

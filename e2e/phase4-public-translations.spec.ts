@@ -16,7 +16,7 @@ test("dynamic English property details are inaccessible while multilingual is di
 
 test("isolated bilingual property detail renders responsively and switches to the same Spanish slug", async ({
   page,
-}) => {
+}, testInfo) => {
   test.skip(!multilingualEnabled, "English preview is intentionally disabled.");
   test.skip(
     !process.env.E2E_DATABASE_URL || !fixtureSlug,
@@ -31,13 +31,19 @@ test("isolated bilingual property detail renders responsively and switches to th
 
   const description = page.locator("section").filter({ hasText: "Description" });
   await expect(description).toBeVisible();
-  await expect(description.locator("p")).toHaveCSS("white-space", "pre-line");
+  await expect(description.locator("p.whitespace-pre-line")).toHaveCSS(
+    "white-space",
+    "pre-line"
+  );
 
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth
   );
   expect(overflow).toBeLessThanOrEqual(1);
 
+  if (testInfo.project.name === "mobile-chromium") {
+    await page.getByRole("button", { name: /menu/i }).click();
+  }
   const selector = page.locator("[data-language-selector]:visible");
   await expect(selector.getByRole("link", { name: /Espa.*ol \(ES\)/ })).toHaveAttribute(
     "href",

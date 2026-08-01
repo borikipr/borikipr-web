@@ -23,7 +23,7 @@ import {
 } from "@/lib/queries/propiedades";
 import { getTestimoniosPublicos, type TestimonioPublico } from "@/lib/queries/testimonios";
 import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
-import { DEFAULT_OG_IMAGE, SITE_NAME, SITE_URL } from "@/lib/seo";
+import { buildStaticPageMetadata } from "@/lib/i18n/seo";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { DEFAULT_LOCALE, type AppLocale } from "@/lib/i18n/locales";
 import { getEquivalentRoute } from "@/lib/i18n/routing";
@@ -32,31 +32,7 @@ import {
   overlayTestimonialTranslations,
 } from "@/lib/i18n/translations/public-overlay";
 
-const pageTitle = "Bienes Raíces en Puerto Rico";
-const pageDescription =
-  "Compra, vende o invierte en Puerto Rico con orientación clara, estrategia y acompañamiento profesional.";
-
-export const metadata: Metadata = {
-  title: pageTitle,
-  description: pageDescription,
-  alternates: {
-    canonical: "/",
-  },
-  openGraph: {
-    title: `${SITE_NAME} | ${pageTitle}`,
-    description: pageDescription,
-    url: SITE_URL,
-    siteName: SITE_NAME,
-    type: "website",
-    images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: SITE_NAME }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: `${SITE_NAME} | ${pageTitle}`,
-    description: pageDescription,
-    images: [DEFAULT_OG_IMAGE],
-  },
-};
+export const metadata: Metadata = buildStaticPageMetadata("home", DEFAULT_LOCALE);
 
 type TipoNegocio = "venta" | "renta";
 type EstadoPropiedad =

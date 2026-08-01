@@ -6,6 +6,7 @@ import AnalyticsEventOnView from "@/components/AnalyticsEventOnView";
 import AnalyticsLink from "@/components/AnalyticsLink";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { cache } from "react";
 import {
   getPropiedadBySlug,
   getPropiedadesSimilares,
@@ -15,7 +16,6 @@ import WhatsAppTrackerButton from "@/components/WhatsAppTrackerButton";
 import TrackLinkButton from "@/components/TrackLinkButton";
 import {
   SITE_NAME,
-  absoluteUrl,
   breadcrumbJsonLd,
   jsonLdScript,
 } from "@/lib/seo";
@@ -24,6 +24,9 @@ import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { DEFAULT_LOCALE, type AppLocale } from "@/lib/i18n/locales";
 import { getEquivalentRoute } from "@/lib/i18n/routing";
 import { overlayPropertyTranslations } from "@/lib/i18n/translations/public-overlay";
+import { getPropertyTranslationSeoState } from "@/lib/i18n/translations/public-overlay";
+import { buildPropertySeoMetadata, isCompleteEnglishPropertyTranslation, normalizeMetadataDescription } from "@/lib/i18n/seo";
+import { ENGLISH_LOCALE } from "@/lib/i18n/locales";
 
 type TipoNegocio = "venta" | "renta";
 type EstadoPropiedad =
@@ -111,70 +114,61 @@ function buildAbsoluteImageUrl(imageUrl: string) {
   return `https://borikipr.com/${imageUrl}`;
 }
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}): Promise<Metadata> {
+const getLocalizedPropertyDetail = cache(async (slug: string, locale: AppLocale) => {
+  const source = (await getPropiedadBySlug(slug)) as unknown as PropiedadDB | null;
+  if (!source) return null;
+  if (locale !== ENGLISH_LOCALE) {
+    return { source, display: source, titlePublishable: true, descriptionPublishable: true };
+  }
+  const state = await getPropertyTranslationSeoState({ property: source, locale });
+  return { source, display: state.property, titlePublishable: state.titlePublishable, descriptionPublishable: state.descriptionPublishable };
+});
+
+export async function generateLocalizedPropertyMetadata(
+  params: Promise<{ slug: string }>,
+  locale: AppLocale
+): Promise<Metadata> {
   const { slug } = await params;
 
   if (!slug) {
     return {
-      title: "Propiedad no encontrada",
-      description: "La propiedad solicitada no está disponible.",
+      title: locale === ENGLISH_LOCALE ? "Property not found" : "Propiedad no encontrada",
+      description: locale === ENGLISH_LOCALE ? "The requested property is not available." : "La propiedad solicitada no está disponible.",
     };
   }
 
-  const row = (await getPropiedadBySlug(slug)) as unknown as PropiedadDB | null;
+  const localized = await getLocalizedPropertyDetail(slug, locale);
 
-  if (!row) {
+  if (!localized) {
     return {
-      title: "Propiedad no encontrada",
-      description: "La propiedad solicitada no está disponible.",
+      title: locale === ENGLISH_LOCALE ? "Property not found" : "Propiedad no encontrada",
+      description: locale === ENGLISH_LOCALE ? "The requested property is not available." : "La propiedad solicitada no está disponible.",
     };
   }
 
-  const titulo = row.titulo;
+  const { source: row, display } = localized;
+  const titulo = display.titulo;
   const locationLabel = formatPropertyLocation(row.municipio, row.sector_comunidad);
-  const descripcion = row.descripcion?.trim()
-    ? row.descripcion.trim().slice(0, 160)
-    : `Propiedad en ${locationLabel}.`;
+  const descripcion = display.descripcion?.trim()
+    ? normalizeMetadataDescription(display.descripcion)
+    : locale === ENGLISH_LOCALE
+      ? `Property in ${locationLabel}.`
+      : `Propiedad en ${locationLabel}.`;
 
   const imagen =
     Array.isArray(row.imagenes) && row.imagenes.length > 0
       ? buildAbsoluteImageUrl(row.imagenes[0])
       : "https://borikipr.com/og-image.jpg";
 
-  const url = absoluteUrl(`/listados/${row.slug}`);
+  const complete = locale !== ENGLISH_LOCALE || isCompleteEnglishPropertyTranslation(localized);
+  return buildPropertySeoMetadata({
+    locale, slug: row.slug, title: titulo, description: descripcion,
+    image: imagen, englishCoverageComplete: complete,
+  });
+}
 
-  return {
-    title: titulo,
-    description: descripcion,
-    alternates: {
-      canonical: url,
-    },
-    openGraph: {
-      title: titulo,
-      description: descripcion,
-      url,
-      siteName: SITE_NAME,
-      type: "article",
-      images: [
-        {
-          url: imagen,
-          width: 1200,
-          height: 630,
-          alt: row.titulo,
-        },
-      ],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: titulo,
-      description: descripcion,
-      images: [imagen],
-    },
-  };
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  return generateLocalizedPropertyMetadata(params, DEFAULT_LOCALE);
 }
 
 export async function renderPropertyDetailPage({
@@ -192,11 +186,11 @@ export async function renderPropertyDetailPage({
     notFound();
   }
 
-  const sourceRow = (await getPropiedadBySlug(slug)) as unknown as PropiedadDB | null;
-
-  if (!sourceRow) {
+  const localized = await getLocalizedPropertyDetail(slug, locale);
+  if (!localized) {
     notFound();
   }
+  const sourceRow = localized.source;
 
   const sourceSimilarRows = (await getPropiedadesSimilares(
     sourceRow.slug,
@@ -205,10 +199,8 @@ export async function renderPropertyDetailPage({
     sourceRow.tipo_propiedad,
     3
   )) as unknown as PropiedadDB[];
-  const [row, ...similaresRows] = await overlayPropertyTranslations({
-    properties: [sourceRow, ...sourceSimilarRows],
-    locale,
-  });
+  const similaresRows = await overlayPropertyTranslations({ properties: sourceSimilarRows, locale });
+  const row = localized.display;
 
   const propiedad = {
     id: row.id,
@@ -266,15 +258,15 @@ ${propiedadUrl}`
 
   const whatsappUrl = `https://wa.me/17876774900?text=${whatsappMensaje}`;
   const breadcrumbSchema = breadcrumbJsonLd([
-    { name: "Inicio", url: "/" },
-    { name: "Listados", url: "/listados" },
-    { name: sourceRow.titulo, url: `/listados/${sourceRow.slug}` },
+    { name: locale === ENGLISH_LOCALE ? "Home" : "Inicio", url: getEquivalentRoute("/", locale) ?? "/" },
+    { name: locale === ENGLISH_LOCALE ? "Listings" : "Listados", url: getEquivalentRoute("/listados", locale) ?? "/listados" },
+    { name: propiedad.titulo, url: propiedadPath },
   ]);
   const propertySchema = {
     "@context": "https://schema.org",
     "@type": "Offer",
-    name: sourceRow.titulo,
-    url: `https://borikipr.com/listados/${sourceRow.slug}`,
+    name: propiedad.titulo,
+    url: propiedadUrl,
     ...(propiedad.precio > 0 ? { price: propiedad.precio } : {}),
     priceCurrency: "USD",
     availability:
@@ -287,9 +279,9 @@ ${propiedadUrl}`
         : "https://schema.org/Sell",
     itemOffered: {
       "@type": "Residence",
-      name: sourceRow.titulo,
-      description: sourceRow.descripcion,
-      image: sourceRow.imagenes.map(buildAbsoluteImageUrl),
+      name: propiedad.titulo,
+      description: propiedad.descripcion,
+      image: propiedad.imagenes.map(buildAbsoluteImageUrl),
       address: {
         "@type": "PostalAddress",
         addressLocality: propiedad.municipio,
@@ -308,6 +300,7 @@ ${propiedadUrl}`
     },
     seller: {
       "@type": "RealEstateAgent",
+      "@id": "https://borikipr.com/#real-estate-agent",
       name: SITE_NAME,
       url: "https://borikipr.com",
     },

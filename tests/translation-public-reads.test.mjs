@@ -80,7 +80,7 @@ test("Spanish overlays issue zero translation reads; English uses one allowliste
 });
 
 test("English public invalidation is entity-aware, feature-gated, and propagates failures", async () => {
-  assert.deepEqual(getEnglishPublicTranslationPaths({ entityType: "property", ownerId: property.id, propertySlug: "casa" }), ["/en", "/en/listings", "/en/listings/casa"]);
+  assert.deepEqual(getEnglishPublicTranslationPaths({ entityType: "property", ownerId: property.id, propertySlug: "casa" }), ["/en", "/en/listings", "/sitemap.xml", "/en/listings/casa"]);
   assert.deepEqual(getEnglishPublicTranslationPaths({ entityType: "testimonial", ownerId: property.id }), ["/en", "/en/testimonials"]);
   const paths = [];
   assert.deepEqual(await invalidateEnglishPublicTranslationPaths({ target: { entityType: "property", ownerId: property.id, propertySlug: "casa" }, multilingualEnabled: false, revalidate: (path) => paths.push(path) }), []);

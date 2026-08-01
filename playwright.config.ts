@@ -30,7 +30,7 @@ export default defineConfig({
   webServer: externalBaseUrl
     ? undefined
     : {
-        command: "npm run dev",
+        command: "npm run dev -- --hostname 127.0.0.1",
         url: "http://127.0.0.1:3000/admin/login",
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
@@ -38,6 +38,9 @@ export default defineConfig({
           DATABASE_URL:
             process.env.E2E_DATABASE_URL ||
             "postgresql://test:test@127.0.0.1:65432/test",
+          ALLOW_ISOLATED_DATABASE:
+            process.env.ALLOW_ISOLATED_DATABASE || "",
+          DATABASE_SSL: process.env.DATABASE_SSL || "",
           SESSION_SECRET:
             process.env.SESSION_SECRET ||
             "e2e-session-secret-with-at-least-32-characters",

@@ -29,9 +29,11 @@ export function breadcrumbJsonLd(items: { name: string; url: string }[]) {
   };
 }
 
-export const realEstateAgentJsonLd = {
+export function realEstateAgentJsonLdForLocale(locale: "es-PR" | "en-US") {
+  return {
   "@context": "https://schema.org",
   "@type": "RealEstateAgent",
+  "@id": `${SITE_URL}/#real-estate-agent`,
   name: SITE_NAME,
   legalName: SITE_NAME,
   url: SITE_URL,
@@ -43,7 +45,7 @@ export const realEstateAgentJsonLd = {
   founder: {
     "@type": "Person",
     name: "Ivonne Erickson",
-    jobTitle: "Corredora de Bienes Raíces",
+    jobTitle: locale === "en-US" ? "Real Estate Broker" : "Corredora de Bienes Raíces",
   },
   identifier: {
     "@type": "PropertyValue",
@@ -57,4 +59,7 @@ export const realEstateAgentJsonLd = {
     areaServed: "PR",
     availableLanguage: ["Spanish", "English"],
   },
-};
+  };
+}
+
+export const realEstateAgentJsonLd = realEstateAgentJsonLdForLocale("es-PR");

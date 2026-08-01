@@ -2,12 +2,9 @@ import type { Metadata } from "next";
 import Header from "@/components/Header";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { DEFAULT_LOCALE, type AppLocale } from "@/lib/i18n/locales";
+import { buildStaticPageMetadata } from "@/lib/i18n/seo";
 
-export const metadata: Metadata = {
-  title: "Privacidad",
-  description:
-    "Información sobre el uso y la protección de datos en BorikíPR y Erickson Real Estate.",
-};
+export const metadata: Metadata = buildStaticPageMetadata("privacy", DEFAULT_LOCALE);
 
 export function renderPrivacyPage(locale: AppLocale) {
   const copy = getDictionary(locale).privacyPage;

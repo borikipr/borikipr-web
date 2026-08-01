@@ -6,40 +6,15 @@ import Link from "next/link";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { DEFAULT_LOCALE, type AppLocale } from "@/lib/i18n/locales";
 import { getEquivalentRoute } from "@/lib/i18n/routing";
+import { buildStaticPageMetadata } from "@/lib/i18n/seo";
 import {
-  DEFAULT_OG_IMAGE,
-  SITE_NAME,
-  absoluteUrl,
   breadcrumbJsonLd,
   jsonLdScript,
 } from "@/lib/seo";
 
-const pageTitle = "Sobre Ivonne Erickson";
-const pageDescription =
-  "Conoce el enfoque de Ivonne Erickson para guiar decisiones inmobiliarias en Puerto Rico con estrategia, claridad y acompañamiento profesional.";
 const pagePath = "/about";
 
-export const metadata: Metadata = {
-  title: pageTitle,
-  description: pageDescription,
-  alternates: {
-    canonical: pagePath,
-  },
-  openGraph: {
-    title: pageTitle,
-    description: pageDescription,
-    url: absoluteUrl(pagePath),
-    siteName: SITE_NAME,
-    type: "website",
-    images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: SITE_NAME }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: pageTitle,
-    description: pageDescription,
-    images: [DEFAULT_OG_IMAGE],
-  },
-};
+export const metadata: Metadata = buildStaticPageMetadata("about", DEFAULT_LOCALE);
 
 export function renderAboutPage(locale: AppLocale) {
   const copy = getDictionary(locale).about;
@@ -52,8 +27,8 @@ export function renderAboutPage(locale: AppLocale) {
         type="application/ld+json"
         dangerouslySetInnerHTML={jsonLdScript(
           breadcrumbJsonLd([
-            { name: "Inicio", url: "/" },
-            { name: "Sobre Ivonne Erickson", url: pagePath },
+            { name: locale === "en-US" ? "Home" : "Inicio", url: getEquivalentRoute("/", locale) ?? "/" },
+            { name: locale === "en-US" ? "About Ivonne Erickson" : "Sobre Ivonne Erickson", url: getEquivalentRoute(pagePath, locale) ?? pagePath },
           ])
         )}
       />

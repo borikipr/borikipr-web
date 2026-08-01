@@ -7,41 +7,17 @@ import { getPropiedadesPaginadas } from "@/lib/queries/propiedades";
 import { isRegionSlug } from "@/data/zonas";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { DEFAULT_LOCALE, type AppLocale } from "@/lib/i18n/locales";
+import { getEquivalentRoute } from "@/lib/i18n/routing";
 import { overlayPropertyTranslations } from "@/lib/i18n/translations/public-overlay";
+import { buildStaticPageMetadata } from "@/lib/i18n/seo";
 import {
-  DEFAULT_OG_IMAGE,
-  SITE_NAME,
-  absoluteUrl,
   breadcrumbJsonLd,
   jsonLdScript,
 } from "@/lib/seo";
 
-const pageTitle = "Listados de Propiedades";
-const pageDescription =
-  "Explora propiedades en venta y alquiler en Puerto Rico con información clara, filtros útiles y orientación profesional.";
 const pagePath = "/listados";
 
-export const metadata: Metadata = {
-  title: pageTitle,
-  description: pageDescription,
-  alternates: {
-    canonical: pagePath,
-  },
-  openGraph: {
-    title: pageTitle,
-    description: pageDescription,
-    url: absoluteUrl(pagePath),
-    siteName: SITE_NAME,
-    type: "website",
-    images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: SITE_NAME }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: pageTitle,
-    description: pageDescription,
-    images: [DEFAULT_OG_IMAGE],
-  },
-};
+export const metadata: Metadata = buildStaticPageMetadata("listings", DEFAULT_LOCALE);
 
 type TipoPropiedad =
   | "Casa"
@@ -157,8 +133,8 @@ export async function renderListingsPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={jsonLdScript(
           breadcrumbJsonLd([
-            { name: "Inicio", url: "/" },
-            { name: "Listados", url: pagePath },
+            { name: locale === "en-US" ? "Home" : "Inicio", url: getEquivalentRoute("/", locale) ?? "/" },
+            { name: locale === "en-US" ? "Listings" : "Listados", url: getEquivalentRoute(pagePath, locale) ?? pagePath },
           ])
         )}
       />
