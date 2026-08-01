@@ -279,7 +279,7 @@ test("Home, Header and Footer consume shared static dictionaries", async () => {
     source("app/(public)/page.tsx"),
     source("components/HomeHeroClient.tsx"),
     source("components/Header.tsx"),
-    source("components/Footer.tsx"),
+    source("components/footer.tsx"),
   ]);
 
   assert.match(home, /getDictionary\(locale\)/);
