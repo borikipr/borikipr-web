@@ -67,7 +67,8 @@ before(async () => {
   await db.exec(`
     CREATE TABLE propiedades (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(), titulo text NOT NULL,
-      descripcion text, destacado boolean NOT NULL DEFAULT false
+      descripcion text, destacado boolean NOT NULL DEFAULT false,
+      slug text NOT NULL DEFAULT 'fixture-property'
     );
     CREATE TABLE testimonios (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(), texto text NOT NULL,
@@ -331,6 +332,38 @@ test("isolated fixture rehearsal completes jobs and makes fake values publishabl
     JSON.stringify(logs),
     /Casa Borikí|Descripción pública|Servicio excelente/
   );
+});
+
+test("worker publishes entity context after commit and cache failure cannot roll back success", async () => {
+  await seedTestimonial();
+  const published = [];
+  const logs = [];
+  const summary = await processTranslationJobs({
+    database,
+    provider: new FakeTranslationProvider(),
+    config,
+    now: () => NOW,
+    logger: (event, details) => logs.push({ event, details }),
+    onTranslationPublished: async (target) => {
+      published.push(target);
+      throw new Error("cache unavailable");
+    },
+  });
+
+  assert.equal(summary.succeeded, 1);
+  assert.deepEqual(published, [
+    { entityType: "testimonial", ownerId: testimonialId, propertySlug: null },
+  ]);
+  assert.equal(
+    (await db.query("SELECT status FROM translation_jobs")).rows[0].status,
+    "succeeded"
+  );
+  assert.equal(
+    (await db.query("SELECT status FROM content_translations")).rows[0].status,
+    "ready"
+  );
+  assert.ok(logs.some(({ event }) => event === "translation_public_revalidation_failed"));
+  assert.doesNotMatch(JSON.stringify(logs), /Servicio excelente|cache unavailable/);
 });
 
 test("obsolete work cancels and protected work remains unclaimed without reaching provider", async () => {

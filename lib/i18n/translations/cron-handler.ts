@@ -9,6 +9,9 @@ export async function handleTranslationWorkerCron(input: {
   database: TranslationDatabase;
   env?: NodeJS.ProcessEnv;
   googleTransport?: GoogleTranslationTransport;
+  onTranslationPublished?: Parameters<
+    typeof runConfiguredTranslationWorker
+  >[0]["onTranslationPublished"];
 }) {
   const env = input.env ?? process.env;
   const secret = env.CRON_SECRET?.trim();
@@ -26,6 +29,7 @@ export async function handleTranslationWorkerCron(input: {
       database: input.database,
       env,
       googleTransport: input.googleTransport,
+      onTranslationPublished: input.onTranslationPublished,
     });
     return Response.json(result, {
       status: result.state === "configuration_error" ? 503 : 200,

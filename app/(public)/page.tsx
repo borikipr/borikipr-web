@@ -27,6 +27,10 @@ import { DEFAULT_OG_IMAGE, SITE_NAME, SITE_URL } from "@/lib/seo";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { DEFAULT_LOCALE, type AppLocale } from "@/lib/i18n/locales";
 import { getEquivalentRoute } from "@/lib/i18n/routing";
+import {
+  overlayPropertyTranslations,
+  overlayTestimonialTranslations,
+} from "@/lib/i18n/translations/public-overlay";
 
 const pageTitle = "Bienes Raíces en Puerto Rico";
 const pageDescription =
@@ -165,6 +169,11 @@ export async function renderHomePage(locale: AppLocale) {
   } catch (error) {
     console.warn("HOME WARNING: no se pudieron cargar testimonios.", error);
   }
+
+  [destacadas, allTestimonios] = await Promise.all([
+    overlayPropertyTranslations({ properties: destacadas, locale }),
+    overlayTestimonialTranslations({ testimonials: allTestimonios, locale }),
+  ]);
 
   const totalPropiedades = rows.length;
 
@@ -377,7 +386,10 @@ export async function renderHomePage(locale: AppLocale) {
 
                           <div className="mt-6">
                             <Link
-                              href={`/listados/${item.slug}`}
+                              href={
+                                getEquivalentRoute(`/listados/${item.slug}`, locale) ||
+                                `/listados/${item.slug}`
+                              }
                               className="inline-flex items-center justify-center rounded-full border border-[#11518b] px-5 py-2.5 text-sm font-semibold text-[#11518b] transition-all duration-300 hover:bg-[#11518b] hover:text-white"
                             >
                               {dictionary.common.viewProperty}

@@ -11,6 +11,7 @@ import {
 } from "@/lib/i18n/translations/worker-repository";
 import type { TranslationDatabase } from "@/lib/i18n/translations/repository";
 import type { TranslationWorkerConfig } from "@/lib/i18n/translations/provider-registry";
+import type { TranslationPublicationTarget } from "@/lib/i18n/translations/public-revalidation";
 
 const RETRY_DELAYS_MS = [
   60_000,
@@ -107,6 +108,9 @@ export async function processTranslationJobs(input: {
   now?: () => Date;
   random?: () => number;
   logger?: WorkerLogger;
+  onTranslationPublished?: (
+    target: TranslationPublicationTarget
+  ) => void | Promise<void>;
 }) {
   if (!input.config.enabled) {
     throw new Error("Translation worker is disabled.");
@@ -215,6 +219,22 @@ export async function processTranslationJobs(input: {
         return;
       }
       summary.succeeded += 1;
+      if (input.onTranslationPublished) {
+        try {
+          await input.onTranslationPublished({
+            entityType: context.entityType,
+            ownerId: context.ownerId,
+            propertySlug: context.propertySlug,
+          });
+        } catch (error) {
+          log("translation_public_revalidation_failed", {
+            translationId: context.translationId,
+            entityType: context.entityType,
+            fieldKey: context.fieldKey,
+            errorClass: error instanceof Error ? error.name : "UnknownError",
+          });
+        }
+      }
       log("translation_job_succeeded", {
         jobId: job.jobId,
         translationId: job.translationId,

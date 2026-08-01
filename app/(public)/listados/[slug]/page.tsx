@@ -20,6 +20,10 @@ import {
   jsonLdScript,
 } from "@/lib/seo";
 import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
+import { getDictionary } from "@/lib/i18n/get-dictionary";
+import { DEFAULT_LOCALE, type AppLocale } from "@/lib/i18n/locales";
+import { getEquivalentRoute } from "@/lib/i18n/routing";
+import { overlayPropertyTranslations } from "@/lib/i18n/translations/public-overlay";
 
 type TipoNegocio = "venta" | "renta";
 type EstadoPropiedad =
@@ -54,31 +58,25 @@ type PropiedadDB = {
   fecha_showing?: string | Date | null;
 };
 
-function formatoPrecio(precio: number, tipo: TipoNegocio) {
+function formatoPrecio(
+  precio: number,
+  tipo: TipoNegocio,
+  copy: ReturnType<typeof getDictionary>["propertyDetail"]
+) {
   if (!Number.isFinite(precio) || precio <= 0) {
-    return "Precio próximamente";
+    return copy.priceSoon;
   }
 
   return tipo === "renta"
-    ? `$${precio.toLocaleString("en-US")}/mes`
+    ? `$${precio.toLocaleString("en-US")}/${copy.month}`
     : `$${precio.toLocaleString("en-US")}`;
 }
 
-function estadoLabel(estado: EstadoPropiedad) {
-  switch (estado) {
-    case "disponible":
-      return "Disponible";
-    case "coming_soon":
-      return "Próximamente";
-    case "bajo_contrato":
-      return "Bajo contrato";
-    case "vendida":
-      return "Vendida";
-    case "rentada":
-      return "Alquilada";
-    default:
-      return estado;
-  }
+function estadoLabel(
+  estado: EstadoPropiedad,
+  copy: ReturnType<typeof getDictionary>["propertyDetail"]
+) {
+  return copy.statuses[estado];
 }
 
 function estadoClasses(estado: EstadoPropiedad) {
@@ -179,30 +177,38 @@ export async function generateMetadata({
   };
 }
 
-export default async function DetallePropiedadPage({
+export async function renderPropertyDetailPage({
   params,
+  locale,
 }: {
   params: Promise<{ slug: string }>;
+  locale: AppLocale;
 }) {
+  const dictionary = getDictionary(locale);
+  const copy = dictionary.propertyDetail;
   const { slug } = await params;
 
   if (!slug) {
     notFound();
   }
 
-  const row = (await getPropiedadBySlug(slug)) as unknown as PropiedadDB | null;
+  const sourceRow = (await getPropiedadBySlug(slug)) as unknown as PropiedadDB | null;
 
-  if (!row) {
+  if (!sourceRow) {
     notFound();
   }
 
-  const similaresRows = (await getPropiedadesSimilares(
-    row.slug,
-    row.municipio,
-    row.tipo_negocio,
-    row.tipo_propiedad,
+  const sourceSimilarRows = (await getPropiedadesSimilares(
+    sourceRow.slug,
+    sourceRow.municipio,
+    sourceRow.tipo_negocio,
+    sourceRow.tipo_propiedad,
     3
   )) as unknown as PropiedadDB[];
+  const [row, ...similaresRows] = await overlayPropertyTranslations({
+    properties: [sourceRow, ...sourceSimilarRows],
+    locale,
+  });
 
   const propiedad = {
     id: row.id,
@@ -232,26 +238,29 @@ export default async function DetallePropiedadPage({
     fechaShowing: row.fecha_showing,
   };
 
-  const propiedadUrl = `https://borikipr.com/listados/${propiedad.slug}`;
+  const propiedadPath =
+    getEquivalentRoute(`/listados/${propiedad.slug}`, locale) ??
+    `/listados/${propiedad.slug}`;
+  const propiedadUrl = `https://borikipr.com${propiedadPath}`;
   const propiedadLocation = formatPropertyLocation(
     propiedad.municipio,
     propiedad.sectorComunidad
   );
 
   const tipoLinea = propiedad.origenListado === "co_broke"
-    ? "Tipo: Propiedad en colaboración"
+    ? copy.whatsappCollaboration
     : propiedad.origenListado === "externo"
-    ? "Tipo: Propiedad de referencia"
+    ? copy.whatsappExternal
     : "";
 
   const whatsappMensaje = encodeURIComponent(
-    `Hola, me interesa esta propiedad:
+    `${copy.whatsappGreeting}
 
 ${propiedad.titulo}
 ${propiedadLocation}
-Precio: ${formatoPrecio(propiedad.precio, propiedad.tipoNegocio)}${tipoLinea ? "\n" + tipoLinea : ""}
+${copy.priceLabel}: ${formatoPrecio(propiedad.precio, propiedad.tipoNegocio, copy)}${tipoLinea ? "\n" + tipoLinea : ""}
 
-Link:
+${copy.linkLabel}:
 ${propiedadUrl}`
   );
 
@@ -259,13 +268,13 @@ ${propiedadUrl}`
   const breadcrumbSchema = breadcrumbJsonLd([
     { name: "Inicio", url: "/" },
     { name: "Listados", url: "/listados" },
-    { name: propiedad.titulo, url: `/listados/${propiedad.slug}` },
+    { name: sourceRow.titulo, url: `/listados/${sourceRow.slug}` },
   ]);
   const propertySchema = {
     "@context": "https://schema.org",
     "@type": "Offer",
-    name: propiedad.titulo,
-    url: propiedadUrl,
+    name: sourceRow.titulo,
+    url: `https://borikipr.com/listados/${sourceRow.slug}`,
     ...(propiedad.precio > 0 ? { price: propiedad.precio } : {}),
     priceCurrency: "USD",
     availability:
@@ -278,9 +287,9 @@ ${propiedadUrl}`
         : "https://schema.org/Sell",
     itemOffered: {
       "@type": "Residence",
-      name: propiedad.titulo,
-      description: propiedad.descripcion,
-      image: propiedad.imagenes.map(buildAbsoluteImageUrl),
+      name: sourceRow.titulo,
+      description: sourceRow.descripcion,
+      image: sourceRow.imagenes.map(buildAbsoluteImageUrl),
       address: {
         "@type": "PostalAddress",
         addressLocality: propiedad.municipio,
@@ -326,10 +335,10 @@ ${propiedadUrl}`
         <section className="section-shell py-16">
           <div className="mb-8">
             <Link
-              href="/listados"
+              href={getEquivalentRoute("/listados", locale) ?? "/listados"}
               className="inline-flex items-center gap-2 text-sm font-medium text-[#11518b] transition hover:text-[#0d406d]"
             >
-              ← Volver a listados
+              ← {copy.backToListings}
             </Link>
           </div>
 
@@ -346,12 +355,12 @@ ${propiedadUrl}`
                     propiedad.estado
                   )}`}
                 >
-                  {estadoLabel(propiedad.estado)}
+                  {estadoLabel(propiedad.estado, copy)}
                 </span>
 
                 {propiedad.destacado && (
                   <span className="rounded-full bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#11518b]">
-                    Destacado
+                    {copy.featured}
                   </span>
                 )}
               </div>
@@ -359,7 +368,7 @@ ${propiedadUrl}`
 
             <div>
               <p className="eyebrow">
-                {propiedad.tipoNegocio === "venta" ? "Venta" : "Alquiler"}
+                {propiedad.tipoNegocio === "venta" ? copy.sale : copy.rent}
               </p>
 
               <h1 className="mt-4 text-4xl font-bold leading-tight text-[#11518B]">
@@ -371,24 +380,22 @@ ${propiedadUrl}`
               </p>
 
               <p className="mt-6 text-3xl font-bold tracking-tight text-[#11518b]">
-                {formatoPrecio(propiedad.precio, propiedad.tipoNegocio)}
+                {formatoPrecio(propiedad.precio, propiedad.tipoNegocio, copy)}
               </p>
 
               {propiedad.estado === "bajo_contrato" && (
                 <div className="mt-6 rounded-2xl border border-[#d4af37] bg-[#fff9e6] p-6">
                   <p className="text-sm font-semibold uppercase tracking-[0.15em] text-[#d4af37]">
-                    Bajo contrato
+                    {copy.underContractTitle}
                   </p>
 
                   <p className="mt-2 leading-relaxed text-[#4d4d4d]">
-                    Esta propiedad se encuentra actualmente bajo contrato. Aun
-                    así, podemos orientarte sobre esta oportunidad y mostrarte
-                    opciones similares que encajen con lo que buscas.
+                    {copy.underContractDescription}
                   </p>
 
                   <div className="mt-4">
-                    <Link href="/contact" className="btn-primary px-5 py-2.5">
-                      Hablar con Ivonne
+                    <Link href={getEquivalentRoute("/contact", locale) ?? "/contact"} className="btn-primary px-5 py-2.5">
+                      {copy.talkToIvonne}
                     </Link>
                   </div>
                 </div>
@@ -397,11 +404,11 @@ ${propiedadUrl}`
               {propiedad.origenListado === "co_broke" && (
                 <div className="mt-6 rounded-2xl border border-[#d4af37] bg-[#fff9e6] p-6">
                   <p className="text-sm font-semibold uppercase tracking-[0.15em] text-[#d4af37]">
-                    Propiedad en colaboración
+                    {copy.collaborationTitle}
                   </p>
 
                   <p className="mt-2 leading-relaxed text-[#4d4d4d]">
-                    Esta propiedad se presenta en colaboración con otro profesional de bienes raíces. Ivonne Erickson puede asistirle en la orientación, coordinación de información y proceso de representación, sujeto a disponibilidad y acuerdo entre las partes.
+                    {copy.collaborationDescription}
                   </p>
                 </div>
               )}
@@ -409,46 +416,46 @@ ${propiedadUrl}`
               {propiedad.origenListado === "externo" && (
                 <div className="mt-6 rounded-2xl border border-[#d4af37] bg-[#fff9e6] p-6">
                   <p className="text-sm font-semibold uppercase tracking-[0.15em] text-[#d4af37]">
-                    Propiedad de referencia
+                    {copy.externalTitle}
                   </p>
 
                   <p className="mt-2 leading-relaxed text-[#4d4d4d]">
-                    Esta propiedad puede provenir de una fuente externa o colaboración profesional. La información está sujeta a confirmación de disponibilidad.
+                    {copy.externalDescription}
                   </p>
                 </div>
               )}
 
               <div className="mt-8 grid gap-4 rounded-3xl border border-[#e8e8e8] bg-white p-6 text-sm text-[#4d4d4d] shadow-sm sm:grid-cols-2">
                 <div>
-                  <p className="font-semibold text-[#000000]">Tipo</p>
-                  <p className="mt-1">{propiedad.tipoPropiedad}</p>
+                  <p className="font-semibold text-[#000000]">{copy.facts.type}</p>
+                  <p className="mt-1">{dictionary.listingsPage.propertyTypes[propiedad.tipoPropiedad]}</p>
                 </div>
 
                 <div>
-                  <p className="font-semibold text-[#000000]">Estado</p>
-                  <p className="mt-1">{estadoLabel(propiedad.estado)}</p>
+                  <p className="font-semibold text-[#000000]">{copy.facts.status}</p>
+                  <p className="mt-1">{estadoLabel(propiedad.estado, copy)}</p>
                 </div>
 
                 <div>
-                  <p className="font-semibold text-[#000000]">Habitaciones</p>
+                  <p className="font-semibold text-[#000000]">{copy.facts.bedrooms}</p>
                   <p className="mt-1">{propiedad.habitaciones}</p>
                 </div>
 
                 <div>
-                  <p className="font-semibold text-[#000000]">Baños</p>
+                  <p className="font-semibold text-[#000000]">{copy.facts.bathrooms}</p>
                   <p className="mt-1">{propiedad.banos}</p>
                 </div>
 
                 <div>
                   <p className="font-semibold text-[#000000]">
-                    Estacionamientos
+                    {copy.facts.parking}
                   </p>
                   <p className="mt-1">{propiedad.estacionamientos}</p>
                 </div>
 
                 <div>
                   <p className="font-semibold text-[#000000]">
-                    Metros cuadrados
+                    {copy.facts.squareMeters}
                   </p>
                   <p className="mt-1">{propiedad.metrosCuadrados}</p>
                 </div>
@@ -457,16 +464,15 @@ ${propiedadUrl}`
               <div className="mt-8 xl:sticky xl:top-[108px]">
                 <div className="rounded-3xl border border-[#e8e8e8] bg-[#f8f8f8] p-6 shadow-sm">
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                    ¿Te interesa esta propiedad?
+                    {copy.interestEyebrow}
                   </p>
 
                   <p className="mt-3 text-[#4d4d4d]">
-                    Solicita más información, coordina una visita o aclara tus
-                    dudas directamente con Ivonne.
+                    {copy.interestDescription}
                   </p>
 
                   <p className="mt-4 text-sm text-[#4d4d4d]">
-                    Respuesta rápida por WhatsApp.
+                    {copy.quickResponse}
                   </p>
 
                   <div className="mt-6 space-y-3">
@@ -480,12 +486,12 @@ ${propiedadUrl}`
                         }}
                         className="inline-flex w-full items-center justify-center rounded-full bg-[#d4af37] px-6 py-3 text-sm font-semibold text-[#111111] transition hover:bg-[#c19d2f]"
                       >
-                        Unirme al registro prioritario
+                        {copy.priorityRegistration}
                       </AnalyticsLink>
                     )}
 
                     <TrackLinkButton
-                      href="/contact"
+                      href={getEquivalentRoute("/contact", locale) ?? "/contact"}
                       slug={propiedad.slug}
                       tipo="contact_click"
                       analyticsEventName="property_contact_click"
@@ -495,7 +501,7 @@ ${propiedadUrl}`
                       }}
                       className="inline-flex w-full items-center justify-center rounded-full bg-[#11518b] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#0d406d]"
                     >
-                      Solicitar información
+                      {copy.requestInformation}
                     </TrackLinkButton>
 
                     <WhatsAppTrackerButton
@@ -503,7 +509,7 @@ ${propiedadUrl}`
                       slug={propiedad.slug}
                       className="inline-flex w-full items-center justify-center rounded-full border border-[#25D366] px-6 py-3 text-sm font-semibold text-[#25D366] transition hover:bg-[#25D366] hover:text-white"
                     >
-                      Escribir por WhatsApp
+                      {copy.whatsapp}
                     </WhatsAppTrackerButton>
 
                     {propiedad.estado === "disponible" && (
@@ -511,7 +517,7 @@ ${propiedadUrl}`
                         href={`/listados/${propiedad.slug}/perfil-comprador`}
                         className="inline-flex w-full items-center justify-center rounded-full border border-[#11518b] px-6 py-3 text-sm font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
                       >
-                        Completar perfil de comprador
+                        {copy.buyerProfile}
                       </Link>
                     )}
 
@@ -522,17 +528,16 @@ ${propiedadUrl}`
                         eventParams={{ property_slug: propiedad.slug }}
                         className="inline-flex w-full items-center justify-center rounded-full border border-[#d4af37] px-6 py-3 text-sm font-semibold text-[#111111] transition hover:bg-[#d4af37]"
                       >
-                        Registrarse para Open House
+                        {copy.openHouse}
                       </AnalyticsLink>
                     )}
                   </div>
                   <div className="mt-6 border-t border-[#dddddd] pt-6 text-sm text-[#4d4d4d]">
                     <p className="font-semibold text-[#000000]">
-                      Atención personalizada
+                      {copy.personalAttentionTitle}
                     </p>
                     <p className="mt-2 leading-relaxed">
-                      Recibe orientación clara sobre esta propiedad y opciones
-                      similares en Puerto Rico.
+                      {copy.personalAttentionDescription}
                     </p>
                   </div>
                 </div>
@@ -544,10 +549,10 @@ ${propiedadUrl}`
         <section className="pb-24">
           <div className="section-shell">
             <div className="max-w-4xl">
-              <p className="eyebrow">Descripción</p>
+              <p className="eyebrow">{copy.descriptionEyebrow}</p>
 
               <h2 className="mt-4 text-3xl font-bold text-[#11518B]">
-                Detalles de la propiedad
+                {copy.descriptionTitle}
               </h2>
 
               <p className="mt-6 whitespace-pre-line text-lg leading-relaxed text-[#4d4d4d]">
@@ -561,15 +566,14 @@ ${propiedadUrl}`
           <section className="pb-24">
             <div className="section-shell">
               <div className="mb-10">
-                <p className="eyebrow">Opciones similares</p>
+                <p className="eyebrow">{copy.similarEyebrow}</p>
 
                 <h2 className="mt-4 text-3xl font-bold text-[#000000]">
-                  Otras propiedades que podrían interesarte
+                  {copy.similarTitle}
                 </h2>
 
                 <p className="mt-4 max-w-2xl text-[#4d4d4d]">
-                  Explora alternativas con características similares en Puerto
-                  Rico.
+                  {copy.similarDescription}
                 </p>
               </div>
 
@@ -601,12 +605,12 @@ ${propiedadUrl}`
                               item.estado
                             )}`}
                           >
-                            {estadoLabel(item.estado)}
+                            {estadoLabel(item.estado, copy)}
                           </span>
 
                           {item.destacado && (
                             <span className="rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#11518b]">
-                              Destacado
+                              {copy.featured}
                             </span>
                           )}
                         </div>
@@ -615,7 +619,7 @@ ${propiedadUrl}`
                       <div className="p-8">
                         <div className="mb-4 flex justify-between gap-4">
                           <span className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-                            {item.tipo_negocio === "venta" ? "Venta" : "Alquiler"}
+                            {item.tipo_negocio === "venta" ? copy.sale : copy.rent}
                           </span>
 
                           <span className="text-sm text-[#4d4d4d]">
@@ -631,23 +635,23 @@ ${propiedadUrl}`
                         </h3>
 
                         <p className="mt-4 text-2xl font-bold tracking-tight text-[#000000]">
-                          {formatoPrecio(precio, item.tipo_negocio)}
+                          {formatoPrecio(precio, item.tipo_negocio, copy)}
                         </p>
 
                         <div className="mt-4 flex flex-wrap gap-4 text-sm text-[#4d4d4d]">
-                          <span>{item.tipo_propiedad}</span>
+                          <span>{dictionary.listingsPage.propertyTypes[item.tipo_propiedad]}</span>
                           {item.habitaciones > 0 && (
-                            <span>{item.habitaciones} hab.</span>
+                            <span>{item.habitaciones} {copy.bedroomShort}</span>
                           )}
-                          {item.banos > 0 && <span>{item.banos} baños</span>}
+                          {item.banos > 0 && <span>{item.banos} {copy.bathroomShort}</span>}
                         </div>
 
                         <div className="mt-6">
                           <Link
-                            href={`/listados/${item.slug}`}
+                            href={getEquivalentRoute(`/listados/${item.slug}`, locale) ?? `/listados/${item.slug}`}
                             className="inline-flex items-center justify-center rounded-full border border-[#11518b] px-5 py-2.5 text-sm font-semibold text-[#11518b] transition-all duration-300 hover:bg-[#11518b] hover:text-white"
                           >
-                            Ver detalles
+                            {copy.viewDetails}
                           </Link>
                         </div>
                       </div>
@@ -661,4 +665,12 @@ ${propiedadUrl}`
       </main>
     </>
   );
+}
+
+export default function DetallePropiedadPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  return renderPropertyDetailPage({ params, locale: DEFAULT_LOCALE });
 }

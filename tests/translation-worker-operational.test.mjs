@@ -44,7 +44,8 @@ before(async () => {
   await db.exec(`
     CREATE TABLE propiedades (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(), titulo text NOT NULL,
-      descripcion text, destacado boolean NOT NULL DEFAULT false
+      descripcion text, destacado boolean NOT NULL DEFAULT false,
+      slug text NOT NULL DEFAULT 'fixture-property'
     );
     CREATE TABLE testimonios (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(), texto text NOT NULL,

@@ -31,6 +31,9 @@ export async function runConfiguredTranslationWorker(input: {
   googleTransport?: GoogleTranslationTransport;
   now?: () => Date;
   logger?: Parameters<typeof processTranslationJobs>[0]["logger"];
+  onTranslationPublished?: Parameters<
+    typeof processTranslationJobs
+  >[0]["onTranslationPublished"];
 }): Promise<TranslationWorkerInvocationResult> {
   try {
     const config = readTranslationWorkerConfig(input.env);
@@ -48,6 +51,7 @@ export async function runConfiguredTranslationWorker(input: {
       config,
       now: input.now,
       logger: input.logger,
+      onTranslationPublished: input.onTranslationPublished,
     });
     const now = input.now?.() ?? new Date();
     const health = await createTranslationWorkerRepository(

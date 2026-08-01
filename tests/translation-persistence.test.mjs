@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { access } from "node:fs/promises";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import test, { after, before, beforeEach } from "node:test";
@@ -735,10 +734,12 @@ test("guarded rollback preserves Spanish data and refuses derived translation da
   }
 });
 
-test("Phase 3B leaves Spanish reads, public routing, feature gating, and SEO wiring untouched", async () => {
+test("translation persistence leaves Spanish repositories and SEO isolated while Phase 4 stays gated", async () => {
   const [
     propertyQueries,
     testimonialQueries,
+    englishLayout,
+    englishPropertyRoute,
     localeDefinitions,
     sitemap,
     robots,
@@ -753,6 +754,16 @@ test("Phase 3B leaves Spanish reads, public routing, feature gating, and SEO wir
       readFile(
         fileURLToPath(
           new URL("../lib/queries/testimonios.ts", import.meta.url)
+        ),
+        "utf8"
+      ),
+      readFile(
+        fileURLToPath(new URL("../app/(public)/en/layout.tsx", import.meta.url)),
+        "utf8"
+      ),
+      readFile(
+        fileURLToPath(
+          new URL("../app/(public)/en/listings/[slug]/page.tsx", import.meta.url)
         ),
         "utf8"
       ),
@@ -783,11 +794,8 @@ test("Phase 3B leaves Spanish reads, public routing, feature gating, and SEO wir
   assert.match(schemaAudit, /AS v0019/);
   assert.match(schemaAudit, /content_translations/);
   assert.match(schemaAudit, /translation_revision_events/);
-  await assert.rejects(
-    access(
-      fileURLToPath(
-        new URL("../app/(public)/en/listings/[slug]/page.tsx", import.meta.url)
-      )
-    )
-  );
+  assert.match(englishLayout, /isMultilingualEnabled\(\)/);
+  assert.match(englishLayout, /notFound\(\)/);
+  assert.match(englishPropertyRoute, /renderPropertyDetailPage/);
+  assert.doesNotMatch(englishPropertyRoute, /<main|generateMetadata/);
 });

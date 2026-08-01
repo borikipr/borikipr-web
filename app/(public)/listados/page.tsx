@@ -7,6 +7,7 @@ import { getPropiedadesPaginadas } from "@/lib/queries/propiedades";
 import { isRegionSlug } from "@/data/zonas";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { DEFAULT_LOCALE, type AppLocale } from "@/lib/i18n/locales";
+import { overlayPropertyTranslations } from "@/lib/i18n/translations/public-overlay";
 import {
   DEFAULT_OG_IMAGE,
   SITE_NAME,
@@ -123,7 +124,11 @@ export async function renderListingsPage({
         : "",
   });
 
-  const propiedades = data.propiedades.map((p) => ({
+  const displayRows = await overlayPropertyTranslations({
+    properties: data.propiedades,
+    locale,
+  });
+  const propiedades = displayRows.map((p) => ({
     id: p.id,
     slug: p.slug,
     titulo: p.titulo,

@@ -27,6 +27,8 @@ export type ClaimedTranslationJob = {
 };
 
 export type TranslationJobContext = ClaimedTranslationJob & {
+  ownerId: string;
+  propertySlug: string | null;
   entityType: TranslationEntityType;
   fieldKey: TranslationField;
   targetLocale: TranslationTargetLocale;
@@ -55,6 +57,8 @@ type ContextRow = {
   translated_value: string | null;
   translated_source_hash: string | null;
   protected_from_automation: boolean;
+  owner_id: string;
+  property_slug: string | null;
   origin: TranslationOrigin;
   regeneration_authorized_at: string | Date | null;
   source_text: string | null;
@@ -91,6 +95,8 @@ function mapContext(row: ContextRow): TranslationJobContext {
     translatedValue: row.translated_value,
     translatedSourceHash: row.translated_source_hash,
     protectedFromAutomation: row.protected_from_automation,
+    ownerId: row.owner_id,
+    propertySlug: row.property_slug,
     origin: row.origin,
     regenerationAuthorizedAt: row.regeneration_authorized_at
       ? new Date(row.regeneration_authorized_at).toISOString()
@@ -115,6 +121,8 @@ const CONTEXT_SELECT = `
     ct.translated_value,
     ct.translated_source_hash,
     ct.protected_from_automation,
+    COALESCE(ct.property_id, ct.testimonial_id)::text AS owner_id,
+    p.slug AS property_slug,
     ct.origin,
     ct.regeneration_authorized_at,
     CASE

@@ -1095,7 +1095,10 @@ export default function ListadosClient({
                     </div>
 
                     <Link
-                      href={`/listados/${propiedad.slug}`}
+                      href={
+                        getEquivalentRoute(`/listados/${propiedad.slug}`, locale) ||
+                        `/listados/${propiedad.slug}`
+                      }
                       className="btn-primary w-full text-center py-2.5"
                     >
                       {dictionary.common.viewProperty}

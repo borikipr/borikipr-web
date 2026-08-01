@@ -14,6 +14,21 @@ import {
 import { updatePropertyStatusWithAvailabilityQueue } from "@/lib/postgres-property-availability";
 import { generatePrivateShowingToken } from "@/lib/leads/private-showing-token";
 import { syncPropertyTranslationIntents } from "@/lib/i18n/translations/source-intents";
+import { invalidateEnglishPublicTranslationPaths } from "@/lib/i18n/translations/public-revalidation";
+
+async function revalidateEnglishProperty(propertyId: string, propertySlug: string) {
+  try {
+    await invalidateEnglishPublicTranslationPaths({
+      target: { entityType: "property", ownerId: propertyId, propertySlug },
+      revalidate: revalidatePath,
+    });
+  } catch (error) {
+    console.error("translation_public_revalidation_failed", {
+      entityType: "property",
+      errorClass: error instanceof Error ? error.name : "UnknownError",
+    });
+  }
+}
 
 export type CreatePropiedadState = {
   error: string;
@@ -338,6 +353,7 @@ export async function createPropiedadAction(
     revalidatePath("/admin/propiedades");
     revalidatePath("/listados");
     revalidatePath("/");
+    await revalidateEnglishProperty(insertadaId, slug);
   } catch (error) {
     console.error("CREATE PROPIEDAD ERROR:", error);
     return { error: "No se pudo crear la propiedad." };
@@ -681,6 +697,7 @@ export async function updatePropiedadAction(
     revalidatePath(`/admin/propiedades/${id}/editar`);
     revalidatePath("/listados");
     revalidatePath("/");
+    await revalidateEnglishProperty(id, slug);
   } catch (error) {
     console.error("UPDATE PROPIEDAD ERROR:", error);
     return { error: "No se pudo actualizar la propiedad." };

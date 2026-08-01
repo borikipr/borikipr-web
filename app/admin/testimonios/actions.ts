@@ -5,6 +5,21 @@ import { sql } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import { syncTestimonialTranslationIntent } from "@/lib/i18n/translations/source-intents";
+import { invalidateEnglishPublicTranslationPaths } from "@/lib/i18n/translations/public-revalidation";
+
+async function revalidateEnglishTestimonial(testimonialId: string) {
+  try {
+    await invalidateEnglishPublicTranslationPaths({
+      target: { entityType: "testimonial", ownerId: testimonialId },
+      revalidate: revalidatePath,
+    });
+  } catch (error) {
+    console.error("translation_public_revalidation_failed", {
+      entityType: "testimonial",
+      errorClass: error instanceof Error ? error.name : "UnknownError",
+    });
+  }
+}
 
 export type CreateTestimonioState = {
   error: string;
@@ -98,6 +113,7 @@ export async function createTestimonioAction(
     revalidatePath("/admin/testimonios");
     revalidatePath("/");
     revalidatePath("/testimonios");
+    await revalidateEnglishTestimonial(insertadoId);
   } catch (error) {
     console.error("CREATE TESTIMONIO ERROR:", error);
     return { error: "No se pudo crear el testimonio." };
@@ -190,6 +206,7 @@ export async function updateTestimonioAction(
     revalidatePath(`/admin/testimonios/${id}/editar`);
     revalidatePath("/");
     revalidatePath("/testimonios");
+    await revalidateEnglishTestimonial(id);
   } catch (error) {
     console.error("UPDATE TESTIMONIO ERROR:", error);
     return { error: "No se pudo actualizar el testimonio." };

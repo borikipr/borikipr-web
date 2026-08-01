@@ -10,6 +10,7 @@ import {
 } from "@/lib/i18n/translations/admin-service";
 import { createPostgresTranslationDatabase } from "@/lib/i18n/translations/repository";
 import type { TranslationEntityType } from "@/lib/i18n/translations/types";
+import { invalidateEnglishPublicTranslationPaths } from "@/lib/i18n/translations/public-revalidation";
 
 export type TranslationAdminActionState = {
   ok: boolean;
@@ -62,6 +63,26 @@ async function execute(
     );
     await mutation(service, { ...common, actorAdminId: session.id });
     revalidatePath(adminPath(common.entityType, common.ownerId));
+    const propertySlug = common.entityType === "property"
+      ? (await sql<{ slug: string }[]>`
+          SELECT slug FROM public.propiedades WHERE id = ${common.ownerId}::uuid
+        `)[0]?.slug ?? null
+      : null;
+    try {
+      await invalidateEnglishPublicTranslationPaths({
+        target: {
+          entityType: common.entityType,
+          ownerId: common.ownerId,
+          propertySlug,
+        },
+        revalidate: revalidatePath,
+      });
+    } catch (error) {
+      console.error("translation_public_revalidation_failed", {
+        entityType: common.entityType,
+        errorClass: error instanceof Error ? error.name : "UnknownError",
+      });
+    }
     return { ok: true, message: successMessage };
   } catch (error) {
     if (
