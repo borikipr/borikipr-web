@@ -73,6 +73,7 @@ export type ContentTranslation = {
   origin: TranslationOrigin;
   reviewStatus: TranslationReviewStatus;
   protectedFromAutomation: boolean;
+  regenerationAuthorizedAt: string | null;
   provider: string | null;
   providerModel: string | null;
   providerVersion: string | null;
@@ -138,6 +139,7 @@ type TranslationRow = {
   origin: string;
   review_status: string;
   protected_from_automation: boolean;
+  regeneration_authorized_at: string | Date | null;
   provider: string | null;
   provider_model: string | null;
   provider_version: string | null;
@@ -193,7 +195,8 @@ const TRANSLATION_COLUMNS = `
   id::text, property_id::text, testimonial_id::text, target_locale, field_key,
   translated_value, source_hash, translated_source_hash, hash_version, status,
   origin, review_status, protected_from_automation, provider, provider_model,
-  provider_version, lock_version, generated_at, manually_edited_at, reviewed_at,
+  provider_version, lock_version, regeneration_authorized_at,
+  generated_at, manually_edited_at, reviewed_at,
   reviewed_by::text, created_at, updated_at
 `;
 
@@ -257,6 +260,7 @@ function mapTranslation(row: TranslationRow): ContentTranslation {
     origin: row.origin,
     reviewStatus: row.review_status,
     protectedFromAutomation: row.protected_from_automation,
+    regenerationAuthorizedAt: iso(row.regeneration_authorized_at),
     provider: row.provider,
     providerModel: row.provider_model,
     providerVersion: row.provider_version,
@@ -783,6 +787,10 @@ export function createTranslationRepository(database: TranslationDatabase) {
                 status = 'ready',
                 origin = 'machine',
                 review_status = 'unreviewed',
+                protected_from_automation = false,
+                regeneration_authorized_at = NULL,
+                reviewed_at = NULL,
+                reviewed_by = NULL,
                 provider = $5,
                 provider_model = $6,
                 provider_version = $7,

@@ -31,6 +31,10 @@ const migrationSql = await readFile(
   ),
   "utf8"
 );
+const regenerationMigrationSql = await readFile(
+  fileURLToPath(new URL("../db/migrations/0020_add_translation_regeneration_authorization.sql", import.meta.url)),
+  "utf8"
+);
 function adapter(db) {
   const executor = (source) => ({
     async unsafe(query, parameters = []) {
@@ -74,6 +78,7 @@ before(async () => {
     );
   `);
   await db.exec(migrationSql);
+  await db.exec(regenerationMigrationSql);
 });
 beforeEach(async () => {
   await db.exec(`
@@ -328,7 +333,7 @@ test("isolated fixture rehearsal completes jobs and makes fake values publishabl
   );
 });
 
-test("obsolete and protected work cancels without reaching provider", async () => {
+test("obsolete work cancels and protected work remains unclaimed without reaching provider", async () => {
   await seedAll();
   await db.query("UPDATE propiedades SET titulo = 'Título nuevo' WHERE id = $1", [
     propertyId,
@@ -346,11 +351,21 @@ test("obsolete and protected work cancels without reaching provider", async () =
     config,
     now: () => NOW,
   });
-  assert.equal(summary.cancelled, 2);
+  assert.equal(summary.cancelled, 1);
   assert.equal(summary.skippedObsolete, 1);
-  assert.equal(summary.skippedProtected, 1);
+  assert.equal(summary.skippedProtected, 0);
   assert.equal(summary.succeeded, 1);
   assert.equal(provider.requests.length, 1);
+  const protectedJob = (
+    await db.query(
+      `SELECT tj.status
+         FROM translation_jobs tj
+         JOIN content_translations ct ON ct.id = tj.translation_id
+        WHERE ct.testimonial_id = $1`,
+      [testimonialId]
+    )
+  ).rows[0];
+  assert.equal(protectedJob.status, "queued");
 });
 
 test("retryable failure requeues; permanent and exhausted failures terminate", async () => {

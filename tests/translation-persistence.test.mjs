@@ -36,6 +36,10 @@ const migrationSql = await readFile(
   ),
   "utf8"
 );
+const regenerationMigrationSql = await readFile(
+  fileURLToPath(new URL("../db/migrations/0020_add_translation_regeneration_authorization.sql", import.meta.url)),
+  "utf8"
+);
 const rollbackSql = await readFile(
   fileURLToPath(
     new URL(
@@ -84,6 +88,7 @@ before(async () => {
     );
   `);
   await db.exec(migrationSql);
+  await db.exec(regenerationMigrationSql);
   repository = createTranslationRepository(pgliteDatabase(db));
 });
 
@@ -271,7 +276,7 @@ test("migration creates the complete typed schema, constraints, and indexes", as
     ORDER BY rel.relname
   `);
   assert.deepEqual(checks.rows, [
-    { table_name: "content_translations", count: 16 },
+    { table_name: "content_translations", count: 17 },
     { table_name: "translation_jobs", count: 12 },
     { table_name: "translation_revision_events", count: 7 },
   ]);

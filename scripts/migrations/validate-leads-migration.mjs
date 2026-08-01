@@ -1747,3 +1747,107 @@ try {
 } finally {
   await translationPersistenceDb.close();
 }
+
+const regenerationAuthorizationMigrationSql = await readMigration(
+  "0020_add_translation_regeneration_authorization.sql"
+);
+const regenerationAuthorizationRollbackSql = await readMigration(
+  "0020_add_translation_regeneration_authorization.rollback.sql"
+);
+const regenerationAuthorizationDb = new PGlite();
+try {
+  await regenerationAuthorizationDb.exec(`
+    CREATE TABLE public.propiedades (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(), titulo text NOT NULL,
+      descripcion text NOT NULL
+    );
+    CREATE TABLE public.testimonios (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(), texto text NOT NULL
+    );
+    CREATE TABLE public.admin_users (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(), username text NOT NULL UNIQUE
+    );
+  `);
+  await regenerationAuthorizationDb.exec(translationPersistenceMigrationSql);
+  const property = await regenerationAuthorizationDb.query(`
+    INSERT INTO public.propiedades (titulo, descripcion)
+    VALUES ('Casa', 'Descripción') RETURNING id::text
+  `);
+  const hash = "b".repeat(64);
+  await regenerationAuthorizationDb.query(
+    `INSERT INTO public.content_translations (
+       property_id, target_locale, field_key, source_hash
+     ) VALUES ($1::uuid, 'en-US', 'title', $2)`,
+    [property.rows[0].id, hash]
+  );
+  await regenerationAuthorizationDb.exec(regenerationAuthorizationMigrationSql);
+  const column = await regenerationAuthorizationDb.query(`
+    SELECT data_type, is_nullable
+      FROM information_schema.columns
+     WHERE table_schema='public'
+       AND table_name='content_translations'
+       AND column_name='regeneration_authorized_at'
+  `);
+  assert.deepEqual(column.rows, [{
+    data_type: "timestamp with time zone",
+    is_nullable: "YES",
+  }]);
+
+  await assert.rejects(regenerationAuthorizationDb.query(
+    `UPDATE public.content_translations
+        SET origin='manual', protected_from_automation=false
+      WHERE property_id=$1::uuid`,
+    [property.rows[0].id]
+  ));
+  await regenerationAuthorizationDb.exec("ROLLBACK");
+  await regenerationAuthorizationDb.query(
+    `UPDATE public.content_translations
+        SET origin='manual', protected_from_automation=true
+      WHERE property_id=$1::uuid`,
+    [property.rows[0].id]
+  );
+  await regenerationAuthorizationDb.query(
+    `UPDATE public.content_translations
+        SET protected_from_automation=false,
+            regeneration_authorized_at=now(), review_status='unreviewed'
+      WHERE property_id=$1::uuid`,
+    [property.rows[0].id]
+  );
+  await assert.rejects(regenerationAuthorizationDb.query(
+    `UPDATE public.content_translations SET review_status='reviewed'
+      WHERE property_id=$1::uuid`,
+    [property.rows[0].id]
+  ));
+  await regenerationAuthorizationDb.exec("ROLLBACK");
+  await assert.rejects(
+    regenerationAuthorizationDb.exec(regenerationAuthorizationRollbackSql)
+  );
+  await regenerationAuthorizationDb.exec("ROLLBACK");
+  await regenerationAuthorizationDb.query(
+    `UPDATE public.content_translations
+        SET origin='machine', protected_from_automation=false,
+            regeneration_authorized_at=NULL, review_status='unreviewed'
+      WHERE property_id=$1::uuid`,
+    [property.rows[0].id]
+  );
+  await regenerationAuthorizationDb.exec(regenerationAuthorizationRollbackSql);
+  const rolledBack = await regenerationAuthorizationDb.query(`
+    SELECT
+      NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='content_translations'
+          AND column_name='regeneration_authorized_at'
+      ) AS column_removed,
+      (SELECT count(*)::int FROM public.content_translations) AS translations_preserved,
+      (SELECT count(*)::int FROM public.propiedades) AS properties_preserved
+  `);
+  assert.deepEqual(rolledBack.rows, [{
+    column_removed: true,
+    translations_preserved: 1,
+    properties_preserved: 1,
+  }]);
+  console.log("Validated the ordered migration chain through 0020.");
+  console.log("Verified explicit regeneration authorization and guarded rollback.");
+} finally {
+  await regenerationAuthorizationDb.close();
+}

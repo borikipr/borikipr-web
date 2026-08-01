@@ -29,6 +29,13 @@ as part of the migration. Its rollback is allowed only while all three
 translation tables are empty; otherwise retain the additive schema and roll
 back application usage first.
 
+Migration `0020` adds the explicit regeneration-authorization timestamp used
+by the Admin translation workflow. Apply it after 0019 and before deploying
+Phase 3E code. Its rollback refuses to remove an active authorization; clear or
+finish those workflows through reviewed application behavior before rollback.
+The rollback restores the original manual-protection constraint and never
+changes Spanish source content, translated values, jobs, or revision events.
+
 The hardening release has a one-purpose guarded runner:
 
 ```bash

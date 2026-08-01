@@ -19,6 +19,10 @@ const migrationSql = await readFile(
   ),
   "utf8"
 );
+const regenerationMigrationSql = await readFile(
+  fileURLToPath(new URL("../db/migrations/0020_add_translation_regeneration_authorization.sql", import.meta.url)),
+  "utf8"
+);
 function pgliteDatabase(db) {
   const executor = (source) => ({
     async unsafe(query, parameters = []) {
@@ -52,6 +56,7 @@ before(async () => {
     );
   `);
   await db.exec(migrationSql);
+  await db.exec(regenerationMigrationSql);
 });
 beforeEach(async () => {
   await db.exec(`

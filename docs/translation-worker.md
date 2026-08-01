@@ -49,9 +49,10 @@ select the fake provider.
 
 1. Create a current Neon backup or restore point.
 2. Confirm the production fingerprint through migration 0018.
-3. Review migration 0019 and its guarded rollback.
-4. Apply 0019 through the established production procedure.
-5. Run the structural fingerprint audit and verify all three tables/indexes.
+3. Review migrations 0019 and 0020 and their guarded rollbacks.
+4. Apply 0019, then 0020, through the established production procedure.
+5. Run the structural fingerprint audit and verify all three tables, indexes,
+   the authorization column, and the updated protection constraint.
 6. Leave the worker disabled and deploy the code in that state.
 7. Run protected dry-run/health checks.
 8. Enable processing only after provider, IAM, glossary, and monitoring review.
@@ -77,3 +78,10 @@ are terminal. Stale locks are recovered only after the configured timeout.
 Obsolete or protected jobs are cancelled without a provider request. Migration
 0019 has no cancellation revision-event type, so cancellation is represented
 only by the job lifecycle rather than misusing an unrelated audit event.
+
+Migration 0020 adds `regeneration_authorized_at`. A manual translation remains
+ineligible for the worker unless it is unprotected and this explicit Admin
+authorization exists. A successful machine result clears the marker;
+retryable or terminal provider failure preserves it. A newer Spanish source
+invalidates the authorization and restores protection for a manual value.
+Rollback of 0020 is allowed only when no authorization marker is active.

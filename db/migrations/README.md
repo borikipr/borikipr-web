@@ -20,7 +20,7 @@ applies migrations to a remote database.
 Each migration file must include a matching rollback file. Rollbacks are
 manual review artifacts, not automatic deployment behavior.
 
-Migrations are validated in order through `0019`. The validator creates only
+Migrations are validated in order through `0020`. The validator creates only
 ephemeral local fixtures for the pre-existing `propiedades`,
 `consultas_propiedad`, Priority Registration, and email queue structures needed
 to exercise the reviewed foreign keys and rollback behavior. It verifies each
@@ -120,3 +120,11 @@ without source text or credentials, and `translation_revision_events` provides
 append-only audit storage. All three tables contain derived content only. The
 guarded rollback refuses to discard any translation, job, or revision row and
 never alters Spanish property or testimonial data.
+
+Migration `0020` adds the nullable authorization marker used when an
+authenticated administrator deliberately allows automation to replace a
+manual translation. It preserves every existing translation and keeps manual
+or reviewed content protected unless that explicit authorization exists. Its
+rollback refuses to remove an active authorization state, restores the 0019
+protection constraint, and leaves all translations, jobs, history, and Spanish
+source content intact.

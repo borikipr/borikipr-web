@@ -12,6 +12,7 @@ import {
   isTranslationTargetLocale,
   type TranslationEntityType,
   type TranslationField,
+  type TranslationOrigin,
   type TranslationStatus,
   type TranslationTargetLocale,
 } from "@/lib/i18n/translations/types";
@@ -34,6 +35,8 @@ export type TranslationJobContext = ClaimedTranslationJob & {
   translatedValue: string | null;
   translatedSourceHash: string | null;
   protectedFromAutomation: boolean;
+  origin: TranslationOrigin;
+  regenerationAuthorizedAt: string | null;
   sourceExists: boolean;
 };
 
@@ -52,6 +55,8 @@ type ContextRow = {
   translated_value: string | null;
   translated_source_hash: string | null;
   protected_from_automation: boolean;
+  origin: TranslationOrigin;
+  regeneration_authorized_at: string | Date | null;
   source_text: string | null;
   source_exists: boolean;
 };
@@ -86,6 +91,10 @@ function mapContext(row: ContextRow): TranslationJobContext {
     translatedValue: row.translated_value,
     translatedSourceHash: row.translated_source_hash,
     protectedFromAutomation: row.protected_from_automation,
+    origin: row.origin,
+    regenerationAuthorizedAt: row.regeneration_authorized_at
+      ? new Date(row.regeneration_authorized_at).toISOString()
+      : null,
     sourceExists: row.source_exists,
   };
 }
@@ -106,6 +115,8 @@ const CONTEXT_SELECT = `
     ct.translated_value,
     ct.translated_source_hash,
     ct.protected_from_automation,
+    ct.origin,
+    ct.regeneration_authorized_at,
     CASE
       WHEN ct.property_id IS NOT NULL AND ct.field_key = 'title'
         THEN p.titulo
@@ -161,6 +172,16 @@ function fallbackStatus(context: TranslationJobContext): TranslationStatus {
 export function createTranslationWorkerRepository(
   database: TranslationDatabase
 ) {
+  if (
+    !database ||
+    typeof database.unsafe !== "function" ||
+    typeof database.begin !== "function"
+  ) {
+    throw new Error(
+      "Translation worker repository requires a transaction-capable database."
+    );
+  }
+
   async function getOperationalHealth(input: {
     now: Date;
     lockTimeoutMs: number;
@@ -227,10 +248,13 @@ export function createTranslationWorkerRepository(
   async function countEligible(now: Date) {
     const rows = await database.unsafe<{ count: number }>(
       `SELECT count(*)::integer AS count
-         FROM public.translation_jobs
-        WHERE status = 'queued'
-          AND available_at <= $1::timestamptz
-          AND attempts < max_attempts`,
+         FROM public.translation_jobs tj
+         JOIN public.content_translations ct ON ct.id = tj.translation_id
+        WHERE tj.status = 'queued'
+          AND tj.available_at <= $1::timestamptz
+          AND tj.attempts < tj.max_attempts
+          AND ct.protected_from_automation = false
+          AND (ct.origin <> 'manual' OR ct.regeneration_authorized_at IS NOT NULL)`,
       [now.toISOString()]
     );
     return rows[0]?.count ?? 0;
@@ -250,12 +274,15 @@ export function createTranslationWorkerRepository(
         max_attempts: number;
       }>(
         `WITH candidates AS (
-           SELECT id
-             FROM public.translation_jobs
-            WHERE status = 'queued'
-              AND available_at <= $1::timestamptz
-              AND attempts < max_attempts
-            ORDER BY priority ASC, available_at ASC, created_at ASC
+           SELECT tj.id
+             FROM public.translation_jobs tj
+             JOIN public.content_translations ct ON ct.id = tj.translation_id
+            WHERE tj.status = 'queued'
+              AND tj.available_at <= $1::timestamptz
+              AND tj.attempts < tj.max_attempts
+              AND ct.protected_from_automation = false
+              AND (ct.origin <> 'manual' OR ct.regeneration_authorized_at IS NOT NULL)
+            ORDER BY tj.priority ASC, tj.available_at ASC, tj.created_at ASC
             LIMIT $2
             FOR UPDATE SKIP LOCKED
          )
@@ -283,6 +310,7 @@ export function createTranslationWorkerRepository(
               AND tj.id = ANY($1::uuid[])
               AND tj.source_hash = ct.source_hash
               AND ct.protected_from_automation = false
+              AND (ct.origin <> 'manual' OR ct.regeneration_authorized_at IS NOT NULL)
               AND ct.status IN ('pending', 'stale', 'failed')`,
           [rows.map((row) => row.job_id), input.now.toISOString()]
         );
@@ -331,7 +359,11 @@ export function createTranslationWorkerRepository(
             AND locked_by = $2`,
         [input.jobId, input.workerId, input.now.toISOString()]
       );
-      if (context.sourceHash === computeContextSourceHash(context)) {
+      const sourceStillMatches =
+        context.sourceExists &&
+        context.sourceText &&
+        context.sourceHash === computeContextSourceHash(context);
+      if (sourceStillMatches) {
         await transaction.unsafe(
           `UPDATE public.content_translations
               SET status = $2,
@@ -345,6 +377,17 @@ export function createTranslationWorkerRepository(
             input.now.toISOString(),
             context.sourceHash,
           ]
+        );
+      } else if (context.regenerationAuthorizedAt) {
+        await transaction.unsafe(
+          `UPDATE public.content_translations
+              SET status = CASE WHEN translated_value IS NULL THEN 'pending' ELSE 'stale' END,
+                  protected_from_automation = CASE WHEN origin = 'manual' THEN true ELSE protected_from_automation END,
+                  regeneration_authorized_at = NULL,
+                  lock_version = lock_version + 1,
+                  updated_at = $2::timestamptz
+            WHERE id = $1::uuid`,
+          [context.translationId, input.now.toISOString()]
         );
       }
       return true;
@@ -372,6 +415,7 @@ export function createTranslationWorkerRepository(
         !context.sourceExists ||
         !context.sourceText ||
         context.protectedFromAutomation ||
+        (context.origin === "manual" && !context.regenerationAuthorizedAt) ||
         context.sourceHash !== input.sourceHash ||
         computeContextSourceHash(context) !== input.sourceHash ||
         !input.translatedText.trim()
@@ -386,6 +430,9 @@ export function createTranslationWorkerRepository(
                 origin = 'machine',
                 review_status = 'unreviewed',
                 protected_from_automation = false,
+                regeneration_authorized_at = NULL,
+                reviewed_at = NULL,
+                reviewed_by = NULL,
                 provider = $4,
                 provider_model = $5,
                 provider_version = $6,
@@ -395,6 +442,7 @@ export function createTranslationWorkerRepository(
           WHERE id = $1::uuid
             AND source_hash = $2
             AND protected_from_automation = false
+            AND (origin <> 'manual' OR regeneration_authorized_at IS NOT NULL)
             AND status = 'processing'
           RETURNING id::text`,
         [
@@ -572,6 +620,7 @@ export function createTranslationWorkerRepository(
           !context.sourceExists ||
           !context.sourceText ||
           context.protectedFromAutomation ||
+          (context.origin === "manual" && !context.regenerationAuthorizedAt) ||
           computeContextSourceHash(context) !== context.sourceHash;
         const nextStatus = obsolete
           ? "cancelled"
@@ -593,7 +642,11 @@ export function createTranslationWorkerRepository(
               AND status = 'processing'`,
           [row.id, nextStatus, input.now.toISOString()]
         );
-        if (context.sourceHash === computeContextSourceHash(context)) {
+        const sourceStillMatches =
+          context.sourceExists &&
+          context.sourceText &&
+          context.sourceHash === computeContextSourceHash(context);
+        if (sourceStillMatches) {
           const translationStatus =
             context.protectedFromAutomation || context.translatedValue?.trim()
               ? "stale"
@@ -613,6 +666,17 @@ export function createTranslationWorkerRepository(
               input.now.toISOString(),
               context.sourceHash,
             ]
+          );
+        } else if (context.regenerationAuthorizedAt) {
+          await transaction.unsafe(
+            `UPDATE public.content_translations
+                SET status = CASE WHEN translated_value IS NULL THEN 'pending' ELSE 'stale' END,
+                    protected_from_automation = CASE WHEN origin = 'manual' THEN true ELSE protected_from_automation END,
+                    regeneration_authorized_at = NULL,
+                    lock_version = lock_version + 1,
+                    updated_at = $2::timestamptz
+              WHERE id = $1::uuid`,
+            [context.translationId, input.now.toISOString()]
           );
         }
         summary.recovered += 1;

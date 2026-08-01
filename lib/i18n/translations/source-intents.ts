@@ -24,6 +24,8 @@ type TranslationRow = {
   translated_value: string | null;
   status: TranslationStatus;
   protected_from_automation: boolean;
+  origin: "machine" | "manual";
+  regeneration_authorized_at: string | Date | null;
 };
 
 export type TranslationIntentResult = {
@@ -137,7 +139,8 @@ async function syncSourceIntent(
   const sourceHash = hashSource(input);
   let rows = await transaction.unsafe<TranslationRow>(
     `SELECT id::text, source_hash, translated_source_hash, translated_value,
-            status, protected_from_automation
+            status, protected_from_automation, origin,
+            regeneration_authorized_at
        FROM public.content_translations
       WHERE ${ownerColumn} = $1::uuid
         AND target_locale = 'en-US'
@@ -157,7 +160,8 @@ async function syncSourceIntent(
          WHERE ${ownerColumn} IS NOT NULL
        DO NOTHING
        RETURNING id::text, source_hash, translated_source_hash,
-                 translated_value, status, protected_from_automation`,
+                 translated_value, status, protected_from_automation, origin,
+                 regeneration_authorized_at`,
       [
         input.ownerId,
         input.fieldKey,
@@ -169,7 +173,8 @@ async function syncSourceIntent(
     if (!current) {
       rows = await transaction.unsafe<TranslationRow>(
         `SELECT id::text, source_hash, translated_source_hash,
-                translated_value, status, protected_from_automation
+                translated_value, status, protected_from_automation, origin,
+                regeneration_authorized_at
            FROM public.content_translations
           WHERE ${ownerColumn} = $1::uuid
             AND target_locale = 'en-US'
@@ -206,23 +211,32 @@ async function syncSourceIntent(
       current.translated_value.trim().length > 0)
       ? "stale"
       : "pending";
+  const authorizationBecameObsolete =
+    current.regeneration_authorized_at !== null;
+  const nextProtected =
+    current.protected_from_automation ||
+    (authorizationBecameObsolete && current.origin === "manual");
   const updated = await transaction.unsafe<TranslationRow>(
     `UPDATE public.content_translations
         SET source_hash = $2,
             hash_version = $3,
             status = $4,
+            protected_from_automation = $6,
+            regeneration_authorized_at = NULL,
             lock_version = lock_version + 1,
             updated_at = now()
       WHERE id = $1::uuid
         AND source_hash = $5
       RETURNING id::text, source_hash, translated_source_hash,
-                translated_value, status, protected_from_automation`,
+                translated_value, status, protected_from_automation, origin,
+                regeneration_authorized_at`,
     [
       current.id,
       sourceHash,
       CURRENT_TRANSLATION_HASH_VERSION,
       nextStatus,
       current.source_hash,
+      nextProtected,
     ]
   );
   if (!updated[0]) {
@@ -240,7 +254,7 @@ async function syncSourceIntent(
     previousValue: current.translated_value,
     newValue: current.translated_value,
   });
-  const jobQueued = current.protected_from_automation
+  const jobQueued = nextProtected
     ? false
     : await ensureQueuedJob(transaction, {
         translationId: current.id,

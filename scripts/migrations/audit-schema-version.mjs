@@ -92,7 +92,14 @@ if (!process.env.DATABASE_URL) {
             AND to_regclass('public.operational_alert_state') IS NOT NULL AS v0018,
           to_regclass('public.content_translations') IS NOT NULL
             AND to_regclass('public.translation_jobs') IS NOT NULL
-            AND to_regclass('public.translation_revision_events') IS NOT NULL AS v0019
+            AND to_regclass('public.translation_revision_events') IS NOT NULL AS v0019,
+          EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='content_translations'
+              AND column_name='regeneration_authorized_at'
+              AND data_type='timestamp with time zone'
+              AND is_nullable='YES'
+          ) AS v0020
       )
       SELECT * FROM facts
     `;

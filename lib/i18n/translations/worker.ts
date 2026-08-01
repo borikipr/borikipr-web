@@ -150,7 +150,9 @@ export async function processTranslationJobs(input: {
       summary.cancelled += 1;
       return;
     }
-    const protectedTranslation = context.protectedFromAutomation;
+    const protectedTranslation =
+      context.protectedFromAutomation ||
+      (context.origin === "manual" && !context.regenerationAuthorizedAt);
     const obsolete =
       !context.sourceExists ||
       !context.sourceText ||
