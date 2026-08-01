@@ -299,7 +299,7 @@ test("dry-run backfill is read-only and apply mode is local-only", async () => {
         apply: false,
         confirmedLocal: false,
       }),
-    /refuses production/
+    /allow-production-read-only-dry-run/
   );
   assert.throws(
     () =>

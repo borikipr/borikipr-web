@@ -3,6 +3,11 @@ import { TranslationProviderError } from "@/lib/i18n/translations/provider";
 import type { GoogleTranslationTransport } from "@/lib/i18n/translations/google-provider";
 import { GoogleCloudTranslationProvider } from "@/lib/i18n/translations/google-provider";
 import { createOfficialGoogleTranslationTransport } from "@/lib/i18n/translations/google-transport";
+import {
+  assertGoogleAuthenticationConfig,
+  buildGoogleWorkloadIdentityAudience,
+  type GoogleAuthenticationConfig,
+} from "@/lib/i18n/translations/google-auth-config";
 
 export type TranslationWorkerConfig = {
   enabled: boolean;
@@ -15,7 +20,52 @@ export type TranslationWorkerConfig = {
   googleProjectId: string | null;
   googleLocation: string;
   googleGlossaryId: string | null;
+  googleAuthentication: GoogleAuthenticationConfig;
+  vercelEnvironment: string | null;
 };
+
+function readGoogleAuthenticationConfig(
+  env: NodeJS.ProcessEnv
+): GoogleAuthenticationConfig {
+  const requestedMode = env.GOOGLE_CLOUD_AUTH_MODE?.trim();
+  if (
+    requestedMode &&
+    requestedMode !== "adc" &&
+    requestedMode !== "vercel-wif"
+  ) {
+    throw new TranslationProviderError(
+      "configuration",
+      "google_auth_mode_invalid",
+      "Google Cloud authentication mode is invalid."
+    );
+  }
+  const mode: "adc" | "vercel-wif" =
+    (requestedMode as "adc" | "vercel-wif" | undefined) ??
+    (env.VERCEL_ENV ? "vercel-wif" : "adc");
+  if (mode === "adc") return { mode };
+  const projectNumber = env.GOOGLE_CLOUD_PROJECT_NUMBER?.trim() || "";
+  const serviceAccountEmail =
+    env.GOOGLE_CLOUD_SERVICE_ACCOUNT_EMAIL?.trim() || "";
+  const workloadIdentityPoolId =
+    env.GOOGLE_CLOUD_WORKLOAD_IDENTITY_POOL_ID?.trim() || "";
+  const workloadIdentityProviderId =
+    env.GOOGLE_CLOUD_WORKLOAD_IDENTITY_PROVIDER_ID?.trim() || "";
+  const workloadIdentityAudience =
+    env.GOOGLE_CLOUD_WORKLOAD_IDENTITY_AUDIENCE?.trim() ||
+    buildGoogleWorkloadIdentityAudience({
+      projectNumber,
+      poolId: workloadIdentityPoolId,
+      providerId: workloadIdentityProviderId,
+    });
+  return {
+    mode,
+    projectNumber,
+    serviceAccountEmail,
+    workloadIdentityPoolId,
+    workloadIdentityProviderId,
+    workloadIdentityAudience,
+  };
+}
 
 function integerSetting(
   value: string | undefined,
@@ -83,6 +133,8 @@ export function readTranslationWorkerConfig(
     googleLocation:
       env.GOOGLE_CLOUD_TRANSLATION_LOCATION?.trim() || "global",
     googleGlossaryId: env.GOOGLE_CLOUD_TRANSLATION_GLOSSARY_ID?.trim() || null,
+    googleAuthentication: readGoogleAuthenticationConfig(env),
+    vercelEnvironment: env.VERCEL_ENV?.trim() || null,
   };
 }
 
@@ -172,11 +224,27 @@ export function resolveConfiguredTranslationProvider(input: {
       "Google Cloud Translation glossary ID is invalid."
     );
   }
+  try {
+    if (
+      input.config.vercelEnvironment &&
+      input.config.googleAuthentication.mode === "adc"
+    ) {
+      throw new Error("ADC mode is not permitted in a Vercel runtime.");
+    }
+    assertGoogleAuthenticationConfig(input.config.googleAuthentication);
+  } catch (error) {
+    throw new TranslationProviderError(
+      "configuration",
+      "google_authentication_configuration_invalid",
+      error instanceof Error ? error.message : "Google authentication configuration is invalid."
+    );
+  }
   const transport =
     input.googleTransport ??
     createOfficialGoogleTranslationTransport({
       requestTimeoutMs: input.config.requestTimeoutMs,
       glossaryId: input.config.googleGlossaryId,
+      authentication: input.config.googleAuthentication,
     });
   return new GoogleCloudTranslationProvider({
     projectId: input.config.googleProjectId,

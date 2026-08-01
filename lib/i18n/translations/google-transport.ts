@@ -1,4 +1,5 @@
 import type { GoogleTranslationTransport } from "@/lib/i18n/translations/google-provider";
+import type { GoogleAuthenticationConfig } from "@/lib/i18n/translations/google-auth-config";
 
 type TranslateTextResponse = {
   translations?: Array<{ translatedText?: string | null }>;
@@ -38,6 +39,7 @@ function abortError() {
 export function createOfficialGoogleTranslationTransport(input: {
   requestTimeoutMs: number;
   glossaryId?: string | null;
+  authentication?: GoogleAuthenticationConfig;
   clientFactory?: ClientFactory;
 }): GoogleTranslationTransport {
   if (
@@ -55,7 +57,9 @@ export function createOfficialGoogleTranslationTransport(input: {
       const { createOfficialGoogleClient } = await import(
         "@/lib/i18n/translations/google-client"
       );
-      return createOfficialGoogleClient();
+      return createOfficialGoogleClient({
+        authentication: input.authentication ?? { mode: "adc" },
+      });
     });
 
   return {

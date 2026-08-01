@@ -5,6 +5,8 @@ import {
   runTranslationBackfill,
 } from "../../lib/i18n/translations/backfill";
 import { createPostgresTranslationDatabase } from "../../lib/i18n/translations/repository";
+import { PRODUCTION_READ_ONLY_DRY_RUN_FLAG } from "../../lib/i18n/translations/cli-safety";
+import { runTranslationReadOnlyInspection } from "../../lib/i18n/translations/read-only";
 
 const databaseUrl = process.env.DATABASE_URL || "";
 if (!databaseUrl) throw new Error("DATABASE_URL is required.");
@@ -16,6 +18,8 @@ assertTranslationBackfillApplyIsSafe({
   databaseUrl,
   apply,
   confirmedLocal,
+  allowProductionReadOnlyDryRun: args.has(PRODUCTION_READ_ONLY_DRY_RUN_FLAG),
+  environment: process.env,
 });
 
 const sql = postgres(databaseUrl, {
@@ -23,10 +27,12 @@ const sql = postgres(databaseUrl, {
 });
 
 try {
-  const report = await runTranslationBackfill(
-    createPostgresTranslationDatabase(sql),
-    { apply }
-  );
+  const database = createPostgresTranslationDatabase(sql);
+  const report = apply
+    ? await runTranslationBackfill(database, { apply: true })
+    : await runTranslationReadOnlyInspection(database, (readOnlyDatabase) =>
+        runTranslationBackfill(readOnlyDatabase, { apply: false })
+      );
   console.info("TRANSLATION_BACKFILL", {
     mode: apply ? "apply" : "dry-run",
     ...report,

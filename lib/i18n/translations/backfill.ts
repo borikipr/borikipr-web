@@ -10,6 +10,7 @@ import {
   syncPropertyTranslationIntents,
   syncTestimonialTranslationIntent,
 } from "@/lib/i18n/translations/source-intents";
+import { assertTranslationBackfillCliIsSafe } from "@/lib/i18n/translations/cli-safety";
 
 export type TranslationBackfillReport = {
   propertiesInspected: number;
@@ -210,20 +211,13 @@ export function assertTranslationBackfillApplyIsSafe(input: {
   databaseUrl: string;
   apply: boolean;
   confirmedLocal: boolean;
+  allowProductionReadOnlyDryRun?: boolean;
+  environment?: Partial<Pick<NodeJS.ProcessEnv, "VERCEL_ENV" | "NODE_ENV">>;
 }) {
-  const url = new URL(input.databaseUrl);
-  const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
-  if (
-    url.hostname.endsWith(".neon.tech") ||
-    process.env.VERCEL_ENV === "production" ||
-    process.env.NODE_ENV === "production"
-  ) {
-    throw new Error("Translation backfill refuses production configuration.");
-  }
-  if (!input.apply) return;
-  if (!localHosts.has(url.hostname) || !input.confirmedLocal) {
-    throw new Error(
-      "Apply mode is restricted to an explicitly confirmed local database."
-    );
-  }
+  return assertTranslationBackfillCliIsSafe({
+    ...input,
+    allowProductionReadOnlyDryRun:
+      input.allowProductionReadOnlyDryRun ?? false,
+    environment: input.environment ?? process.env,
+  });
 }
