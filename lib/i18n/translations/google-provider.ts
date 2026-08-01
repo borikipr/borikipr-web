@@ -60,6 +60,13 @@ export class GoogleCloudTranslationProvider implements TranslationProvider {
         "Configured Google adapter does not support the requested locale pair."
       );
     }
+    if (!request.sourceText.trim()) {
+      throw new TranslationProviderError(
+        "permanent",
+        "google_source_empty",
+        "Google Cloud Translation source text is empty."
+      );
+    }
     try {
       const response = await this.config.transport.translate({
         projectId: this.config.projectId,
@@ -70,7 +77,7 @@ export class GoogleCloudTranslationProvider implements TranslationProvider {
         mimeType: "text/plain",
         signal: request.signal,
       });
-      return validateProviderResult({
+      const result = validateProviderResult({
         translatedText: response.translations[0]?.translatedText ?? "",
         providerId: this.id,
         providerModel: this.model,
@@ -79,10 +86,32 @@ export class GoogleCloudTranslationProvider implements TranslationProvider {
         providerRequestId: response.requestId ?? null,
         usage: { characters: request.sourceText.length },
       });
+      for (const brand of [
+        "Borikí",
+        "BorikiPR",
+        "Erickson Real Estate",
+        "Ivonne Erickson",
+      ]) {
+        if (
+          request.sourceText.includes(brand) &&
+          !result.translatedText.includes(brand)
+        ) {
+          throw new TranslationProviderError(
+            "permanent",
+            "google_brand_protection_failed",
+            "Google Cloud Translation did not preserve protected brand text."
+          );
+        }
+      }
+      return result;
     } catch (error) {
       if (error instanceof TranslationProviderError) throw error;
       if (error instanceof DOMException && error.name === "AbortError") {
-        throw error;
+        throw new TranslationProviderError(
+          "cancelled",
+          "google_request_cancelled",
+          "Google Cloud Translation request was cancelled."
+        );
       }
       const status =
         typeof error === "object" &&
@@ -91,14 +120,31 @@ export class GoogleCloudTranslationProvider implements TranslationProvider {
         typeof error.status === "number"
           ? error.status
           : null;
-      if (status === 401 || status === 403) {
+      const grpcCode =
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        typeof error.code === "number"
+          ? error.code
+          : null;
+      if (grpcCode === 1) {
+        throw new TranslationProviderError(
+          "cancelled",
+          "google_request_cancelled",
+          "Google Cloud Translation request was cancelled."
+        );
+      }
+      if (status === 401 || status === 403 || grpcCode === 7 || grpcCode === 16) {
         throw new TranslationProviderError(
           "configuration",
           "google_authentication_failed",
           "Google Cloud Translation authentication is not configured correctly."
         );
       }
-      if (status !== null && status >= 400 && status < 500 && status !== 429) {
+      if (
+        (status !== null && status >= 400 && status < 500 && status !== 429) ||
+        grpcCode === 3
+      ) {
         throw new TranslationProviderError(
           "permanent",
           "google_request_rejected",
@@ -107,7 +153,11 @@ export class GoogleCloudTranslationProvider implements TranslationProvider {
       }
       throw new TranslationProviderError(
         "retryable",
-        status === 429 ? "google_rate_limited" : "google_unavailable",
+        status === 429 || grpcCode === 8
+          ? "google_rate_limited"
+          : grpcCode === 4
+            ? "google_timeout"
+            : "google_unavailable",
         "Google Cloud Translation is temporarily unavailable."
       );
     }

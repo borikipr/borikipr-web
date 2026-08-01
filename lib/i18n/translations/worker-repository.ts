@@ -161,6 +161,69 @@ function fallbackStatus(context: TranslationJobContext): TranslationStatus {
 export function createTranslationWorkerRepository(
   database: TranslationDatabase
 ) {
+  async function getOperationalHealth(input: {
+    now: Date;
+    lockTimeoutMs: number;
+    recentWindowMs?: number;
+  }) {
+    const recentSince = new Date(
+      input.now.getTime() - (input.recentWindowMs ?? 24 * 60 * 60_000)
+    );
+    const staleBefore = new Date(input.now.getTime() - input.lockTimeoutMs);
+    const rows = await database.unsafe<{
+      queued: string | number;
+      eligible_queued: string | number;
+      processing: string | number;
+      stale_processing: string | number;
+      failed: string | number;
+      cancelled: string | number;
+      recent_succeeded: string | number;
+      oldest_eligible_at: string | null;
+      last_succeeded_at: string | null;
+    }>(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'queued') AS queued,
+         COUNT(*) FILTER (
+           WHERE status = 'queued' AND available_at <= $1::timestamptz
+         ) AS eligible_queued,
+         COUNT(*) FILTER (WHERE status = 'processing') AS processing,
+         COUNT(*) FILTER (
+           WHERE status = 'processing' AND locked_at < $2::timestamptz
+         ) AS stale_processing,
+         COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+         COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled,
+         COUNT(*) FILTER (
+           WHERE status = 'succeeded' AND completed_at >= $3::timestamptz
+         ) AS recent_succeeded,
+         MIN(available_at) FILTER (
+           WHERE status = 'queued' AND available_at <= $1::timestamptz
+         )::text AS oldest_eligible_at,
+         MAX(completed_at) FILTER (WHERE status = 'succeeded')::text
+           AS last_succeeded_at
+       FROM public.translation_jobs`,
+      [
+        input.now.toISOString(),
+        staleBefore.toISOString(),
+        recentSince.toISOString(),
+      ]
+    );
+    const row = rows[0];
+    const oldestEligibleAt = row?.oldest_eligible_at ?? null;
+    return {
+      queued: Number(row?.queued ?? 0),
+      eligibleQueued: Number(row?.eligible_queued ?? 0),
+      processing: Number(row?.processing ?? 0),
+      staleProcessing: Number(row?.stale_processing ?? 0),
+      failed: Number(row?.failed ?? 0),
+      cancelled: Number(row?.cancelled ?? 0),
+      recentSucceeded: Number(row?.recent_succeeded ?? 0),
+      oldestEligibleAgeMs: oldestEligibleAt
+        ? Math.max(0, input.now.getTime() - new Date(oldestEligibleAt).getTime())
+        : null,
+      lastSucceededAt: row?.last_succeeded_at ?? null,
+    };
+  }
+
   async function countEligible(now: Date) {
     const rows = await database.unsafe<{ count: number }>(
       `SELECT count(*)::integer AS count
@@ -562,6 +625,7 @@ export function createTranslationWorkerRepository(
   }
 
   return {
+    getOperationalHealth,
     countEligible,
     claimEligible,
     loadClaimedContext,

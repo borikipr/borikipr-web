@@ -2,6 +2,7 @@ import type { TranslationProvider } from "@/lib/i18n/translations/provider";
 import { TranslationProviderError } from "@/lib/i18n/translations/provider";
 import type { GoogleTranslationTransport } from "@/lib/i18n/translations/google-provider";
 import { GoogleCloudTranslationProvider } from "@/lib/i18n/translations/google-provider";
+import { createOfficialGoogleTranslationTransport } from "@/lib/i18n/translations/google-transport";
 
 export type TranslationWorkerConfig = {
   enabled: boolean;
@@ -11,6 +12,9 @@ export type TranslationWorkerConfig = {
   lockTimeoutMs: number;
   requestTimeoutMs: number;
   workerIdPrefix: string;
+  googleProjectId: string | null;
+  googleLocation: string;
+  googleGlossaryId: string | null;
 };
 
 function integerSetting(
@@ -75,6 +79,10 @@ export function readTranslationWorkerConfig(
     ),
     workerIdPrefix:
       env.TRANSLATION_WORKER_ID?.trim().slice(0, 60) || "borikipr",
+    googleProjectId: env.GOOGLE_CLOUD_PROJECT_ID?.trim() || null,
+    googleLocation:
+      env.GOOGLE_CLOUD_TRANSLATION_LOCATION?.trim() || "global",
+    googleGlossaryId: env.GOOGLE_CLOUD_TRANSLATION_GLOSSARY_ID?.trim() || null,
   };
 }
 
@@ -99,7 +107,6 @@ export function resolveTranslationProvider(input: {
       "Translation provider is not configured."
     );
   }
-  const env = input.env ?? process.env;
   if (!input.googleTransport) {
     throw new TranslationProviderError(
       "configuration",
@@ -108,8 +115,72 @@ export function resolveTranslationProvider(input: {
     );
   }
   return new GoogleCloudTranslationProvider({
-    projectId: env.GOOGLE_CLOUD_PROJECT_ID?.trim() || "",
-    location: env.GOOGLE_CLOUD_TRANSLATION_LOCATION?.trim() || "global",
+    projectId: input.config.googleProjectId ?? "",
+    location: input.config.googleLocation,
     transport: input.googleTransport,
+  });
+}
+
+export function resolveConfiguredTranslationProvider(input: {
+  config: TranslationWorkerConfig;
+  injectedProvider?: TranslationProvider;
+  googleTransport?: GoogleTranslationTransport;
+}) {
+  if (!input.config.enabled) {
+    throw new TranslationProviderError(
+      "configuration",
+      "worker_disabled",
+      "Translation worker is disabled."
+    );
+  }
+  if (input.injectedProvider) return input.injectedProvider;
+  if (input.config.providerId !== "google-cloud-translation") {
+    throw new TranslationProviderError(
+      "configuration",
+      "provider_not_configured",
+      "Translation provider is not configured."
+    );
+  }
+  if (!input.config.googleProjectId) {
+    throw new TranslationProviderError(
+      "configuration",
+      "google_project_missing",
+      "Google Cloud project ID is not configured."
+    );
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9:._-]{0,127}$/.test(input.config.googleProjectId)) {
+    throw new TranslationProviderError(
+      "configuration",
+      "google_project_invalid",
+      "Google Cloud project ID is invalid."
+    );
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$/.test(input.config.googleLocation)) {
+    throw new TranslationProviderError(
+      "configuration",
+      "google_location_invalid",
+      "Google Cloud translation location is invalid."
+    );
+  }
+  if (
+    input.config.googleGlossaryId &&
+    !/^[A-Za-z][A-Za-z0-9_-]{0,79}$/.test(input.config.googleGlossaryId)
+  ) {
+    throw new TranslationProviderError(
+      "configuration",
+      "google_glossary_invalid",
+      "Google Cloud Translation glossary ID is invalid."
+    );
+  }
+  const transport =
+    input.googleTransport ??
+    createOfficialGoogleTranslationTransport({
+      requestTimeoutMs: input.config.requestTimeoutMs,
+      glossaryId: input.config.googleGlossaryId,
+    });
+  return new GoogleCloudTranslationProvider({
+    projectId: input.config.googleProjectId,
+    location: input.config.googleLocation,
+    transport,
   });
 }

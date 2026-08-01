@@ -1,14 +1,8 @@
 import "dotenv/config";
 import postgres from "postgres";
 import { createPostgresTranslationDatabase } from "../../lib/i18n/translations/repository";
-import {
-  readTranslationWorkerConfig,
-  resolveTranslationProvider,
-} from "../../lib/i18n/translations/provider-registry";
-import {
-  getTranslationWorkerDryRun,
-  processTranslationJobs,
-} from "../../lib/i18n/translations/worker";
+import { getTranslationWorkerDryRun } from "../../lib/i18n/translations/worker";
+import { runConfiguredTranslationWorker } from "../../lib/i18n/translations/worker-entry";
 
 const databaseUrl = process.env.DATABASE_URL || "";
 if (!databaseUrl) throw new Error("DATABASE_URL is required.");
@@ -42,11 +36,9 @@ try {
       providerCalled: false,
     });
   } else {
-    const config = readTranslationWorkerConfig();
-    const provider = resolveTranslationProvider({ config });
     console.info(
       "TRANSLATION_WORKER_RUN",
-      await processTranslationJobs({ database, provider, config })
+      await runConfiguredTranslationWorker({ database })
     );
   }
 } finally {
