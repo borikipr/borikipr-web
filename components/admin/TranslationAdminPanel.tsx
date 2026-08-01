@@ -9,16 +9,8 @@ import {
   restoreTranslationRevision,
   saveManualTranslation,
 } from "@/app/admin/translations/actions";
+import { getTranslationAdminPresentation } from "@/lib/i18n/translations/admin-presentation";
 import type { TranslationAdminField } from "@/lib/i18n/translations/admin-service";
-
-const statusLabels = {
-  missing: "Pendiente",
-  pending: "Pendiente",
-  processing: "Procesando",
-  ready: "Lista",
-  stale: "Desactualizada",
-  failed: "Falló",
-} as const;
 
 const eventLabels: Record<string, string> = {
   created: "Registro creado",
@@ -66,8 +58,8 @@ function TranslationFieldPanel({ field }: { field: TranslationAdminField }) {
   const [regenState, regenAction, regenPending] = useActionState(authorizeTranslationRegeneration, initialTranslationAdminActionState);
   const [restoreState, restoreAction, restorePending] = useActionState(restoreTranslationRevision, initialTranslationAdminActionState);
   const label = field.fieldKey === "title" ? "Título" : field.fieldKey === "description" ? "Descripción" : "Testimonio";
-  const disabled = !field.translationId;
-  const activeJob = field.activeJobStatus === "queued" ? "En espera" : field.activeJobStatus === "processing" ? "Procesando" : null;
+  const presentation = getTranslationAdminPresentation(field);
+  const disabled = presentation.isMissing;
 
   return (
     <section className="min-w-0 rounded-2xl border border-black/10 bg-white p-4 sm:p-6" aria-labelledby={`translation-${field.fieldKey}`}>
@@ -77,7 +69,7 @@ function TranslationFieldPanel({ field }: { field: TranslationAdminField }) {
           <p className="mt-1 text-sm text-black/65">Español es la fuente principal. Inglés es contenido derivado.</p>
         </div>
         <span className="rounded-full border border-black/15 px-3 py-1 text-xs font-bold text-black">
-          Estado: {statusLabels[field.status]}
+          Estado: {presentation.status}
         </span>
       </div>
 
@@ -113,15 +105,15 @@ function TranslationFieldPanel({ field }: { field: TranslationAdminField }) {
       ) : null}
 
       <dl className="mt-5 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
-        <div><dt className="font-semibold">Origen</dt><dd>{field.origin === "manual" ? "Editada manualmente" : "Generada automáticamente"}</dd></div>
-        <div><dt className="font-semibold">Revisión</dt><dd>{field.reviewStatus === "reviewed" ? "Revisada" : "No revisada"}</dd></div>
-        <div><dt className="font-semibold">Protección</dt><dd>{field.protectedFromAutomation ? "Protegida" : "No protegida"}</dd></div>
-        <div><dt className="font-semibold">Vigencia</dt><dd>{field.isFresh ? "Al día" : "Desactualizada porque cambió el español"}</dd></div>
-        <div><dt className="font-semibold">Última generación</dt><dd>{dateLabel(field.generatedAt)}</dd></div>
-        <div><dt className="font-semibold">Última edición manual</dt><dd>{dateLabel(field.manuallyEditedAt)}</dd></div>
-        <div><dt className="font-semibold">Revisión</dt><dd>{field.reviewerName ? `${field.reviewerName} · ${dateLabel(field.reviewedAt)}` : dateLabel(field.reviewedAt)}</dd></div>
-        <div><dt className="font-semibold">Trabajo</dt><dd>{activeJob ?? (field.lastJobStatus === "failed" ? "Falló" : field.lastJobStatus === "cancelled" ? "Cancelado" : field.lastJobStatus === "succeeded" ? "Completado" : "Sin trabajo activo")}</dd></div>
-        <div><dt className="font-semibold">Automatización</dt><dd>{field.regenerationAuthorizedAt ? "Regeneración automática autorizada" : "No autorizada"}</dd></div>
+        <div><dt className="font-semibold">Origen</dt><dd>{presentation.origin}</dd></div>
+        <div><dt className="font-semibold">Revisión</dt><dd>{presentation.review}</dd></div>
+        <div><dt className="font-semibold">Protección</dt><dd>{presentation.protection}</dd></div>
+        <div><dt className="font-semibold">Vigencia</dt><dd>{presentation.freshness}</dd></div>
+        <div><dt className="font-semibold">Última generación</dt><dd>{presentation.isMissing ? "No aplica" : dateLabel(field.generatedAt)}</dd></div>
+        <div><dt className="font-semibold">Última edición manual</dt><dd>{presentation.isMissing ? "No aplica" : dateLabel(field.manuallyEditedAt)}</dd></div>
+        <div><dt className="font-semibold">Revisión</dt><dd>{presentation.isMissing ? "No aplica" : field.reviewerName ? `${field.reviewerName} · ${dateLabel(field.reviewedAt)}` : dateLabel(field.reviewedAt)}</dd></div>
+        <div><dt className="font-semibold">{presentation.activeJobTerm}</dt><dd>{presentation.job}</dd></div>
+        <div><dt className="font-semibold">Automatización</dt><dd>{presentation.automation}</dd></div>
       </dl>
 
       {field.status === "stale" ? (

@@ -9,6 +9,7 @@ import {
   TranslationAdminConflictError,
   TranslationAdminValidationError,
 } from "../lib/i18n/translations/admin-service.ts";
+import { getTranslationAdminPresentation } from "../lib/i18n/translations/admin-presentation.ts";
 import { syncPropertyTranslationIntents } from "../lib/i18n/translations/source-intents.ts";
 import { createTranslationWorkerRepository } from "../lib/i18n/translations/worker-repository.ts";
 import { processTranslationJobs } from "../lib/i18n/translations/worker.ts";
@@ -107,6 +108,94 @@ test("read model batches property fields and represents missing and safe job sta
     );
   }
   assert.equal(fields[0].events.some((event) => "lastErrorMessage" in event), false);
+});
+
+test("missing property and testimonial translations remain distinct from persisted lifecycle states", async () => {
+  await db.exec(`
+    DELETE FROM translation_revision_events;
+    DELETE FROM translation_jobs;
+    DELETE FROM content_translations;
+  `);
+  const testimonialId = (await db.query(
+    `INSERT INTO testimonios (texto) VALUES ('Servicio excelente') RETURNING id::text`
+  )).rows[0].id;
+  const before = (await db.query(`
+    SELECT
+      (SELECT count(*)::int FROM content_translations) AS translations,
+      (SELECT count(*)::int FROM translation_jobs) AS jobs,
+      (SELECT count(*)::int FROM translation_revision_events) AS events
+  `)).rows[0];
+
+  const propertyFields = await service.getEntityTranslations({ entityType: "property", ownerId: propertyId });
+  const testimonialFields = await service.getEntityTranslations({ entityType: "testimonial", ownerId: testimonialId });
+  const after = (await db.query(`
+    SELECT
+      (SELECT count(*)::int FROM content_translations) AS translations,
+      (SELECT count(*)::int FROM translation_jobs) AS jobs,
+      (SELECT count(*)::int FROM translation_revision_events) AS events
+  `)).rows[0];
+
+  assert.deepEqual(propertyFields.map((field) => field.fieldKey), ["title", "description"]);
+  assert.deepEqual(testimonialFields.map((field) => field.fieldKey), ["body"]);
+  for (const field of [...propertyFields, ...testimonialFields]) {
+    assert.equal(field.translationId, null);
+    assert.equal(field.status, "missing");
+    assert.equal(field.origin, null);
+    assert.equal(field.activeJobStatus, null);
+    assert.deepEqual(getTranslationAdminPresentation(field), {
+      isMissing: true,
+      status: "Sin traducción",
+      origin: "No aplica",
+      review: "No revisada",
+      protection: "No protegida",
+      freshness: "No aplica",
+      activeJobTerm: "Trabajo activo",
+      job: "Ninguno",
+      automation: "No autorizada",
+    });
+  }
+  assert.deepEqual(after, before);
+});
+
+test("existing translation presentation preserves pending, stale, ready, and protected states", () => {
+  const pending = getTranslationAdminPresentation(title);
+  assert.equal(pending.status, "Pendiente");
+  assert.equal(pending.origin, "Generada automáticamente");
+
+  const stale = getTranslationAdminPresentation({
+    ...title,
+    status: "stale",
+    translatedValue: "Older English",
+    isFresh: false,
+  });
+  assert.equal(stale.status, "Desactualizada");
+  assert.equal(stale.freshness, "Desactualizada porque cambió el español");
+
+  const ready = getTranslationAdminPresentation({
+    ...title,
+    status: "ready",
+    translatedValue: "Current English",
+    isFresh: true,
+    activeJobStatus: null,
+    lastJobStatus: "succeeded",
+  });
+  assert.equal(ready.status, "Lista");
+  assert.equal(ready.origin, "Generada automáticamente");
+  assert.equal(ready.freshness, "Al día");
+  assert.equal(ready.job, "Completado");
+
+  const manualReviewed = getTranslationAdminPresentation({
+    ...title,
+    status: "ready",
+    translatedValue: "Reviewed English",
+    origin: "manual",
+    reviewStatus: "reviewed",
+    protectedFromAutomation: true,
+    isFresh: true,
+  });
+  assert.equal(manualReviewed.origin, "Editada manualmente");
+  assert.equal(manualReviewed.review, "Revisada");
+  assert.equal(manualReviewed.protection, "Protegida");
 });
 
 test("manual edit is protected, audited, cancels active jobs, and rejects stale forms", async () => {
@@ -283,14 +372,17 @@ test("restore uses immutable history, protects the value, and clears authorizati
 test("Admin action boundary derives actor from the authenticated session and UI contains safe controls", async () => {
   const actions = await readFile(fileURLToPath(new URL("../app/admin/translations/actions.ts", import.meta.url)), "utf8");
   const panel = await readFile(fileURLToPath(new URL("../components/admin/TranslationAdminPanel.tsx", import.meta.url)), "utf8");
+  const presentation = await readFile(fileURLToPath(new URL("../lib/i18n/translations/admin-presentation.ts", import.meta.url)), "utf8");
   assert.match(actions, /getAdminSession\(\)/);
   assert.match(actions, /actorAdminId: session\.id/);
   assert.doesNotMatch(actions, /formData,\s*"actorAdminId"/);
-  assert.match(panel, /Regeneración automática autorizada/);
+  assert.match(presentation, /Regeneración automática autorizada/);
   assert.match(panel, /Confirmar que todavía aplica/);
   assert.match(panel, /Restaurar versión/);
   assert.match(panel, /break-words/);
   assert.match(panel, /type="hidden" name="expectedSourceHash" value=\{field\.sourceHash\}/);
+  assert.match(panel, /disabled=\{disabled \|\| editPending\}/);
+  assert.match(panel, /const disabled = presentation\.isMissing/);
   assert.doesNotMatch(panel, />\s*\{field\.sourceHash\}\s*</);
   assert.doesNotMatch(panel, /console\.(?:log|info|debug)\([^\n]*sourceHash/);
   assert.doesNotMatch(panel, /(?:analytics|track)\([^\n]*sourceHash/i);
