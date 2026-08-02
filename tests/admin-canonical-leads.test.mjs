@@ -57,6 +57,7 @@ async function runList(overrides = {}, pageSize = 25) {
 
 before(async () => {
   db = new PGlite();
+  await db.exec("SET TIME ZONE 'UTC'");
   await db.exec(leadsSql);
   await db.exec(`
     CREATE TABLE public.propiedades (
@@ -114,7 +115,7 @@ before(async () => {
       name, email_original, email_normalized, phone_original, phone_normalized,
       created_at, last_activity_at
     ) VALUES
-      ('Ana Alpha', 'Ana@Example.invalid', 'ana@example.invalid', '(787) 555-0101', '+17875550101', now() - interval '1 hour', now() - interval '5 minutes'),
+      ('Ana Alpha', 'Ana@Example.invalid', 'ana@example.invalid', '(787) 555-0101', '+17875550101', date_trunc('day', now()) + interval '12 hours', now() - interval '5 minutes'),
       ('Bruno Seller', 'bruno@example.invalid', 'bruno@example.invalid', '787-555-0102', '+17875550102', now() - interval '10 days', now() - interval '10 days'),
       ('Carla Buyer', 'carla@example.invalid', 'carla@example.invalid', '787-555-0103', '+17875550103', now() - interval '2 days', now() - interval '2 days'),
       ('Diego Open', NULL, NULL, '787-555-0104', '+17875550104', now() - interval '40 days', now() - interval '40 days')
@@ -218,6 +219,20 @@ test("source filter returns canonical identities for that source", async () => {
 test("date-range filter applies to canonical lead creation date", async () => {
   const today = await runList({ range: "today" });
   const sevenDays = await runList({ range: "7d" });
+  const boundaries = await db.query(`
+    SELECT id::text,
+           created_at >= date_trunc('day', now())
+             AND created_at < date_trunc('day', now()) + interval '1 day'
+             AS inside_current_utc_day
+      FROM public.leads
+     WHERE id = ANY($1::uuid[])
+     ORDER BY id
+  `, [[leadAna, leadBuyer]]);
+  const byId = new Map(
+    boundaries.rows.map((row) => [row.id, row.inside_current_utc_day])
+  );
+  assert.equal(byId.get(leadAna), true);
+  assert.equal(byId.get(leadBuyer), false);
   assert.deepEqual(today.map((row) => row.id), [leadAna]);
   assert.deepEqual(new Set(sevenDays.map((row) => row.id)), new Set([leadAna, leadBuyer]));
 });
