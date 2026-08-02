@@ -61,12 +61,34 @@ rewrite provider output.
 - `npm run translations:backfill:dry-run -- --allow-production-read-only-dry-run`
   permits the equivalent aggregate-only coverage inspection. It creates no
   translation, job, or event.
+- `npm run translations:testimonial-intent -- --testimonial-id <uuid>` performs
+  an isolated/local aggregate-only dry-run for exactly one testimonial body.
+- `npm run translations:testimonial-intent -- --testimonial-id <uuid> --allow-production-read-only-dry-run`
+  performs the same production inspection after `SET TRANSACTION READ ONLY`.
+- A separately authorized production canary apply additionally requires
+  `--apply --allow-production-single-testimonial-intent --confirm-exactly-one-testimonial-body`.
+  `TRANSLATION_WORKER_ENABLED` and `MULTILINGUAL_ENABLED` must both be set
+  explicitly to `false`. The command
+  can create at most one translation row, one queued job, and the existing
+  `created` and `job_queued` revision events; it never invokes the worker,
+  resolves a provider, retrieves OIDC credentials, or sends text to Google.
 
 Production `--run` and `--apply` remain categorically prohibited, even when the
 read-only confirmation flag is present. The flag is command-line only and is
 not accepted from an environment variable. Dry-run queries use a SELECT-only
 repository after `SET TRANSACTION READ ONLY`. Commands are bounded single runs;
 neither starts an infinite loop.
+
+The full backfill currently covers all three approved fields (property title,
+property description, and testimonial body), so it is not used for the first
+canary. Intent creation and processing are separate operator actions. Before
+and after a production canary, record aggregate translation/job/event counts,
+keep the worker disabled while creating the intent, and verify the one-field
+cardinality before any bounded provider invocation. After processing, disable
+the worker immediately, review the English result in Admin, correct it manually
+if necessary, then mark it reviewed and protected. On failure, keep English and
+the worker disabled, leave the auditable rows intact, and do not retry or delete
+records without a separate review.
 
 The protected, unscheduled `/api/cron/process-translation-jobs` route uses the
 same service and the existing `Authorization: Bearer <CRON_SECRET>` convention.
