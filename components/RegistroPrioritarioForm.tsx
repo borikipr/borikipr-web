@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { trackAnalyticsEvent } from "@/lib/analytics";
+import { usePublicFormError, usePublicFormText } from "@/components/usePublicFormText";
 
 type RegistroPrioritarioFormProps = {
   propertyId: string;
@@ -25,6 +26,8 @@ export default function RegistroPrioritarioForm({
   propertySlug,
   propertyTitle,
 }: RegistroPrioritarioFormProps) {
+  const t = usePublicFormText();
+  const formError = usePublicFormError();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<{
     title: string;
@@ -58,7 +61,7 @@ export default function RegistroPrioritarioForm({
     const email = String(formData.get("email") || "").trim();
 
     if (!EMAIL_PATTERN.test(email)) {
-      setError("Ingresa un email válido.");
+      setError(t("Ingresa un email válido."));
       setLoading(false);
       return;
     }
@@ -90,7 +93,7 @@ export default function RegistroPrioritarioForm({
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "No se pudo enviar el registro.");
+        throw new Error(formError(result.error, "No se pudo enviar el registro."));
       }
 
       if (result.duplicate) {
@@ -98,9 +101,8 @@ export default function RegistroPrioritarioForm({
           property_slug: propertySlug,
         });
         setSuccess({
-          title: "Ya tenemos tu registro",
-          message:
-            "Este Email ya está registrado para esta propiedad. Te contactaremos tan pronto tengamos los detalles disponibles.",
+          title: t("Ya tenemos tu registro"),
+          message: t("Este Email ya está registrado para esta propiedad. Te contactaremos tan pronto tengamos los detalles disponibles."),
         });
       } else {
         trackAnalyticsEvent("priority_registration_submit_success", {
@@ -110,9 +112,8 @@ export default function RegistroPrioritarioForm({
           wants_visit: payload.wantsVisit,
         });
         setSuccess({
-          title: "¡Gracias por tu registro!",
-          message:
-            "Te contactaré tan pronto tenga todos los detalles de esta propiedad disponibles.",
+          title: t("¡Gracias por tu registro!"),
+          message: t("Te contactaré tan pronto tenga todos los detalles de esta propiedad disponibles."),
         });
         setPurchaseType("");
         setPurchaseOther("");
@@ -124,7 +125,7 @@ export default function RegistroPrioritarioForm({
         property_slug: propertySlug,
         error_type: "submit_error",
       });
-      setError(err instanceof Error ? err.message : "Error desconocido.");
+      setError(err instanceof Error ? err.message : t("Error desconocido."));
     } finally {
       setLoading(false);
     }
@@ -137,11 +138,11 @@ export default function RegistroPrioritarioForm({
       data-clarity-mask="true"
     >
       <div className="grid gap-5 md:grid-cols-2">
-        <Field label="Nombre completo" htmlFor="name" required>
+        <Field label={t("Nombre completo")} htmlFor="name" required>
           <input id="name" name="name" type="text" required className="input-premium" />
         </Field>
 
-        <Field label="Teléfono" htmlFor="phone" required>
+        <Field label={t("Teléfono")} htmlFor="phone" required>
           <input id="phone" name="phone" type="tel" required className="input-premium" />
         </Field>
 
@@ -152,9 +153,9 @@ export default function RegistroPrioritarioForm({
       </div>
 
       <ChoiceGroup
-        legend="¿Cómo planeas realizar la compra?"
+        legend={t("¿Cómo planeas realizar la compra?")}
         name="purchaseType"
-        options={purchaseTypes}
+        options={purchaseTypes.map((value) => ({ value, label: t(value) }))}
         value={purchaseType}
         onChange={handlePurchaseTypeChange}
         required
@@ -169,7 +170,7 @@ export default function RegistroPrioritarioForm({
         }`}
         aria-hidden={!showPurchaseOtherQuestion}
       >
-        <Field label="Especifique" htmlFor="purchaseOther" required={showPurchaseOtherQuestion}>
+        <Field label={t("Especifique")} htmlFor="purchaseOther" required={showPurchaseOtherQuestion}>
           <input
             id="purchaseOther"
             name="purchaseOther"
@@ -179,7 +180,7 @@ export default function RegistroPrioritarioForm({
             value={purchaseOther}
             onChange={(event) => setPurchaseOther(event.target.value)}
             className="input-premium"
-            placeholder="Escriba cómo planea realizar la compra."
+            placeholder={t("Escriba cómo planea realizar la compra.")}
           />
         </Field>
       </div>
@@ -193,9 +194,9 @@ export default function RegistroPrioritarioForm({
         aria-hidden={!showPrequalifiedQuestion}
       >
         <ChoiceGroup
-          legend="¿Te encuentras precalificado(a)?"
+          legend={t("¿Te encuentras precalificado(a)?")}
           name="prequalifiedStatus"
-          options={prequalifiedStatuses}
+          options={prequalifiedStatuses.map((value) => ({ value, label: t(value) }))}
           value={prequalifiedStatus}
           onChange={setPrequalifiedStatus}
           required={showPrequalifiedQuestion}
@@ -205,34 +206,34 @@ export default function RegistroPrioritarioForm({
       </div>
 
       <ChoiceGroup
-        legend="¿Qué tamaño de propiedad estás buscando?"
+        legend={t("¿Qué tamaño de propiedad estás buscando?")}
         name="propertySize"
-        options={propertySizeOptions}
+        options={propertySizeOptions.map((value) => ({ value, label: t(value) }))}
         required
         columns="sm:grid-cols-2"
       />
 
-      <Field label="¿En qué rango de precio estás buscando?" htmlFor="searchRange" required>
+      <Field label={t("¿En qué rango de precio estás buscando?")} htmlFor="searchRange" required>
         <input
           id="searchRange"
           name="searchRange"
           type="text"
           required
           className="input-premium"
-          placeholder="Ejemplo: $250,000 - $350,000"
+          placeholder={t("Ejemplo: $250,000 - $350,000")}
         />
       </Field>
 
       <ChoiceGroup
-        legend="¿Te interesa coordinar una visita tan pronto esté disponible?"
+        legend={t("¿Te interesa coordinar una visita tan pronto esté disponible?")}
         name="wantsVisit"
-        options={yesNoOptions}
+        options={yesNoOptions.map((value) => ({ value, label: t(value) }))}
         required
         columns="sm:grid-cols-2"
       />
 
       <Field
-        label="¿Alguna información adicional que quieras compartir?"
+        label={t("¿Alguna información adicional que quieras compartir?")}
         htmlFor="additionalInfo"
       >
         <textarea
@@ -240,7 +241,7 @@ export default function RegistroPrioritarioForm({
           name="additionalInfo"
           rows={4}
           className="input-premium"
-          placeholder="Tu respuesta"
+          placeholder={t("Tu respuesta")}
         />
       </Field>
 
@@ -262,7 +263,7 @@ export default function RegistroPrioritarioForm({
         disabled={loading}
         className="btn-primary w-full justify-center py-3.5 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {loading ? "Enviando..." : "Enviar registro prioritario"}
+        {loading ? t("Enviando...") : t("Enviar registro prioritario")}
       </button>
     </form>
   );
@@ -301,7 +302,7 @@ function ChoiceGroup({
 }: {
   legend: string;
   name: string;
-  options: string[];
+  options: Array<string | { label: string; value: string }>;
   required?: boolean;
   disabled?: boolean;
   columns?: string;
@@ -314,24 +315,27 @@ function ChoiceGroup({
         {legend} {required && <span className="text-red-500">*</span>}
       </legend>
       <div className={`grid gap-3 ${columns}`}>
-        {options.map((option) => (
+        {options.map((option) => {
+          const item = typeof option === "string" ? { label: option, value: option } : option;
+          return (
           <label
-            key={option}
+            key={item.value}
             className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[#e8e8e8] bg-white px-4 py-3 text-sm font-semibold text-[#111111] transition hover:border-[#d4af37]"
           >
             <input
               type="radio"
               name={name}
-              value={option}
+              value={item.value}
               required={required}
               disabled={disabled}
-              checked={value !== undefined ? value === option : undefined}
-              onChange={() => onChange?.(option)}
+              checked={value !== undefined ? value === item.value : undefined}
+              onChange={() => onChange?.(item.value)}
               className="h-4 w-4 accent-[#11518b]"
             />
-            <span>{option}</span>
+            <span>{item.label}</span>
           </label>
-        ))}
+          );
+        })}
       </div>
     </fieldset>
   );

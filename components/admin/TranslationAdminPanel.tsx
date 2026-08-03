@@ -4,11 +4,11 @@ import { useActionState } from "react";
 import {
   authorizeTranslationRegeneration,
   confirmTranslationStillApplies,
-  initialTranslationAdminActionState,
   markTranslationReviewed,
   restoreTranslationRevision,
   saveManualTranslation,
 } from "@/app/admin/translations/actions";
+import type { TranslationAdminActionState } from "@/app/admin/translations/actions";
 import { getTranslationAdminPresentation } from "@/lib/i18n/translations/admin-presentation";
 import type { TranslationAdminField } from "@/lib/i18n/translations/admin-service";
 
@@ -22,6 +22,11 @@ const eventLabels: Record<string, string> = {
   reviewed: "Marcada como revisada",
   automation_unprotected: "Protección removida",
   regeneration_authorized: "Regeneración autorizada",
+};
+
+const initialTranslationAdminActionState: TranslationAdminActionState = {
+  ok: false,
+  message: "",
 };
 
 function dateLabel(value: string | null) {

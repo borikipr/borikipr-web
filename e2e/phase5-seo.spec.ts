@@ -334,7 +334,7 @@ test("mobile dynamic property locale switching preserves the slug", async ({ pag
 
   await page.getByRole("button", { name: /men\u00fa|menu/i }).click();
   const englishLink = page.locator('[data-language-selector]').getByRole("link", {
-    name: /English \(EN\)/,
+    name: /English/,
   });
   await englishLink.scrollIntoViewIfNeeded();
   await englishLink.click();

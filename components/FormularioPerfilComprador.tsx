@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { trackAnalyticsEvent } from "@/lib/analytics";
+import { usePublicFormError, usePublicFormText } from "@/components/usePublicFormText";
 import {
   BUYER_PROFILE_FILE_TOO_LARGE_MESSAGE,
   BUYER_PROFILE_UPLOAD_HELPER,
@@ -47,6 +48,8 @@ export default function FormularioPerfilComprador({
   sectorComunidad,
   requiresSolarContractAcceptance,
 }: FormularioPerfilCompradorProps) {
+  const t = usePublicFormText();
+  const formError = usePublicFormError();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -74,8 +77,8 @@ export default function FormularioPerfilComprador({
     ) {
       setError(
         metodoCompra === "Financiamiento"
-          ? "Adjunta la carta de precalificación requerida."
-          : "Adjunta la evidencia de fondos requerida."
+          ? t("Adjunta la carta de precalificación requerida.")
+          : t("Adjunta la evidencia de fondos requerida.")
       );
       setLoading(false);
       return;
@@ -85,7 +88,7 @@ export default function FormularioPerfilComprador({
       cartaFile.size > 0 &&
       !allowedDocumentTypes.has(cartaFile.type)
     ) {
-      setError("Solo se aceptan PDF e imágenes JPG, PNG o WebP.");
+      setError(t("Solo se aceptan PDF e imágenes JPG, PNG o WebP."));
       setLoading(false);
       return;
     }
@@ -94,7 +97,7 @@ export default function FormularioPerfilComprador({
       cartaFile instanceof File &&
       cartaFile.size > MAX_BUYER_PROFILE_DOCUMENT_BYTES
     ) {
-      setError(BUYER_PROFILE_FILE_TOO_LARGE_MESSAGE);
+      setError(t(BUYER_PROFILE_FILE_TOO_LARGE_MESSAGE));
       setLoading(false);
       return;
     }
@@ -107,7 +110,7 @@ export default function FormularioPerfilComprador({
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Error al enviar el formulario");
+        throw new Error(formError(result.error, "Error al enviar el formulario"));
       }
 
       trackAnalyticsEvent("buyer_profile_form_submit_success", {
@@ -126,7 +129,7 @@ export default function FormularioPerfilComprador({
       idempotencyKeyRef.current = crypto.randomUUID();
       setTimeout(() => setSuccess(false), 6000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(err instanceof Error ? err.message : t("Error desconocido"));
     } finally {
       setLoading(false);
     }
@@ -140,15 +143,15 @@ export default function FormularioPerfilComprador({
       data-clarity-mask="true"
     >
       <SectionHeader
-        title="Información de contacto"
-        description="Comparte cómo podemos comunicarnos contigo para dar seguimiento a tu proceso de compra."
+        title={t("Información de contacto")}
+        description={t("Comparte cómo podemos comunicarnos contigo para dar seguimiento a tu proceso de compra.")}
       />
 
       <div className="grid gap-5 md:grid-cols-2">
-        <Field label="Nombre completo" htmlFor="nombre" required>
+        <Field label={t("Nombre completo")} htmlFor="nombre" required>
           <input id="nombre" name="nombre" type="text" required className="input-premium" />
         </Field>
-        <Field label="Teléfono" htmlFor="telefono" required>
+        <Field label={t("Teléfono")} htmlFor="telefono" required>
           <input id="telefono" name="telefono" type="tel" required className="input-premium" />
         </Field>
         <Field label="Email" htmlFor="email">
@@ -156,12 +159,12 @@ export default function FormularioPerfilComprador({
         </Field>
       </div>
 
-      <SectionHeader title="Método de compra" />
+      <SectionHeader title={t("Método de compra")} />
 
       <ChoiceGroup
-        legend="Método de compra"
+        legend={t("Método de compra")}
         name="metodoCompra"
-        options={metodosCompra}
+        options={metodosCompra.map((option) => ({ ...option, label: t(option.label) }))}
         value={metodoCompra}
         onChange={setMetodoCompra}
         required
@@ -170,13 +173,13 @@ export default function FormularioPerfilComprador({
 
       {metodoCompra === "Financiamiento" && (
         <div className="space-y-6 rounded-2xl border border-[#e8e8e8] bg-[#f8f8f8] p-5">
-          <Field label="Institución financiera (opcional)" htmlFor="institucionFinanciera">
+          <Field label={t("Institución financiera (opcional)")} htmlFor="institucionFinanciera">
             <input id="institucionFinanciera" name="institucionFinanciera" type="text" className="input-premium" />
           </Field>
           <UploadField
             key="financing-document"
-            label="Carta de precalificación"
-            helper={BUYER_PROFILE_UPLOAD_HELPER}
+            label={t("Carta de precalificación")}
+            helper={t(BUYER_PROFILE_UPLOAD_HELPER)}
             name="cartaPreaprobacion"
             required
           />
@@ -186,14 +189,14 @@ export default function FormularioPerfilComprador({
       {metodoCompra === "Otro" && (
         <div className="rounded-2xl border border-[#e8e8e8] bg-[#f8f8f8] p-5">
           <Field
-            label="Especifique el método de compra o ayuda que piensa utilizar"
+            label={t("Especifique el método de compra o ayuda que piensa utilizar")}
             htmlFor="metodoCompraOtro"
           >
             <input
               id="metodoCompraOtro"
               name="metodoCompraOtro"
               type="text"
-              placeholder="Ejemplo: R3, CDBG-DR, fondos de asistencia, otro programa o ayuda"
+              placeholder={t("Ejemplo: R3, CDBG-DR, fondos de asistencia, otro programa o ayuda")}
               className="input-premium"
             />
           </Field>
@@ -204,8 +207,8 @@ export default function FormularioPerfilComprador({
         <div className="rounded-2xl border border-[#e8e8e8] bg-[#f8f8f8] p-5">
           <UploadField
             key="cash-document"
-            label="Evidencia de fondos"
-            helper={BUYER_PROFILE_UPLOAD_HELPER}
+            label={t("Evidencia de fondos")}
+            helper={t(BUYER_PROFILE_UPLOAD_HELPER)}
             name="cartaPreaprobacion"
             required
           />
@@ -215,7 +218,7 @@ export default function FormularioPerfilComprador({
       {requiresSolarContractAcceptance && (
         <fieldset className="space-y-3">
           <legend className="text-sm font-semibold text-[#000000]">
-            Esta propiedad cuenta con un sistema de placas solares por lease que le añade valor y ahorro energético al hogar. ¿Estarías dispuesto(a) a asumir ese lease como parte de la compra? <span className="text-red-500">*</span>
+            {t("Esta propiedad cuenta con un sistema de placas solares por lease que le añade valor y ahorro energético al hogar. ¿Estarías dispuesto(a) a asumir ese lease como parte de la compra?")} <span className="text-red-500">*</span>
           </legend>
           <div className="grid gap-2 sm:grid-cols-3">
             {solarContractOptions.map((option) => (
@@ -230,35 +233,35 @@ export default function FormularioPerfilComprador({
                   required
                   className="h-4 w-4 border-[#d9d9d9] accent-[#11518b]"
                 />
-                <span>{option.label}</span>
+                <span>{t(option.label)}</span>
               </label>
             ))}
           </div>
         </fieldset>
       )}
 
-      <SectionHeader title="Preparación financiera" />
+      <SectionHeader title={t("Preparación financiera")} />
       <ChoiceGroup
-        legend="¿Cuenta con fondos para el pronto (down payment) y gastos de cierre?"
+        legend={t("¿Cuenta con fondos para el pronto (down payment) y gastos de cierre?")}
         name="fondosCierre"
-        options={fondosCierre}
+        options={fondosCierre.map((value) => ({ value, label: t(value) }))}
         columns="sm:grid-cols-3"
       />
 
-      <SectionHeader title="Información adicional" />
-      <Field label="Comentarios adicionales" htmlFor="comentarios">
+      <SectionHeader title={t("Información adicional")} />
+      <Field label={t("Comentarios adicionales")} htmlFor="comentarios">
         <textarea
           id="comentarios"
           name="comentarios"
           rows={5}
           className="input-premium resize-none"
-          placeholder="Comparte cualquier detalle que Ivonne deba conocer antes de la próxima conversación."
+          placeholder={t("Comparte cualquier detalle que Ivonne deba conocer antes de la próxima conversación.")}
         />
       </Field>
 
       {success && (
         <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800">
-          Gracias. Tu perfil del cliente comprador fue enviado correctamente.
+          {t("Gracias. Tu perfil del cliente comprador fue enviado correctamente.")}
         </div>
       )}
 
@@ -273,7 +276,7 @@ export default function FormularioPerfilComprador({
         disabled={loading}
         className="btn-primary w-full justify-center py-3.5 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {loading ? "Enviando..." : "Enviar perfil del cliente comprador"}
+        {loading ? t("Enviando...") : t("Enviar perfil del cliente comprador")}
       </button>
     </form>
   );

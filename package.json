@@ -24,6 +24,7 @@
     "r2:reconcile": "tsx scripts/r2/reconcile.ts",
     "translations:backfill:dry-run": "tsx scripts/i18n/backfill-translation-intents.ts",
     "translations:testimonial-intent": "tsx scripts/i18n/create-testimonial-translation-intent.ts",
+    "translations:property-intent": "tsx scripts/i18n/create-property-translation-intents.ts",
     "translations:testimonial-retry": "tsx scripts/i18n/retry-testimonial-translation-job.ts",
     "translations:worker:dry-run": "tsx scripts/i18n/process-translation-jobs.ts",
     "translations:worker:run": "tsx scripts/i18n/process-translation-jobs.ts --run"

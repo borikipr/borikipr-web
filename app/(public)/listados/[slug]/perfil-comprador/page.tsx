@@ -5,12 +5,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPropiedadBySlug } from "@/lib/queries/propiedades";
 import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
+import { DEFAULT_LOCALE, ENGLISH_LOCALE, type AppLocale } from "@/lib/i18n/locales";
+import { getEquivalentRoute } from "@/lib/i18n/routing";
+import { getPublicFormText } from "@/lib/i18n/public-form-copy";
+import { overlayPropertyTranslations } from "@/lib/i18n/translations/public-overlay";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateLocalizedBuyerProfileMetadata(params: PageProps["params"], locale: AppLocale): Promise<Metadata> {
   const { slug } = await params;
 
   return {
@@ -23,12 +27,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       },
     },
     alternates: {
-      canonical: `/listados/${slug}`,
+      canonical: getEquivalentRoute(`/listados/${slug}`, locale) ?? `/listados/${slug}`,
     },
   };
 }
 
-function formatoPrecio(precio: string | number, tipoNegocio: "venta" | "renta") {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  return generateLocalizedBuyerProfileMetadata(params, DEFAULT_LOCALE);
+}
+
+function formatoPrecio(precio: string | number, tipoNegocio: "venta" | "renta", locale: AppLocale) {
   const numericPrice = Number(precio);
 
   if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
@@ -36,19 +44,23 @@ function formatoPrecio(precio: string | number, tipoNegocio: "venta" | "renta") 
   }
 
   const formatted = `$${numericPrice.toLocaleString("en-US")}`;
-  return tipoNegocio === "renta" ? `${formatted}/mes` : formatted;
+  return tipoNegocio === "renta" ? `${formatted}/${locale === ENGLISH_LOCALE ? "month" : "mes"}` : formatted;
 }
 
-export default async function PerfilCompradorPropiedadPage({ params }: PageProps) {
+export async function renderPerfilCompradorPropiedadPage({ params, locale }: PageProps & { locale: AppLocale }) {
   const { slug } = await params;
-  const propiedad = await getPropiedadBySlug(slug);
+  const source = await getPropiedadBySlug(slug);
 
-  if (!propiedad) {
+  if (!source) {
     notFound();
   }
+  const propiedad = locale === ENGLISH_LOCALE
+    ? (await overlayPropertyTranslations({ properties: [source], locale }))[0]
+    : source;
+  const t = (value: string) => getPublicFormText(locale, value);
 
   const disponible = propiedad.estado === "disponible";
-  const precio = formatoPrecio(propiedad.precio, propiedad.tipo_negocio);
+  const precio = formatoPrecio(propiedad.precio, propiedad.tipo_negocio, locale);
   const ubicacion = formatPropertyLocation(
     propiedad.municipio,
     propiedad.sector_comunidad
@@ -60,15 +72,15 @@ export default async function PerfilCompradorPropiedadPage({ params }: PageProps
       <main className="bg-white pt-[96px] lg:pt-[128px]">
         <section className="section-shell py-12">
           <Link
-            href={`/listados/${propiedad.slug}`}
+            href={getEquivalentRoute(`/listados/${propiedad.slug}`, locale) ?? `/listados/${propiedad.slug}`}
             className="inline-flex text-sm font-semibold text-[#11518b] transition hover:text-[#0d406d]"
           >
-            Volver a la propiedad
+            {t("Volver a la propiedad")}
           </Link>
 
           <div className="mt-8 max-w-3xl space-y-8">
             <article className="surface-card p-6 md:p-8">
-              <p className="eyebrow">Perfil del cliente comprador</p>
+              <p className="eyebrow">{t("Perfil del cliente comprador")}</p>
               <h1 className="mt-3 text-3xl font-bold leading-tight text-[#11518B]">
                 {propiedad.titulo}
               </h1>
@@ -83,10 +95,10 @@ export default async function PerfilCompradorPropiedadPage({ params }: PageProps
                 <>
                   <div className="mb-8">
                     <h2 className="text-3xl font-bold text-[#000000]">
-                      Completa tu perfil para continuar el proceso de compra
+                      {t("Completa tu perfil para continuar el proceso de compra")}
                     </h2>
                     <p className="mt-4 text-[#4d4d4d]">
-                      Para poder brindarte más detalles y coordinar una posible visita, te invitamos a completar este breve formulario. La información que compartas nos ayudará a conocerte mejor como comprador y ofrecerte una orientación más personalizada durante el proceso.
+                      {t("Para poder brindarte más detalles y coordinar una posible visita, te invitamos a completar este breve formulario. La información que compartas nos ayudará a conocerte mejor como comprador y ofrecerte una orientación más personalizada durante el proceso.")}
                     </p>
                   </div>
 
@@ -103,16 +115,16 @@ export default async function PerfilCompradorPropiedadPage({ params }: PageProps
                 </>
               ) : (
                 <div className="py-10 text-center">
-                  <p className="eyebrow">Formulario no disponible</p>
+                  <p className="eyebrow">{t("Formulario no disponible")}</p>
                   <h2 className="mt-3 text-3xl font-bold text-[#000000]">
-                    Esta propiedad no está disponible actualmente
+                    {t("Esta propiedad no está disponible actualmente")}
                   </h2>
                   <p className="mx-auto mt-4 max-w-xl text-[#4d4d4d]">
-                    El perfil del cliente comprador está disponible únicamente para propiedades con estado disponible.
+                    {t("El perfil del cliente comprador está disponible únicamente para propiedades con estado disponible.")}
                   </p>
                   <div className="mt-8">
-                    <Link href={`/listados/${propiedad.slug}`} className="btn-primary">
-                      Ver detalles de la propiedad
+                    <Link href={getEquivalentRoute(`/listados/${propiedad.slug}`, locale) ?? `/listados/${propiedad.slug}`} className="btn-primary">
+                      {t("Ver detalles de la propiedad")}
                     </Link>
                   </div>
                 </div>
@@ -123,4 +135,8 @@ export default async function PerfilCompradorPropiedadPage({ params }: PageProps
       </main>
     </>
   );
+}
+
+export default function PerfilCompradorPropiedadPage(props: PageProps) {
+  return renderPerfilCompradorPropiedadPage({ ...props, locale: DEFAULT_LOCALE });
 }

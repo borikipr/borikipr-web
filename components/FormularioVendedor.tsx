@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { trackAnalyticsEvent } from "@/lib/analytics";
+import { usePublicFormError, usePublicFormText } from "@/components/usePublicFormText";
 
 const municipiosPR = [
   "Adjuntas",
@@ -94,6 +95,8 @@ const tiposPropiedad = [
 const interesesPrincipales = ["Vender", "Alquilar", "Evaluar ambas opciones"];
 
 export default function FormularioVendedor() {
+  const t = usePublicFormText();
+  const formError = usePublicFormError();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -128,7 +131,7 @@ export default function FormularioVendedor() {
 
       if (!response.ok) {
         const result = await response.json();
-        throw new Error(result.error || "Error al enviar el formulario");
+        throw new Error(formError(result.error, "Error al enviar el formulario"));
       }
 
       trackAnalyticsEvent("seller_landlord_form_submit_success", {
@@ -141,7 +144,7 @@ export default function FormularioVendedor() {
       idempotencyKeyRef.current = crypto.randomUUID();
       setTimeout(() => setSuccess(false), 5000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(err instanceof Error ? err.message : t("Error desconocido"));
     } finally {
       setLoading(false);
     }
@@ -156,18 +159,18 @@ export default function FormularioVendedor() {
     >
       <div>
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#d4af37]">
-          Información de contacto
+          {t("Información de contacto")}
         </p>
       </div>
 
       <div className="grid gap-5 md:grid-cols-2">
-        <Field label="Nombre completo" htmlFor="nombre" required>
+        <Field label={t("Nombre completo")} htmlFor="nombre" required>
           <input
             id="nombre"
             name="nombre"
             type="text"
             required
-            placeholder="Tu nombre y apellido"
+            placeholder={t("Tu nombre y apellido")}
             className="input-premium"
           />
         </Field>
@@ -183,7 +186,7 @@ export default function FormularioVendedor() {
           />
         </Field>
 
-        <Field label="Teléfono" htmlFor="telefono" required>
+        <Field label={t("Teléfono")} htmlFor="telefono" required>
           <input
             id="telefono"
             name="telefono"
@@ -194,9 +197,9 @@ export default function FormularioVendedor() {
           />
         </Field>
 
-        <Field label="Municipio" htmlFor="ubicacion">
+        <Field label={t("Municipio")} htmlFor="ubicacion">
           <select id="ubicacion" name="ubicacion" className="input-premium">
-            <option value="">Selecciona un municipio</option>
+            <option value="">{t("Selecciona un municipio")}</option>
             {municipiosPR.map((municipio) => (
               <option key={municipio} value={municipio}>
                 {municipio}
@@ -208,35 +211,35 @@ export default function FormularioVendedor() {
 
       <div className="grid gap-6 md:grid-cols-2">
         <ChoiceGroup
-          legend="Tipo de propiedad"
+          legend={t("Tipo de propiedad")}
           name="tipoPropiedad"
-          options={tiposPropiedad}
+          options={tiposPropiedad.map((value) => ({ value, label: t(value) }))}
           type="radio"
           required
         />
 
         <ChoiceGroup
-          legend="¿Cuál es tu interés principal?"
+          legend={t("¿Cuál es tu interés principal?")}
           name="razonVenta"
-          options={interesesPrincipales}
+          options={interesesPrincipales.map((value) => ({ value, label: t(value) }))}
           type="radio"
           required
         />
       </div>
 
-      <Field label="Comentarios adicionales" htmlFor="comentarios">
+      <Field label={t("Comentarios adicionales")} htmlFor="comentarios">
         <textarea
           id="comentarios"
           name="comentarios"
           rows={5}
-          placeholder="Ejemplo: remodelaciones recientes, placas solares, generador, piscina, mejoras importantes, etc."
+          placeholder={t("Ejemplo: remodelaciones recientes, placas solares, generador, piscina, mejoras importantes, etc.")}
           className="input-premium resize-none"
         />
       </Field>
 
       {success && (
         <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800">
-          Gracias. Tu solicitud fue enviada correctamente y nos comunicaremos pronto.
+          {t("Gracias. Tu solicitud fue enviada correctamente y nos comunicaremos pronto.")}
         </div>
       )}
 
@@ -251,7 +254,7 @@ export default function FormularioVendedor() {
         disabled={loading}
         className="btn-primary w-full justify-center py-3.5 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {loading ? "Enviando..." : "Enviar solicitud"}
+        {loading ? t("Enviando...") : t("Enviar solicitud")}
       </button>
     </form>
   );
@@ -290,7 +293,7 @@ function ChoiceGroup({
   legend: string;
   helper?: string;
   name: string;
-  options: string[];
+  options: Array<string | { label: string; value: string }>;
   type: "radio" | "checkbox";
   required?: boolean;
   columns?: string;
@@ -304,21 +307,24 @@ function ChoiceGroup({
         {helper && <p className="mt-1 text-sm text-[#4d4d4d]">{helper}</p>}
       </div>
       <div className={`grid gap-2 ${columns}`}>
-        {options.map((option) => (
+        {options.map((option) => {
+          const item = typeof option === "string" ? { label: option, value: option } : option;
+          return (
           <label
-            key={option}
+            key={item.value}
             className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-[#d9d9d9] bg-white px-4 py-2.5 text-sm text-[#333333] transition hover:border-[#11518b] hover:bg-[#f7fbff]"
           >
             <input
               type={type}
               name={name}
-              value={option}
+              value={item.value}
               required={required}
               className="h-4 w-4 border-[#d9d9d9] accent-[#11518b]"
             />
-            <span>{option}</span>
+            <span>{item.label}</span>
           </label>
-        ))}
+          );
+        })}
       </div>
     </fieldset>
   );

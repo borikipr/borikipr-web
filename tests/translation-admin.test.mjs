@@ -374,6 +374,8 @@ test("Admin action boundary derives actor from the authenticated session and UI 
   const panel = await readFile(fileURLToPath(new URL("../components/admin/TranslationAdminPanel.tsx", import.meta.url)), "utf8");
   const presentation = await readFile(fileURLToPath(new URL("../lib/i18n/translations/admin-presentation.ts", import.meta.url)), "utf8");
   assert.match(actions, /getAdminSession\(\)/);
+  assert.doesNotMatch(actions, /export\s+const\s+initialTranslationAdminActionState/);
+  assert.match(panel, /const\s+initialTranslationAdminActionState:\s*TranslationAdminActionState/);
   assert.match(actions, /actorAdminId: session\.id/);
   assert.doesNotMatch(actions, /formData,\s*"actorAdminId"/);
   assert.match(presentation, /Regeneración automática autorizada/);

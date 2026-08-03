@@ -15,6 +15,12 @@ export const LOCALIZED_ROUTE_DEFINITIONS = [
   { es: "/listados/[slug]", en: "/en/listings/[slug]" },
   { es: "/about", en: "/en/about" },
   { es: "/contact", en: "/en/contact" },
+  { es: "/contact/perfil-comprador", en: "/en/contact/buyer-profile" },
+  { es: "/contact/compradores-arrendatarios", en: "/en/contact/buyers-tenants" },
+  { es: "/contact/vendedor-arrendador", en: "/en/contact/seller-landlord" },
+  { es: "/listados/[slug]/perfil-comprador", en: "/en/listings/[slug]/buyer-profile" },
+  { es: "/listados/[slug]/registro-openhouse", en: "/en/listings/[slug]/open-house-registration" },
+  { es: "/properties/[slug]/registro-prioritario", en: "/en/listings/[slug]/priority-registration" },
   { es: "/testimonios", en: "/en/testimonials" },
   { es: "/privacidad", en: "/en/privacy" },
 ] as const satisfies readonly RouteDefinition[];

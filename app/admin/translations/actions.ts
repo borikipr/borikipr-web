@@ -17,11 +17,6 @@ export type TranslationAdminActionState = {
   message: string;
 };
 
-export const initialTranslationAdminActionState: TranslationAdminActionState = {
-  ok: false,
-  message: "",
-};
-
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "");
 }

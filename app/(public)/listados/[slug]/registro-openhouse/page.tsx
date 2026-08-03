@@ -8,12 +8,16 @@ import { isPrivateR2Configured } from "@/lib/r2";
 import PerfilCompradorPropiedadForm from "@/components/PerfilCompradorPropiedadForm";
 import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
 import { getCanonicalOpenHouseShowingAt } from "@/lib/leads/postgres-open-house-registration";
+import { DEFAULT_LOCALE, ENGLISH_LOCALE, type AppLocale } from "@/lib/i18n/locales";
+import { getEquivalentRoute } from "@/lib/i18n/routing";
+import { getPublicFormText } from "@/lib/i18n/public-form-copy";
+import { overlayPropertyTranslations } from "@/lib/i18n/translations/public-overlay";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateLocalizedOpenHouseMetadata(params: PageProps["params"], locale: AppLocale): Promise<Metadata> {
   const { slug } = await params;
 
   return {
@@ -26,9 +30,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       },
     },
     alternates: {
-      canonical: `/listados/${slug}`,
+      canonical: getEquivalentRoute(`/listados/${slug}`, locale) ?? `/listados/${slug}`,
     },
   };
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  return generateLocalizedOpenHouseMetadata(params, DEFAULT_LOCALE);
 }
 
 function formatoPrecio(precio: string | number) {
@@ -43,28 +51,34 @@ function formatoPrecio(precio: string | number) {
 
 function formatoFechaOpenHouse(
   value: string | Date | null | undefined,
-  canonicalUtc = false
+  canonicalUtc = false,
+  locale: AppLocale = DEFAULT_LOCALE
 ) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
 
-  return new Intl.DateTimeFormat("es-PR", {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "full",
     timeStyle: "short",
     ...(canonicalUtc ? { timeZone: "America/Puerto_Rico" } : {}),
   }).format(date);
 }
 
-export default async function OpenHouseRegistrationPage({
+export async function renderOpenHouseRegistrationPage({
   params,
-}: PageProps) {
+  locale,
+}: PageProps & { locale: AppLocale }) {
   const { slug } = await params;
-  const propiedad = await getPropiedadBySlug(slug);
+  const source = await getPropiedadBySlug(slug);
 
-  if (!propiedad) {
+  if (!source) {
     notFound();
   }
+  const propiedad = locale === ENGLISH_LOCALE
+    ? (await overlayPropertyTranslations({ properties: [source], locale }))[0]
+    : source;
+  const t = (value: string) => getPublicFormText(locale, value);
 
   const canonicalShowingAt = await getCanonicalOpenHouseShowingAt(propiedad.id);
 
@@ -77,7 +91,8 @@ export default async function OpenHouseRegistrationPage({
     Boolean(propiedad.fecha_showing);
   const fechaOpenHouse = formatoFechaOpenHouse(
     canonicalShowingAt || propiedad.fecha_showing,
-    Boolean(canonicalShowingAt)
+    Boolean(canonicalShowingAt),
+    locale
   );
   const notasCompradores =
     typeof propiedad.configuracion_formulario?.notas_compradores === "string"
@@ -90,10 +105,10 @@ export default async function OpenHouseRegistrationPage({
       <main className="bg-white pt-[96px] lg:pt-[128px]">
         <section className="section-shell py-12">
           <Link
-            href={`/listados/${propiedad.slug}`}
+            href={getEquivalentRoute(`/listados/${propiedad.slug}`, locale) ?? `/listados/${propiedad.slug}`}
             className="inline-flex text-sm font-semibold text-[#11518b] transition hover:text-[#0d406d]"
           >
-            Volver a la propiedad
+            {t("Volver a la propiedad")}
           </Link>
 
           <div className="mt-8 grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
@@ -116,7 +131,7 @@ export default async function OpenHouseRegistrationPage({
                   <div className="grid gap-3 text-sm text-[#4d4d4d] sm:grid-cols-2">
                     <p>
                       <span className="font-semibold text-[#000000]">
-                        Municipio:
+                        {t("Municipio:")}
                       </span>{" "}
                       {formatPropertyLocation(
                         propiedad.municipio,
@@ -125,9 +140,9 @@ export default async function OpenHouseRegistrationPage({
                     </p>
                     <p>
                       <span className="font-semibold text-[#000000]">
-                        Precio:
+                        {t("Precio:")}
                       </span>{" "}
-                      {formatoPrecio(propiedad.precio)}
+                      {Number(propiedad.precio) > 0 ? formatoPrecio(propiedad.precio) : t("Precio próximamente")}
                     </p>
                   </div>
                   {fechaOpenHouse && (
@@ -140,7 +155,7 @@ export default async function OpenHouseRegistrationPage({
                       </p>
                     </div>
                   )}
-                  {notasCompradores && (
+                  {locale === DEFAULT_LOCALE && notasCompradores && (
                     <div className="rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-4 text-sm text-[#4d4d4d]">
                       {notasCompradores}
                     </div>
@@ -153,13 +168,12 @@ export default async function OpenHouseRegistrationPage({
               {openHouseActivo ? (
                 <>
                   <div className="mb-8">
-                    <p className="eyebrow">Confirmación de asistencia</p>
+                    <p className="eyebrow">{t("Confirmación de asistencia")}</p>
                     <h2 className="mt-3 text-3xl font-bold text-[#000000]">
-                      Confirma tu asistencia al Open House
+                      {t("Confirma tu asistencia al Open House")}
                     </h2>
                     <p className="mt-4 text-[#4d4d4d]">
-                      Confirma si podrás asistir en la fecha y hora indicadas y
-                      comparte la información necesaria para preparar tu visita.
+                      {t("Confirma si podrás asistir en la fecha y hora indicadas y comparte la información necesaria para preparar tu visita.")}
                     </p>
                   </div>
 
@@ -176,20 +190,19 @@ export default async function OpenHouseRegistrationPage({
                 </>
               ) : (
                 <div className="py-10 text-center">
-                  <p className="eyebrow">Formulario no disponible</p>
+                  <p className="eyebrow">{t("Formulario no disponible")}</p>
                   <h2 className="mt-3 text-3xl font-bold text-[#000000]">
-                    Aún no hay un Open House activo para esta propiedad
+                    {t("Aún no hay un Open House activo para esta propiedad")}
                   </h2>
                   <p className="mx-auto mt-4 max-w-xl text-[#4d4d4d]">
-                    Cuando Ivonne confirme la fecha y la hora, el registro para
-                    el Open House estará disponible aquí.
+                    {t("Cuando Ivonne confirme la fecha y la hora, el registro para el Open House estará disponible aquí.")}
                   </p>
                   <div className="mt-8">
                     <Link
-                      href={`/listados/${propiedad.slug}`}
+                      href={getEquivalentRoute(`/listados/${propiedad.slug}`, locale) ?? `/listados/${propiedad.slug}`}
                       className="btn-primary"
                     >
-                      Ver detalles de la propiedad
+                      {t("Ver detalles de la propiedad")}
                     </Link>
                   </div>
                 </div>
@@ -200,4 +213,8 @@ export default async function OpenHouseRegistrationPage({
       </main>
     </>
   );
+}
+
+export default function OpenHouseRegistrationPage(props: PageProps) {
+  return renderOpenHouseRegistrationPage({ ...props, locale: DEFAULT_LOCALE });
 }

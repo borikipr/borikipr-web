@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { trackAnalyticsEvent } from "@/lib/analytics";
 import { MAX_OPEN_HOUSE_DOCUMENT_BYTES } from "@/lib/leads/open-house-registration";
+import { usePublicFormError, usePublicFormText } from "@/components/usePublicFormText";
 
 const allowedDocumentTypes = new Set([
   "application/pdf",
@@ -36,6 +37,8 @@ export default function PerfilCompradorPropiedadForm({
   requiresSolarContractAcceptance?: boolean;
   r2Configured: boolean;
 }) {
+  const t = usePublicFormText();
+  const formError = usePublicFormError();
   const formRef = useRef<HTMLFormElement>(null);
   const [metodoCompra, setMetodoCompra] = useState("");
   const [trabajaCorredor, setTrabajaCorredor] = useState("");
@@ -90,7 +93,7 @@ export default function PerfilCompradorPropiedadForm({
       applicableFile instanceof File &&
       !allowedDocumentTypes.has(applicableFile.type)
     ) {
-      setError("Solo se aceptan PDF e imágenes JPG, PNG o WebP.");
+      setError(t("Solo se aceptan PDF e imágenes JPG, PNG o WebP."));
       setPending(false);
       return;
     }
@@ -99,7 +102,7 @@ export default function PerfilCompradorPropiedadForm({
       applicableFile instanceof File &&
       applicableFile.size > MAX_OPEN_HOUSE_DOCUMENT_BYTES
     ) {
-      setError("El archivo excede el máximo permitido de 10 MB.");
+      setError(t("El archivo excede el máximo permitido de 10 MB."));
       setPending(false);
       return;
     }
@@ -113,8 +116,8 @@ export default function PerfilCompradorPropiedadForm({
       if (!reusable) {
         setError(
           metodoCompra === "Financiamiento"
-            ? "Adjunta la carta de precalificación requerida."
-            : "Adjunta la evidencia de fondos requerida."
+            ? t("Adjunta la carta de precalificación requerida.")
+            : t("Adjunta la evidencia de fondos requerida.")
         );
         setPending(false);
         return;
@@ -134,7 +137,7 @@ export default function PerfilCompradorPropiedadForm({
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "No se pudo enviar el formulario.");
+        throw new Error(formError(result.error, "No se pudo enviar el formulario."));
       }
 
       const cartaFile = formData.get("carta_precalificacion");
@@ -153,8 +156,8 @@ export default function PerfilCompradorPropiedadForm({
 
       setMessage(
         workflow === "private_showing"
-          ? "Gracias. Tu visita quedó registrada correctamente."
-          : "Gracias. Tu asistencia quedó confirmada correctamente."
+          ? t("Gracias. Tu visita quedó registrada correctamente.")
+          : t("Gracias. Tu asistencia quedó confirmada correctamente.")
       );
       formRef.current?.reset();
       setMetodoCompra("");
@@ -162,7 +165,7 @@ export default function PerfilCompradorPropiedadForm({
       invalidateDocumentReuse();
       setIdempotencyKey(crypto.randomUUID());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido.");
+      setError(err instanceof Error ? err.message : t("Error desconocido."));
     } finally {
       setPending(false);
     }
@@ -282,22 +285,20 @@ export default function PerfilCompradorPropiedadForm({
     >
       {!r2Configured && (
         <div className="rounded-xl border border-[#d4af37] bg-[#fff9e6] p-4 text-sm text-[#4d4d4d]">
-          La carga segura de documentos no está disponible en este momento.
-          Podrás continuar únicamente si confirmamos un documento financiero
-          existente asociado con tu perfil.
+          {t("La carga segura de documentos no está disponible en este momento. Podrás continuar únicamente si confirmamos un documento financiero existente asociado con tu perfil.")}
         </div>
       )}
 
       <div className="grid gap-5 md:grid-cols-2">
         <Field
-          label="Nombre completo"
+          label={t("Nombre completo")}
           name="nombre"
           required
           onInput={invalidateDocumentReuse}
           onBlur={() => void checkReusableDocument()}
         />
         <Field
-          label="Teléfono"
+          label={t("Teléfono")}
           name="telefono"
           type="tel"
           required
@@ -315,7 +316,7 @@ export default function PerfilCompradorPropiedadForm({
 
       <fieldset className="w-full space-y-3">
         <legend className="text-sm font-semibold text-[#000000]">
-          Método de compra <span className="text-red-500">*</span>
+          {t("Método de compra")} <span className="text-red-500">*</span>
         </legend>
         <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
           {[
@@ -341,7 +342,7 @@ export default function PerfilCompradorPropiedadForm({
                 }}
                 className="h-4 w-4 shrink-0 border-[#d9d9d9] accent-[#11518b]"
               />
-              <span>{option.label}</span>
+              <span>{t(option.label)}</span>
             </label>
           ))}
         </div>
@@ -349,17 +350,17 @@ export default function PerfilCompradorPropiedadForm({
 
       {metodoCompra === "Otro" && (
         <Field
-          label="Especifique"
+          label={t("Especifique")}
           name="metodoCompraOtro"
           required
-          placeholder="Indique el método o programa de compra"
+          placeholder={t("Indique el método o programa de compra")}
         />
       )}
 
       {metodoCompra === "Financiamiento" && (
         <FinancialDocumentField
           key="financing-document"
-          label="Carta de precalificación"
+          label={t("Carta de precalificación")}
           name="carta_precalificacion"
           r2Configured={r2Configured}
           reuseState={documentReuseState}
@@ -371,7 +372,7 @@ export default function PerfilCompradorPropiedadForm({
       {metodoCompra === "Cash" && (
         <FinancialDocumentField
           key="cash-document"
-          label="Evidencia de fondos"
+          label={t("Evidencia de fondos")}
           name="evidencia_fondos_archivo"
           r2Configured={r2Configured}
           reuseState={documentReuseState}
@@ -382,22 +383,22 @@ export default function PerfilCompradorPropiedadForm({
 
       {workflow === "open_house" && (
         <RadioGroup
-          legend="¿Podrá asistir al Open House en la fecha y hora indicadas?"
+          legend={t("¿Podrá asistir al Open House en la fecha y hora indicadas?")}
           name="disponibilidad_visita"
-          options={["Sí", "No"]}
+          options={["Sí", "No"].map((value) => ({ value, label: t(value) }))}
         />
       )}
 
       <RadioGroup
-        legend="¿Cuenta con fondos para el pronto y los gastos de cierre?"
+        legend={t("¿Cuenta con fondos para el pronto y los gastos de cierre?")}
         name="fondos_gastos_cierre"
-        options={["Sí", "Parcialmente", "Aún no"]}
+        options={["Sí", "Parcialmente", "Aún no"].map((value) => ({ value, label: t(value) }))}
       />
 
       <div className="space-y-5">
         <fieldset className="space-y-3">
           <legend className="text-sm font-semibold text-[#000000]">
-            ¿Está trabajando actualmente con otro corredor/Realtor?
+            {t("¿Está trabajando actualmente con otro corredor/Realtor?")}
           </legend>
           <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
             {[
@@ -417,7 +418,7 @@ export default function PerfilCompradorPropiedadForm({
                   onChange={(event) => setTrabajaCorredor(event.target.value)}
                   className="h-4 w-4 shrink-0 border-[#d9d9d9] accent-[#11518b]"
                 />
-                <span>{option.label}</span>
+                <span>{t(option.label)}</span>
               </label>
             ))}
           </div>
@@ -425,9 +426,9 @@ export default function PerfilCompradorPropiedadForm({
 
         {trabajaCorredor === "Sí" && (
           <div className="grid gap-5 md:grid-cols-2">
-            <Field label="Nombre del corredor" name="nombre_corredor" required />
+            <Field label={t("Nombre del corredor")} name="nombre_corredor" required />
             <Field
-              label="Teléfono del corredor"
+              label={t("Teléfono del corredor")}
               name="telefono_corredor"
               type="tel"
               required
@@ -438,11 +439,11 @@ export default function PerfilCompradorPropiedadForm({
 
       {workflow === "open_house" && requiresSolarContractAcceptance && (
         <RadioGroup
-          legend="Esta propiedad tiene placas solares con contrato o leasing vigente. ¿Estaría dispuesto(a) a asumir ese contrato o leasing como parte de la compra?"
+          legend={t("Esta propiedad tiene placas solares con contrato o leasing vigente. ¿Estaría dispuesto(a) a asumir ese contrato o leasing como parte de la compra?")}
           name="solarContractAcceptance"
           options={[
-            { label: "Sí", value: "yes" },
-            { label: "No", value: "no" },
+            { label: t("Sí"), value: "yes" },
+            { label: t("No"), value: "no" },
           ]}
         />
       )}
@@ -465,10 +466,10 @@ export default function PerfilCompradorPropiedadForm({
         className="btn-primary w-full justify-center py-3.5 disabled:opacity-60"
       >
         {pending
-          ? "Enviando..."
+          ? t("Enviando...")
           : workflow === "private_showing"
-            ? "Registrar visita"
-            : "Confirmar asistencia"}
+            ? t("Registrar visita")
+            : t("Confirmar asistencia")}
       </button>
     </form>
   );
@@ -569,6 +570,7 @@ function FinancialDocumentField({
   useNewDocument: boolean;
   onUseNewDocument: () => void;
 }) {
+  const t = usePublicFormText();
   const reusable = reuseState === "available";
   const showUpload =
     reuseState === "unavailable" ||
@@ -577,16 +579,14 @@ function FinancialDocumentField({
   return (
     <div className="space-y-3 rounded-2xl border border-[#e8e8e8] bg-[#f8f8f8] p-5">
       <p className="text-sm leading-relaxed text-[#4d4d4d]">
-        Este documento financiero es requerido. Si ya está asociado de forma
-        segura con tu perfil de comprador, podrás continuar sin subirlo otra vez.
+        {t("Este documento financiero es requerido. Si ya está asociado de forma segura con tu perfil de comprador, podrás continuar sin subirlo otra vez.")}
       </p>
       {reuseState === "idle" && (
         <div
           role="status"
           className="rounded-xl border border-[#d9d9d9] bg-white p-4 text-sm text-[#4d4d4d]"
         >
-          Completa tu nombre y teléfono o correo electrónico para verificar
-          automáticamente si ya tenemos el documento requerido.
+          {t("Completa tu nombre y teléfono o correo electrónico para verificar automáticamente si ya tenemos el documento requerido.")}
         </div>
       )}
       {reuseState === "checking" && (
@@ -595,7 +595,7 @@ function FinancialDocumentField({
           aria-live="polite"
           className="rounded-xl border border-[#d9d9d9] bg-white p-4 text-sm text-[#4d4d4d]"
         >
-          Verificando si ya tienes un documento financiero registrado...
+          {t("Verificando si ya tienes un documento financiero registrado...")}
         </div>
       )}
       {reusable && !useNewDocument && (
@@ -604,15 +604,15 @@ function FinancialDocumentField({
           className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800"
         >
           <p>
-            ✓ Encontramos un documento financiero válido asociado a tu perfil.
+            {t("✓ Encontramos un documento financiero válido asociado a tu perfil.")}
           </p>
-          <p className="mt-1 font-normal">No necesitas volver a subirlo.</p>
+          <p className="mt-1 font-normal">{t("No necesitas volver a subirlo.")}</p>
           <button
             type="button"
             onClick={onUseNewDocument}
             className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl border border-green-700 px-4 py-2 text-sm font-semibold text-green-800"
           >
-            Subir un documento nuevo
+            {t("Subir un documento nuevo")}
           </button>
         </div>
       )}
@@ -621,8 +621,7 @@ function FinancialDocumentField({
           role="alert"
           className="rounded-xl border border-[#d4af37] bg-[#fff9e6] p-4 text-sm text-[#4d4d4d]"
         >
-          No pudimos verificar documentos previamente enviados. Por favor
-          adjunta el documento requerido.
+          {t("No pudimos verificar documentos previamente enviados. Por favor adjunta el documento requerido.")}
         </div>
       )}
       {showUpload && (

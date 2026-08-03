@@ -21,6 +21,7 @@ import {
   getDictionary,
   getDictionaryForUnknownLocale,
 } from "../lib/i18n/get-dictionary.ts";
+import { getPublicFormText, hasEnglishPublicFormText } from "../lib/i18n/public-form-copy.ts";
 
 async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), "utf8");
@@ -172,17 +173,17 @@ test("server request locales are added only for enabled public routes", () => {
   assert.equal(getPublicRequestLocale("/api/track", true), null);
 });
 
-test("admin, API, private-token and transactional routes are not remapped", () => {
+test("admin, API and private-token routes remain excluded while approved public forms are localized", () => {
   assert.equal(getEquivalentRoute("/admin/leads", "en-US"), null);
   assert.equal(getEquivalentRoute("/api/track", "en-US"), null);
   assert.equal(
     getEquivalentRoute("/listados/casa/visita/private-secret", "en-US"),
     null
   );
-  assert.equal(
-    getEquivalentRoute("/listados/casa/perfil-comprador", "en-US"),
-    null
-  );
+  assert.equal(getEquivalentRoute("/listados/casa/perfil-comprador", "en-US"), "/en/listings/casa/buyer-profile");
+  assert.equal(getEquivalentRoute("/contact/compradores-arrendatarios", "en-US"), "/en/contact/buyers-tenants");
+  assert.equal(getEquivalentRoute("/contact/vendedor-arrendador", "en-US"), "/en/contact/seller-landlord");
+  assert.equal(getEquivalentRoute("/properties/casa/registro-prioritario", "en-US"), "/en/listings/casa/priority-registration");
   assert.equal(getRouteLocale("/admin"), null);
 });
 
@@ -241,11 +242,56 @@ test("the feature-gated selector is accessible and has no analytics integration"
   assert.match(selector, /dictionary\.language\.english/);
   assert.match(selector, /🇵🇷/);
   assert.match(selector, /🇺🇸/);
+  assert.doesNotMatch(selector, /\(\{shortCode\}\)/);
   assert.match(selector, /aria-hidden="true"/);
   assert.match(selector, /aria-label=/);
   assert.match(selector, /getEquivalentRoute\(currentHref, option\.locale\)/);
   assert.doesNotMatch(selector, /isStaticLocalePreviewRoute/);
   assert.doesNotMatch(selector, /Analytics|trackAnalytics|privateToken/);
+});
+
+test("public form copy localizes labels and errors while preserving canonical values", () => {
+  assert.equal(getPublicFormText("es-PR", "Financiamiento"), "Financiamiento");
+  assert.equal(getPublicFormText("en-US", "Financiamiento"), "Financing");
+  assert.equal(getPublicFormText("en-US", "Adjunta la carta de precalificación requerida."), "Attach the required prequalification letter.");
+  assert.equal(hasEnglishPublicFormText("Gracias. Tu solicitud fue enviada correctamente y nos comunicaremos pronto."), true);
+});
+
+test("every literal passed through the public form translator has reviewed English copy", async () => {
+  const formSources = await Promise.all([
+    source("components/FormularioComprador.tsx"),
+    source("components/FormularioVendedor.tsx"),
+    source("components/FormularioPerfilComprador.tsx"),
+    source("components/PerfilCompradorPropiedadForm.tsx"),
+    source("components/RegistroPrioritarioForm.tsx"),
+    source("app/(public)/contact/compradores-arrendatarios/page.tsx"),
+    source("app/(public)/contact/vendedor-arrendador/page.tsx"),
+    source("app/(public)/contact/perfil-comprador/page.tsx"),
+    source("app/(public)/listados/[slug]/perfil-comprador/page.tsx"),
+    source("app/(public)/listados/[slug]/registro-openhouse/page.tsx"),
+    source("app/(public)/properties/[slug]/registro-prioritario/page.tsx"),
+  ]);
+
+  const literals = formSources.flatMap((contents) =>
+    [...contents.matchAll(/\bt\("((?:[^"\\]|\\.)*)"\)/g)].map((match) =>
+      JSON.parse(`"${match[1]}"`)
+    )
+  );
+  const missing = [...new Set(literals.filter((value) => !hasEnglishPublicFormText(value)))];
+
+  assert.deepEqual(missing, []);
+});
+
+test("approved English form routes exist behind the English layout gate", async () => {
+  const routes = await Promise.all([
+    source("app/(public)/en/contact/buyer-profile/page.tsx"),
+    source("app/(public)/en/contact/buyers-tenants/page.tsx"),
+    source("app/(public)/en/contact/seller-landlord/page.tsx"),
+    source("app/(public)/en/listings/[slug]/buyer-profile/page.tsx"),
+    source("app/(public)/en/listings/[slug]/open-house-registration/page.tsx"),
+    source("app/(public)/en/listings/[slug]/priority-registration/page.tsx"),
+  ]);
+  for (const route of routes) assert.match(route, /ENGLISH_LOCALE/);
 });
 
 test("English preview routes are gated by the server-side feature flag", async () => {

@@ -471,7 +471,7 @@ ${propiedadUrl}`
                   <div className="mt-6 space-y-3">
                     {propiedad.estado === "coming_soon" && (
                       <AnalyticsLink
-                        href={`/properties/${propiedad.slug}/registro-prioritario`}
+                        href={getEquivalentRoute(`/properties/${propiedad.slug}/registro-prioritario`, locale) ?? `/properties/${propiedad.slug}/registro-prioritario`}
                         eventName="priority_registration_cta_click"
                         eventParams={{
                           property_slug: propiedad.slug,
@@ -507,7 +507,7 @@ ${propiedadUrl}`
 
                     {propiedad.estado === "disponible" && (
                       <Link
-                        href={`/listados/${propiedad.slug}/perfil-comprador`}
+                        href={getEquivalentRoute(`/listados/${propiedad.slug}/perfil-comprador`, locale) ?? `/listados/${propiedad.slug}/perfil-comprador`}
                         className="inline-flex w-full items-center justify-center rounded-full border border-[#11518b] px-6 py-3 text-sm font-semibold text-[#11518b] transition hover:bg-[#11518b] hover:text-white"
                       >
                         {copy.buyerProfile}
@@ -516,7 +516,7 @@ ${propiedadUrl}`
 
                     {propiedad.formularioShowingActivo && propiedad.fechaShowing && (
                       <AnalyticsLink
-                        href={`/listados/${propiedad.slug}/registro-openhouse`}
+                        href={getEquivalentRoute(`/listados/${propiedad.slug}/registro-openhouse`, locale) ?? `/listados/${propiedad.slug}/registro-openhouse`}
                         eventName="showing_profile_cta_click"
                         eventParams={{ property_slug: propiedad.slug }}
                         className="inline-flex w-full items-center justify-center rounded-full border border-[#d4af37] px-6 py-3 text-sm font-semibold text-[#111111] transition hover:bg-[#d4af37]"

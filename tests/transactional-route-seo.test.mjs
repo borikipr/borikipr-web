@@ -26,7 +26,10 @@ test("property Buyer Profile is noindex, follow and canonicalizes to the propert
   );
 
   assert.match(page, /robots:\s*\{[\s\S]*?index:\s*false,[\s\S]*?follow:\s*true/);
-  assert.match(page, /canonical:\s*`\/listados\/\$\{slug\}`/);
+  assert.match(
+    page,
+    /canonical:\s*getEquivalentRoute\(`\/listados\/\$\{slug\}`, locale\) \?\? `\/listados\/\$\{slug\}`/
+  );
   assert.doesNotMatch(page, /"@type":\s*"(?:Offer|Residence)"/);
 });
 
@@ -36,7 +39,10 @@ test("Open House registration is noindex, follow and canonicalizes to the proper
   );
 
   assert.match(page, /robots:\s*\{[\s\S]*?index:\s*false,[\s\S]*?follow:\s*true/);
-  assert.match(page, /canonical:\s*`\/listados\/\$\{slug\}`/);
+  assert.match(
+    page,
+    /canonical:\s*getEquivalentRoute\(`\/listados\/\$\{slug\}`, locale\) \?\? `\/listados\/\$\{slug\}`/
+  );
   assert.doesNotMatch(page, /"@type":\s*"(?:Offer|Residence)"/);
 });
 
@@ -46,7 +52,10 @@ test("Priority Registration is noindex, follow and never canonicalizes to the pr
   );
 
   assert.match(page, /robots:\s*\{[\s\S]*?index:\s*false,[\s\S]*?follow:\s*true/);
-  assert.match(page, /const propertyPath = `\/listados\/\$\{propiedad\.slug\}`/);
+  assert.match(
+    page,
+    /const propertyPath = getEquivalentRoute\(`\/listados\/\$\{propiedad\.slug\}`, locale\) \?\? `\/listados\/\$\{propiedad\.slug\}`/
+  );
   assert.match(page, /canonical:\s*propertyPath/);
   assert.doesNotMatch(page, /canonical:\s*path/);
   assert.doesNotMatch(page, /"@type":\s*"(?:Offer|Residence)"/);
@@ -95,7 +104,7 @@ test("general informational contact routes keep their distinct self-canonical in
     "app/(public)/contact/perfil-comprador/page.tsx",
   ]) {
     const page = await source(path);
-    assert.match(page, /canonical:\s*pagePath/);
+    assert.match(page, /buildLocalizedMetadata\(\{ locale: DEFAULT_LOCALE, spanishPath: pagePath/);
     assert.doesNotMatch(page, /index:\s*false/);
   }
 });

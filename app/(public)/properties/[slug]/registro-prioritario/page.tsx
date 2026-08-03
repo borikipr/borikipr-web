@@ -13,6 +13,10 @@ import {
   jsonLdScript,
 } from "@/lib/seo";
 import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
+import { DEFAULT_LOCALE, ENGLISH_LOCALE, type AppLocale } from "@/lib/i18n/locales";
+import { getEquivalentRoute } from "@/lib/i18n/routing";
+import { getPublicFormText } from "@/lib/i18n/public-form-copy";
+import { overlayPropertyTranslations } from "@/lib/i18n/translations/public-overlay";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -21,14 +25,18 @@ type PageProps = {
 const pageDescription =
   "Completa este formulario para recibir información de esta propiedad tan pronto esté disponible y ser de las primeras personas en coordinar una visita.";
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateLocalizedPriorityRegistrationMetadata(params: PageProps["params"], locale: AppLocale): Promise<Metadata> {
   const { slug } = await params;
-  const propiedad = await getPropiedadBySlug(slug);
+  const source = await getPropiedadBySlug(slug);
+  const propiedad = source && locale === ENGLISH_LOCALE
+    ? (await overlayPropertyTranslations({ properties: [source], locale }))[0]
+    : source;
+  const t = (value: string) => getPublicFormText(locale, value);
 
   if (!propiedad) {
     return {
-      title: "Registro prioritario",
-      description: pageDescription,
+      title: t("Registro prioritario"),
+      description: t(pageDescription),
       robots: {
         index: false,
         follow: true,
@@ -40,13 +48,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
   }
 
-  const title = `Registro prioritario - ${propiedad.titulo}`;
-  const path = `/properties/${propiedad.slug}/registro-prioritario`;
-  const propertyPath = `/listados/${propiedad.slug}`;
+  const title = `${t("Registro prioritario")} - ${propiedad.titulo}`;
+  const path = getEquivalentRoute(`/properties/${propiedad.slug}/registro-prioritario`, locale) ?? `/properties/${propiedad.slug}/registro-prioritario`;
+  const propertyPath = getEquivalentRoute(`/listados/${propiedad.slug}`, locale) ?? `/listados/${propiedad.slug}`;
 
   return {
     title,
-    description: pageDescription,
+    description: t(pageDescription),
     robots: {
       index: false,
       follow: true,
@@ -60,7 +68,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     },
     openGraph: {
       title,
-      description: pageDescription,
+      description: t(pageDescription),
       url: absoluteUrl(path),
       siteName: SITE_NAME,
       type: "website",
@@ -79,27 +87,35 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     twitter: {
       card: "summary_large_image",
       title,
-      description: pageDescription,
+      description: t(pageDescription),
       images: [DEFAULT_OG_IMAGE],
     },
   };
 }
 
-export default async function RegistroPrioritarioPage({ params }: PageProps) {
-  const { slug } = await params;
-  const propiedad = await getPropiedadBySlug(slug);
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  return generateLocalizedPriorityRegistrationMetadata(params, DEFAULT_LOCALE);
+}
 
-  if (!propiedad) {
+export async function renderRegistroPrioritarioPage({ params, locale }: PageProps & { locale: AppLocale }) {
+  const { slug } = await params;
+  const source = await getPropiedadBySlug(slug);
+
+  if (!source) {
     notFound();
   }
+  const propiedad = locale === ENGLISH_LOCALE
+    ? (await overlayPropertyTranslations({ properties: [source], locale }))[0]
+    : source;
+  const t = (value: string) => getPublicFormText(locale, value);
 
-  const propertyPath = `/listados/${propiedad.slug}`;
-  const pagePath = `/properties/${propiedad.slug}/registro-prioritario`;
+  const propertyPath = getEquivalentRoute(`/listados/${propiedad.slug}`, locale) ?? `/listados/${propiedad.slug}`;
+  const pagePath = getEquivalentRoute(`/properties/${propiedad.slug}/registro-prioritario`, locale) ?? `/properties/${propiedad.slug}/registro-prioritario`;
   const breadcrumbSchema = breadcrumbJsonLd([
-    { name: "Inicio", url: "/" },
-    { name: "Listados", url: "/listados" },
+    { name: locale === ENGLISH_LOCALE ? "Home" : "Inicio", url: getEquivalentRoute("/", locale) ?? "/" },
+    { name: locale === ENGLISH_LOCALE ? "Listings" : "Listados", url: getEquivalentRoute("/listados", locale) ?? "/listados" },
     { name: propiedad.titulo, url: propertyPath },
-    { name: "Registro prioritario", url: pagePath },
+    { name: t("Registro prioritario"), url: pagePath },
   ]);
   const isComingSoon = propiedad.estado === "coming_soon";
 
@@ -125,13 +141,13 @@ export default async function RegistroPrioritarioPage({ params }: PageProps) {
             href={propertyPath}
             className="inline-flex text-sm font-semibold text-[#11518b] transition hover:text-[#0d406d]"
           >
-            Volver a la propiedad
+            {t("Volver a la propiedad")}
           </Link>
 
           <div className="mt-8 grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
             <aside className="lg:sticky lg:top-[112px]">
               <div className="rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-sm">
-                <p className="eyebrow">PRÓXIMAMENTE EN EL MERCADO</p>
+                <p className="eyebrow">{t("PRÓXIMAMENTE EN EL MERCADO")}</p>
                 <h1 className="mt-3 text-3xl font-bold leading-tight text-[#11518B]">
                   {propiedad.titulo}
                 </h1>
@@ -148,17 +164,17 @@ export default async function RegistroPrioritarioPage({ params }: PageProps) {
               {isComingSoon ? (
                 <>
                   <div className="mb-8">
-                    <p className="eyebrow">REGISTRO PRIORITARIO</p>
+                    <p className="eyebrow">{t("REGISTRO PRIORITARIO")}</p>
                     <h2 className="mt-3 text-3xl font-bold text-[#11518B]">
-                      Propiedad en Venta
+                      {t("Propiedad en Venta")}
                     </h2>
                     <div className="mt-4 space-y-2 text-[#4d4d4d]">
                       <p className="font-semibold text-[#000000]">
-                        ¡Gracias por tu interés!
+                        {t("¡Gracias por tu interés!")}
                       </p>
-                      <p>Esta propiedad estará disponible próximamente.</p>
+                      <p>{t("Esta propiedad estará disponible próximamente.")}</p>
                       <p>
-                        Completa este formulario para recibir la información primero.
+                        {t("Completa este formulario para recibir la información primero.")}
                       </p>
                     </div>
                   </div>
@@ -171,17 +187,16 @@ export default async function RegistroPrioritarioPage({ params }: PageProps) {
                 </>
               ) : (
                 <div className="py-10 text-center">
-                  <p className="eyebrow">Registro no disponible</p>
+                  <p className="eyebrow">{t("Registro no disponible")}</p>
                   <h2 className="mt-3 text-3xl font-bold text-[#11518B]">
-                    Esta propiedad no tiene registro prioritario activo
+                    {t("Esta propiedad no tiene registro prioritario activo")}
                   </h2>
                   <p className="mx-auto mt-4 max-w-xl text-[#4d4d4d]">
-                    El registro prioritario se activa únicamente para propiedades
-                    marcadas como próximamente disponibles.
+                    {t("El registro prioritario se activa únicamente para propiedades marcadas como próximamente disponibles.")}
                   </p>
                   <div className="mt-8">
                     <Link href={propertyPath} className="btn-primary">
-                      Ver detalles de la propiedad
+                      {t("Ver detalles de la propiedad")}
                     </Link>
                   </div>
                 </div>
@@ -192,4 +207,8 @@ export default async function RegistroPrioritarioPage({ params }: PageProps) {
       </main>
     </>
   );
+}
+
+export default function RegistroPrioritarioPage(props: PageProps) {
+  return renderRegistroPrioritarioPage({ ...props, locale: DEFAULT_LOCALE });
 }

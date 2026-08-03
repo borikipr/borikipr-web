@@ -47,11 +47,6 @@ export default function LanguageSelector({
           option.locale === DEFAULT_LOCALE
             ? dictionary.language.spanish
             : dictionary.language.english;
-        const shortCode =
-          option.locale === DEFAULT_LOCALE
-            ? dictionary.language.spanishShort
-            : dictionary.language.englishShort;
-
         return (
           <Link
             key={option.locale}
@@ -60,7 +55,7 @@ export default function LanguageSelector({
             hrefLang={option.locale}
             lang={option.locale}
             aria-current={isCurrent ? "page" : undefined}
-            aria-label={`${language} (${shortCode})`}
+            aria-label={language}
             className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 ${
               isCurrent
                 ? "border-[#d4af37] bg-[#d4af37]/10"
@@ -69,7 +64,6 @@ export default function LanguageSelector({
           >
             <span aria-hidden="true">{option.flag}</span>
             <span>{language}</span>
-            <span aria-hidden="true">({shortCode})</span>
           </Link>
         );
       })}

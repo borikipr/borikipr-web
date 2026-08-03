@@ -711,7 +711,10 @@ test("Open House UI and admin configuration use the dedicated attendance workflo
   assert.match(page, /Confirma tu asistencia al Open House/);
   assert.ok(!page.includes("Completa tu perfil de comprador"));
   assert.match(form, /name="disponibilidad_visita"/);
-  assert.match(form, /options=\{\["Sí", "No"\]\}/);
+  assert.match(
+    form,
+    /options=\{\["Sí", "No"\]\.map\(\(value\) => \(\{ value, label: t\(value\) \}\)\)\}/
+  );
   assert.match(form, /name="fondos_gastos_cierre"/);
   assert.match(form, /"Parcialmente", "Aún no"/);
   assert.match(form, /name="metodoCompraOtro"/);
@@ -827,10 +830,10 @@ test("Open House radio questions use full-width responsive blocks without clippe
   const identityGrid = form.indexOf('<div className="grid gap-5 md:grid-cols-2">');
   const purchaseGroup = form.indexOf('<fieldset className="w-full space-y-3">');
   const availabilityGroup = form.indexOf(
-    'legend="¿Podrá asistir al Open House en la fecha y hora indicadas?"'
+    'legend={t("¿Podrá asistir al Open House en la fecha y hora indicadas?")}'
   );
   const closingFundsGroup = form.indexOf(
-    'legend="¿Cuenta con fondos para el pronto y los gastos de cierre?"'
+    'legend={t("¿Cuenta con fondos para el pronto y los gastos de cierre?")}'
   );
   const otherDetails = form.indexOf('metodoCompra === "Otro"', purchaseGroup);
   const financingDocument = form.indexOf(

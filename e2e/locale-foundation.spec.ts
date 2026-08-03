@@ -54,7 +54,7 @@ test("enabled preview switches static routes and updates the document language",
 
   const selector = page.locator("[data-language-selector]:visible");
   await expect(selector).toBeVisible();
-  await expect(selector.getByRole("link", { name: "Español (ES)" })).toHaveAttribute(
+  await expect(selector.getByRole("link", { name: "Español" })).toHaveAttribute(
     "href",
     "/about"
   );
@@ -65,7 +65,7 @@ test("enabled preview switches static routes and updates the document language",
     page
       .locator("[data-language-selector]")
       .first()
-      .locator('a[aria-label="Español (ES)"]')
+      .locator('a[aria-label="Español"]')
   ).toHaveAttribute("href", "/contact?q=Ponce&page=2");
   expect(hydrationWarnings).toEqual([]);
 });
@@ -92,7 +92,7 @@ test("enabled direct loads and client navigation never leave a stale document lo
     ? page.locator('[data-mobile-menu][aria-hidden="false"] [data-language-selector]')
     : page.locator("[data-language-selector]:visible");
   await spanishSelector
-    .getByRole("link", { name: "English (EN)" })
+    .getByRole("link", { name: "English" })
     .click();
   await expect(page).toHaveURL(/\/en\/about$/);
   await expect(page.locator("html")).toHaveAttribute("lang", "en-US");
@@ -105,7 +105,7 @@ test("enabled direct loads and client navigation never leave a stale document lo
     ? page.locator('[data-mobile-menu][aria-hidden="false"] [data-language-selector]')
     : page.locator("[data-language-selector]:visible");
   await englishSelector
-    .getByRole("link", { name: /Espa.*ol \(ES\)/ })
+    .getByRole("link", { name: "Español" })
     .click();
   await expect(page).toHaveURL(/\/about$/);
   await expect(page.locator("html")).toHaveAttribute("lang", "es-PR");
@@ -142,7 +142,7 @@ test("enabled mobile drawer keeps the selector reachable and closes safely after
   expect(bounds!.y).toBeGreaterThanOrEqual(0);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport!.height);
 
-  await selector.getByRole("link", { name: "English (EN)" }).click();
+  await selector.getByRole("link", { name: "English" }).click();
   await expect(page).toHaveURL(/\/en\/about\?q=Ponce&page=2$/);
   await expect(page.locator("html")).toHaveAttribute("lang", "en-US");
   await expect(page.locator('[data-mobile-menu][aria-hidden="true"]')).toHaveCount(1);
@@ -150,7 +150,7 @@ test("enabled mobile drawer keeps the selector reachable and closes safely after
   await page.getByRole("button", { name: "Open menu" }).click();
   await page
     .locator('[data-mobile-menu][aria-hidden="false"]')
-    .getByRole("link", { name: /Espa.*ol \(ES\)/ })
+    .getByRole("link", { name: "Español" })
     .click();
   await expect(page).toHaveURL(/\/about\?q=Ponce&page=2$/);
   await expect(page.locator("html")).toHaveAttribute("lang", "es-PR");
@@ -217,6 +217,27 @@ test("enabled preview renders query-backed Listings and Testimonials with isolat
   }
 });
 
+test("enabled English contact forms localize visible controls and keep canonical values internal", async ({ page }) => {
+  test.skip(!multilingualEnabled, "English preview is intentionally disabled.");
+
+  await page.goto("/en/contact/buyers-tenants");
+  await expect(page.getByRole("heading", { name: "Join the active buyer and tenant network" })).toBeVisible();
+  await expect(page.getByLabel("Full name")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Submit request" })).toBeVisible();
+  await expect(page.getByText("Información de contacto", { exact: true })).toHaveCount(0);
+
+  await page.goto("/en/contact/seller-landlord");
+  await expect(page.getByRole("heading", { name: "Sell or rent your property" })).toBeVisible();
+  await expect(page.getByLabel("Municipality")).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Sell" })).toHaveAttribute("value", "Vender");
+
+  const selector = page.locator("[data-language-selector]:visible");
+  await expect(selector).toContainText("🇵🇷");
+  await expect(selector).toContainText("🇺🇸");
+  await expect(selector).not.toContainText("(ES)");
+  await expect(selector).not.toContainText("(EN)");
+});
+
 test("locale selector preserves safe listings query parameters on desktop and mobile", async ({
   page,
   viewport,
@@ -235,6 +256,6 @@ test("locale selector preserves safe listings query parameters on desktop and mo
 
   const visibleSelector = page.locator("[data-language-selector]:visible");
   await expect(
-    visibleSelector.getByRole("link", { name: "English (EN)" })
+    visibleSelector.getByRole("link", { name: "English" })
   ).toHaveAttribute("href", "/en/listings?region=sur&q=Ponce&page=2");
 });

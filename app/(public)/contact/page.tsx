@@ -106,7 +106,7 @@ export function renderContactPage(locale: AppLocale) {
               eyebrow={copy.options[0].eyebrow}
               title={copy.options[0].title}
               description={copy.options[0].description}
-              href="/contact/compradores-arrendatarios"
+              href={getEquivalentRoute("/contact/compradores-arrendatarios", locale) ?? "/contact/compradores-arrendatarios"}
               label={copy.options[0].label}
               analyticsOption="compradores y arrendatarios"
               variant="primary"
@@ -116,7 +116,7 @@ export function renderContactPage(locale: AppLocale) {
               eyebrow={copy.options[1].eyebrow}
               title={copy.options[1].title}
               description={copy.options[1].description}
-              href="/contact/vendedor-arrendador"
+              href={getEquivalentRoute("/contact/vendedor-arrendador", locale) ?? "/contact/vendedor-arrendador"}
               label={copy.options[1].label}
               analyticsOption="vendedores y arrendadores"
               variant="primary"

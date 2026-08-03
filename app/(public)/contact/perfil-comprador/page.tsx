@@ -1,46 +1,24 @@
-import type { Metadata } from "next";
 import Header from "@/components/Header";
 import Link from "next/link";
-import {
-  DEFAULT_OG_IMAGE,
-  SITE_NAME,
-  absoluteUrl,
-  breadcrumbJsonLd,
-  jsonLdScript,
-} from "@/lib/seo";
+import { breadcrumbJsonLd, jsonLdScript } from "@/lib/seo";
+import { DEFAULT_LOCALE, ENGLISH_LOCALE, type AppLocale } from "@/lib/i18n/locales";
+import { buildLocalizedMetadata } from "@/lib/i18n/seo";
+import { getEquivalentRoute } from "@/lib/i18n/routing";
+import { getPublicFormText } from "@/lib/i18n/public-form-copy";
 
 const pageTitle = "Perfil del Cliente Comprador";
 const pageDescription =
   "Selecciona una propiedad disponible antes de completar tu perfil de comprador.";
 const pagePath = "/contact/perfil-comprador";
 
-export const metadata: Metadata = {
-  title: pageTitle,
-  description: pageDescription,
-  alternates: {
-    canonical: pagePath,
-  },
-  openGraph: {
-    title: pageTitle,
-    description: pageDescription,
-    url: absoluteUrl(pagePath),
-    siteName: SITE_NAME,
-    type: "website",
-    images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: SITE_NAME }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: pageTitle,
-    description: pageDescription,
-    images: [DEFAULT_OG_IMAGE],
-  },
-};
+export const metadata = buildLocalizedMetadata({ locale: DEFAULT_LOCALE, spanishPath: pagePath, title: pageTitle, description: pageDescription });
 
-export default function PerfilCompradorPage() {
+export function renderPerfilCompradorPage(locale: AppLocale) {
+  const t = (value: string) => getPublicFormText(locale, value);
   const breadcrumbSchema = breadcrumbJsonLd([
-    { name: "Inicio", url: "/" },
-    { name: "Contacto", url: "/contact" },
-    { name: pageTitle, url: pagePath },
+    { name: locale === ENGLISH_LOCALE ? "Home" : "Inicio", url: getEquivalentRoute("/", locale) ?? "/" },
+    { name: locale === ENGLISH_LOCALE ? "Contact" : "Contacto", url: getEquivalentRoute("/contact", locale) ?? "/contact" },
+    { name: t(pageTitle), url: getEquivalentRoute(pagePath, locale) ?? pagePath },
   ]);
 
   return (
@@ -53,16 +31,16 @@ export default function PerfilCompradorPage() {
       <main className="bg-white pt-[96px] lg:pt-[128px]">
         <section className="section-shell py-20">
           <div className="max-w-3xl surface-card p-6 md:p-10">
-            <p className="eyebrow">Perfil del cliente comprador</p>
+            <p className="eyebrow">{t("Perfil del cliente comprador")}</p>
             <h1 className="heading-display mt-4">
-              Selecciona una propiedad
+              {t("Selecciona una propiedad")}
             </h1>
             <p className="body-lg mt-8 max-w-2xl">
-              Para completar tu perfil de comprador, primero selecciona una propiedad disponible.
+              {t("Para completar tu perfil de comprador, primero selecciona una propiedad disponible.")}
             </p>
             <div className="mt-8">
-              <Link href="/listados" className="btn-primary">
-                Ver propiedades disponibles
+              <Link href={getEquivalentRoute("/listados", locale) ?? "/listados"} className="btn-primary">
+                {t("Ver propiedades disponibles")}
               </Link>
             </div>
           </div>
@@ -70,4 +48,8 @@ export default function PerfilCompradorPage() {
       </main>
     </>
   );
+}
+
+export default function PerfilCompradorPage() {
+  return renderPerfilCompradorPage(DEFAULT_LOCALE);
 }
