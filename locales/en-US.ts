@@ -36,6 +36,16 @@ const enUS = {
     save: "Save",
     cancel: "Cancel",
   },
+  gallery: {
+    open: "Open gallery",
+    view: "View gallery",
+    viewImage: "View image",
+    viewVideo: "View video",
+    close: "Close gallery",
+    previous: "Previous",
+    next: "Next",
+    imageAlt: "image",
+  },
   footer: {
     brandDescription:
       "Professional guidance to buy, sell, or invest in Puerto Rico with strategy, clarity, and confidence.",

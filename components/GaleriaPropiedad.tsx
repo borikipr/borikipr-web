@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import { usePublicLocale } from "@/components/PublicLocaleProvider";
 
 function isVideoUrl(url: string) {
   return /\.(mp4|webm|mov)(\?|$)/i.test(url) || url.includes("/videos/");
@@ -14,6 +15,7 @@ export default function GaleriaPropiedad({
   imagenes: string[];
   titulo: string;
 }) {
+  const { dictionary } = usePublicLocale();
   const imagenesValidas = useMemo(
     () =>
       Array.isArray(imagenes) && imagenes.length > 0
@@ -76,7 +78,7 @@ export default function GaleriaPropiedad({
           type="button"
           onClick={() => setLightboxAbierto(true)}
           className="relative block h-[440px] w-full overflow-hidden rounded-3xl bg-[#f5f5f5]"
-          aria-label="Abrir galería"
+          aria-label={dictionary.gallery.open}
         >
           {esVideoActivo ? (
             <>
@@ -112,7 +114,7 @@ export default function GaleriaPropiedad({
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent p-6 text-left">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="inline-flex rounded-full bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#11518b]">
-                Ver galería
+                {dictionary.gallery.view}
               </span>
 
               <span className="inline-flex rounded-full bg-black/35 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
@@ -138,7 +140,7 @@ export default function GaleriaPropiedad({
                       ? "border-[#11518b] ring-2 ring-[#11518b]/20"
                       : "border-[#cccccc] hover:border-[#11518b]"
                   }`}
-                  aria-label={`Ver ${esVideo ? "video" : "imagen"} ${index + 1}`}
+                  aria-label={`${esVideo ? dictionary.gallery.viewVideo : dictionary.gallery.viewImage} ${index + 1}`}
                 >
                   {esVideo ? (
                     <>
@@ -160,7 +162,7 @@ export default function GaleriaPropiedad({
                   ) : (
                     <Image
                       src={item}
-                      alt={`${titulo} imagen ${index + 1}`}
+                      alt={`${titulo} ${dictionary.gallery.imageAlt} ${index + 1}`}
                       fill
                       sizes="(max-width: 640px) 50vw, 25vw"
                       className="object-cover"
@@ -186,7 +188,7 @@ export default function GaleriaPropiedad({
               setLightboxAbierto(false);
             }}
             className="absolute right-6 top-6 z-[110] inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-2xl text-white transition hover:bg-white/20"
-            aria-label="Cerrar galería"
+            aria-label={dictionary.gallery.close}
           >
             ×
           </button>
@@ -206,7 +208,7 @@ export default function GaleriaPropiedad({
                   irAnterior();
                 }}
                 className="absolute left-6 top-1/2 z-[110] inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-2xl text-white transition hover:bg-white/20"
-                aria-label="Anterior"
+                aria-label={dictionary.gallery.previous}
               >
                 ‹
               </button>
@@ -218,7 +220,7 @@ export default function GaleriaPropiedad({
                   irSiguiente();
                 }}
                 className="absolute right-6 top-1/2 z-[110] inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-2xl text-white transition hover:bg-white/20"
-                aria-label="Siguiente"
+                aria-label={dictionary.gallery.next}
               >
                 ›
               </button>

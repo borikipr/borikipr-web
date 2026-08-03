@@ -64,6 +64,9 @@ test("expanded dictionaries share a complete shape and Spanish is the fallback",
     "Explore listings"
   );
   assert.equal(getDictionary("en-US").footer.servicesHeading, "Services");
+  assert.equal(getDictionary("es-PR").gallery.open, "Abrir galería");
+  assert.equal(getDictionary("en-US").gallery.open, "Open gallery");
+  assert.equal(getDictionary("en-US").gallery.viewImage, "View image");
   assert.equal(getDictionary("en-US").notFound.homeAction, "Return home");
   assert.equal(
     getDictionaryForUnknownLocale(undefined).language.spanish,
@@ -334,7 +337,22 @@ test("Home, Header and Footer consume shared static dictionaries", async () => {
   assert.match(home, /copy\.cta\.title/);
   assert.match(hero, /dictionary\.home\.hero/);
   assert.match(header, /dictionary\.navigation\.home/);
+  assert.match(header, /dictionary\.footer\.license/);
   assert.match(footer, /dictionary\.footer\.brandDescription/);
+});
+
+test("property gallery controls are locale-aware without Spanish literals in the component", async () => {
+  const gallery = await source("components/GaleriaPropiedad.tsx");
+
+  assert.match(gallery, /usePublicLocale\(\)/);
+  assert.match(gallery, /dictionary\.gallery\.open/);
+  assert.match(gallery, /dictionary\.gallery\.view/);
+  assert.match(gallery, /dictionary\.gallery\.viewImage/);
+  assert.match(gallery, /dictionary\.gallery\.viewVideo/);
+  assert.match(gallery, /dictionary\.gallery\.close/);
+  assert.match(gallery, /dictionary\.gallery\.previous/);
+  assert.match(gallery, /dictionary\.gallery\.next/);
+  assert.doesNotMatch(gallery, /Abrir galer|Ver galer|Cerrar galer/);
 });
 
 test("Phase 2.5 pages consume shared dictionaries without duplicating page JSX", async () => {

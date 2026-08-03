@@ -34,6 +34,16 @@ const esPR = {
     save: "Guardar",
     cancel: "Cancelar",
   },
+  gallery: {
+    open: "Abrir galería",
+    view: "Ver galería",
+    viewImage: "Ver imagen",
+    viewVideo: "Ver video",
+    close: "Cerrar galería",
+    previous: "Anterior",
+    next: "Siguiente",
+    imageAlt: "imagen",
+  },
   footer: {
     brandDescription:
       "Una presencia profesional para comprar, vender o invertir en Puerto Rico con estrategia, claridad y confianza.",

@@ -154,7 +154,7 @@ export default function Header({ transparent = false }: HeaderProps) {
             >
               <span>Puerto Rico Real Estate</span>
               <span className="h-1 w-1 rounded-full bg-[#d4af37]" />
-              <span>Licencia C-25961</span>
+              <span>{dictionary.footer.license} C-25961</span>
             </div>
 
             <div className="flex items-center gap-5 text-white">
@@ -289,7 +289,7 @@ export default function Header({ transparent = false }: HeaderProps) {
         </div>
 
         <div className="shrink-0 border-b border-[#f1f1f1] px-6 py-4 text-sm text-[#4d4d4d]">
-          <p className="font-medium text-[#000000]">Licencia C-25961</p>
+          <p className="font-medium text-[#000000]">{dictionary.footer.license} C-25961</p>
           <p className="mt-1">Puerto Rico</p>
         </div>
 
