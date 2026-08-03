@@ -72,12 +72,23 @@ rewrite provider output.
   can create at most one translation row, one queued job, and the existing
   `created` and `job_queued` revision events; it never invokes the worker,
   resolves a provider, retrieves OIDC credentials, or sends text to Google.
+- `npm run translations:testimonial-retry -- --testimonial-id <uuid> --allow-production-read-only-dry-run`
+  inspects one existing failed testimonial-body job inside a read-only
+  transaction. It reports aggregate cardinality only and resolves no provider.
+- A separately authorized retry of the same failed job requires
+  `--apply --allow-production-single-testimonial-retry --confirm-existing-provider-empty-result-job`.
+  The command accepts only one testimonial UUID, requires both worker and
+  multilingual flags to be explicitly false, requeues only an existing
+  terminal `provider_empty_result` job, and appends the approved `job_queued`
+  audit event. It creates neither a translation row nor a replacement job and
+  never invokes Google. The original failure event remains unchanged.
 
-Production `--run` and `--apply` remain categorically prohibited, even when the
-read-only confirmation flag is present. The flag is command-line only and is
-not accepted from an environment variable. Dry-run queries use a SELECT-only
+General production worker `--run` and backfill `--apply` remain categorically
+prohibited, even when the read-only confirmation flag is present. The narrowly
+scoped testimonial intent and retry commands have their own separate,
+command-line-only production confirmations. Dry-run queries use a SELECT-only
 repository after `SET TRANSACTION READ ONLY`. Commands are bounded single runs;
-neither starts an infinite loop.
+none starts an infinite loop.
 
 The full backfill currently covers all three approved fields (property title,
 property description, and testimonial body), so it is not used for the first

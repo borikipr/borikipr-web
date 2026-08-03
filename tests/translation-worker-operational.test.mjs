@@ -5,7 +5,10 @@ import test, { after, before, beforeEach } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import { handleTranslationWorkerCron } from "../lib/i18n/translations/cron-handler.ts";
 import { GoogleCloudTranslationProvider } from "../lib/i18n/translations/google-provider.ts";
-import { createOfficialGoogleTranslationTransport } from "../lib/i18n/translations/google-transport.ts";
+import {
+  createOfficialGoogleTranslationTransport,
+  selectGoogleTranslationResults,
+} from "../lib/i18n/translations/google-transport.ts";
 import {
   readTranslationWorkerConfig,
   resolveConfiguredTranslationProvider,
@@ -146,6 +149,111 @@ test("official transport initializes lazily and maps an Advanced glossary reques
     "projects/isolated-project/locations/us-central1/glossaries/borikipr-brands"
   );
   assert.equal(result.requestId, "request-123");
+});
+
+test("official transport selects the applicable non-empty response collection", () => {
+  const ordinary = [{ translatedText: "Translated result" }];
+  const glossary = [{ translatedText: "Glossary result" }];
+
+  assert.deepEqual(
+    selectGoogleTranslationResults(
+      { glossaryTranslations: [], translations: ordinary },
+      1
+    ),
+    ordinary
+  );
+  assert.deepEqual(
+    selectGoogleTranslationResults(
+      { glossaryTranslations: glossary, translations: [] },
+      1
+    ),
+    glossary
+  );
+  assert.deepEqual(
+    selectGoogleTranslationResults({ translations: ordinary }, 1),
+    ordinary
+  );
+  assert.deepEqual(
+    selectGoogleTranslationResults({ glossaryTranslations: glossary }, 1),
+    glossary
+  );
+  assert.deepEqual(
+    selectGoogleTranslationResults(
+      { glossaryTranslations: glossary, translations: ordinary },
+      1
+    ),
+    glossary
+  );
+});
+
+test("official transport preserves ordering and rejects invalid response cardinality", () => {
+  const ordered = [
+    { translatedText: "First" },
+    { translatedText: "Second" },
+  ];
+  assert.deepEqual(
+    selectGoogleTranslationResults({ translations: ordered }, 2),
+    ordered
+  );
+  assert.throws(
+    () => selectGoogleTranslationResults({ translations: ordered }, 1),
+    (error) => error.safeCode === "google_response_cardinality_invalid"
+  );
+});
+
+test("official transport leaves empty and malformed responses for safe empty-result classification", () => {
+  for (const response of [
+    {},
+    { translations: [], glossaryTranslations: [] },
+    { translations: [{ translatedText: "   " }] },
+    { translations: [null] },
+    { translations: [{}] },
+  ]) {
+    assert.deepEqual(selectGoogleTranslationResults(response, 1), []);
+  }
+  assert.throws(
+    () =>
+      selectGoogleTranslationResults(
+        {
+          translations: [
+            { translatedText: "Valid" },
+            { translatedText: "   " },
+          ],
+        },
+        2
+      ),
+    (error) => error.safeCode === "google_response_malformed"
+  );
+});
+
+test("non-glossary transport regression uses translations when glossaryTranslations is empty", async () => {
+  let receivedRequest;
+  const transport = createOfficialGoogleTranslationTransport({
+    requestTimeoutMs: 500,
+    clientFactory: async () => ({
+      translateText(request) {
+        receivedRequest = request;
+        return Promise.resolve([
+          {
+            glossaryTranslations: [],
+            translations: [{ translatedText: "Fixture translation" }],
+          },
+        ]);
+      },
+    }),
+  });
+  const result = await transport.translate({
+    projectId: "isolated-project",
+    location: "global",
+    sourceLanguageCode: "es",
+    targetLanguageCode: "en",
+    contents: ["Fixture source"],
+    mimeType: "text/plain",
+  });
+  assert.equal("glossaryConfig" in receivedRequest, false);
+  assert.deepEqual(result.translations, [
+    { translatedText: "Fixture translation" },
+  ]);
 });
 
 test("official transport cancels an injected SDK call", async () => {

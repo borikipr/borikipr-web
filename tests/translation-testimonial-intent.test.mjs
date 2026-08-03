@@ -493,7 +493,7 @@ test("missing testimonial and empty body are rejected without writes", async () 
   });
 });
 
-test("all three CLI entry points start under the CommonJS package boundary", () => {
+test("all translation CLI entry points start under the CommonJS package boundary", () => {
   const tsxCli = fileURLToPath(
     new URL("../node_modules/tsx/dist/cli.mjs", import.meta.url)
   );
@@ -512,6 +512,11 @@ test("all three CLI entry points start under the CommonJS package boundary", () 
       script: "../scripts/i18n/create-testimonial-translation-intent.ts",
       args: [],
       marker: "TESTIMONIAL_TRANSLATION_INTENT_FAILED",
+    },
+    {
+      script: "../scripts/i18n/retry-testimonial-translation-job.ts",
+      args: [],
+      marker: "TESTIMONIAL_TRANSLATION_RETRY_FAILED",
     },
   ];
   for (const item of cases) {

@@ -1,5 +1,6 @@
 import type { GoogleTranslationTransport } from "@/lib/i18n/translations/google-provider";
 import type { GoogleAuthenticationConfig } from "@/lib/i18n/translations/google-auth-config";
+import { TranslationProviderError } from "@/lib/i18n/translations/provider";
 
 type TranslateTextResponse = {
   translations?: Array<{ translatedText?: string | null }>;
@@ -16,6 +17,58 @@ export type OfficialGoogleTranslationClient = {
 };
 
 type ClientFactory = () => Promise<OfficialGoogleTranslationClient>;
+
+type GoogleTranslationResult = { translatedText: string };
+
+function hasValidTranslation(value: unknown): value is unknown[] {
+  return (
+    Array.isArray(value) &&
+    value.some(
+      (entry) =>
+        entry !== null &&
+        typeof entry === "object" &&
+        "translatedText" in entry &&
+        typeof entry.translatedText === "string" &&
+        entry.translatedText.trim().length > 0
+    )
+  );
+}
+
+export function selectGoogleTranslationResults(
+  response: TranslateTextResponse,
+  expectedCount: number
+): GoogleTranslationResult[] {
+  const selected = hasValidTranslation(response.glossaryTranslations)
+    ? response.glossaryTranslations
+    : hasValidTranslation(response.translations)
+      ? response.translations
+      : [];
+
+  if (
+    selected.some(
+      (entry) =>
+        entry === null ||
+        typeof entry !== "object" ||
+        !("translatedText" in entry) ||
+        typeof entry.translatedText !== "string" ||
+        !entry.translatedText.trim()
+    )
+  ) {
+    throw new TranslationProviderError(
+      "permanent",
+      "google_response_malformed",
+      "Google Translation returned a malformed result."
+    );
+  }
+  if (selected.length > 0 && selected.length !== expectedCount) {
+    throw new TranslationProviderError(
+      "permanent",
+      "google_response_cardinality_invalid",
+      "Google Translation returned an unexpected number of results."
+    );
+  }
+  return selected as GoogleTranslationResult[];
+}
 
 function readRequestId(metadata: unknown): string | null {
   if (!metadata || typeof metadata !== "object" || !("get" in metadata)) {
@@ -92,11 +145,13 @@ export function createOfficialGoogleTranslationTransport(input: {
       try {
         const [response, , metadata] = await call;
         if (request.signal?.aborted) throw abortError();
+        const translations = selectGoogleTranslationResults(
+          response,
+          request.contents.length
+        );
         return {
-          translations: (
-            response.glossaryTranslations ?? response.translations ?? []
-          ).map((translation) => ({
-            translatedText: translation.translatedText ?? undefined,
+          translations: translations.map((translation) => ({
+            translatedText: translation.translatedText,
           })),
           requestId: readRequestId(metadata),
           serviceVersion: "google-cloud-translation-v3",
