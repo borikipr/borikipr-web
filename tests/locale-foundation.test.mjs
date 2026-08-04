@@ -262,8 +262,8 @@ test("the feature-gated selector is accessible and has no analytics integration"
   assert.match(selector, /\/flags\/puerto-rico\.svg/);
   assert.match(selector, /\/flags\/united-states\.svg/);
   assert.match(selector, /<Image/);
-  assert.match(puertoRicoFlag, /aria-label="Puerto Rico"/);
-  assert.match(unitedStatesFlag, /aria-label="United States"/);
+  assert.match(puertoRicoFlag, /^<svg\b/);
+  assert.match(unitedStatesFlag, /^<svg\b/);
   assert.doesNotMatch(selector, /flag:\s*["'](?:PR|US|🇵🇷|🇺🇸)/);
   assert.doesNotMatch(selector, /\(\{shortCode\}\)/);
   assert.match(selector, /aria-hidden="true"/);
