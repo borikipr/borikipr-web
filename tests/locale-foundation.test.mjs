@@ -262,6 +262,12 @@ test("the feature-gated selector is accessible and has no analytics integration"
   assert.match(selector, /\/flags\/puerto-rico\.svg/);
   assert.match(selector, /\/flags\/united-states\.svg/);
   assert.match(selector, /<Image/);
+  assert.match(selector, /flagWidth: 900/);
+  assert.match(selector, /flagHeight: 600/);
+  assert.match(selector, /flagWidth: 1235/);
+  assert.match(selector, /flagHeight: 650/);
+  assert.match(selector, /className="h-4 w-auto[^\"]*object-contain"/);
+  assert.doesNotMatch(selector, /object-cover/);
   assert.match(puertoRicoFlag, /^<svg\b/);
   assert.match(unitedStatesFlag, /^<svg\b/);
   assert.doesNotMatch(selector, /flag:\s*["'](?:PR|US|🇵🇷|🇺🇸)/);

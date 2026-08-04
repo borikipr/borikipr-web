@@ -14,9 +14,24 @@ import {
   getRouteLocale,
 } from "@/lib/i18n/routing";
 
-const options: ReadonlyArray<{ locale: AppLocale; flagSrc: string }> = [
-  { locale: DEFAULT_LOCALE, flagSrc: "/flags/puerto-rico.svg" },
-  { locale: ENGLISH_LOCALE, flagSrc: "/flags/united-states.svg" },
+const options: ReadonlyArray<{
+  locale: AppLocale;
+  flagSrc: string;
+  flagWidth: number;
+  flagHeight: number;
+}> = [
+  {
+    locale: DEFAULT_LOCALE,
+    flagSrc: "/flags/puerto-rico.svg",
+    flagWidth: 900,
+    flagHeight: 600,
+  },
+  {
+    locale: ENGLISH_LOCALE,
+    flagSrc: "/flags/united-states.svg",
+    flagWidth: 1235,
+    flagHeight: 650,
+  },
 ];
 
 export default function LanguageSelector({
@@ -67,9 +82,9 @@ export default function LanguageSelector({
               src={option.flagSrc}
               alt=""
               aria-hidden="true"
-              width={24}
-              height={16}
-              className="h-4 w-6 shrink-0 rounded-[2px] object-cover"
+              width={option.flagWidth}
+              height={option.flagHeight}
+              className="h-4 w-auto shrink-0 rounded-[2px] object-contain"
             />
             <span>{language}</span>
           </Link>
