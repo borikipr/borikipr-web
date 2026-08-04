@@ -252,8 +252,8 @@ test("Spanish shell, sitemap and redirect behavior remain stable while locale UI
 test("the feature-gated selector is accessible and has no analytics integration", async () => {
   const [selector, puertoRicoFlag, unitedStatesFlag] = await Promise.all([
     source("components/LanguageSelector.tsx"),
-    source("public/flags/puerto-rico1.svg"),
-    source("public/flags/united-states1.svg"),
+    source("public/flags/puerto-rico.svg"),
+    source("public/flags/united-states.svg"),
   ]);
 
   assert.match(selector, /dictionary\.language\.selectorLabel/);

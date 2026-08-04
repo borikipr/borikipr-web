@@ -22,13 +22,13 @@ const options: ReadonlyArray<{
 }> = [
   {
     locale: DEFAULT_LOCALE,
-    flagSrc: "/flags/puerto-rico1.svg",
+    flagSrc: "/flags/puerto-rico.svg",
     flagWidth: 900,
     flagHeight: 600,
   },
   {
     locale: ENGLISH_LOCALE,
-    flagSrc: "/flags/united-states1.svg",
+    flagSrc: "/flags/united-states.svg",
     flagWidth: 1235,
     flagHeight: 650,
   },
