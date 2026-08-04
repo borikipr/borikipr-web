@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
 import { usePublicLocale } from "@/components/PublicLocaleProvider";
 import {
@@ -13,9 +14,9 @@ import {
   getRouteLocale,
 } from "@/lib/i18n/routing";
 
-const options: ReadonlyArray<{ locale: AppLocale; flag: string }> = [
-  { locale: DEFAULT_LOCALE, flag: "🇵🇷" },
-  { locale: ENGLISH_LOCALE, flag: "🇺🇸" },
+const options: ReadonlyArray<{ locale: AppLocale; flagSrc: string }> = [
+  { locale: DEFAULT_LOCALE, flagSrc: "/flags/puerto-rico.svg" },
+  { locale: ENGLISH_LOCALE, flagSrc: "/flags/united-states.svg" },
 ];
 
 export default function LanguageSelector({
@@ -62,7 +63,14 @@ export default function LanguageSelector({
                 : "border-current/20"
             }`}
           >
-            <span aria-hidden="true">{option.flag}</span>
+            <Image
+              src={option.flagSrc}
+              alt=""
+              aria-hidden="true"
+              width={24}
+              height={16}
+              className="h-4 w-6 shrink-0 rounded-[2px] object-cover"
+            />
             <span>{language}</span>
           </Link>
         );

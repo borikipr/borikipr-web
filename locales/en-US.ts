@@ -404,9 +404,12 @@ const enUS = {
   },
   testimonialsPage: {
     imageAltSuffix: "Testimonial",
+    featuredTag: "Featured testimonial",
     defaultTag: "Real experience",
     buyer: "Buyer",
     seller: "Seller",
+    buyerTitle: "Purchase completed",
+    sellerTitle: "Sale completed",
     readLess: "Read less",
     readMore: "Read more",
     eyebrow: "Testimonials",

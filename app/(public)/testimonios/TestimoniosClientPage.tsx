@@ -47,13 +47,15 @@ function TestimonioCard({
   const [expanded, setExpanded] = useState(false);
   const initialClampClass = item.destacado ? "line-clamp-6" : "line-clamp-3";
   const canExpand = item.texto.length > (item.destacado ? 260 : 150);
+  const displayTag = item.destacado ? copy.featuredTag : copy.defaultTag;
+  const displayTitle = item.tipo === "comprador" ? copy.buyerTitle : copy.sellerTitle;
 
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-[2rem] border border-[#e8e8e8] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md">
       <div className="relative h-80 w-full bg-[#f5f5f5]">
         <Image
           src={item.imagen}
-          alt={item.titulo || `${item.nombre} - ${copy.imageAltSuffix}`}
+          alt={`${displayTitle} - ${copy.imageAltSuffix}`}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
           className="object-cover"
@@ -62,7 +64,7 @@ function TestimonioCard({
 
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white [text-shadow:0_2px_8px_rgba(0,0,0,.45)]">
-            {item.etiqueta || copy.defaultTag}
+            {displayTag}
           </p>
           <p className="mt-2 text-sm text-white/90">{item.lugar}</p>
         </div>
@@ -74,7 +76,7 @@ function TestimonioCard({
         </p>
 
         <h3 className="mt-3 text-2xl font-semibold text-[#11518b]">
-          {item.titulo || item.nombre}
+          {displayTitle}
         </h3>
 
         <p

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 20" role="img" aria-label="United States">
+  <path fill="#fff" d="M0 0h30v20H0z"/>
+  <path fill="#b22234" d="M0 0h30v1.54H0zm0 3.08h30v1.54H0zm0 3.07h30v1.54H0zm0 3.08h30v1.54H0zm0 3.08h30v1.54H0zm0 3.07h30v1.54H0zm0 3.08h30V20H0z"/>
+  <path fill="#3c3b6e" d="M0 0h12.4v10.77H0z"/>
+  <g fill="#fff">
+    <path d="M1 1h1v1H1zm2 0h1v1H3zm2 0h1v1H5zm2 0h1v1H7zm2 0h1v1H9zm2 0h1v1h-1zM2 2.5h1v1H2zm2 0h1v1H4zm2 0h1v1H6zm2 0h1v1H8zm2 0h1v1h-1zM1 4h1v1H1zm2 0h1v1H3zm2 0h1v1H5zm2 0h1v1H7zm2 0h1v1H9zm2 0h1v1h-1zM2 5.5h1v1H2zm2 0h1v1H4zm2 0h1v1H6zm2 0h1v1H8zm2 0h1v1h-1zM1 7h1v1H1zm2 0h1v1H3zm2 0h1v1H5zm2 0h1v1H7zm2 0h1v1H9zm2 0h1v1h-1zM2 8.5h1v1H2zm2 0h1v1H4zm2 0h1v1H6zm2 0h1v1H8zm2 0h1v1h-1z"/>
+  </g>
+</svg>

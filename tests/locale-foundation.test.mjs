@@ -96,6 +96,18 @@ test("Phase 2.5 dictionaries have exact key and collection parity", () => {
     "Buyers"
   );
   assert.equal(
+    getDictionary("en-US").testimonialsPage.featuredTag,
+    "Featured testimonial"
+  );
+  assert.equal(
+    getDictionary("en-US").testimonialsPage.sellerTitle,
+    "Sale completed"
+  );
+  assert.equal(
+    getDictionary("es-PR").testimonialsPage.featuredTag,
+    "Testimonio destacado"
+  );
+  assert.equal(
     getDictionary("en-US").privacyPage.sections.length,
     getDictionary("es-PR").privacyPage.sections.length
   );
@@ -238,19 +250,41 @@ test("Spanish shell, sitemap and redirect behavior remain stable while locale UI
 });
 
 test("the feature-gated selector is accessible and has no analytics integration", async () => {
-  const selector = await source("components/LanguageSelector.tsx");
+  const [selector, puertoRicoFlag, unitedStatesFlag] = await Promise.all([
+    source("components/LanguageSelector.tsx"),
+    source("public/flags/puerto-rico.svg"),
+    source("public/flags/united-states.svg"),
+  ]);
 
   assert.match(selector, /dictionary\.language\.selectorLabel/);
   assert.match(selector, /dictionary\.language\.spanish/);
   assert.match(selector, /dictionary\.language\.english/);
-  assert.match(selector, /🇵🇷/);
-  assert.match(selector, /🇺🇸/);
+  assert.match(selector, /\/flags\/puerto-rico\.svg/);
+  assert.match(selector, /\/flags\/united-states\.svg/);
+  assert.match(selector, /<Image/);
+  assert.match(puertoRicoFlag, /aria-label="Puerto Rico"/);
+  assert.match(unitedStatesFlag, /aria-label="United States"/);
+  assert.doesNotMatch(selector, /flag:\s*["'](?:PR|US|🇵🇷|🇺🇸)/);
   assert.doesNotMatch(selector, /\(\{shortCode\}\)/);
   assert.match(selector, /aria-hidden="true"/);
   assert.match(selector, /aria-label=/);
   assert.match(selector, /getEquivalentRoute\(currentHref, option\.locale\)/);
   assert.doesNotMatch(selector, /isStaticLocalePreviewRoute/);
   assert.doesNotMatch(selector, /Analytics|trackAnalytics|privateToken/);
+});
+
+test("testimonial presentation derives every badge and title from locale copy", async () => {
+  const [client, queries] = await Promise.all([
+    source("app/(public)/testimonios/TestimoniosClientPage.tsx"),
+    source("lib/queries/testimonios.ts"),
+  ]);
+
+  assert.match(client, /item\.destacado \? copy\.featuredTag : copy\.defaultTag/);
+  assert.match(client, /item\.tipo === "comprador" \? copy\.buyerTitle : copy\.sellerTitle/);
+  assert.match(client, /expanded \? copy\.readLess : copy\.readMore/);
+  assert.doesNotMatch(client, /item\.etiqueta \|\|/);
+  assert.doesNotMatch(client, /item\.titulo \|\|/);
+  assert.doesNotMatch(queries, /Testimonio destacado|Experiencia real|Compra completada|Venta completada/);
 });
 
 test("public form copy localizes labels and errors while preserving canonical values", () => {
@@ -394,7 +428,7 @@ test("Phase 2.5 pages consume shared dictionaries without duplicating page JSX",
   assert.match(listingsClient, /\{propiedad\.titulo\}/);
   assert.match(listingsClient, /\{propiedad\.descripcion\}/);
   assert.match(testimonialsClient, /\{item\.texto\}/);
-  assert.match(testimonialsClient, /\{item\.titulo \|\| item\.nombre\}/);
+  assert.match(testimonialsClient, /\{displayTitle\}/);
   assert.doesNotMatch(englishAbout, /<main|<Header/);
   assert.doesNotMatch(englishContact, /<main|<Header/);
   assert.doesNotMatch(englishListings, /<main|<Header/);

@@ -54,6 +54,8 @@ test("enabled preview switches static routes and updates the document language",
 
   const selector = page.locator("[data-language-selector]:visible");
   await expect(selector).toBeVisible();
+  await expect(selector.locator('img[src*="puerto-rico.svg"]')).toBeVisible();
+  await expect(selector.locator('img[src*="united-states.svg"]')).toBeVisible();
   await expect(selector.getByRole("link", { name: "Español" })).toHaveAttribute(
     "href",
     "/about"
@@ -131,6 +133,8 @@ test("enabled mobile drawer keeps the selector reachable and closes safely after
   const scrollRegion = drawer.locator("[data-mobile-menu-scroll]");
   const selector = drawer.locator("[data-language-selector]");
   await expect(drawer).toBeVisible();
+  await expect(selector.locator('img[src*="puerto-rico.svg"]')).toBeVisible();
+  await expect(selector.locator('img[src*="united-states.svg"]')).toBeVisible();
   await expect(page.getByRole("button", { name: /Cerrar men/ })).toBeFocused();
   expect(await scrollRegion.evaluate((element) => getComputedStyle(element).overflowY)).toMatch(
     /auto|scroll/
@@ -232,8 +236,9 @@ test("enabled English contact forms localize visible controls and keep canonical
   await expect(page.getByRole("radio", { name: "Sell" })).toHaveAttribute("value", "Vender");
 
   const selector = page.locator("[data-language-selector]:visible");
-  await expect(selector).toContainText("🇵🇷");
-  await expect(selector).toContainText("🇺🇸");
+  await expect(selector.locator('img[src*="puerto-rico.svg"]')).toBeVisible();
+  await expect(selector.locator('img[src*="united-states.svg"]')).toBeVisible();
+  await expect(selector).not.toContainText(/^PR\s|\sPR\s|^US\s|\sUS\s/);
   await expect(selector).not.toContainText("(ES)");
   await expect(selector).not.toContainText("(EN)");
 });

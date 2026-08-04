@@ -403,9 +403,12 @@ const esPR = {
   },
   testimonialsPage: {
     imageAltSuffix: "Testimonio",
+    featuredTag: "Testimonio destacado",
     defaultTag: "Experiencia real",
     buyer: "Comprador",
     seller: "Vendedor",
+    buyerTitle: "Compra completada",
+    sellerTitle: "Venta completada",
     readLess: "Leer menos",
     readMore: "Leer más",
     eyebrow: "Testimonios",

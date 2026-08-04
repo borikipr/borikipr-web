@@ -56,8 +56,6 @@ export async function getTestimoniosPublicos() {
     tipo: row.tipo,
     texto: row.texto,
     imagen: row.foto_url || "/og-image.jpg",
-    etiqueta: row.destacado ? "Testimonio destacado" : "Experiencia real",
-    titulo: row.tipo === "comprador" ? "Compra completada" : "Venta completada",
     destacado: row.destacado,
     orden: row.orden,
   })) as TestimonioPublico[];
@@ -110,8 +108,6 @@ export async function getTestimoniosPublicosPaginados(
     tipo: row.tipo,
     texto: row.texto,
     imagen: row.foto_url || "/og-image.jpg",
-    etiqueta: row.destacado ? "Testimonio destacado" : "Experiencia real",
-    titulo: row.tipo === "comprador" ? "Compra completada" : "Venta completada",
     destacado: row.destacado,
     orden: row.orden,
   })) as TestimonioPublico[];
