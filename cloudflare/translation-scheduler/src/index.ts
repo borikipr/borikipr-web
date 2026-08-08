@@ -65,7 +65,14 @@ export async function invokeBorikiTranslationWorker(input: {
       redirect: "error",
       signal: controller.signal,
     });
-    await response.body?.cancel();
+    // Delivery is determined by the upstream HTTP status. Discarding the body
+    // is best-effort because some edge runtimes reject stream cancellation
+    // after the response has already completed.
+    try {
+      await response.body?.cancel();
+    } catch {
+      // The response body is intentionally never read or logged.
+    }
 
     const outcome: SchedulerResult["outcome"] = response.ok
       ? "delivered"

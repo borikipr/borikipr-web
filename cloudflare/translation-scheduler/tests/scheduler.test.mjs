@@ -107,6 +107,28 @@ test("authorization, rate-limit, upstream, and zero-work responses never retry",
   }
 });
 
+test("a response-body cancellation failure does not mask successful delivery", async () => {
+  let calls = 0;
+  const result = await invokeBorikiTranslationWorker({
+    secret: "synthetic-scheduler-secret",
+    fetchImpl: async () => {
+      calls += 1;
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          cancel: async () => {
+            throw new Error("synthetic stream cancellation failure");
+          },
+        },
+      };
+    },
+  });
+
+  assert.equal(calls, 1);
+  assert.deepEqual(result, { ok: true, outcome: "delivered", status: 200 });
+});
+
 test("timeout and network failures are sanitized and never retried", async () => {
   const logs = [];
   let timeoutCalls = 0;
