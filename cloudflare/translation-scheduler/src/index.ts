@@ -24,6 +24,24 @@ export type SchedulerResult = {
   status: number | null;
 };
 
+type SchedulerFailureClass =
+  | "routing_loop"
+  | "redirect_rejected"
+  | "dns"
+  | "tls"
+  | "network"
+  | "unknown";
+
+function classifySchedulerFailure(error: unknown): SchedulerFailureClass {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  if (/same zone|recursive|loop/.test(message)) return "routing_loop";
+  if (/redirect/.test(message)) return "redirect_rejected";
+  if (/dns|resolve|host/.test(message)) return "dns";
+  if (/tls|certificate|ssl/.test(message)) return "tls";
+  if (/network|fetch|connection|socket/.test(message)) return "network";
+  return "unknown";
+}
+
 export function formatSchedulerLog(
   event: string,
   details: Record<string, string | number | boolean | null>
@@ -101,6 +119,7 @@ export async function invokeBorikiTranslationWorker(input: {
     log("translation_scheduler_completed", {
       ...result,
       durationMs: Date.now() - startedAt,
+      failureClass: classifySchedulerFailure(error),
     });
     return result;
   } finally {

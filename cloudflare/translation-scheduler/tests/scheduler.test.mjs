@@ -161,6 +161,7 @@ test("timeout and network failures are sanitized and never retried", async () =>
   });
   assert.equal(failureCalls, 1);
   assert.equal(failure.outcome, "request_failed");
+  assert.equal(logs.at(-1).details.failureClass, "unknown");
   assert.doesNotMatch(
     JSON.stringify(logs),
     /synthetic-scheduler-secret|sensitive|credential|payload/
