@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { invokeBorikiTranslationWorker } from "../src/index.ts";
+import {
+  formatSchedulerLog,
+  invokeBorikiTranslationWorker,
+} from "../src/index.ts";
 
 const EXPECTED_URL =
   "https://borikipr.com/api/cron/process-translation-jobs";
@@ -63,6 +66,23 @@ test("missing secret fails closed without making a request", async () => {
     outcome: "configuration_error",
     status: null,
   });
+});
+
+test("operational log formatting is aggregate-only and secret-free", () => {
+  const line = formatSchedulerLog("translation_scheduler_completed", {
+    ok: true,
+    outcome: "delivered",
+    status: 200,
+    durationMs: 42,
+  });
+  assert.deepEqual(JSON.parse(line), {
+    event: "translation_scheduler_completed",
+    ok: true,
+    outcome: "delivered",
+    status: 200,
+    durationMs: 42,
+  });
+  assert.doesNotMatch(line, /authorization|bearer|secret|source|translated/i);
 });
 
 test("authorization, rate-limit, upstream, and zero-work responses never retry", async () => {

@@ -24,6 +24,13 @@ export type SchedulerResult = {
   status: number | null;
 };
 
+export function formatSchedulerLog(
+  event: string,
+  details: Record<string, string | number | boolean | null>
+): string {
+  return JSON.stringify({ event, ...details });
+}
+
 export async function invokeBorikiTranslationWorker(input: {
   secret: string | undefined;
   fetchImpl?: typeof fetch;
@@ -101,7 +108,7 @@ const scheduler = {
   ): Promise<void> {
     await invokeBorikiTranslationWorker({
       secret: env.TRANSLATION_CRON_SECRET,
-      logger: (event, details) => console.log(event, details),
+      logger: (event, details) => console.log(formatSchedulerLog(event, details)),
     });
   },
 };
