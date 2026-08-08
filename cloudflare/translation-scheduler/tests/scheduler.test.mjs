@@ -49,7 +49,7 @@ test("scheduled execution makes exactly one authenticated request to the fixed t
     calls[0].init.headers.authorization,
     "Bearer synthetic-scheduler-secret"
   );
-  assert.equal(calls[0].init.redirect, "error");
+  assert.equal(calls[0].init.redirect, "follow");
   assert.deepEqual(result, { ok: true, outcome: "delivered", status: 200 });
   assert.doesNotMatch(JSON.stringify(logs), /synthetic-scheduler-secret|response body/);
 });

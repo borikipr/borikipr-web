@@ -80,7 +80,9 @@ export async function invokeBorikiTranslationWorker(input: {
       headers: {
         authorization: `Bearer ${secret}`,
       },
-      redirect: "error",
+      // Cloudflare may internally redirect a same-zone public fetch before it
+      // reaches Vercel. The target is fixed and no redirect is retried by us.
+      redirect: "follow",
       signal: controller.signal,
     });
     // Delivery is determined by the upstream HTTP status. Discarding the body
