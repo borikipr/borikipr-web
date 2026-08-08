@@ -15,7 +15,7 @@ import {
   UserCheck,
   Waves,
 } from "lucide-react";
-import { getRegionByName } from "@/data/zonas";
+import type { RegionSlug } from "@/data/zonas";
 import {
   getPropiedades,
   getPropiedadesDestacadas,
@@ -88,29 +88,29 @@ function estadoClasses(estado: EstadoPropiedad) {
   }
 }
 
-const zonasHome = [
+const zonasHome: Array<{ region: RegionSlug; Icon: typeof Building2 }> = [
   {
-    nombre: "Metropolitana",
+    region: "metropolitana",
     Icon: Building2,
   },
   {
-    nombre: "Norte",
+    region: "norte",
     Icon: Waves,
   },
   {
-    nombre: "Sur",
+    region: "sur",
     Icon: Sun,
   },
   {
-    nombre: "Este",
+    region: "este",
     Icon: Trees,
   },
   {
-    nombre: "Oeste",
+    region: "oeste",
     Icon: Sunset,
   },
   {
-    nombre: "Central",
+    region: "central",
     Icon: Mountain,
   },
 ];
@@ -399,10 +399,8 @@ export async function renderHomePage(locale: AppLocale) {
             <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {zonasHome.map((zona, index) => (
                 <Link
-                  key={zona.nombre}
-                  href={`${listingsHref}?region=${
-                    getRegionByName(zona.nombre) ?? ""
-                  }`}
+                  key={zona.region}
+                  href={`${listingsHref}?region=${zona.region}`}
                   className="group rounded-2xl border border-[#e8e8e8] bg-white p-7 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-[#11518b]/30"
                 >
                   <div className="flex items-center gap-4">
@@ -411,7 +409,7 @@ export async function renderHomePage(locale: AppLocale) {
                     </span>
                     <div>
                       <h3 className="text-lg font-semibold text-[#11518b] group-hover:text-[#0d3a63] transition">
-                        {zona.nombre}
+                        {dictionary.listingsPage.regionLabels[zona.region]}
                       </h3>
                       <p className="mt-1 text-sm text-[#4d4d4d]">
                         {copy.regions.descriptions[index]}

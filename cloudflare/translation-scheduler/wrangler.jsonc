@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json.schemastore.org/wrangler.json",
+  "name": "borikipr-translation-scheduler",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-08",
+  "workers_dev": false,
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  }
+}

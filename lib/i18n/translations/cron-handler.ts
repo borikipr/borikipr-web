@@ -14,7 +14,8 @@ export async function handleTranslationWorkerCron(input: {
   >[0]["onTranslationPublished"];
 }) {
   const env = input.env ?? process.env;
-  const secret = env.CRON_SECRET?.trim();
+  const secret =
+    env.TRANSLATION_CRON_SECRET?.trim() || env.CRON_SECRET?.trim();
   if (
     !secret ||
     input.request.headers.get("authorization") !== `Bearer ${secret}`

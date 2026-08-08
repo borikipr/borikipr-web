@@ -293,7 +293,7 @@ const enUS = {
       Comercial: "Commercial",
     },
     regionLabels: {
-      metropolitana: "Metropolitan",
+      metropolitana: "Metropolitan Area",
       norte: "North",
       sur: "South",
       este: "East",

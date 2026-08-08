@@ -434,6 +434,39 @@ test("disabled and unauthorized cron paths make zero database calls", async () =
   assert.equal(databaseCalls, 0);
 });
 
+test("dedicated translation cron secret takes precedence with legacy fallback", async () => {
+  const rejectingDatabase = {
+    async unsafe() {
+      throw new Error("unexpected database call");
+    },
+    async begin() {
+      throw new Error("unexpected database call");
+    },
+  };
+  const environment = {
+    CRON_SECRET: "legacy-cron-secret",
+    TRANSLATION_CRON_SECRET: "dedicated-translation-secret",
+  };
+  const legacy = await handleTranslationWorkerCron({
+    request: new Request("http://localhost/api/cron/process-translation-jobs", {
+      headers: { authorization: "Bearer legacy-cron-secret" },
+    }),
+    database: rejectingDatabase,
+    env: environment,
+  });
+  assert.equal(legacy.status, 401);
+
+  const dedicated = await handleTranslationWorkerCron({
+    request: new Request("http://localhost/api/cron/process-translation-jobs", {
+      headers: { authorization: "Bearer dedicated-translation-secret" },
+    }),
+    database: rejectingDatabase,
+    env: environment,
+  });
+  assert.equal(dedicated.status, 200);
+  assert.equal((await dedicated.json()).state, "disabled");
+});
+
 test("invalid cron configuration fails closed before claiming", async () => {
   await seedProperty();
   const before = await repository.countEligible(now);

@@ -113,6 +113,31 @@ test("Phase 2.5 dictionaries have exact key and collection parity", () => {
   );
 });
 
+test("home and listing region labels are localized without changing canonical slugs", async () => {
+  const spanish = getDictionary("es-PR").listingsPage.regionLabels;
+  const english = getDictionary("en-US").listingsPage.regionLabels;
+  assert.deepEqual(spanish, {
+    metropolitana: "Metropolitana",
+    norte: "Norte",
+    sur: "Sur",
+    este: "Este",
+    oeste: "Oeste",
+    central: "Central",
+  });
+  assert.deepEqual(english, {
+    metropolitana: "Metropolitan Area",
+    norte: "North",
+    sur: "South",
+    este: "East",
+    oeste: "West",
+    central: "Central",
+  });
+  const home = await source("app/(public)/page.tsx");
+  assert.match(home, /dictionary\.listingsPage\.regionLabels\[zona\.region\]/);
+  assert.match(home, /href=\{`\$\{listingsHref\}\?region=\$\{zona\.region\}`\}/);
+  assert.doesNotMatch(home, /getRegionByName|zona\.nombre/);
+});
+
 test("unsupported locales fail clearly outside production", () => {
   const originalNodeEnv = process.env.NODE_ENV;
   process.env.NODE_ENV = "development";
