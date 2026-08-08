@@ -16,6 +16,9 @@ test("configuration schedules one UTC invocation every five minutes", async () =
   );
   assert.equal(config.name, "borikipr-translation-scheduler");
   assert.equal(config.workers_dev, false);
+  assert.deepEqual(config.compatibility_flags, [
+    "global_fetch_strictly_public",
+  ]);
   assert.deepEqual(config.triggers.crons, ["*/5 * * * *"]);
   assert.equal(JSON.stringify(config).includes("TRANSLATION_CRON_SECRET"), false);
 });
