@@ -463,8 +463,8 @@ export function createTranslationAdminService(database: TranslationDatabase) {
         eventType: "regeneration_authorized", newStatus: status,
         newTranslatedSourceHash: row.translated_source_hash, newValue: row.translated_value });
       const jobs = await tx.unsafe<{ id: string }>(
-        `INSERT INTO public.translation_jobs (translation_id, source_hash, priority)
-         VALUES ($1::uuid, $2, $3)
+        `INSERT INTO public.translation_jobs (translation_id, source_hash, priority, max_attempts)
+         VALUES ($1::uuid, $2, $3, 2)
          ON CONFLICT (translation_id, source_hash)
            WHERE status IN ('queued', 'processing') DO NOTHING
          RETURNING id::text`,

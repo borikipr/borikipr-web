@@ -106,8 +106,8 @@ async function ensureQueuedJob(
 ) {
   const rows = await transaction.unsafe<{ id: string }>(
     `INSERT INTO public.translation_jobs (
-       translation_id, source_hash, priority
-     ) VALUES ($1::uuid, $2, $3)
+       translation_id, source_hash, priority, max_attempts
+     ) VALUES ($1::uuid, $2, $3, 2)
      ON CONFLICT (translation_id, source_hash)
        WHERE status IN ('queued', 'processing')
      DO NOTHING

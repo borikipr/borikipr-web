@@ -25,6 +25,10 @@ const regenerationMigrationSql = await readFile(
   fileURLToPath(new URL("../db/migrations/0020_add_translation_regeneration_authorization.sql", import.meta.url)),
   "utf8"
 );
+const usageBudgetMigrationSql = await readFile(
+  fileURLToPath(new URL("../db/migrations/0021_add_translation_usage_budget.sql", import.meta.url)),
+  "utf8"
+);
 function adapter(db) {
   const executor = (source) => ({
     async unsafe(query, parameters = []) {
@@ -60,10 +64,12 @@ before(async () => {
   `);
   await db.exec(migrationSql);
   await db.exec(regenerationMigrationSql);
+  await db.exec(usageBudgetMigrationSql);
 });
 beforeEach(async () => {
   await db.exec(`
     DELETE FROM translation_revision_events;
+    DELETE FROM translation_provider_usage_buckets;
     DELETE FROM translation_jobs;
     DELETE FROM content_translations;
     DELETE FROM propiedades;
@@ -500,7 +506,7 @@ test("operational health exposes aggregates and stale-lock age only", async () =
   assert.equal(typeof health.oldestEligibleAgeMs, "number");
   assert.deepEqual(Object.keys(health).sort(), [
     "cancelled", "eligibleQueued", "failed", "lastSucceededAt",
-    "oldestEligibleAgeMs", "processing", "queued", "recentSucceeded",
+    "oldestEligibleAgeMs", "pausedByBudget", "processing", "queued", "recentSucceeded",
     "staleProcessing",
   ]);
 });

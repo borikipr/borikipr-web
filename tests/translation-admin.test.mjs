@@ -17,6 +17,7 @@ import { FakeTranslationProvider } from "../lib/i18n/translations/fake-provider.
 
 const migration0019 = await readFile(fileURLToPath(new URL("../db/migrations/0019_create_translation_persistence.sql", import.meta.url)), "utf8");
 const migration0020 = await readFile(fileURLToPath(new URL("../db/migrations/0020_add_translation_regeneration_authorization.sql", import.meta.url)), "utf8");
+const migration0021 = await readFile(fileURLToPath(new URL("../db/migrations/0021_add_translation_usage_budget.sql", import.meta.url)), "utf8");
 
 function adapter(db) {
   const executor = (source) => ({
@@ -55,11 +56,13 @@ before(async () => {
   `);
   await db.exec(migration0019);
   await db.exec(migration0020);
+  await db.exec(migration0021);
 });
 
 beforeEach(async () => {
   await db.exec(`
     DELETE FROM translation_revision_events;
+    DELETE FROM translation_provider_usage_buckets;
     DELETE FROM translation_jobs;
     DELETE FROM content_translations;
     DELETE FROM propiedades;
@@ -388,4 +391,14 @@ test("Admin action boundary derives actor from the authenticated session and UI 
   assert.doesNotMatch(panel, />\s*\{field\.sourceHash\}\s*</);
   assert.doesNotMatch(panel, /console\.(?:log|info|debug)\([^\n]*sourceHash/);
   assert.doesNotMatch(panel, /(?:analytics|track)\([^\n]*sourceHash/i);
+});
+
+test("Admin usage panel exposes aggregate limits and sanitized budget states only", async () => {
+  const panel = await readFile(fileURLToPath(new URL("../components/admin/TranslationUsageStatus.tsx", import.meta.url)), "utf8");
+  assert.match(panel, /Caracteres hoy \(UTC\)/);
+  assert.match(panel, /Intentos este mes \(UTC\)/);
+  assert.match(panel, /Pausados por límite/);
+  assert.match(panel, /Traducciones automáticas pausadas por límite de uso\./);
+  assert.match(panel, />= TRANSLATION_USAGE_LIMITS\.dailyCharacters \* 0\.8/);
+  assert.doesNotMatch(panel, /sourceText|translatedText|customer|email|phone/i);
 });

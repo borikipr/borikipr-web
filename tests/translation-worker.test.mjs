@@ -35,6 +35,10 @@ const regenerationMigrationSql = await readFile(
   fileURLToPath(new URL("../db/migrations/0020_add_translation_regeneration_authorization.sql", import.meta.url)),
   "utf8"
 );
+const usageBudgetMigrationSql = await readFile(
+  fileURLToPath(new URL("../db/migrations/0021_add_translation_usage_budget.sql", import.meta.url)),
+  "utf8"
+);
 function adapter(db) {
   const executor = (source) => ({
     async unsafe(query, parameters = []) {
@@ -80,10 +84,12 @@ before(async () => {
   `);
   await db.exec(migrationSql);
   await db.exec(regenerationMigrationSql);
+  await db.exec(usageBudgetMigrationSql);
 });
 beforeEach(async () => {
   await db.exec(`
     DELETE FROM translation_revision_events;
+    DELETE FROM translation_provider_usage_buckets;
     DELETE FROM translation_jobs;
     DELETE FROM content_translations;
     DELETE FROM propiedades;
@@ -441,7 +447,7 @@ test("retryable failure requeues; permanent and exhausted failures terminate", a
     DELETE FROM content_translations;
   `);
   await seedTestimonial();
-  await db.exec("UPDATE translation_jobs SET attempts = 4");
+  await db.exec("UPDATE translation_jobs SET attempts = 1");
   summary = await processTranslationJobs({
     database,
     provider: new FakeTranslationProvider([{ type: "retryable" }]),
@@ -450,7 +456,7 @@ test("retryable failure requeues; permanent and exhausted failures terminate", a
   });
   assert.equal(summary.failed, 1);
   row = (await db.query("SELECT status, attempts FROM translation_jobs")).rows[0];
-  assert.deepEqual(row, { status: "failed", attempts: 5 });
+  assert.deepEqual(row, { status: "failed", attempts: 2 });
 });
 
 test("timeout aborts provider and stale-lock recovery respects lock age", async () => {

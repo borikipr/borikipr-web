@@ -20,7 +20,7 @@ applies migrations to a remote database.
 Each migration file must include a matching rollback file. Rollbacks are
 manual review artifacts, not automatic deployment behavior.
 
-Migrations are validated in order through `0020`. The validator creates only
+Migrations are validated in order through `0021`. The validator creates only
 ephemeral local fixtures for the pre-existing `propiedades`,
 `consultas_propiedad`, Priority Registration, and email queue structures needed
 to exercise the reviewed foreign keys and rollback behavior. It verifies each
@@ -128,3 +128,10 @@ or reviewed content protected unless that explicit authorization exists. Its
 rollback refuses to remove an active authorization state, restores the 0019
 protection constraint, and leaves all translations, jobs, history, and Spanish
 source content intact.
+
+Migration `0021` adds aggregate-only daily and monthly provider-usage buckets.
+The buckets contain only provider name, UTC period, attempted character count,
+attempt count, and timestamps—never source text, translated text, entity IDs,
+job IDs, credentials, or customer data. It also changes the default for new
+translation jobs to two automatic attempts. Its rollback refuses to discard
+any usage accounting and restores the previous job default only when safe.

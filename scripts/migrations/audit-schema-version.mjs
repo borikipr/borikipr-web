@@ -99,7 +99,14 @@ if (!process.env.DATABASE_URL) {
               AND column_name='regeneration_authorized_at'
               AND data_type='timestamp with time zone'
               AND is_nullable='YES'
-          ) AS v0020
+          ) AS v0020,
+          to_regclass('public.translation_provider_usage_buckets') IS NOT NULL
+            AND (
+              SELECT column_default = '2'
+              FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='translation_jobs'
+                AND column_name='max_attempts'
+            ) AS v0021
       )
       SELECT * FROM facts
     `;

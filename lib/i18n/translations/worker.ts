@@ -12,6 +12,10 @@ import {
 import type { TranslationDatabase } from "@/lib/i18n/translations/repository";
 import type { TranslationWorkerConfig } from "@/lib/i18n/translations/provider-registry";
 import type { TranslationPublicationTarget } from "@/lib/i18n/translations/public-revalidation";
+import {
+  reserveTranslationProviderUsage,
+  TranslationUsageBudgetError,
+} from "@/lib/i18n/translations/usage-budget";
 
 const RETRY_DELAYS_MS = [
   60_000,
@@ -33,6 +37,7 @@ export type TranslationWorkerSummary = {
   skippedObsolete: number;
   configurationErrors: number;
   staleLocksRecovered: number;
+  pausedByBudget: number;
   durationMs: number;
 };
 
@@ -124,11 +129,15 @@ export async function processTranslationJobs(input: {
     lockTimeoutMs: input.config.lockTimeoutMs,
     limit: input.config.batchSize,
   });
-  const eligible = await repository.countEligible(startedAt);
+  const eligible = await repository.countEligible(
+    startedAt,
+    input.config.maximumAutomaticAttempts
+  );
   const claimed = await repository.claimEligible({
     workerId,
     limit: input.config.batchSize,
     now: startedAt,
+    maximumAttempts: input.config.maximumAutomaticAttempts,
   });
   const summary: TranslationWorkerSummary = {
     eligible,
@@ -141,6 +150,7 @@ export async function processTranslationJobs(input: {
     skippedObsolete: 0,
     configurationErrors: 0,
     staleLocksRecovered: recovery.recovered,
+    pausedByBudget: 0,
     durationMs: 0,
   };
 
@@ -178,6 +188,45 @@ export async function processTranslationJobs(input: {
         fieldKey: context.fieldKey,
         attempt: job.attempts,
         result: protectedTranslation ? "protected" : "obsolete",
+        durationMs: Date.now() - jobStarted,
+      });
+      return;
+    }
+
+    try {
+      await reserveTranslationProviderUsage(input.database, {
+        provider: "google-cloud-translation",
+        sourceText: context.sourceText,
+        now: (input.now ?? (() => new Date()))(),
+      });
+    } catch (error) {
+      if (!(error instanceof TranslationUsageBudgetError)) throw error;
+      const now = (input.now ?? (() => new Date()))();
+      if (error.reason === "source_too_large") {
+        await repository.completeFailure({
+          jobId: job.jobId,
+          workerId,
+          retry: false,
+          availableAt: now,
+          errorCode: "translation_source_too_large",
+          errorMessage: "Translation source exceeds the approved character limit.",
+          now,
+        });
+        summary.failed += 1;
+        return;
+      }
+      const paused = await repository.pauseClaimedForBudget({
+        jobId: job.jobId,
+        workerId,
+        availableAt: error.retryAt ?? new Date(now.getTime() + 15 * 60_000),
+        errorCode: `translation_budget_${error.reason}`,
+        now,
+      });
+      if (paused) summary.pausedByBudget += 1;
+      log("translation_job_budget_paused", {
+        entityType: context.entityType,
+        fieldKey: context.fieldKey,
+        result: error.reason,
         durationMs: Date.now() - jobStarted,
       });
       return;

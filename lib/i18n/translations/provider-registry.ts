@@ -8,6 +8,7 @@ import {
   buildGoogleWorkloadIdentityAudience,
   type GoogleAuthenticationConfig,
 } from "@/lib/i18n/translations/google-auth-config";
+import { TRANSLATION_USAGE_LIMITS } from "@/lib/i18n/translations/usage-budget";
 
 export type TranslationWorkerConfig = {
   enabled: boolean;
@@ -17,6 +18,8 @@ export type TranslationWorkerConfig = {
   lockTimeoutMs: number;
   requestTimeoutMs: number;
   workerIdPrefix: string;
+  maximumAutomaticAttempts: number;
+  maximumSourceCharacters: number;
   googleProjectId: string | null;
   googleLocation: string;
   googleGlossaryId: string | null;
@@ -96,23 +99,27 @@ export function readTranslationWorkerConfig(
       "Translation provider selection is invalid."
     );
   }
+  const production =
+    env.VERCEL_ENV === "production" || env.APP_ENV === "production";
+  const batchSize = integerSetting(
+    env.TRANSLATION_WORKER_BATCH_SIZE,
+    TRANSLATION_USAGE_LIMITS.productionBatchSize,
+    1,
+    production ? 1 : 50,
+    "Translation worker batch size"
+  );
+  const concurrency = integerSetting(
+    env.TRANSLATION_WORKER_CONCURRENCY,
+    TRANSLATION_USAGE_LIMITS.productionConcurrency,
+    1,
+    production ? 1 : 5,
+    "Translation worker concurrency"
+  );
   return {
     enabled: env.TRANSLATION_WORKER_ENABLED === "true",
     providerId: provider,
-    batchSize: integerSetting(
-      env.TRANSLATION_WORKER_BATCH_SIZE,
-      10,
-      1,
-      50,
-      "Translation worker batch size"
-    ),
-    concurrency: integerSetting(
-      env.TRANSLATION_WORKER_CONCURRENCY,
-      2,
-      1,
-      5,
-      "Translation worker concurrency"
-    ),
+    batchSize,
+    concurrency,
     lockTimeoutMs: integerSetting(
       env.TRANSLATION_WORKER_LOCK_TIMEOUT_MS,
       10 * 60_000,
@@ -129,6 +136,9 @@ export function readTranslationWorkerConfig(
     ),
     workerIdPrefix:
       env.TRANSLATION_WORKER_ID?.trim().slice(0, 60) || "borikipr",
+    maximumAutomaticAttempts:
+      TRANSLATION_USAGE_LIMITS.maximumAutomaticAttempts,
+    maximumSourceCharacters: TRANSLATION_USAGE_LIMITS.maximumSourceCharacters,
     googleProjectId: env.GOOGLE_CLOUD_PROJECT_ID?.trim() || null,
     googleLocation:
       env.GOOGLE_CLOUD_TRANSLATION_LOCATION?.trim() || "global",

@@ -549,7 +549,7 @@ export function createTranslationRepository(database: TranslationDatabase) {
     assertUuid(input.translationId, "Translation ID");
     assertHash(input.sourceHash, "Source hash");
     const priority = input.priority ?? 100;
-    const maxAttempts = input.maxAttempts ?? 5;
+    const maxAttempts = input.maxAttempts ?? 2;
     if (!Number.isInteger(priority) || priority < 0) {
       throw new Error("Job priority must be non-negative.");
     }

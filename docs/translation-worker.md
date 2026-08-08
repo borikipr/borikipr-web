@@ -21,8 +21,8 @@ explicit provider is selected.
 - `GOOGLE_CLOUD_TRANSLATION_LOCATION`: defaults to `global`.
 - `GOOGLE_CLOUD_TRANSLATION_GLOSSARY_ID`: optional resource ID, disabled by
   default. Configure a real glossary separately after review.
-- `TRANSLATION_WORKER_BATCH_SIZE`: 1–50, default 10.
-- `TRANSLATION_WORKER_CONCURRENCY`: 1–5, default 2.
+- `TRANSLATION_WORKER_BATCH_SIZE`: fixed at `1` in production.
+- `TRANSLATION_WORKER_CONCURRENCY`: fixed at `1` in production.
 - `TRANSLATION_WORKER_LOCK_TIMEOUT_MS`: 1–60 minutes, default 10 minutes.
 - `TRANSLATION_PROVIDER_TIMEOUT_MS`: 1–120 seconds, default 30 seconds.
 - `TRANSLATION_WORKER_ID`: non-secret worker-name prefix.
@@ -106,12 +106,56 @@ same service and the existing `Authorization: Bearer <CRON_SECRET>` convention.
 It runs in the Node.js runtime, returns aggregate summaries only, and cannot
 select the fake provider.
 
+## Hard usage budget
+
+Migration 0021 adds aggregate-only UTC day and UTC month usage buckets. Before
+each Google provider request, the worker atomically reserves the source's
+Unicode character count and one provider attempt in both buckets. The ledger
+stores no source or translated text, entity or job identifier, credential, or
+customer data. Concurrent workers update the same rows transactionally, so
+they cannot oversubscribe a limit. Retries reserve usage again.
+
+The non-configurable production ceilings are 10,000 attempted source
+characters per UTC day, 250,000 per UTC month, 20 provider attempts per UTC
+day, 100 attempts per UTC month, 5,000 Unicode characters per field, batch size
+1, concurrency 1, and two automatic attempts per job. If accounting is
+unavailable or a limit would be exceeded, the provider is not resolved or
+called. The claimed job returns to a queued, delayed, recoverable state with a
+sanitized budget reason and no consumed job attempt. Sources above 5,000
+characters fail safely before any provider request.
+
+The Admin dashboard exposes only aggregate usage and job counts. It warns at
+80% and states that automatic translations are paused at 100%. Applying 0021
+to production is a separate, restore-protected operator step and is required
+before the worker can be enabled; until then accounting fails closed.
+
+### Google quota and billing alert hardening
+
+After separately authorizing API activation, lower the Cloud Translation
+Advanced quotas before enabling the worker: general-model characters per
+project per day to 10,000; general-model characters per project per minute and
+per user per minute to 5,000; and v3 requests per project per minute to 1. The
+Google daily boundary resets at midnight Pacific time, while the application
+ledger uses UTC, so both controls remain independently conservative. Google
+does not expose a matching monthly character quota; the transactional 250,000
+UTC-month application ceiling remains authoritative. A quota rejection must
+not be treated as permission to bypass the application ledger.
+
+Create an alerts-only monthly budget in Google Cloud Billing by selecting
+**Budgets & alerts**, **Create budget**, limiting scope to the Boriki
+Translation project and Cloud Translation service, choosing a small specified
+amount, and retaining actual-spend thresholds at 50%, 90%, and 100%. Confirm
+the billing recipients and finish the budget. Alerts-only budgets notify; they
+do not stop requests or spending. Cloud Translation is not currently listed
+among the services eligible for Google's preview spend-cap budgets, so the
+application ledger and service quotas are the hard controls.
+
 ## Production migration readiness
 
 1. Create a current Neon backup or restore point.
 2. Confirm the production fingerprint through migration 0018.
-3. Review migrations 0019 and 0020 and their guarded rollbacks.
-4. Apply 0019, then 0020, through the established production procedure.
+3. Review migrations 0019, 0020, and 0021 and their guarded rollbacks.
+4. Apply 0019, then 0020, then 0021 through the established production procedure.
 5. Run the structural fingerprint audit and verify all three tables, indexes,
    the authorization column, and the updated protection constraint.
 6. Leave the worker disabled and deploy the code in that state.
@@ -146,9 +190,10 @@ Attempts increment at claim time. Claims use `FOR UPDATE SKIP LOCKED`, ordered
 by priority, availability, and creation time. Provider calls occur only after
 the claim transaction commits.
 
-Retryable failures use approximately 1 minute, 5 minutes, 30 minutes, 2 hours,
-and 12 hours with ±20% jitter. Permanent, configuration, and exhausted failures
-are terminal. Stale locks are recovered only after the configured timeout.
+Retryable failures use approximately 1 minute and 5 minutes with bounded
+jitter under the two-attempt ceiling. Permanent, configuration, and exhausted
+failures are terminal. Stale locks are recovered only after the configured
+timeout.
 
 Obsolete or protected jobs are cancelled without a provider request. Migration
 0019 has no cancellation revision-event type, so cancellation is represented

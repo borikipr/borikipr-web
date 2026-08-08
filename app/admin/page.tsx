@@ -4,6 +4,10 @@ import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShe
 import { getAdminSession } from "@/lib/admin/auth";
 import { getAdminDashboardStats } from "@/lib/admin/queries";
 import { logoutAdmin } from "./actions";
+import TranslationUsageStatusPanel from "@/components/admin/TranslationUsageStatus";
+import { sql } from "@/lib/db";
+import { createPostgresTranslationDatabase } from "@/lib/i18n/translations/repository";
+import { getTranslationUsageStatus } from "@/lib/i18n/translations/usage-budget";
 
 function StatCard({
   label,
@@ -73,7 +77,12 @@ export default async function AdminPage() {
     redirect("/admin/login");
   }
 
-  const stats = await getAdminDashboardStats();
+  const [stats, translationUsage] = await Promise.all([
+    getAdminDashboardStats(),
+    getTranslationUsageStatus(createPostgresTranslationDatabase(sql)).catch(
+      () => null
+    ),
+  ]);
 
   return (
     <AdminPageShell>
@@ -119,6 +128,12 @@ export default async function AdminPage() {
             description="Con prioridad visual"
           />
         </div>
+
+        <TranslationUsageStatusPanel
+          status={translationUsage}
+          workerEnabled={process.env.TRANSLATION_WORKER_ENABLED === "true"}
+          provider={process.env.TRANSLATION_PROVIDER?.trim() || null}
+        />
 
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
           <ActionCard

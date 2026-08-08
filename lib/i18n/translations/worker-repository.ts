@@ -205,6 +205,7 @@ export function createTranslationWorkerRepository(
       processing: string | number;
       stale_processing: string | number;
       failed: string | number;
+      paused_by_budget: string | number;
       cancelled: string | number;
       recent_succeeded: string | number;
       oldest_eligible_at: string | null;
@@ -220,6 +221,9 @@ export function createTranslationWorkerRepository(
            WHERE status = 'processing' AND locked_at < $2::timestamptz
          ) AS stale_processing,
          COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+         COUNT(*) FILTER (
+           WHERE status = 'queued' AND last_error_code LIKE 'translation_budget_%'
+         ) AS paused_by_budget,
          COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled,
          COUNT(*) FILTER (
            WHERE status = 'succeeded' AND completed_at >= $3::timestamptz
@@ -244,6 +248,7 @@ export function createTranslationWorkerRepository(
       processing: Number(row?.processing ?? 0),
       staleProcessing: Number(row?.stale_processing ?? 0),
       failed: Number(row?.failed ?? 0),
+      pausedByBudget: Number(row?.paused_by_budget ?? 0),
       cancelled: Number(row?.cancelled ?? 0),
       recentSucceeded: Number(row?.recent_succeeded ?? 0),
       oldestEligibleAgeMs: oldestEligibleAt
@@ -253,17 +258,17 @@ export function createTranslationWorkerRepository(
     };
   }
 
-  async function countEligible(now: Date) {
+  async function countEligible(now: Date, maximumAttempts = 2) {
     const rows = await database.unsafe<{ count: number }>(
       `SELECT count(*)::integer AS count
          FROM public.translation_jobs tj
          JOIN public.content_translations ct ON ct.id = tj.translation_id
         WHERE tj.status = 'queued'
           AND tj.available_at <= $1::timestamptz
-          AND tj.attempts < tj.max_attempts
+          AND tj.attempts < LEAST(tj.max_attempts, $2)
           AND ct.protected_from_automation = false
           AND (ct.origin <> 'manual' OR ct.regeneration_authorized_at IS NOT NULL)`,
-      [now.toISOString()]
+      [now.toISOString(), maximumAttempts]
     );
     return rows[0]?.count ?? 0;
   }
@@ -272,6 +277,7 @@ export function createTranslationWorkerRepository(
     workerId: string;
     limit: number;
     now: Date;
+    maximumAttempts?: number;
   }) {
     return database.begin(async (transaction) => {
       const rows = await transaction.unsafe<{
@@ -287,7 +293,7 @@ export function createTranslationWorkerRepository(
              JOIN public.content_translations ct ON ct.id = tj.translation_id
             WHERE tj.status = 'queued'
               AND tj.available_at <= $1::timestamptz
-              AND tj.attempts < tj.max_attempts
+              AND tj.attempts < LEAST(tj.max_attempts, $4)
               AND ct.protected_from_automation = false
               AND (ct.origin <> 'manual' OR ct.regeneration_authorized_at IS NOT NULL)
             ORDER BY tj.priority ASC, tj.available_at ASC, tj.created_at ASC
@@ -304,8 +310,14 @@ export function createTranslationWorkerRepository(
            FROM candidates
           WHERE tj.id = candidates.id
          RETURNING tj.id::text AS job_id, tj.translation_id::text,
-                   tj.source_hash, tj.attempts, tj.max_attempts`,
-        [input.now.toISOString(), input.limit, input.workerId]
+                   tj.source_hash, tj.attempts,
+                   LEAST(tj.max_attempts, $4) AS max_attempts`,
+        [
+          input.now.toISOString(),
+          input.limit,
+          input.workerId,
+          input.maximumAttempts ?? 2,
+        ]
       );
       if (rows.length) {
         await transaction.unsafe(
@@ -398,6 +410,63 @@ export function createTranslationWorkerRepository(
           [context.translationId, input.now.toISOString()]
         );
       }
+      return true;
+    });
+  }
+
+  async function pauseClaimedForBudget(input: {
+    jobId: string;
+    workerId: string;
+    availableAt: Date;
+    errorCode: string;
+    now: Date;
+  }) {
+    return database.begin(async (transaction) => {
+      const context = await loadContextWithExecutor(transaction, {
+        jobId: input.jobId,
+        workerId: input.workerId,
+        lock: true,
+      });
+      if (!context) return false;
+      const jobs = await transaction.unsafe<{ id: string }>(
+        `UPDATE public.translation_jobs
+            SET status = 'queued',
+                attempts = GREATEST(attempts - 1, 0),
+                available_at = $3::timestamptz,
+                completed_at = NULL,
+                locked_at = NULL,
+                locked_by = NULL,
+                last_error_code = $4,
+                last_error_message = 'Automatic translation paused by usage limit.',
+                updated_at = $5::timestamptz
+          WHERE id = $1::uuid
+            AND status = 'processing'
+            AND locked_by = $2
+        RETURNING id::text`,
+        [
+          input.jobId,
+          input.workerId,
+          input.availableAt.toISOString(),
+          input.errorCode,
+          input.now.toISOString(),
+        ]
+      );
+      if (!jobs[0]) return false;
+      await transaction.unsafe(
+        `UPDATE public.content_translations
+            SET status = $2,
+                lock_version = lock_version + 1,
+                updated_at = $3::timestamptz
+          WHERE id = $1::uuid
+            AND source_hash = $4
+            AND status = 'processing'`,
+        [
+          context.translationId,
+          fallbackStatus(context),
+          input.now.toISOString(),
+          context.sourceHash,
+        ]
+      );
       return true;
     });
   }
@@ -702,6 +771,7 @@ export function createTranslationWorkerRepository(
     claimEligible,
     loadClaimedContext,
     cancelClaimed,
+    pauseClaimedForBudget,
     completeSuccess,
     completeFailure,
     recoverStaleLocks,

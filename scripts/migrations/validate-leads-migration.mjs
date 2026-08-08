@@ -1851,3 +1851,63 @@ try {
 } finally {
   await regenerationAuthorizationDb.close();
 }
+
+const translationUsageMigrationSql = await readMigration(
+  "0021_add_translation_usage_budget.sql"
+);
+const translationUsageRollbackSql = await readMigration(
+  "0021_add_translation_usage_budget.rollback.sql"
+);
+const translationUsageDb = new PGlite();
+try {
+  await translationUsageDb.exec(`
+    CREATE TABLE public.propiedades (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(), titulo text NOT NULL,
+      descripcion text NOT NULL
+    );
+    CREATE TABLE public.testimonios (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(), texto text NOT NULL
+    );
+    CREATE TABLE public.admin_users (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(), username text NOT NULL UNIQUE
+    );
+  `);
+  await translationUsageDb.exec(translationPersistenceMigrationSql);
+  await translationUsageDb.exec(regenerationAuthorizationMigrationSql);
+  await translationUsageDb.exec(translationUsageMigrationSql);
+  const catalog = await translationUsageDb.query(`
+    SELECT
+      to_regclass('public.translation_provider_usage_buckets')::text AS usage_table,
+      (SELECT column_default FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='translation_jobs'
+          AND column_name='max_attempts') AS max_attempts_default,
+      EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public'
+        AND indexname='translation_provider_usage_period_idx') AS usage_index
+  `);
+  assert.deepEqual(catalog.rows, [{
+    usage_table: "translation_provider_usage_buckets",
+    max_attempts_default: "2",
+    usage_index: true,
+  }]);
+  await translationUsageDb.exec(`
+    INSERT INTO public.translation_provider_usage_buckets (
+      provider, period_kind, period_start, attempted_characters, provider_attempts
+    ) VALUES ('google-cloud-translation', 'day', DATE '2030-01-01', 100, 1)
+  `);
+  await assert.rejects(translationUsageDb.exec(translationUsageRollbackSql));
+  await translationUsageDb.exec("ROLLBACK");
+  await translationUsageDb.exec("DELETE FROM public.translation_provider_usage_buckets");
+  await translationUsageDb.exec(translationUsageRollbackSql);
+  const rolledBack = await translationUsageDb.query(`
+    SELECT
+      to_regclass('public.translation_provider_usage_buckets') IS NULL AS usage_removed,
+      (SELECT column_default='5' FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='translation_jobs'
+          AND column_name='max_attempts') AS default_restored
+  `);
+  assert.deepEqual(rolledBack.rows, [{ usage_removed: true, default_restored: true }]);
+  console.log("Validated the ordered migration chain through 0021.");
+  console.log("Verified aggregate-only usage accounting, bounded job defaults, and guarded rollback.");
+} finally {
+  await translationUsageDb.close();
+}
