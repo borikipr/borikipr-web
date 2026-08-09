@@ -106,7 +106,22 @@ if (!process.env.DATABASE_URL) {
               FROM information_schema.columns
               WHERE table_schema='public' AND table_name='translation_jobs'
                 AND column_name='max_attempts'
-            ) AS v0021
+            ) AS v0021,
+          (
+            SELECT count(*) = 8
+            FROM information_schema.tables
+            WHERE table_schema='public'
+              AND table_name IN (
+                'signature_documents', 'signature_document_versions',
+                'signature_participants', 'signature_fields',
+                'signature_field_values', 'signature_signing_tokens',
+                'signature_sessions', 'signature_events'
+              )
+          ) AND EXISTS (
+            SELECT 1 FROM pg_trigger
+            WHERE tgname='signature_events_immutable_trigger'
+              AND NOT tgisinternal
+          ) AS v0022
       )
       SELECT * FROM facts
     `;

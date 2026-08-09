@@ -51,6 +51,22 @@ ledger. The audit command does not claim that old files were run automatically.
 A future ledger may record newly applied migrations, but historical rows must
 only be baselined after manual production verification.
 
+Migration `0022` creates only the isolated electronic-signature foundation. Its
+rollback refuses to run while any `signature_*` table contains data. Applying it
+does not enable signing: all document classifications remain pending counsel,
+and there is no signer route or email delivery. The Phase 2C Admin prototype may
+store only compatible draft source PDFs in the private `signatures/source/`
+namespace. Its Send gate remains closed until a document type has a recorded
+counsel approval reference.
+
+Before applying `0022`, validate both forward and rollback paths against an
+isolated database, confirm all eight `signature_*` tables are absent in
+production, and record aggregate counts only. Apply the migration in one
+transaction. Verify the eight tables, expected constraints and triggers without
+inserting signing records. Rollback is permitted only before any signing row or
+private signing object exists; otherwise deploy the previous application while
+retaining the additive schema.
+
 ## Rollback
 
 Rollback application code first when it is compatible with the additive

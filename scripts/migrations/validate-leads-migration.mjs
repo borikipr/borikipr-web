@@ -1911,3 +1911,58 @@ try {
 } finally {
   await translationUsageDb.close();
 }
+
+const signatureFoundationMigrationSql = await readMigration(
+  "0022_create_signature_foundation.sql"
+);
+const signatureFoundationRollbackSql = await readMigration(
+  "0022_create_signature_foundation.rollback.sql"
+);
+const signatureFoundationDb = new PGlite();
+try {
+  await signatureFoundationDb.exec(`
+    CREATE TABLE public.admin_users (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      username text NOT NULL UNIQUE
+    );
+    CREATE TABLE public.leads (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid()
+    );
+    CREATE TABLE public.lead_groups (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid()
+    );
+  `);
+  await signatureFoundationDb.exec(signatureFoundationMigrationSql);
+  const signatureCatalog = await signatureFoundationDb.query(`
+    SELECT
+      (SELECT count(*)::int FROM information_schema.tables
+        WHERE table_schema='public' AND table_name LIKE 'signature_%')
+        AS signature_table_count,
+      EXISTS (SELECT 1 FROM pg_trigger
+        WHERE tgname='signature_events_immutable_trigger')
+        AS append_only_trigger,
+      EXISTS (SELECT 1 FROM pg_trigger
+        WHERE tgname='signature_document_versions_immutable_trigger')
+        AS version_immutable_trigger,
+      EXISTS (SELECT 1 FROM pg_trigger
+        WHERE tgname='signature_fields_update_immutable_trigger')
+        AS field_immutable_trigger
+  `);
+  assert.deepEqual(signatureCatalog.rows, [{
+    signature_table_count: 8,
+    append_only_trigger: true,
+    version_immutable_trigger: true,
+    field_immutable_trigger: true,
+  }]);
+  await signatureFoundationDb.exec(signatureFoundationRollbackSql);
+  const signatureRollback = await signatureFoundationDb.query(`
+    SELECT count(*)::int AS signature_table_count
+      FROM information_schema.tables
+     WHERE table_schema='public' AND table_name LIKE 'signature_%'
+  `);
+  assert.deepEqual(signatureRollback.rows, [{ signature_table_count: 0 }]);
+  console.log("Validated the isolated signature foundation migration 0022.");
+  console.log("Verified eight tables, immutable evidence triggers, and empty rollback.");
+} finally {
+  await signatureFoundationDb.close();
+}

@@ -16,6 +16,9 @@ const contentSecurityPolicy = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // PDF.js page rendering uses a native Node binding in authenticated Admin
+  // routes only. Keep it out of Turbopack's ESM/client chunks.
+  serverExternalPackages: ["@napi-rs/canvas"],
   images: {
     remotePatterns: [
       {
