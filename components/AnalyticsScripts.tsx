@@ -25,6 +25,10 @@ export default function AnalyticsScripts() {
     return null;
   }
 
+  if (excludeAnalytics) {
+    return null;
+  }
+
   return (
     <>
       {gaMeasurementId && !excludeAnalytics && <GoogleAnalytics gaId={gaMeasurementId} />}

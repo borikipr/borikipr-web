@@ -1918,6 +1918,12 @@ const signatureFoundationMigrationSql = await readMigration(
 const signatureFoundationRollbackSql = await readMigration(
   "0022_create_signature_foundation.rollback.sql"
 );
+const signatureSignerMigrationSql = await readMigration(
+  "0023_extend_signature_signer_evidence.sql"
+);
+const signatureSignerRollbackSql = await readMigration(
+  "0023_extend_signature_signer_evidence.rollback.sql"
+);
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -1954,6 +1960,25 @@ try {
     version_immutable_trigger: true,
     field_immutable_trigger: true,
   }]);
+  await signatureFoundationDb.exec(signatureSignerMigrationSql);
+  const signerCatalog = await signatureFoundationDb.query(`
+    SELECT
+      EXISTS (SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='signature_participants'
+          AND column_name='consent_text_sha256') AS consent_evidence,
+      EXISTS (SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='signature_field_values'
+          AND column_name='sanitized_value_payload') AS vector_payload,
+      pg_get_constraintdef(oid) LIKE '%consent_accepted%'
+        AND pg_get_constraintdef(oid) LIKE '%certificate_generated%' AS signer_events
+      FROM pg_constraint WHERE conname='signature_events_type_check'
+  `);
+  assert.deepEqual(signerCatalog.rows, [{
+    consent_evidence: true,
+    vector_payload: true,
+    signer_events: true,
+  }]);
+  await signatureFoundationDb.exec(signatureSignerRollbackSql);
   await signatureFoundationDb.exec(signatureFoundationRollbackSql);
   const signatureRollback = await signatureFoundationDb.query(`
     SELECT count(*)::int AS signature_table_count
@@ -1962,6 +1987,7 @@ try {
   `);
   assert.deepEqual(signatureRollback.rows, [{ signature_table_count: 0 }]);
   console.log("Validated the isolated signature foundation migration 0022.");
+  console.log("Validated the disabled signer evidence extension migration 0023 and rollback.");
   console.log("Verified eight tables, immutable evidence triggers, and empty rollback.");
 } finally {
   await signatureFoundationDb.close();

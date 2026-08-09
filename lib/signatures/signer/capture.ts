@@ -1,0 +1,73 @@
+import {
+  validateBoundedText,
+  validateDrawnSignature,
+  validateInitials,
+  validateTypedSignature,
+} from "../prototype/capture";
+import { canonicalSignatureJson, sha256SignatureValue } from "../domain/crypto";
+import type { DrawnStroke, PrototypeFieldValue } from "../prototype/types";
+import type { SignatureFieldType } from "../domain/types";
+
+export type SignerCaptureInput =
+  | Readonly<{ method: "drawn"; strokes: readonly DrawnStroke[] }>
+  | Readonly<{ method: "typed"; value: string }>
+  | Readonly<{ method: "date"; value: string }>
+  | Readonly<{ method: "text"; value: string }>;
+
+export function normalizeSignerCapture(
+  fieldType: SignatureFieldType,
+  input: SignerCaptureInput
+): Readonly<{
+  captureMethod: "drawn_vector" | "typed" | "system_date" | "text_entry";
+  typedValue: string | null;
+  valuePayload: Readonly<Record<string, unknown>> | null;
+  valueSha256: string;
+  prototypeValue: PrototypeFieldValue;
+}> {
+  if (input.method === "drawn") {
+    if (fieldType !== "signature" && fieldType !== "initials") {
+      throw new Error("signature_capture_type_mismatch");
+    }
+    validateDrawnSignature(input.strokes);
+    const payload = Object.freeze({ strokes: input.strokes });
+    return {
+      captureMethod: "drawn_vector",
+      typedValue: null,
+      valuePayload: payload,
+      valueSha256: sha256SignatureValue(canonicalSignatureJson(payload)),
+      prototypeValue: input,
+    };
+  }
+
+  let value: string;
+  if (input.method === "typed") {
+    if (fieldType === "signature") value = validateTypedSignature(input.value);
+    else if (fieldType === "initials") value = validateInitials(input.value);
+    else throw new Error("signature_capture_type_mismatch");
+  } else if (input.method === "date") {
+    if (fieldType !== "date" || !/^\d{4}-\d{2}-\d{2}$/.test(input.value)) {
+      throw new Error("signature_capture_type_mismatch");
+    }
+    const parsed = new Date(`${input.value}T00:00:00.000Z`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== input.value) {
+      throw new Error("signature_date_invalid");
+    }
+    value = input.value;
+  } else {
+    if (fieldType !== "text") throw new Error("signature_capture_type_mismatch");
+    if (/<\s*\/?\s*(script|iframe|object|embed)\b/i.test(input.value)) {
+      throw new Error("signature_text_markup_rejected");
+    }
+    value = validateBoundedText(input.value);
+  }
+  const captureMethod =
+    input.method === "typed" ? "typed" : input.method === "date" ? "system_date" : "text_entry";
+  const prototypeValue = Object.freeze({ ...input, value }) as PrototypeFieldValue;
+  return {
+    captureMethod,
+    typedValue: value,
+    valuePayload: null,
+    valueSha256: sha256SignatureValue(canonicalSignatureJson(prototypeValue)),
+    prototypeValue,
+  };
+}

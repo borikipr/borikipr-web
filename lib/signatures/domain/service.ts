@@ -5,6 +5,7 @@ import {
 import { hashSignatureFieldDefinition } from "../field-definition";
 import {
   canonicalSignatureJson,
+  constantTimeDigestMatch,
   hashPseudonymousEvidence,
   sha256SignatureValue,
 } from "./crypto";
@@ -17,7 +18,9 @@ import {
   SIGNER_SESSION_IDLE_MINUTES,
   SIGNER_SESSION_MAX_MINUTES,
   createSignerSessionMaterial,
+  verifySignerSession,
 } from "./session";
+import { normalizeSignerCapture, type SignerCaptureInput } from "../signer/capture";
 import {
   assertAllowedDocumentTransition,
   assertAllowedParticipantTransition,
@@ -92,6 +95,11 @@ function iso(date: Date) {
 
 function addMinutes(date: Date, minutes: number) {
   return new Date(date.getTime() + minutes * 60_000);
+}
+
+function derivedIdempotencyKey(base: string, purpose: string) {
+  const hex = sha256SignatureValue(`${base}:${purpose}`);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
 function normalizeEmail(value: string) {
@@ -1207,13 +1215,18 @@ export function createSignatureDomainServices({
         superseded_at: string | Date | null;
         document_id: string;
         source_sha256: string;
+        participant_status: SignatureParticipantStatus;
+        document_status: SignatureDocumentStatus;
       }>(
         `SELECT t.id::text, t.participant_id::text, t.document_version_id::text,
                 t.token_digest, t.expires_at, t.consumed_at,
                 t.revoked_at, t.superseded_at,
-                v.document_id::text, v.source_sha256
+                v.document_id::text, v.source_sha256,
+                p.status AS participant_status, d.status AS document_status
            FROM public.signature_signing_tokens t
+           JOIN public.signature_participants p ON p.id = t.participant_id
            JOIN public.signature_document_versions v ON v.id = t.document_version_id
+           JOIN public.signature_documents d ON d.id = v.document_id
           WHERE t.token_digest = $1 FOR UPDATE OF t`,
         [digest]
       );
@@ -1284,6 +1297,38 @@ export function createSignatureDomainServices({
         networkAddress: input.networkAddress,
         userAgent: input.userAgent,
       });
+      if (token.participant_status === "invited") {
+        await transaction.unsafe(
+          `UPDATE public.signature_participants SET status='viewed', viewed_at=$2::timestamptz WHERE id=$1::uuid`,
+          [input.participantId, iso(now)]
+        );
+        await appendEventInTransaction(transaction, {
+          documentId: token.document_id,
+          documentVersionId: input.documentVersionId,
+          participantId: input.participantId,
+          sessionId: sessions[0].id,
+          eventType: "participant_viewed",
+          actorClass: "participant",
+          versionHash: token.source_sha256,
+          idempotencyKey: derivedIdempotencyKey(input.idempotencyKey, "participant_viewed"),
+        });
+      }
+      if (token.document_status === "sent") {
+        await transaction.unsafe(
+          `UPDATE public.signature_documents SET status='viewed' WHERE id=$1::uuid`,
+          [token.document_id]
+        );
+        await appendEventInTransaction(transaction, {
+          documentId: token.document_id,
+          documentVersionId: input.documentVersionId,
+          participantId: input.participantId,
+          sessionId: sessions[0].id,
+          eventType: "document_viewed",
+          actorClass: "participant",
+          versionHash: token.source_sha256,
+          idempotencyKey: derivedIdempotencyKey(input.idempotencyKey, "document_viewed"),
+        });
+      }
       return {
         sessionId: sessions[0].id,
         sessionSecret: material.sessionSecret,
@@ -1291,6 +1336,264 @@ export function createSignatureDomainServices({
         expiresAt: iso(expiresAt),
         idleExpiresAt: iso(idleExpiresAt),
       };
+    });
+  }
+
+  async function inspectSigningToken(plaintextToken: string) {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(plaintextToken)) return { eligible: false as const };
+    const rows = await database.unsafe<{ participant_id: string; document_version_id: string }>(
+      `SELECT t.participant_id::text, t.document_version_id::text
+         FROM public.signature_signing_tokens t
+         JOIN public.signature_participants p ON p.id=t.participant_id
+         JOIN public.signature_document_versions v ON v.id=t.document_version_id
+         JOIN public.signature_documents d ON d.id=v.document_id
+        WHERE t.token_digest=$1 AND t.consumed_at IS NULL AND t.revoked_at IS NULL
+          AND t.superseded_at IS NULL AND t.expires_at>$2::timestamptz
+          AND p.status IN ('invited','viewed') AND d.status IN ('sent','viewed','partially_signed')
+          AND d.active_version_id=t.document_version_id`,
+      [sha256SignatureValue(plaintextToken), iso(clock())]
+    );
+    return rows[0]
+      ? { eligible: true as const, participantId: rows[0].participant_id, documentVersionId: rows[0].document_version_id }
+      : { eligible: false as const };
+  }
+
+  async function redeemSigningToken(input: {
+    plaintextToken: string;
+    idempotencyKey: string;
+    networkAddress?: string | null;
+    userAgent?: string | null;
+  }) {
+    const eligibility = await inspectSigningToken(input.plaintextToken);
+    if (!eligibility.eligible) throw new Error("signature_token_verification_failed");
+    return createSignerSession({
+      plaintextToken: input.plaintextToken,
+      participantId: eligibility.participantId,
+      documentVersionId: eligibility.documentVersionId,
+      idempotencyKey: input.idempotencyKey,
+      networkAddress: input.networkAddress,
+      userAgent: input.userAgent,
+    });
+  }
+
+  async function getSessionContext(input: {
+    sessionId: string;
+    sessionSecret: string;
+    csrfNonce?: string;
+    touch?: boolean;
+  }) {
+    const rows = await database.unsafe<{
+      participant_id: string; document_version_id: string; session_secret_digest: string;
+      csrf_nonce_digest: string; expires_at: string | Date; idle_expires_at: string | Date;
+      revoked_at: string | Date | null; completed_at: string | Date | null;
+      document_id: string; source_sha256: string; field_definition_sha256: string;
+      title: string; role: string; participant_status: SignatureParticipantStatus;
+    }>(
+      `SELECT s.participant_id::text, s.document_version_id::text, s.session_secret_digest,
+              s.csrf_nonce_digest, s.expires_at, s.idle_expires_at, s.revoked_at, s.completed_at,
+              v.document_id::text, v.source_sha256, v.field_definition_sha256,
+              d.title, p.role, p.status AS participant_status
+         FROM public.signature_sessions s
+         JOIN public.signature_participants p ON p.id=s.participant_id
+         JOIN public.signature_document_versions v ON v.id=s.document_version_id
+         JOIN public.signature_documents d ON d.id=v.document_id
+        WHERE s.id=$1::uuid`,
+      [input.sessionId]
+    );
+    const row = rows[0];
+    if (!row) throw new Error("signature_session_invalid");
+    const csrf = input.csrfNonce ?? "invalid";
+    const valid = verifySignerSession({
+      sessionSecret: input.sessionSecret,
+      csrfNonce: csrf,
+      stored: {
+        participantId: row.participant_id, documentVersionId: row.document_version_id,
+        sessionSecretDigest: row.session_secret_digest, csrfNonceDigest: row.csrf_nonce_digest,
+        expiresAt: row.expires_at, idleExpiresAt: row.idle_expires_at,
+        revokedAt: row.revoked_at, completedAt: row.completed_at,
+      },
+      expectedParticipantId: row.participant_id,
+      expectedDocumentVersionId: row.document_version_id,
+      now: clock(),
+    });
+    if (!valid && input.csrfNonce) throw new Error("signature_session_invalid");
+    if (!input.csrfNonce) {
+      const secretOnly = constantTimeDigestMatch(sha256SignatureValue(input.sessionSecret), row.session_secret_digest)
+        && !row.revoked_at && !row.completed_at
+        && new Date(row.expires_at).getTime() > clock().getTime()
+        && new Date(row.idle_expires_at).getTime() > clock().getTime();
+      if (!secretOnly) throw new Error("signature_session_invalid");
+    }
+    if (input.touch) {
+      const idle = new Date(Math.min(new Date(row.expires_at).getTime(), addMinutes(clock(), SIGNER_SESSION_IDLE_MINUTES).getTime()));
+      await database.unsafe(`UPDATE public.signature_sessions SET last_seen_at=$2::timestamptz, idle_expires_at=$3::timestamptz WHERE id=$1::uuid`, [input.sessionId, iso(clock()), iso(idle)]);
+    }
+    return {
+      documentId: row.document_id, documentVersionId: row.document_version_id,
+      participantId: row.participant_id, sourceSha256: row.source_sha256,
+      fieldDefinitionSha256: row.field_definition_sha256, title: row.title,
+      role: row.role, participantStatus: row.participant_status,
+    };
+  }
+
+  async function assertActiveSessionInTransaction(
+    transaction: SignatureQueryExecutor,
+    input: { sessionId: string; sessionSecret: string; csrfNonce: string },
+    expected: { participantId: string; documentVersionId: string }
+  ) {
+    const rows = await transaction.unsafe<{
+      participant_id: string; document_version_id: string; session_secret_digest: string;
+      csrf_nonce_digest: string; expires_at: string | Date; idle_expires_at: string | Date;
+      revoked_at: string | Date | null; completed_at: string | Date | null;
+    }>(`SELECT participant_id::text, document_version_id::text, session_secret_digest,
+              csrf_nonce_digest, expires_at, idle_expires_at, revoked_at, completed_at
+         FROM public.signature_sessions WHERE id=$1::uuid FOR UPDATE`, [input.sessionId]);
+    const row = rows[0];
+    if (!row || !verifySignerSession({
+      sessionSecret: input.sessionSecret, csrfNonce: input.csrfNonce,
+      stored: { participantId: row.participant_id, documentVersionId: row.document_version_id,
+        sessionSecretDigest: row.session_secret_digest, csrfNonceDigest: row.csrf_nonce_digest,
+        expiresAt: row.expires_at, idleExpiresAt: row.idle_expires_at,
+        revokedAt: row.revoked_at, completedAt: row.completed_at },
+      expectedParticipantId: expected.participantId,
+      expectedDocumentVersionId: expected.documentVersionId,
+      now: clock(),
+    })) throw new Error("signature_session_invalid");
+  }
+
+  async function acceptSignerConsent(input: {
+    sessionId: string; sessionSecret: string; csrfNonce: string;
+    consentVersion: string; consentTextSha256: string; locale: "es-PR" | "en-US";
+    idempotencyKey: string;
+  }) {
+    const context = await getSessionContext(input);
+    return database.begin(async (transaction) => {
+      await assertActiveSessionInTransaction(transaction, input, context);
+      const locked = await transaction.unsafe<{ status: SignatureParticipantStatus }>(
+        `SELECT status FROM public.signature_participants WHERE id=$1::uuid FOR UPDATE`,
+        [context.participantId]
+      );
+      if (locked[0]?.status === "consented") return { accepted: true as const };
+      if (locked[0]?.status !== "viewed") throw new Error("signature_consent_not_eligible");
+      const now = iso(clock());
+      await appendEventInTransaction(transaction, {
+        documentId: context.documentId, documentVersionId: context.documentVersionId,
+        participantId: context.participantId, sessionId: input.sessionId,
+        eventType: "consent_presented", actorClass: "participant", versionHash: context.sourceSha256,
+        controlledMetadata: { consent_version: input.consentVersion },
+        idempotencyKey: derivedIdempotencyKey(input.idempotencyKey, "consent_presented"),
+      });
+      await transaction.unsafe(
+        `UPDATE public.signature_participants SET status='consented', consented_at=$2::timestamptz,
+           consent_version=$3, consent_text_sha256=$4, consent_source_sha256=$5, consent_locale=$6
+         WHERE id=$1::uuid`,
+        [context.participantId, now, input.consentVersion, input.consentTextSha256, context.sourceSha256, input.locale]
+      );
+      await appendEventInTransaction(transaction, {
+        documentId: context.documentId, documentVersionId: context.documentVersionId,
+        participantId: context.participantId, sessionId: input.sessionId,
+        eventType: "consent_accepted", actorClass: "participant", versionHash: context.sourceSha256,
+        controlledMetadata: { consent_version: input.consentVersion, consent_text_sha256: input.consentTextSha256, locale: input.locale },
+        idempotencyKey: input.idempotencyKey,
+      });
+      await appendEventInTransaction(transaction, {
+        documentId: context.documentId, documentVersionId: context.documentVersionId,
+        participantId: context.participantId, sessionId: input.sessionId,
+        eventType: "participant_consented", actorClass: "participant", versionHash: context.sourceSha256,
+        controlledMetadata: { participant_status: "consented" },
+        idempotencyKey: derivedIdempotencyKey(input.idempotencyKey, "participant_consented"),
+      });
+      return { accepted: true as const };
+    });
+  }
+
+  async function submitSignerField(input: {
+    sessionId: string; sessionSecret: string; csrfNonce: string;
+    fieldId: string; value: SignerCaptureInput; idempotencyKey: string;
+  }) {
+    const context = await getSessionContext(input);
+    return database.begin(async (transaction) => {
+      await assertActiveSessionInTransaction(transaction, input, context);
+      const rows = await transaction.unsafe<{ field_type: SignatureFieldType; participant_id: string }>(
+        `SELECT f.field_type, f.participant_id::text FROM public.signature_fields f
+         JOIN public.signature_participants p ON p.id=f.participant_id
+         WHERE f.id=$1::uuid AND f.document_version_id=$2::uuid AND p.status='consented' FOR UPDATE OF f`,
+        [input.fieldId, context.documentVersionId]
+      );
+      const field = rows[0];
+      if (!field || field.participant_id !== context.participantId) throw new Error("signature_field_not_owned");
+      const normalized = normalizeSignerCapture(field.field_type, input.value);
+      const inserted = await transaction.unsafe<{ id: string }>(
+        `INSERT INTO public.signature_field_values (
+           signature_field_id, participant_id, capture_method, sanitized_typed_value,
+           sanitized_value_payload, value_artifact_sha256, signer_session_id
+         ) VALUES ($1::uuid,$2::uuid,$3,$4,$5::jsonb,$6,$7::uuid)
+         ON CONFLICT (signature_field_id) DO NOTHING RETURNING id::text`,
+        [input.fieldId, context.participantId, normalized.captureMethod, normalized.typedValue,
+          normalized.valuePayload ? JSON.stringify(normalized.valuePayload) : null,
+          normalized.valueSha256, input.sessionId]
+      );
+      if (!inserted[0]) throw new Error("signature_field_already_completed");
+      const eventType = field.field_type === "signature" || field.field_type === "initials"
+        ? "signature_submitted" : "field_completed";
+      await appendEventInTransaction(transaction, {
+        documentId: context.documentId, documentVersionId: context.documentVersionId,
+        participantId: context.participantId, sessionId: input.sessionId,
+        eventType, actorClass: "participant", versionHash: context.sourceSha256,
+        controlledMetadata: { field_type: field.field_type, capture_method: normalized.captureMethod },
+        idempotencyKey: input.idempotencyKey,
+      });
+      await appendEventInTransaction(transaction, {
+        documentId: context.documentId, documentVersionId: context.documentVersionId,
+        participantId: context.participantId, sessionId: input.sessionId,
+        eventType: "field_submitted", actorClass: "participant", versionHash: context.sourceSha256,
+        controlledMetadata: { field_type: field.field_type },
+        idempotencyKey: derivedIdempotencyKey(input.idempotencyKey, "field_submitted"),
+      });
+      return { completed: true as const, valueSha256: normalized.valueSha256 };
+    });
+  }
+
+  async function completeSignerParticipant(input: {
+    sessionId: string; sessionSecret: string; csrfNonce: string; idempotencyKey: string;
+  }) {
+    const context = await getSessionContext(input);
+    return database.begin(async (transaction) => {
+      await assertActiveSessionInTransaction(transaction, input, context);
+      const missing = await transaction.unsafe<{ count: number }>(
+        `SELECT count(*)::integer AS count FROM public.signature_fields f
+          WHERE f.participant_id=$1::uuid AND f.required
+            AND NOT EXISTS (SELECT 1 FROM public.signature_field_values fv WHERE fv.signature_field_id=f.id)`,
+        [context.participantId]
+      );
+      if (missing[0].count > 0) throw new Error("signature_required_fields_incomplete");
+      const updated = await transaction.unsafe<{ id: string }>(
+        `UPDATE public.signature_participants SET status='completed', completed_at=$2::timestamptz
+          WHERE id=$1::uuid AND status='consented' RETURNING id::text`,
+        [context.participantId, iso(clock())]
+      );
+      if (!updated[0]) throw new Error("signature_participant_completion_rejected");
+      await transaction.unsafe(`UPDATE public.signature_sessions SET completed_at=$2::timestamptz WHERE id=$1::uuid AND completed_at IS NULL`, [input.sessionId, iso(clock())]);
+      await appendEventInTransaction(transaction, {
+        documentId: context.documentId, documentVersionId: context.documentVersionId,
+        participantId: context.participantId, sessionId: input.sessionId,
+        eventType: "participant_completed", actorClass: "participant", versionHash: context.sourceSha256,
+        controlledMetadata: { participant_status: "completed" }, idempotencyKey: input.idempotencyKey,
+      });
+      await appendEventInTransaction(transaction, {
+        documentId: context.documentId, documentVersionId: context.documentVersionId,
+        participantId: context.participantId, sessionId: input.sessionId,
+        eventType: "session_completed", actorClass: "participant", versionHash: context.sourceSha256,
+        idempotencyKey: derivedIdempotencyKey(input.idempotencyKey, "session_completed"),
+      });
+      const remaining = await transaction.unsafe<{ count: number }>(
+        `SELECT count(*)::integer AS count FROM public.signature_participants WHERE document_version_id=$1::uuid AND status<>'completed'`,
+        [context.documentVersionId]
+      );
+      if (remaining[0].count > 0) {
+        await transaction.unsafe(`UPDATE public.signature_documents SET status='partially_signed' WHERE id=$1::uuid AND status IN ('sent','viewed')`, [context.documentId]);
+      }
+      return { completed: true as const, allParticipantsCompleted: remaining[0].count === 0, documentId: context.documentId, documentVersionId: context.documentVersionId };
     });
   }
 
@@ -1367,6 +1670,12 @@ export function createSignatureDomainServices({
     issueSigningToken,
     revokeSigningToken,
     createSignerSession,
+    inspectSigningToken,
+    redeemSigningToken,
+    getSessionContext,
+    acceptSignerConsent,
+    submitSignerField,
+    completeSignerParticipant,
     revokeSignerSession,
   };
 }

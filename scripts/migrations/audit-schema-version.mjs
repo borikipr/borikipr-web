@@ -122,6 +122,15 @@ if (!process.env.DATABASE_URL) {
             WHERE tgname='signature_events_immutable_trigger'
               AND NOT tgisinternal
           ) AS v0022
+          ,EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='signature_participants'
+              AND column_name='consent_text_sha256'
+          ) AND EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='signature_field_values'
+              AND column_name='sanitized_value_payload'
+          ) AS v0023
       )
       SELECT * FROM facts
     `;

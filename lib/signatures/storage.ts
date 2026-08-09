@@ -10,6 +10,12 @@ import { sha256SignatureValue } from "./domain/crypto";
 export const MAX_SIGNATURE_SOURCE_BYTES = 3_000_000;
 const SOURCE_KEY_PATTERN =
   /^signatures\/source\/[0-9a-f-]{36}\/[1-9][0-9]*\/[0-9a-f]{64}[.]pdf$/;
+const FINAL_KEY_PATTERN =
+  /^signatures\/final\/[0-9a-f-]{36}\/[1-9][0-9]*\/[0-9a-f]{64}[.]pdf$/;
+const CERTIFICATE_KEY_PATTERN =
+  /^signatures\/certificates\/[0-9a-f-]{36}\/[1-9][0-9]*\/[0-9a-f]{64}[.]pdf$/;
+export const MAX_SIGNATURE_FINAL_BYTES = 4_000_000;
+export const MAX_SIGNATURE_CERTIFICATE_BYTES = 1_000_000;
 
 export type SignatureSourceObject = Readonly<{
   key: string;
@@ -31,6 +37,19 @@ export interface SignatureSourceStorage {
     byteCount: number;
     sourceSha256: string;
   }): Promise<boolean>;
+}
+
+export type ImmutableSignaturePdfObject = Readonly<{
+  key: string;
+  bytes: Uint8Array;
+  mimeType: "application/pdf";
+  byteCount: number;
+  sha256: string;
+}>;
+
+export interface SignatureCompletedStorage extends SignatureSourceStorage {
+  putFinal(input: ImmutableSignaturePdfObject): Promise<"created" | "existing">;
+  putCertificate(input: ImmutableSignaturePdfObject): Promise<"created" | "existing">;
 }
 
 export function sanitizeSignatureFilename(filename: string) {
@@ -96,7 +115,7 @@ function precondition(error: unknown) {
   return details.name === "PreconditionFailed" || details.$metadata?.httpStatusCode === 412;
 }
 
-export function createPrivateSignatureR2Storage(): SignatureSourceStorage {
+export function createPrivateSignatureR2Storage(): SignatureCompletedStorage {
   const config = getSigningR2Config();
   const client = createClient(
     config.accountId,
@@ -121,6 +140,44 @@ export function createPrivateSignatureR2Storage(): SignatureSourceStorage {
     } catch (error) {
       if (missing(error)) return false;
       throw error;
+    }
+  }
+
+  async function putImmutablePdf(
+    input: ImmutableSignaturePdfObject,
+    keyPattern: RegExp,
+    maximumBytes: number
+  ): Promise<"created" | "existing"> {
+    if (
+      !keyPattern.test(input.key) ||
+      input.mimeType !== "application/pdf" ||
+      input.byteCount !== input.bytes.byteLength ||
+      input.byteCount < 1 ||
+      input.byteCount > maximumBytes ||
+      sha256SignatureValue(input.bytes) !== input.sha256
+    ) {
+      throw new Error("signature_completed_object_invalid");
+    }
+    const descriptor = {
+      key: input.key,
+      byteCount: input.byteCount,
+      sourceSha256: input.sha256,
+    };
+    if (await matches(descriptor)) return "existing";
+    try {
+      await client.send(new PutObjectCommand({
+        Bucket: config.bucketName,
+        Key: input.key,
+        Body: input.bytes,
+        ContentType: input.mimeType,
+        ContentLength: input.byteCount,
+        Metadata: { sha256: input.sha256 },
+        IfNoneMatch: "*",
+      }));
+      return "created";
+    } catch (error) {
+      if (precondition(error) && (await matches(descriptor))) return "existing";
+      throw new Error("signature_completed_upload_failed");
     }
   }
 
@@ -170,5 +227,8 @@ export function createPrivateSignatureR2Storage(): SignatureSourceStorage {
       );
       return true;
     },
+    putFinal: (input) => putImmutablePdf(input, FINAL_KEY_PATTERN, MAX_SIGNATURE_FINAL_BYTES),
+    putCertificate: (input) =>
+      putImmutablePdf(input, CERTIFICATE_KEY_PATTERN, MAX_SIGNATURE_CERTIFICATE_BYTES),
   };
 }

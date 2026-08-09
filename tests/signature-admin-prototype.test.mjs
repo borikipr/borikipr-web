@@ -124,7 +124,7 @@ test("server-only HMAC key ring fails closed and resolves historical versions", 
   assert.throws(() => getSignatureSecurityConfig({ SIGNATURE_EVENT_HMAC_KEYS_JSON: "{}", SIGNATURE_EVENT_HMAC_CURRENT_VERSION: "1", SIGNATURE_NETWORK_EVIDENCE_HMAC_KEY: NETWORK_KEY }), /current_key_missing/);
 });
 
-test("Admin prototype remains private, authenticated, no-store, and has no signer/email surface", async () => {
+test("Admin prototype remains private and the later signer surface is independently feature-gated", async () => {
   const [uploadRoute, sourceRoute, pageRoute, actions, editor, storage] = await Promise.all([
     readFile(path.join(root, "app/api/admin/signatures/drafts/route.ts"), "utf8"),
     readFile(path.join(root, "app/admin/signatures/[id]/source/route.ts"), "utf8"),
@@ -141,7 +141,10 @@ test("Admin prototype remains private, authenticated, no-store, and has no signe
   assert.match(editor, /Este tipo de documento todavía no está autorizado para firma electrónica/);
   assert.doesNotMatch(uploadRoute + actions + editor, /Resend|sendEmail|issueSigningToken/);
   assert.doesNotMatch(storage, /publicUrl|presign|R2_PUBLIC_BASE_URL/);
-  await assert.rejects(access(path.join(root, "app/firmar")));
+  await access(path.join(root, "app/firmar"));
+  const publicConfig = await readFile(path.join(root, "lib/signatures/public-config.ts"), "utf8");
+  assert.match(publicConfig, /SIGNING_PUBLIC_ENABLED/);
+  assert.match(publicConfig, /=== "true"/);
 });
 
 test("Admin editor exposes keyboard movement, participant assignment, limits, and responsive overflow", async () => {

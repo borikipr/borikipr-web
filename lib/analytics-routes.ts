@@ -18,7 +18,11 @@ export function isPrivateTokenizedPath(pathname: string | undefined | null) {
     const parsedPath = pathname.startsWith("http")
       ? new URL(pathname).pathname
       : pathname;
-    return /^\/listados\/[^/]+\/visita\/[^/]+\/?$/.test(parsedPath);
+    return (
+      /^\/listados\/[^/]+\/visita\/[^/]+\/?$/.test(parsedPath) ||
+      parsedPath === "/firmar" ||
+      parsedPath.startsWith("/firmar/")
+    );
   } catch {
     return false;
   }
