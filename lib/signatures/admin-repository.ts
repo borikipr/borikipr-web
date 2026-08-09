@@ -105,7 +105,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
                                     OR sp.normalized_email ILIKE '%' || $1 || '%')))
             AND ($2 = 'all' OR d.status=$2)
             AND ($3 = 'all' OR d.document_type=$3)
-          GROUP BY d.id, v.page_count
+          GROUP BY d.id, v.id, v.page_count
           ORDER BY d.updated_at DESC
           LIMIT 100`,
         [search, status, documentType]
