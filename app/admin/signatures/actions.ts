@@ -267,9 +267,11 @@ export async function voidSignatureDocumentAction(
   if (!session) return { ok: false, message: "Sesión expirada." };
   const documentId = value(formData, "documentId");
   try {
-    await createSignatureDomainRuntime().domain.transitionDocumentState({
-      documentId, targetStatus: "voided", actorClass: "admin", actorAdminId: session.id,
-      reason: "admin_voided", idempotencyKey: value(formData, "idempotencyKey") || randomUUID(),
+    await createSignatureDomainRuntime().domain.voidSignatureDocument({
+      documentId,
+      actorAdminId: session.id,
+      reason: value(formData, "reason"),
+      idempotencyKey: value(formData, "idempotencyKey") || randomUUID(),
     });
     refresh(documentId);
     return { ok: true, message: "Solicitud anulada." };

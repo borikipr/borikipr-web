@@ -1,0 +1,163 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import test, { after, before, beforeEach } from "node:test";
+import { fileURLToPath } from "node:url";
+import { PGlite } from "@electric-sql/pglite";
+import { createSignatureDomainServices } from "../lib/signatures/domain/service.ts";
+import { getSignatureGovernanceReadiness } from "../lib/signatures/governance-readiness.ts";
+import { inspectSignatureEventKeyCoverage } from "../lib/signatures/key-rotation.ts";
+import { getSignatureOperationalSnapshot } from "../lib/signatures/monitoring.ts";
+import { evaluateSignatureRetention, parseSignatureRetentionPolicy } from "../lib/signatures/retention-policy.ts";
+
+const root = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
+const migrations = await Promise.all([
+  "0022_create_signature_foundation.sql",
+  "0023_extend_signature_signer_evidence.sql",
+  "0024_add_signature_delivery_governance.sql",
+].map((name) => readFile(path.join(root, "db/migrations", name), "utf8")));
+const db = new PGlite();
+const executor = (source) => ({ async unsafe(query, parameters = []) { return (await source.query(query, parameters)).rows; } });
+const database = { ...executor(db), begin: (callback) => db.transaction((tx) => callback(executor(tx))) };
+let adminId;
+
+before(async () => {
+  await db.exec(`CREATE TABLE public.admin_users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), username text UNIQUE NOT NULL);
+    CREATE TABLE public.leads (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
+    CREATE TABLE public.lead_groups (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
+    INSERT INTO public.admin_users(username) VALUES ('synthetic-readiness-admin');`);
+  adminId = (await db.query(`SELECT id::text FROM public.admin_users LIMIT 1`)).rows[0].id;
+  for (const migration of migrations) await db.exec(migration);
+});
+beforeEach(async () => db.exec(`TRUNCATE public.signature_events, public.signature_field_values,
+  public.signature_sessions, public.signature_delivery_intents, public.signature_signing_tokens,
+  public.signature_fields, public.signature_participants, public.signature_document_versions,
+  public.signature_documents, public.signature_consent_versions,
+  public.signature_document_type_approvals CASCADE`));
+after(() => db.close());
+
+function environment(overrides = {}) {
+  const keyOne = Buffer.alloc(32, 1).toString("base64url");
+  return {
+    SIGNATURE_EVENT_HMAC_KEYS_JSON: JSON.stringify({ 1: keyOne }),
+    SIGNATURE_EVENT_HMAC_CURRENT_VERSION: "1",
+    SIGNATURE_NETWORK_EVIDENCE_HMAC_KEY: Buffer.alloc(32, 2).toString("base64url"),
+    SIGNING_PUBLIC_ENABLED: "false",
+    ...overrides,
+  };
+}
+
+const policyJson = JSON.stringify({
+  version: "synthetic-v1",
+  approvalReference: "SYNTHETIC-POLICY",
+  privacyReference: "SYNTHETIC-PRIVACY",
+  sourcePdfDays: 3650,
+  completedPdfDays: null,
+  certificateDays: null,
+  evidenceManifestDays: null,
+  tokenDays: 30,
+  sessionHours: 24,
+  networkEvidenceDays: 90,
+  failedCancelledDraftDays: 90,
+  auditEventDays: null,
+  completedCleanupEnabled: false,
+});
+
+test("retention configuration fails closed and preserves completed evidence", () => {
+  assert.throws(() => parseSignatureRetentionPolicy(undefined), /signature_retention_policy_invalid/);
+  assert.throws(() => parseSignatureRetentionPolicy(JSON.stringify({ version: "bad" })), /signature_retention_policy_invalid/);
+  const policy = parseSignatureRetentionPolicy(policyJson);
+  assert.deepEqual(evaluateSignatureRetention({ policy, recordType: "completed_pdf", createdAt: new Date(0), now: new Date("2035-01-01"), legalHold: false, completedRecord: true }), { eligible: false, reason: "preserved" });
+  assert.deepEqual(evaluateSignatureRetention({ policy, recordType: "token", createdAt: new Date("2030-01-01"), now: new Date("2030-02-15"), legalHold: true, completedRecord: false }), { eligible: false, reason: "legal_hold" });
+});
+
+test("governance readiness reports every fail-closed launch requirement", async () => {
+  const blocked = await getSignatureGovernanceReadiness(database, environment(), new Date("2032-05-01"));
+  assert.equal(blocked.launchReady, false);
+  assert.deepEqual(new Set(blocked.blockers), new Set([
+    "counsel_approval_missing", "approved_consent_es_pr_missing",
+    "approved_consent_en_us_missing", "retention_policy_missing",
+    "public_signing_disabled",
+  ]));
+  assert.equal(blocked.evidenceKeysConfigured, true);
+});
+
+test("approved synthetic governance records and full policy satisfy readiness only with explicit gate", async () => {
+  await db.query(`INSERT INTO public.signature_document_type_approvals
+      (document_type,status,approval_reference,approval_date,reviewed_by,source_reference,effective_from)
+    VALUES ('ordinary_brokerage_agreement','approved','SYNTHETIC-ONLY','2032-04-01','Synthetic Reviewer','synthetic','2032-04-01')`);
+  for (const locale of ["es-PR", "en-US"]) {
+    await db.query(`INSERT INTO public.signature_consent_versions
+      (version_identifier,locale,consent_text,consent_text_sha256,status,effective_from,approval_reference,created_by_admin_id)
+      VALUES ($1,$2,'Synthetic consent only',$3,'approved','2032-04-01','SYNTHETIC-ONLY',$4::uuid)`,
+      [`synthetic-${locale.toLowerCase()}`, locale, "a".repeat(64), adminId]);
+  }
+  const ready = await getSignatureGovernanceReadiness(database, environment({
+    SIGNING_PUBLIC_ENABLED: "true",
+    SIGNATURE_RETENTION_POLICY_JSON: policyJson,
+  }), new Date("2032-05-01"));
+  assert.equal(ready.launchReady, true);
+  assert.deepEqual(ready.blockers, []);
+});
+
+test("historical HMAC key removal is detected and monitoring remains aggregate-only", async () => {
+  const domain = createSignatureDomainServices({ database, eventHmacKey: "synthetic-event-key-version-one-32bytes", eventHmacKeyVersion: 1, networkEvidenceHmacKey: "synthetic-network-key-at-least-32bytes" });
+  await domain.createDraftWithVersion({ documentId: randomUUID(), title: "Synthetic", documentType: "ordinary_brokerage_agreement", createdByAdminId: adminId,
+    filename: "synthetic.pdf", byteCount: 100, pageCount: 1, sourceSha256: "a".repeat(64), pageGeometryManifest: [{ pageIndex: 0, mediaBox: { x: 0, y: 0, width: 612, height: 792 }, cropBox: { x: 0, y: 0, width: 612, height: 792 }, rotation: 0, userUnit: 1 }],
+    documentCreatedIdempotencyKey: randomUUID(), versionCreatedIdempotencyKey: randomUUID() });
+  assert.equal((await inspectSignatureEventKeyCoverage(database, [1, 2], 2)).safe, true);
+  const missing = await inspectSignatureEventKeyCoverage(database, [2], 2);
+  assert.equal(missing.safe, false);
+  assert.deepEqual(missing.missingKeyVersions, [1]);
+  const snapshot = await getSignatureOperationalSnapshot(database);
+  assert.equal(snapshot.drafts, 1);
+  assert.equal(Object.values(snapshot).every(Number.isFinite), true);
+  assert.doesNotMatch(JSON.stringify(snapshot), /email|name|token|r2/i);
+});
+
+test("maximum MVP topology supports 8 participants, 100 fields, 25 pages, and repeated status reads", async () => {
+  const started = performance.now();
+  const geometry = Array.from({ length: 25 }, (_, pageIndex) => ({
+    pageIndex,
+    mediaBox: { x: 0, y: 0, width: 612, height: 792 },
+    cropBox: { x: 0, y: 0, width: 612, height: 792 },
+    rotation: pageIndex % 4 * 90,
+    userUnit: 1,
+  }));
+  const domain = createSignatureDomainServices({ database,
+    eventHmacKey: "synthetic-load-event-key-at-least-32bytes",
+    eventHmacKeyVersion: 1,
+    networkEvidenceHmacKey: "synthetic-load-network-key-at-least-32bytes" });
+  const draft = await domain.createDraftWithVersion({ documentId: randomUUID(),
+    title: "Synthetic maximum topology", documentType: "ordinary_brokerage_agreement",
+    createdByAdminId: adminId, filename: "synthetic-25-pages.pdf", byteCount: 2_999_999,
+    pageCount: 25, sourceSha256: "b".repeat(64), pageGeometryManifest: geometry,
+    documentCreatedIdempotencyKey: randomUUID(), versionCreatedIdempotencyKey: randomUUID() });
+  const participants = [];
+  for (let index = 0; index < 8; index += 1) {
+    participants.push(await domain.addParticipant({ documentVersionId: draft.documentVersionId,
+      nameSnapshot: `Synthetic Participant ${index + 1}`,
+      emailSnapshot: `synthetic-${index + 1}@example.test`, role: "signer",
+      routingOrder: index + 1, actorAdminId: adminId, idempotencyKey: randomUUID() }));
+  }
+  for (let index = 0; index < 100; index += 1) {
+    const participant = participants[index % participants.length];
+    const pageIndex = index % geometry.length;
+    await domain.addField({ documentVersionId: draft.documentVersionId,
+      participantId: participant.participantId, fieldType: index % 4 === 0 ? "signature" : "text",
+      pageIndex, rect: { x: 0.05 + (index % 4) * 0.2, y: 0.1 + (index % 5) * 0.14,
+        width: 0.15, height: 0.08 }, pageGeometryReference: geometry[pageIndex],
+      label: `Synthetic field ${index + 1}`, required: true, tabOrder: index + 1,
+      validationLimits: { maxLength: index % 4 === 0 ? 120 : 500 },
+      actorAdminId: adminId, idempotencyKey: randomUUID() });
+  }
+  const counts = (await db.query(`SELECT
+      (SELECT count(*)::int FROM signature_participants WHERE document_version_id=$1) AS participants,
+      (SELECT count(*)::int FROM signature_fields WHERE document_version_id=$1) AS fields`,
+    [draft.documentVersionId])).rows[0];
+  assert.deepEqual(counts, { participants: 8, fields: 100 });
+  const snapshots = await Promise.all(Array.from({ length: 10 }, () => getSignatureOperationalSnapshot(database)));
+  assert.equal(snapshots.every((snapshot) => snapshot.drafts === 1), true);
+  assert.ok(performance.now() - started < 30_000);
+});

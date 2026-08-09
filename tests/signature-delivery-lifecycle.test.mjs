@@ -131,6 +131,37 @@ test("expiration atomically closes participants, sessions, links, and pending de
   assert.deepEqual(state, { document_status: "expired", participant_status: "expired", delivery_status: "cancelled" });
 });
 
+test("void requires a reason and atomically revokes access without mutating completed records", async () => {
+  const { value } = await prepared();
+  const first = await delivery.createIntent({ participantId: value.participantId,
+    documentVersionId: value.documentVersionId, locale: "es-PR", actorAdminId: adminId,
+    idempotencyKey: randomUUID() });
+  await delivery.deliverIntent(first.intentId);
+  const token = sentMessages[0].html.match(/\/firmar\/([A-Za-z0-9_-]{43})/)[1];
+  await domain.redeemSigningToken({ plaintextToken: token, idempotencyKey: randomUUID() });
+  await delivery.reissueInvitation({ participantId: value.participantId,
+    documentVersionId: value.documentVersionId, locale: "es-PR", actorAdminId: adminId,
+    idempotencyKey: randomUUID() });
+  await assert.rejects(domain.voidSignatureDocument({ documentId: value.documentId,
+    actorAdminId: adminId, reason: "", idempotencyKey: randomUUID() }), /signature_void_reason_invalid/);
+  assert.deepEqual(await domain.voidSignatureDocument({ documentId: value.documentId,
+    actorAdminId: adminId, reason: "Synthetic operational drill", idempotencyKey: randomUUID() }),
+    { status: "voided", participantsRevoked: 1 });
+  const state = (await db.query(`SELECT d.status AS document_status, d.void_reason,
+      p.status AS participant_status,
+      count(DISTINCT s.id) FILTER (WHERE s.revoked_at IS NOT NULL)::int AS revoked_sessions,
+      count(DISTINCT di.id) FILTER (WHERE di.status='cancelled')::int AS cancelled_deliveries
+    FROM public.signature_documents d
+    JOIN public.signature_document_versions v ON v.document_id=d.id
+    JOIN public.signature_participants p ON p.document_version_id=v.id
+    LEFT JOIN public.signature_sessions s ON s.participant_id=p.id
+    LEFT JOIN public.signature_delivery_intents di ON di.participant_id=p.id
+    WHERE d.id=$1::uuid GROUP BY d.status,d.void_reason,p.status`, [value.documentId])).rows[0];
+  assert.deepEqual(state, { document_status: "voided", void_reason: "Synthetic operational drill",
+    participant_status: "revoked", revoked_sessions: 1, cancelled_deliveries: 1 });
+  assert.equal((await domain.verifyEventChain(value.documentId)).valid, true);
+});
+
 test("synthetic invitation signs, finalizes, and yields participant-bound private completion access", async () => {
   const { value } = await prepared();
   const intent = await delivery.createIntent({ participantId: value.participantId, documentVersionId: value.documentVersionId, locale: "es-PR", actorAdminId: adminId, idempotencyKey: randomUUID() });
@@ -143,6 +174,9 @@ test("synthetic invitation signs, finalizes, and yields participant-bound privat
   const objects = new Map([[value.sourceR2Key, new Uint8Array(sourceBytes)]]);
   const storage = { async putSource() { return "existing"; }, async deleteSourceIfExact() { return false; }, async getSource() { return new Uint8Array(sourceBytes); }, async putFinal(v) { objects.set(v.key, new Uint8Array(v.bytes)); return "created"; }, async putCertificate(v) { objects.set(v.key, new Uint8Array(v.bytes)); return "created"; }, async getFinal(v) { return objects.get(v.key); }, async getCertificate(v) { return objects.get(v.key); } };
   await finalizeCompletedSignatureDocument(value.documentId, { database, domain, storage });
+  await assert.rejects(domain.voidSignatureDocument({ documentId: value.documentId,
+    actorAdminId: adminId, reason: "Must remain immutable", idempotencyKey: randomUUID() }),
+  /signature_document_not_voidable/);
   const completion = await delivery.createIntent({ participantId: value.participantId, documentVersionId: value.documentVersionId, locale: "es-PR", actorAdminId: adminId, idempotencyKey: randomUUID(), kind: "completed_document" });
   await delivery.deliverIntent(completion.intentId); const accessToken = sentMessages[1].html.match(/\/firmar\/completado\/([A-Za-z0-9_-]{43})/)[1];
   const access = await domain.redeemCompletionAccessToken({ plaintextToken: accessToken, idempotencyKey: randomUUID() });

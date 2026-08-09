@@ -1835,6 +1835,100 @@ export function createSignatureDomainServices({
     return verifySignatureEventChain(rows.map(mapEvent), resolveVerificationKey);
   }
 
+  async function voidSignatureDocument(input: {
+    documentId: string;
+    actorAdminId: string;
+    reason: string;
+    idempotencyKey: string;
+  }) {
+    const reason = input.reason.trim();
+    if (reason.length < 1 || reason.length > 500) {
+      throw new Error("signature_void_reason_invalid");
+    }
+    return database.begin(async (transaction) => {
+      const rows = await transaction.unsafe<{
+        id: string;
+        active_version_id: string;
+        status: SignatureDocumentStatus;
+        source_sha256: string;
+      }>(
+        `SELECT d.id::text, d.active_version_id::text, d.status, v.source_sha256
+           FROM public.signature_documents d
+           JOIN public.signature_document_versions v ON v.id=d.active_version_id
+          WHERE d.id=$1::uuid FOR UPDATE OF d`,
+        [input.documentId]
+      );
+      const document = rows[0];
+      if (!document || ["completed", "expired"].includes(document.status)) {
+        throw new Error("signature_document_not_voidable");
+      }
+      if (document.status === "voided") {
+        return { status: "voided" as const, participantsRevoked: 0 };
+      }
+      const participants = await transaction.unsafe<{ id: string }>(
+        `SELECT id::text FROM public.signature_participants
+          WHERE document_version_id=$1::uuid
+            AND status IN ('pending','invited','viewed','consented')
+          FOR UPDATE`,
+        [document.active_version_id]
+      );
+      const now = iso(clock());
+      for (const participant of participants) {
+        await transaction.unsafe(
+          `UPDATE public.signature_participants SET status='revoked' WHERE id=$1::uuid`,
+          [participant.id]
+        );
+        await appendEventInTransaction(transaction, {
+          documentId: input.documentId,
+          documentVersionId: document.active_version_id,
+          participantId: participant.id,
+          eventType: "participant_revoked",
+          actorClass: "admin",
+          actorAdminId: input.actorAdminId,
+          versionHash: document.source_sha256,
+          controlledMetadata: { participant_status: "revoked" },
+          idempotencyKey: derivedIdempotencyKey(input.idempotencyKey, `participant:${participant.id}`),
+        });
+      }
+      await transaction.unsafe(
+        `UPDATE public.signature_signing_tokens
+            SET revoked_at=coalesce(revoked_at,$2::timestamptz)
+          WHERE document_version_id=$1::uuid AND revoked_at IS NULL`,
+        [document.active_version_id, now]
+      );
+      await transaction.unsafe(
+        `UPDATE public.signature_sessions
+            SET revoked_at=coalesce(revoked_at,$2::timestamptz)
+          WHERE document_version_id=$1::uuid AND revoked_at IS NULL AND completed_at IS NULL`,
+        [document.active_version_id, now]
+      );
+      await transaction.unsafe(
+        `UPDATE public.signature_delivery_intents
+            SET status='cancelled', cancelled_at=$2::timestamptz,
+                locked_at=NULL, locked_by=NULL, updated_at=$2::timestamptz
+          WHERE document_version_id=$1::uuid AND status IN ('pending','processing')`,
+        [document.active_version_id, now]
+      );
+      await transaction.unsafe(
+        `UPDATE public.signature_documents
+            SET status='voided', voided_at=$2::timestamptz, void_reason=$3
+          WHERE id=$1::uuid`,
+        [input.documentId, now, reason]
+      );
+      await appendEventInTransaction(transaction, {
+        documentId: input.documentId,
+        documentVersionId: document.active_version_id,
+        eventType: "document_voided",
+        actorClass: "admin",
+        actorAdminId: input.actorAdminId,
+        versionHash: document.source_sha256,
+        controlledMetadata: { document_status: "voided", reason_code: "admin_requested" },
+        idempotencyKey: input.idempotencyKey,
+      });
+      return { status: "voided" as const, participantsRevoked: participants.length };
+    });
+  }
+
   return {
     createDraftDocument,
     createDraftWithVersion,
@@ -1862,5 +1956,6 @@ export function createSignatureDomainServices({
     completeSignerParticipant,
     revokeSignerSession,
     expireSignatureDocument,
+    voidSignatureDocument,
   };
 }

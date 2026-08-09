@@ -34,7 +34,7 @@ export default async function SignatureDocumentsPage({
         eyebrow="Admin · Firmas"
         title="Solicitudes de firma"
         description="Prototipo interno para preparar borradores. El envío permanece bloqueado hasta aprobación legal."
-        actions={<Link className="btn-primary" href="/admin/signatures/nuevo">Nuevo borrador</Link>}
+        actions={<div className="flex flex-wrap gap-2"><Link className="btn-secondary" href="/admin/signatures/gobernanza">Gobernanza</Link><Link className="btn-primary" href="/admin/signatures/nuevo">Nuevo borrador</Link></div>}
       />
 
       <form className="surface-card grid gap-4 p-5 md:grid-cols-4" method="get">
