@@ -102,11 +102,22 @@ test("approved synthetic governance records and full policy satisfy readiness on
 });
 
 test("historical HMAC key removal is detected and monitoring remains aggregate-only", async () => {
-  const domain = createSignatureDomainServices({ database, eventHmacKey: "synthetic-event-key-version-one-32bytes", eventHmacKeyVersion: 1, networkEvidenceHmacKey: "synthetic-network-key-at-least-32bytes" });
-  await domain.createDraftWithVersion({ documentId: randomUUID(), title: "Synthetic", documentType: "ordinary_brokerage_agreement", createdByAdminId: adminId,
+  const versionOneKey = "synthetic-event-key-version-one-32bytes";
+  const versionTwoKey = "synthetic-event-key-version-two-32bytes";
+  const domain = createSignatureDomainServices({ database, eventHmacKey: versionOneKey, eventHmacKeyVersion: 1, networkEvidenceHmacKey: "synthetic-network-key-at-least-32bytes" });
+  const draft = await domain.createDraftWithVersion({ documentId: randomUUID(), title: "Synthetic", documentType: "ordinary_brokerage_agreement", createdByAdminId: adminId,
     filename: "synthetic.pdf", byteCount: 100, pageCount: 1, sourceSha256: "a".repeat(64), pageGeometryManifest: [{ pageIndex: 0, mediaBox: { x: 0, y: 0, width: 612, height: 792 }, cropBox: { x: 0, y: 0, width: 612, height: 792 }, rotation: 0, userUnit: 1 }],
     documentCreatedIdempotencyKey: randomUUID(), versionCreatedIdempotencyKey: randomUUID() });
-  assert.equal((await inspectSignatureEventKeyCoverage(database, [1, 2], 2)).safe, true);
+  const rotatedDomain = createSignatureDomainServices({ database, eventHmacKey: versionTwoKey,
+    eventHmacKeyVersion: 2, networkEvidenceHmacKey: "synthetic-network-key-at-least-32bytes",
+    resolveEventHmacKey: (version) => version === 1 ? versionOneKey : version === 2 ? versionTwoKey : null });
+  await rotatedDomain.appendEvent({ documentId: draft.documentId,
+    documentVersionId: draft.documentVersionId, eventType: "document_viewed",
+    actorClass: "system", versionHash: "a".repeat(64), idempotencyKey: randomUUID() });
+  assert.equal((await rotatedDomain.verifyEventChain(draft.documentId)).valid, true);
+  const safeCoverage = await inspectSignatureEventKeyCoverage(database, [1, 2], 2);
+  assert.equal(safeCoverage.safe, true);
+  assert.deepEqual(safeCoverage.usedKeyVersions, [1, 2]);
   const missing = await inspectSignatureEventKeyCoverage(database, [2], 2);
   assert.equal(missing.safe, false);
   assert.deepEqual(missing.missingKeyVersions, [1]);
