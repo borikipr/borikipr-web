@@ -1,6 +1,8 @@
 export const SIGNER_COOKIE_NAME = "borikipr_signer_session";
 export const SIGNER_CSRF_COOKIE_NAME = "borikipr_signer_csrf";
-export const SIGNER_COOKIE_PATH = "/firmar";
+// Signer pages live under /firmar while signer mutations live under
+// /api/signatures. The cookie must cover their narrowest common path.
+export const SIGNER_COOKIE_PATH = "/";
 export const COMPLETION_COOKIE_NAME = "borikipr_signature_completion";
 export const COMPLETION_COOKIE_PATH = "/firmar/completado";
 

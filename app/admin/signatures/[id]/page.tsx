@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import SignatureDraftEditor from "@/components/admin/signatures/SignatureDraftEditor";
+import IsolatedDeliveryControl from "@/components/admin/signatures/IsolatedDeliveryControl";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import { sql } from "@/lib/db";
@@ -48,6 +49,13 @@ export default async function SignatureDraftPage({ params }: { params: Promise<{
         <Link className="btn-secondary" href={`/admin/signatures/${detail.id}/certificate`}>Descargar certificado</Link>
         <Link className="btn-secondary" href={`/admin/signatures/${detail.id}/evidence`}>Ver resumen de evidencia</Link>
       </section>}
+
+      {process.env.NODE_ENV !== "production" &&
+        process.env.SIGNING_ISOLATED_ENVIRONMENT === "true" &&
+        detail.status !== "draft" &&
+        detail.status !== "completed" && (
+          <IsolatedDeliveryControl />
+        )}
 
       <SignatureDraftEditor detail={detail} readiness={readiness} />
     </AdminPageShell>

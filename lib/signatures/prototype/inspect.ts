@@ -1,5 +1,6 @@
 import type { PdfCompatibilityLimits, PdfCompatibilityReport } from "./types";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { normalizeRotation } from "./coordinates";
 import { sha256Hex } from "./hash";
 
@@ -88,6 +89,9 @@ export async function inspectPdfCompatibility({
   }
   const rawText = new TextDecoder("latin1").decode(bytes);
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(
+    path.resolve(process.cwd(), "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs")
+  ).href;
   const standardFontDataUrl = `${path
     .resolve(process.cwd(), "node_modules/pdfjs-dist/standard_fonts")
     .replaceAll("\\", "/")}/`;

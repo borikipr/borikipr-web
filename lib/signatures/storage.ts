@@ -5,6 +5,8 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { sha256SignatureValue } from "./domain/crypto";
 
 export const MAX_SIGNATURE_SOURCE_BYTES = 3_000_000;
@@ -255,4 +257,110 @@ export function createPrivateSignatureR2Storage(): SignatureCompletedStorage {
     getCertificate: (input) =>
       getImmutablePdf(input, CERTIFICATE_KEY_PATTERN, MAX_SIGNATURE_CERTIFICATE_BYTES),
   };
+}
+
+function isolatedStorageRoot() {
+  if (
+    process.env.NODE_ENV === "production" ||
+    process.env.SIGNING_ISOLATED_ENVIRONMENT !== "true"
+  ) {
+    throw new Error("signature_isolated_storage_forbidden");
+  }
+  const approvedRoot = path.resolve(process.cwd(), "tmp", "signatures", "isolated-r2");
+  const configured = path.resolve(/* turbopackIgnore: true */
+    process.env.SIGNING_ISOLATED_STORAGE_DIR?.trim() || approvedRoot
+  );
+  if (configured !== approvedRoot && !configured.startsWith(`${approvedRoot}${path.sep}`)) {
+    throw new Error("signature_isolated_storage_path_invalid");
+  }
+  return configured;
+}
+
+function isolatedObjectPath(root: string, key: string, pattern: RegExp) {
+  if (!pattern.test(key)) throw new Error("signature_isolated_object_key_invalid");
+  const resolved = path.resolve(root, ...key.split("/"));
+  if (!resolved.startsWith(`${root}${path.sep}`)) {
+    throw new Error("signature_isolated_object_key_invalid");
+  }
+  return resolved;
+}
+
+export function createPrivateSignatureIsolatedStorage(): SignatureCompletedStorage {
+  const root = isolatedStorageRoot();
+
+  async function readExact(input: { key: string; byteCount: number; sha256: string }, pattern: RegExp) {
+    const bytes = new Uint8Array(await readFile(isolatedObjectPath(root, input.key, pattern)));
+    if (bytes.byteLength !== input.byteCount || sha256SignatureValue(bytes) !== input.sha256) {
+      throw new Error("signature_isolated_object_integrity_failed");
+    }
+    return bytes;
+  }
+
+  async function putExact(
+    input: ImmutableSignaturePdfObject,
+    pattern: RegExp,
+    maximumBytes: number
+  ): Promise<"created" | "existing"> {
+    if (
+      input.mimeType !== "application/pdf" ||
+      input.byteCount !== input.bytes.byteLength ||
+      input.byteCount < 1 ||
+      input.byteCount > maximumBytes ||
+      sha256SignatureValue(input.bytes) !== input.sha256
+    ) {
+      throw new Error("signature_isolated_object_invalid");
+    }
+    const destination = isolatedObjectPath(root, input.key, pattern);
+    await mkdir(path.dirname(destination), { recursive: true });
+    try {
+      await writeFile(destination, input.bytes, { flag: "wx" });
+      return "created";
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      await readExact(input, pattern);
+      return "existing";
+    }
+  }
+
+  return {
+    async putSource(input) {
+      assertSourceObject(input);
+      return putExact(
+        { ...input, sha256: input.sourceSha256 },
+        SOURCE_KEY_PATTERN,
+        MAX_SIGNATURE_SOURCE_BYTES
+      );
+    },
+    getSource: (input) => readExact(
+      { key: input.key, byteCount: input.byteCount, sha256: input.sourceSha256 },
+      SOURCE_KEY_PATTERN
+    ),
+    async deleteSourceIfExact(input) {
+      try {
+        await readExact(
+          { key: input.key, byteCount: input.byteCount, sha256: input.sourceSha256 },
+          SOURCE_KEY_PATTERN
+        );
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+        throw error;
+      }
+      await rm(isolatedObjectPath(root, input.key, SOURCE_KEY_PATTERN));
+      return true;
+    },
+    putFinal: (input) => putExact(input, FINAL_KEY_PATTERN, MAX_SIGNATURE_FINAL_BYTES),
+    putCertificate: (input) => putExact(
+      input,
+      CERTIFICATE_KEY_PATTERN,
+      MAX_SIGNATURE_CERTIFICATE_BYTES
+    ),
+    getFinal: (input) => readExact(input, FINAL_KEY_PATTERN),
+    getCertificate: (input) => readExact(input, CERTIFICATE_KEY_PATTERN),
+  };
+}
+
+export function createPrivateSignatureStorage(): SignatureCompletedStorage {
+  return process.env.SIGNING_ISOLATED_ENVIRONMENT === "true"
+    ? createPrivateSignatureIsolatedStorage()
+    : createPrivateSignatureR2Storage();
 }

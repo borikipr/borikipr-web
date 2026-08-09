@@ -8,10 +8,18 @@ export function createSignerRepository(database: SignatureQueryExecutor) {
         participant_status: string; consent_version: string | null;
         consent_text: string | null; consent_text_sha256: string | null;
         consent_locale: "es-PR" | "en-US" | null;
+        privacy_disclosure_version: string | null;
+        privacy_disclosure_es_pr_sha256: string | null;
+        privacy_disclosure_en_us_sha256: string | null;
+        privacy_disclosure_effective_from: string | Date | null;
+        privacy_disclosure_approval_reference: string | null;
       }>(
         `SELECT d.title, p.role, v.page_count, v.page_geometry_manifest,
                 p.status AS participant_status, p.consent_version,
-                cv.consent_text, cv.consent_text_sha256, cv.locale AS consent_locale
+                cv.consent_text, cv.consent_text_sha256, cv.locale AS consent_locale,
+                d.privacy_disclosure_version, d.privacy_disclosure_es_pr_sha256,
+                d.privacy_disclosure_en_us_sha256, d.privacy_disclosure_effective_from,
+                d.privacy_disclosure_approval_reference
            FROM public.signature_participants p
            JOIN public.signature_document_versions v ON v.id=p.document_version_id
            JOIN public.signature_documents d ON d.id=v.document_id

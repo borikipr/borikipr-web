@@ -4,6 +4,7 @@ import {
   SignatureDraftValidationError,
 } from "@/lib/signatures/draft-application";
 import { createSignatureDraftRuntime } from "@/lib/signatures/runtime";
+import { sameSignerOrigin } from "@/lib/signatures/signer/origin";
 import { MAX_SIGNATURE_SOURCE_BYTES } from "@/lib/signatures/storage";
 
 export const runtime = "nodejs";
@@ -20,13 +21,7 @@ function response(body: Record<string, unknown>, status: number) {
 }
 
 function sameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-  try {
-    return new URL(origin).origin === new URL(request.url).origin;
-  } catch {
-    return false;
-  }
+  return sameSignerOrigin(request);
 }
 
 function message(code: string) {
@@ -47,6 +42,18 @@ function message(code: string) {
     signature_link_id_invalid: "El enlace opcional seleccionado no es válido.",
   };
   return messages[code] ?? "No se pudo crear el borrador de firma.";
+}
+
+function puertoRicoExpiration(value: FormDataEntryValue | null) {
+  const date = String(value ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new SignatureDraftValidationError("signature_expiration_invalid");
+  }
+  const expiresAt = new Date(`${date}T23:59:59-04:00`);
+  if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+    throw new SignatureDraftValidationError("signature_expiration_invalid");
+  }
+  return expiresAt;
 }
 
 export async function POST(request: Request) {
@@ -78,6 +85,7 @@ export async function POST(request: Request) {
       createdByAdminId: session.id,
       canonicalLeadId: String(formData?.get("canonicalLeadId") ?? "") || null,
       leadGroupId: String(formData?.get("leadGroupId") ?? "") || null,
+      expiresAt: puertoRicoExpiration(formData?.get("expiresOn") ?? null),
       filename: file.name,
       mimeType: file.type,
       bytes: new Uint8Array(await file.arrayBuffer()),
@@ -93,6 +101,15 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof SignatureDraftValidationError) {
       return response({ ok: false, error: message(error.code) }, 400);
+    }
+    if (
+      process.env.NODE_ENV !== "production" &&
+      process.env.SIGNING_ISOLATED_ENVIRONMENT === "true"
+    ) {
+      return response({
+        ok: false,
+        error: error instanceof Error ? error.message : "signature_isolated_unknown_error",
+      }, 500);
     }
     return response({ ok: false, error: "No se pudo crear el borrador." }, 500);
   }

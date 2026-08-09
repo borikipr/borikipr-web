@@ -12,12 +12,15 @@ import { finalizeCompletedSignatureDocument } from "../lib/signatures/signer/fin
 import { isPublicSigningEnabled } from "../lib/signatures/public-config.ts";
 import { shouldExcludeAnalyticsPath } from "../lib/analytics-routes.ts";
 import { normalizeSignerCapture } from "../lib/signatures/signer/capture.ts";
+import { SIGNER_COOKIE_PATH } from "../lib/signatures/signer/cookie.ts";
+import { isIsolatedLocalSignerRequest, sameSignerOrigin } from "../lib/signatures/signer/origin.ts";
 
 const root = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
-const [foundationSql, signerSql, deliverySql, sourceBytes] = await Promise.all([
+const [foundationSql, signerSql, deliverySql, privacyBindingSql, sourceBytes] = await Promise.all([
   readFile(path.join(root, "db/migrations/0022_create_signature_foundation.sql"), "utf8"),
   readFile(path.join(root, "db/migrations/0023_extend_signature_signer_evidence.sql"), "utf8"),
   readFile(path.join(root, "db/migrations/0024_add_signature_delivery_governance.sql"), "utf8"),
+  readFile(path.join(root, "db/migrations/0025_bind_signature_privacy_disclosure.sql"), "utf8"),
   readFile(path.join(root, "tests/fixtures/signatures/rejections/valid-ordinary.pdf")),
 ]);
 
@@ -37,7 +40,7 @@ before(async () => {
     CREATE TABLE public.lead_groups (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
     INSERT INTO public.admin_users(username) VALUES ('synthetic-phase2d-admin');`);
   adminId = (await db.query(`SELECT id::text FROM public.admin_users LIMIT 1`)).rows[0].id;
-  await db.exec(foundationSql); await db.exec(signerSql); await db.exec(deliverySql);
+  await db.exec(foundationSql); await db.exec(signerSql); await db.exec(deliverySql); await db.exec(privacyBindingSql);
 });
 
 beforeEach(async () => {
@@ -100,8 +103,13 @@ async function syntheticRequest({ participants = 1 } = {}) {
     VALUES ('phase2d-synthetic-v1','es-PR',$1,$2,'approved',$3,'synthetic-test-only',$4::uuid) RETURNING id::text`,
     [syntheticConsentText, syntheticConsentSha, new Date("2031-01-01T00:00:00Z"), adminId])).rows[0];
   await db.query(`UPDATE public.signature_documents SET document_type_approval_reference='synthetic-test-only',
-    document_type_approval_id=$2::uuid, consent_version_id=$3::uuid, status='sent', sent_at=$4
-    WHERE id=$1::uuid`, [documentId, approval.id, consent.id, clockState.now]);
+    document_type_approval_id=$2::uuid, consent_version_id=$3::uuid,
+    privacy_disclosure_version=$5, privacy_disclosure_es_pr_sha256=$6,
+    privacy_disclosure_en_us_sha256=$7, privacy_disclosure_effective_from=$8::timestamptz,
+    privacy_disclosure_approval_reference=$9, status='sent', sent_at=$4
+    WHERE id=$1::uuid`, [documentId, approval.id, consent.id, clockState.now,
+    "phase2d-synthetic-privacy-v1", "c".repeat(64), "d".repeat(64),
+    new Date("2031-01-01T00:00:00Z"), "synthetic-test-only"]);
   for (const participant of participantRows) await services.transitionParticipantState({ participantId: participant.participantId,
     targetStatus: "invited", actorClass: "admin", actorAdminId: adminId, idempotencyKey: randomUUID() });
   return { ...draft, documentId, sourceSha256, participants: participantRows, fields, fieldHash };
@@ -123,6 +131,38 @@ test("public signing defaults closed and signer paths are excluded from analytic
   assert.equal(shouldExcludeAnalyticsPath("/firmar/token"), true); assert.equal(shouldExcludeAnalyticsPath("/firmar/sesion"), true);
 });
 
+test("signer origin and cookie scope support API mutations without weakening production origin checks", () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalIsolated = process.env.SIGNING_ISOLATED_ENVIRONMENT;
+  try {
+    process.env.NODE_ENV = "production";
+    process.env.SIGNING_ISOLATED_ENVIRONMENT = "true";
+    assert.equal(SIGNER_COOKIE_PATH, "/");
+    assert.equal(sameSignerOrigin(new Request("https://borikipr.com/api/signatures/session/field", {
+      headers: { origin: "https://borikipr.com" },
+    })), true);
+    assert.equal(sameSignerOrigin(new Request("https://borikipr.com/api/signatures/session/field")), false);
+    assert.equal(sameSignerOrigin(new Request("https://borikipr.com/api/signatures/session/field", {
+      headers: { origin: "https://attacker.invalid" },
+    })), false);
+
+    process.env.NODE_ENV = "development";
+    assert.equal(isIsolatedLocalSignerRequest(new Request("http://127.0.0.1:3100/api/signatures/session/field")), true);
+    assert.equal(sameSignerOrigin(new Request("http://127.0.0.1:3100/api/signatures/session/field")), true);
+    assert.equal(sameSignerOrigin(new Request("http://127.0.0.1:3100/api/signatures/session/field", {
+      headers: { origin: "http://localhost:3100" },
+    })), true);
+    assert.equal(sameSignerOrigin(new Request("http://127.0.0.1:3100/api/signatures/session/field", {
+      headers: { origin: "https://attacker.invalid" },
+    })), false);
+  } finally {
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+    if (originalIsolated === undefined) delete process.env.SIGNING_ISOLATED_ENVIRONMENT;
+    else process.env.SIGNING_ISOLATED_ENVIRONMENT = originalIsolated;
+  }
+});
+
 test("eligibility inspection does not consume a token; exchange is one-time", async () => {
   const fixture = await syntheticRequest();
   const issued = await services.issueSigningToken({ participantId: fixture.participants[0].participantId,
@@ -133,6 +173,88 @@ test("eligibility inspection does not consume a token; exchange is one-time", as
   await services.redeemSigningToken({ plaintextToken: issued.plaintextToken, idempotencyKey: randomUUID() });
   await assert.rejects(services.redeemSigningToken({ plaintextToken: issued.plaintextToken, idempotencyKey: randomUUID() }), /signature_token_verification_failed/);
   assert.equal((await services.inspectSigningToken("bad-token")).eligible, false);
+});
+
+test("reissue preserves viewed/consented state and progress while terminal states remain ineligible", async () => {
+  const { fixture, session } = await sessionFixture();
+  const participantCountBefore = (await db.query(`SELECT count(*)::integer AS count FROM public.signature_participants
+    WHERE document_version_id=$1::uuid`, [fixture.documentVersionId])).rows[0].count;
+  const viewedReissue = await services.issueSigningToken({ participantId: fixture.participants[0].participantId,
+    documentVersionId: fixture.documentVersionId, expiresAt: new Date("2031-01-05T13:00:00Z"), keyVersion: 1,
+    actorAdminId: adminId, idempotencyKey: randomUUID() });
+  assert.equal((await services.inspectSigningToken(viewedReissue.plaintextToken)).eligible, true);
+  const viewedSession = await services.redeemSigningToken({ plaintextToken: viewedReissue.plaintextToken,
+    idempotencyKey: randomUUID() });
+  await services.acceptSignerConsent({ sessionId: session.sessionId, sessionSecret: session.sessionSecret,
+    csrfNonce: session.csrfNonce, consentVersion: "phase2d-synthetic-v1", consentTextSha256: syntheticConsentSha,
+    locale: "es-PR", idempotencyKey: randomUUID() });
+  const consentedBefore = (await db.query(`SELECT consented_at FROM public.signature_participants WHERE id=$1::uuid`,
+    [fixture.participants[0].participantId])).rows[0].consented_at;
+  await services.submitSignerField({ sessionId: session.sessionId, sessionSecret: session.sessionSecret,
+    csrfNonce: session.csrfNonce, fieldId: fixture.fields[0].fieldId,
+    value: { method: "drawn", strokes: [[{ x: 0.1, y: 0.2 }, { x: 0.7, y: 0.6 }]] },
+    idempotencyKey: randomUUID() });
+  const consentedReissue = await services.issueSigningToken({ participantId: fixture.participants[0].participantId,
+    documentVersionId: fixture.documentVersionId, expiresAt: new Date("2031-01-05T13:00:00Z"), keyVersion: 1,
+    actorAdminId: adminId, idempotencyKey: randomUUID(), supersedeExisting: true });
+  assert.equal((await services.inspectSigningToken(consentedReissue.plaintextToken)).eligible, true);
+  const resumed = await services.redeemSigningToken({ plaintextToken: consentedReissue.plaintextToken,
+    idempotencyKey: randomUUID() });
+  const resumedContext = await services.getSessionContext({ sessionId: resumed.sessionId,
+    sessionSecret: resumed.sessionSecret });
+  assert.equal(resumedContext.participantStatus, "consented");
+  assert.equal((await db.query(`SELECT count(*)::integer AS count FROM public.signature_field_values
+    WHERE participant_id=$1::uuid`, [fixture.participants[0].participantId])).rows[0].count, 1);
+  assert.equal((await db.query(`SELECT consented_at FROM public.signature_participants WHERE id=$1::uuid`,
+    [fixture.participants[0].participantId])).rows[0].consented_at.toISOString(), consentedBefore.toISOString());
+  assert.equal((await db.query(`SELECT count(*)::integer AS count FROM public.signature_participants
+    WHERE document_version_id=$1::uuid`, [fixture.documentVersionId])).rows[0].count, participantCountBefore);
+
+  const superseded = await services.issueSigningToken({ participantId: fixture.participants[0].participantId,
+    documentVersionId: fixture.documentVersionId, expiresAt: new Date("2031-01-05T13:00:00Z"), keyVersion: 1,
+    actorAdminId: adminId, idempotencyKey: randomUUID() });
+  const newest = await services.issueSigningToken({ participantId: fixture.participants[0].participantId,
+    documentVersionId: fixture.documentVersionId, expiresAt: new Date("2031-01-05T13:00:00Z"), keyVersion: 1,
+    actorAdminId: adminId, idempotencyKey: randomUUID(), supersedeExisting: true });
+  assert.equal((await services.inspectSigningToken(superseded.plaintextToken)).eligible, false);
+  assert.equal((await services.inspectSigningToken(newest.plaintextToken)).eligible, true);
+  await services.transitionParticipantState({ participantId: fixture.participants[0].participantId,
+    targetStatus: "revoked", actorClass: "admin", actorAdminId: adminId, idempotencyKey: randomUUID() });
+  assert.equal((await services.inspectSigningToken(newest.plaintextToken)).eligible, false);
+  await assert.rejects(services.redeemSigningToken({ plaintextToken: newest.plaintextToken,
+    idempotencyKey: randomUUID() }), /signature_token_verification_failed/);
+  assert.ok(viewedSession.sessionId);
+});
+
+test("an expired participant cannot redeem an otherwise current link", async () => {
+  const expiredFixture = await syntheticRequest();
+  const expiredToken = await services.issueSigningToken({ participantId: expiredFixture.participants[0].participantId,
+    documentVersionId: expiredFixture.documentVersionId, expiresAt: new Date("2031-01-05T13:00:00Z"), keyVersion: 1,
+    actorAdminId: adminId, idempotencyKey: randomUUID() });
+  await services.transitionParticipantState({ participantId: expiredFixture.participants[0].participantId,
+    targetStatus: "expired", actorClass: "system", idempotencyKey: randomUUID() });
+  assert.equal((await services.inspectSigningToken(expiredToken.plaintextToken)).eligible, false);
+});
+
+test("a completed participant cannot resume with a previously issued current link", async () => {
+  const { fixture, session } = await sessionFixture();
+  await services.acceptSignerConsent({ sessionId: session.sessionId, sessionSecret: session.sessionSecret,
+    csrfNonce: session.csrfNonce, consentVersion: "phase2d-synthetic-v1", consentTextSha256: syntheticConsentSha,
+    locale: "es-PR", idempotencyKey: randomUUID() });
+  const activeBeforeCompletion = await services.issueSigningToken({ participantId: fixture.participants[0].participantId,
+    documentVersionId: fixture.documentVersionId, expiresAt: new Date("2031-01-05T13:00:00Z"), keyVersion: 1,
+    actorAdminId: adminId, idempotencyKey: randomUUID() });
+  const values = [{ method: "drawn", strokes: [[{ x: 0.1, y: 0.2 }, { x: 0.7, y: 0.6 }]] },
+    { method: "typed", value: "Synthetic Signer" }, { method: "typed", value: "SS" },
+    { method: "date", value: "2031-01-05" }, { method: "text", value: "Synthetic acceptance only" }];
+  for (let index = 0; index < values.length; index += 1) await services.submitSignerField({
+    sessionId: session.sessionId, sessionSecret: session.sessionSecret, csrfNonce: session.csrfNonce,
+    fieldId: fixture.fields[index].fieldId, value: values[index], idempotencyKey: randomUUID() });
+  await services.completeSignerParticipant({ sessionId: session.sessionId, sessionSecret: session.sessionSecret,
+    csrfNonce: session.csrfNonce, idempotencyKey: randomUUID() });
+  assert.equal((await services.inspectSigningToken(activeBeforeCompletion.plaintextToken)).eligible, false);
+  await assert.rejects(services.redeemSigningToken({ plaintextToken: activeBeforeCompletion.plaintextToken,
+    idempotencyKey: randomUUID() }), /signature_token_verification_failed/);
 });
 
 test("expired and revoked tokens fail with the same result", async () => {
@@ -200,9 +322,14 @@ test("synthetic flow finalizes once, writes private outputs, and verifies event 
   const second = await finalizeCompletedSignatureDocument(fixture.documentId, runtime);
   assert.ok(first); assert.equal(second.existing, true); assert.equal(first.finalSha256, second.finalSha256);
   assert.equal(objects.size, 3); assert.equal((await services.verifyEventChain(fixture.documentId)).valid, true);
-  const state = (await db.query(`SELECT d.status, v.finalized_at, v.final_pdf_sha256, v.certificate_sha256
+  const state = (await db.query(`SELECT d.status, v.finalized_at, v.final_pdf_sha256, v.certificate_sha256,
+    v.certificate_metadata
     FROM public.signature_documents d JOIN public.signature_document_versions v ON v.id=d.active_version_id WHERE d.id=$1`, [fixture.documentId])).rows[0];
   assert.equal(state.status, "completed"); assert.ok(state.finalized_at); assert.match(state.final_pdf_sha256, /^[0-9a-f]{64}$/); assert.match(state.certificate_sha256, /^[0-9a-f]{64}$/);
+  assert.deepEqual(state.certificate_metadata.privacyDisclosure, {
+    version: "phase2d-synthetic-privacy-v1", esPrSha256: "c".repeat(64), enUsSha256: "d".repeat(64),
+    effectiveFrom: "2031-01-01T00:00:00.000Z", approvalReference: "synthetic-test-only",
+  });
 });
 
 test("event, source, and field substitution are rejected", async () => {
@@ -231,6 +358,8 @@ test("signer routes enforce the server gate, same-origin POSTs, private headers,
   for (const route of [landing, exchange, consent, field, complete]) assert.match(route, /isPublicSigningEnabled/);
   for (const route of [exchange, consent, field, complete]) assert.match(route, /sameSignerOrigin/);
   assert.match(exchange, /checkRateLimit/); assert.match(exchange, /httpOnly: true/); assert.match(exchange, /sameSite: "strict"/);
+  assert.match(exchange, /secure: !isolatedLocalDevelopment/); assert.match(exchange, /encodeSignerCookie\(session\.sessionId, session\.sessionSecret\)/);
+  assert.doesNotMatch(exchange, /cookies\.set\([^\n]*token/i); assert.doesNotMatch(exchange, /export async function GET/);
   assert.match(config, /source: "\/firmar\/:path\*"/); assert.match(config, /Referrer-Policy/); assert.match(config, /noindex, nofollow/);
   assert.doesNotMatch(landing + exchange + consent + field + complete, /Resend|sendEmail/);
   assert.doesNotMatch(storage, /publicUrl|presign|R2_PUBLIC_BASE_URL/);

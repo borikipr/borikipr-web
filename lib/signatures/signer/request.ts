@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { createSignatureDomainRuntime } from "../runtime";
 import { parseSignerCookie, SIGNER_COOKIE_NAME } from "./cookie";
+export { isIsolatedLocalSignerRequest, sameSignerOrigin } from "./origin";
 
 export async function requireSignerRequestContext(options?: { csrfNonce?: string; touch?: boolean }) {
   const cookieValue = (await cookies()).get(SIGNER_COOKIE_NAME)?.value;
@@ -13,10 +14,4 @@ export async function requireSignerRequestContext(options?: { csrfNonce?: string
     touch: options?.touch,
   });
   return { runtime, ...parsed, context };
-}
-
-export function sameSignerOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-  try { return new URL(origin).origin === new URL(request.url).origin; } catch { return false; }
 }

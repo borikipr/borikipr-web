@@ -36,7 +36,9 @@
     "test:signatures:signer": "tsx --test --test-concurrency=1 tests/signature-signer-prototype.test.mjs",
     "test:signatures:delivery": "tsx --test --test-concurrency=1 tests/signature-delivery-lifecycle.test.mjs",
     "test:signatures:readiness": "tsx --test --test-concurrency=1 tests/signature-operational-readiness.test.mjs",
-    "test:signatures:maximum-pdf": "tsx --test --test-force-exit --test-concurrency=1 tests/signature-maximum-pdf-drill.test.mjs"
+    "test:signatures:maximum-pdf": "tsx --test --test-force-exit --test-concurrency=1 tests/signature-maximum-pdf-drill.test.mjs",
+    "signatures:isolated:setup": "node scripts/signatures/setup-isolated-signing-environment.mjs",
+    "signatures:isolated:start": "node scripts/signatures/start-isolated-signing-runtime.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1020.0",

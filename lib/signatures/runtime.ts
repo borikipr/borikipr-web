@@ -1,9 +1,10 @@
 import { sql } from "@/lib/db";
 import { createPostgresSignatureDatabase } from "./domain/database";
 import { createConfiguredSignatureDomainServices } from "./config";
-import { createPrivateSignatureR2Storage } from "./storage";
+import { createPrivateSignatureStorage } from "./storage";
 import { createSignatureDraftApplicationService } from "./draft-application";
 import { createResendSignatureTransport, createSignatureDeliveryService } from "./delivery";
+import { createIsolatedSignatureMailTransport } from "./isolated-test-sink";
 import { getSignatureSecurityConfig } from "./config";
 
 export function createSignatureDomainRuntime() {
@@ -19,7 +20,7 @@ export function createSignatureRuntime() {
   const runtime = createSignatureDomainRuntime();
   return {
     ...runtime,
-    storage: createPrivateSignatureR2Storage(),
+    storage: createPrivateSignatureStorage(),
   };
 }
 
@@ -39,7 +40,9 @@ export function createSignatureDeliveryRuntime() {
     delivery: createSignatureDeliveryService({
       database: runtime.database,
       domain: runtime.domain,
-      mail: createResendSignatureTransport(),
+      mail: process.env.SIGNING_ISOLATED_ENVIRONMENT === "true"
+        ? createIsolatedSignatureMailTransport()
+        : createResendSignatureTransport(),
       publicBaseUrl: process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://borikipr.com",
       tokenKeyVersion: security.currentVersion,
     }),

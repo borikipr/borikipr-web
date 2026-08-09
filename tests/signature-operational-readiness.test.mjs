@@ -17,6 +17,7 @@ const migrations = await Promise.all([
   "0022_create_signature_foundation.sql",
   "0023_extend_signature_signer_evidence.sql",
   "0024_add_signature_delivery_governance.sql",
+  "0025_bind_signature_privacy_disclosure.sql",
 ].map((name) => readFile(path.join(root, "db/migrations", name), "utf8")));
 const db = new PGlite();
 const executor = (source) => ({ async unsafe(query, parameters = []) { return (await source.query(query, parameters)).rows; } });

@@ -9,12 +9,16 @@ import {
   SIGNER_COOKIE_PATH,
   SIGNER_CSRF_COOKIE_NAME,
 } from "@/lib/signatures/signer/cookie";
-import { sameSignerOrigin } from "@/lib/signatures/signer/request";
+import {
+  isIsolatedLocalSignerRequest,
+  sameSignerOrigin,
+} from "@/lib/signatures/signer/request";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const isolatedLocalDevelopment = isIsolatedLocalSignerRequest(request);
   if (!isPublicSigningEnabled()) return new Response(null, { status: 404 });
   if (!sameSignerOrigin(request)) return new Response(null, { status: 404 });
   const form = await request.formData().catch(() => null);
@@ -31,11 +35,15 @@ export async function POST(request: Request) {
       userAgent: request.headers.get("user-agent"),
     });
     const response = NextResponse.redirect(new URL("/firmar/sesion", request.url), 303);
+    // Remove cookies issued by the earlier /firmar-only scope before writing
+    // the session cookie shared by signer pages and mutation routes.
+    response.cookies.set(SIGNER_COOKIE_NAME, "", { path: "/firmar", maxAge: 0 });
+    response.cookies.set(SIGNER_CSRF_COOKIE_NAME, "", { path: "/firmar", maxAge: 0 });
     response.cookies.set(SIGNER_COOKIE_NAME, encodeSignerCookie(session.sessionId, session.sessionSecret), {
-      httpOnly: true, secure: true, sameSite: "strict", path: SIGNER_COOKIE_PATH, maxAge: 20 * 60,
+      httpOnly: true, secure: !isolatedLocalDevelopment, sameSite: "strict", path: SIGNER_COOKIE_PATH, maxAge: 20 * 60,
     });
     response.cookies.set(SIGNER_CSRF_COOKIE_NAME, session.csrfNonce, {
-      httpOnly: false, secure: true, sameSite: "strict", path: SIGNER_COOKIE_PATH, maxAge: 20 * 60,
+      httpOnly: false, secure: !isolatedLocalDevelopment, sameSite: "strict", path: SIGNER_COOKIE_PATH, maxAge: 20 * 60,
     });
     return response;
   } catch {

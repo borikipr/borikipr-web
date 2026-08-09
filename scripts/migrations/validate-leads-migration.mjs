@@ -1930,6 +1930,12 @@ const signatureDeliveryMigrationSql = await readMigration(
 const signatureDeliveryRollbackSql = await readMigration(
   "0024_add_signature_delivery_governance.rollback.sql"
 );
+const signaturePrivacyBindingMigrationSql = await readMigration(
+  "0025_bind_signature_privacy_disclosure.sql"
+);
+const signaturePrivacyBindingRollbackSql = await readMigration(
+  "0025_bind_signature_privacy_disclosure.rollback.sql"
+);
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -2006,6 +2012,25 @@ try {
     consent_immutable: true,
     approval_immutable: true,
   }]);
+  await signatureFoundationDb.exec(signaturePrivacyBindingMigrationSql);
+  const privacyBindingCatalog = await signatureFoundationDb.query(`
+    SELECT
+      EXISTS (SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='signature_documents'
+          AND column_name='privacy_disclosure_version') AS version_binding,
+      EXISTS (SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='signature_documents'
+          AND column_name='privacy_disclosure_es_pr_sha256') AS spanish_hash_binding,
+      EXISTS (SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='signature_documents'
+          AND column_name='privacy_disclosure_en_us_sha256') AS english_hash_binding
+  `);
+  assert.deepEqual(privacyBindingCatalog.rows, [{
+    version_binding: true,
+    spanish_hash_binding: true,
+    english_hash_binding: true,
+  }]);
+  await signatureFoundationDb.exec(signaturePrivacyBindingRollbackSql);
   await signatureFoundationDb.exec(signatureDeliveryRollbackSql);
   await signatureFoundationDb.exec(signatureSignerRollbackSql);
   await signatureFoundationDb.exec(signatureFoundationRollbackSql);
@@ -2018,6 +2043,7 @@ try {
   console.log("Validated the isolated signature foundation migration 0022.");
   console.log("Validated the disabled signer evidence extension migration 0023 and rollback.");
   console.log("Validated signature delivery governance migration 0024 and rollback.");
+  console.log("Validated signature privacy disclosure binding migration 0025 and rollback.");
   console.log("Verified governance, consent, delivery, immutable evidence, and empty rollback.");
 } finally {
   await signatureFoundationDb.close();

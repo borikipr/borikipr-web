@@ -1,4 +1,5 @@
 import postgres from "postgres";
+import { createIsolatedPGliteSql } from "@/lib/isolated-pg-sql";
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -15,6 +16,9 @@ const allowIsolatedDatabase =
 const disableSsl =
   allowIsolatedDatabase && process.env.DATABASE_SSL === "disable";
 
-export const sql = postgres(connectionString, {
-  ssl: disableSsl ? false : "require",
-});
+export const sql = allowIsolatedDatabase
+  ? createIsolatedPGliteSql(
+      process.env.SIGNING_ISOLATED_DATABASE_DIR ??
+        (() => { throw new Error("signature_isolated_database_path_missing"); })()
+    )
+  : postgres(connectionString, { ssl: disableSsl ? false : "require" });

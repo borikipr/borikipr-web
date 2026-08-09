@@ -15,6 +15,7 @@ const root = path.dirname(fileURLToPath(new URL("../package.json", import.meta.u
 const migrationSql = await readFile(path.join(root, "db/migrations/0022_create_signature_foundation.sql"), "utf8");
 const signerMigrationSql = await readFile(path.join(root, "db/migrations/0023_extend_signature_signer_evidence.sql"), "utf8");
 const deliveryMigrationSql = await readFile(path.join(root, "db/migrations/0024_add_signature_delivery_governance.sql"), "utf8");
+const privacyBindingMigrationSql = await readFile(path.join(root, "db/migrations/0025_bind_signature_privacy_disclosure.sql"), "utf8");
 const compatibleBytes = new Uint8Array(await readFile(path.join(root, "tests/fixtures/signatures/representative/HOJA DE OFERTA - con logo.pdf")));
 const EVENT_KEY = Buffer.alloc(32, 7).toString("base64url");
 const OLD_KEY = Buffer.alloc(32, 3).toString("base64url");
@@ -36,6 +37,7 @@ function fakeStorage() {
 }
 
 const db = new PGlite();
+const syntheticPrivacyDisclosure = { version: "synthetic-privacy-v1", approvalReference: "SYNTHETIC-ONLY", effectiveFrom: "2025-01-01T00:00:00.000Z", esPRSha256: "c".repeat(64), enUSSha256: "d".repeat(64) };
 let adminId;
 let database;
 let domain;
@@ -51,6 +53,7 @@ before(async () => {
   await db.exec(migrationSql);
   await db.exec(signerMigrationSql);
   await db.exec(deliveryMigrationSql);
+  await db.exec(privacyBindingMigrationSql);
   database = pgliteDatabase(db);
 });
 
@@ -85,7 +88,7 @@ test("Phase 2C creates a compatible private draft and deterministic whole-layout
   assert.equal(detail.currentFieldDefinitionSha256.length, 64);
   assert.equal(detail.currentFieldDefinitionSha256, hashSignatureFieldDefinition({ documentVersionId: detail.version.id, fields: [...detail.fields].reverse() }));
 
-  await assert.rejects(domain.prepareDocumentForSend({ documentId: created.documentId, actorAdminId: adminId, idempotencyKey: randomUUID(), locale: "es", publicSigningEnabled: true }), /signature_document_type_not_counsel_approved/);
+  await assert.rejects(domain.prepareDocumentForSend({ documentId: created.documentId, actorAdminId: adminId, idempotencyKey: randomUUID(), locale: "es", publicSigningEnabled: true, privacyDisclosure: syntheticPrivacyDisclosure }), /signature_document_type_not_counsel_approved/);
   const counts = await db.query(`SELECT (SELECT count(*) FROM public.signature_signing_tokens)::integer AS tokens, (SELECT count(*) FROM public.signature_documents WHERE status <> 'draft')::integer AS non_drafts`);
   assert.deepEqual(counts.rows[0], { tokens: 0, non_drafts: 0 });
 });

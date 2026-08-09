@@ -2,7 +2,7 @@ import { getAdminSession } from "@/lib/admin/auth";
 import { sql } from "@/lib/db";
 import { createSignatureAdminRepository } from "@/lib/signatures/admin-repository";
 import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/database";
-import { createPrivateSignatureR2Storage } from "@/lib/signatures/storage";
+import { createPrivateSignatureStorage } from "@/lib/signatures/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export async function GET(
   const descriptor = await repository.sourceDescriptor(id);
   if (!descriptor) return new Response(null, { status: 404, headers: SECURITY_HEADERS });
   try {
-    const bytes = await createPrivateSignatureR2Storage().getSource({
+    const bytes = await createPrivateSignatureStorage().getSource({
       key: descriptor.key,
       byteCount: descriptor.byteCount,
       sourceSha256: descriptor.sourceSha256,

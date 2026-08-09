@@ -18,6 +18,10 @@ async function createDetachedCertificate(input: {
   title: string; documentId: string; sourceSha256: string; finalSha256: string;
   fieldDefinitionSha256: string; verificationId: string;
   participants: readonly PrototypeParticipant[]; completedAt: string;
+  consentVersion: string;
+  privacyDisclosureVersion: string;
+  privacyDisclosureEsPrSha256: string;
+  privacyDisclosureEnUsSha256: string;
 }) {
   const pdf = await PDFDocument.create();
   pdf.setTitle("BorikiPR - Synthetic completion certificate");
@@ -32,7 +36,10 @@ async function createDetachedCertificate(input: {
     `Document: ${input.title}`,
     `Document identifier: ${input.documentId}`,
     `Completed: ${input.completedAt}`,
-    `Consent: phase2d-synthetic-v1`,
+    `Consent: ${input.consentVersion}`,
+    `Privacy disclosure: ${input.privacyDisclosureVersion}`,
+    `Privacy es-PR SHA-256: ${input.privacyDisclosureEsPrSha256}`,
+    `Privacy en-US SHA-256: ${input.privacyDisclosureEnUsSha256}`,
     `Verification: ${input.verificationId}`,
     `Source SHA-256: ${input.sourceSha256}`,
     `Final SHA-256: ${input.finalSha256}`,
@@ -59,12 +66,20 @@ export async function finalizeCompletedSignatureDocument(
     source_r2_key: string; filename_snapshot: string; byte_count: number; page_count: number;
     source_sha256: string; page_geometry_manifest: unknown; field_definition_sha256: string;
     finalized_at: string | Date | null; final_r2_key: string | null; final_pdf_sha256: string | null;
+    consent_version: string; privacy_disclosure_version: string;
+    privacy_disclosure_es_pr_sha256: string; privacy_disclosure_en_us_sha256: string;
+    privacy_disclosure_effective_from: string | Date; privacy_disclosure_approval_reference: string;
   }>(
     `SELECT d.id::text AS document_id, d.title, d.status, v.id::text AS version_id,
             v.version_number, v.source_r2_key, v.filename_snapshot, v.byte_count::integer,
             v.page_count, v.source_sha256, v.page_geometry_manifest, v.field_definition_sha256,
-            v.finalized_at, v.final_r2_key, v.final_pdf_sha256
+            v.finalized_at, v.final_r2_key, v.final_pdf_sha256,
+            cv.version_identifier AS consent_version,
+            d.privacy_disclosure_version, d.privacy_disclosure_es_pr_sha256,
+            d.privacy_disclosure_en_us_sha256, d.privacy_disclosure_effective_from,
+            d.privacy_disclosure_approval_reference
        FROM public.signature_documents d JOIN public.signature_document_versions v ON v.id=d.active_version_id
+       JOIN public.signature_consent_versions cv ON cv.id=d.consent_version_id
       WHERE d.id=$1::uuid`, [documentId]
   );
   const document = rows[0];
@@ -124,13 +139,17 @@ export async function finalizeCompletedSignatureDocument(
     sourceBytes, sourceTitle: document.title, sourceSha256: document.source_sha256,
     geometries: parsed<readonly PdfPageGeometry[]>(document.page_geometry_manifest), fields,
     participants: participantModels, requestId: document.document_id, verificationId,
-    consentVersion: "phase2d-synthetic-v1", completedAt,
+    consentVersion: document.consent_version, completedAt,
     typedSignatureFontPath: path.join(process.cwd(), "tests/fixtures/signatures/fonts/great-vibes/GreatVibes-Regular.ttf"),
   });
   const finalSha256 = sha256SignatureValue(finalized.finalBytes);
   const certificateBytes = await createDetachedCertificate({
     title: document.title, documentId, sourceSha256: document.source_sha256, finalSha256,
     fieldDefinitionSha256: layoutHash, verificationId, participants: participantModels, completedAt,
+    consentVersion: document.consent_version,
+    privacyDisclosureVersion: document.privacy_disclosure_version,
+    privacyDisclosureEsPrSha256: document.privacy_disclosure_es_pr_sha256,
+    privacyDisclosureEnUsSha256: document.privacy_disclosure_en_us_sha256,
   });
   const certificateSha256 = sha256SignatureValue(certificateBytes);
   const finalKey = signatureFinalR2Key(documentId, document.version_number, finalSha256);
@@ -140,15 +159,23 @@ export async function finalizeCompletedSignatureDocument(
   const evidenceManifest = {
     schemaVersion: "phase2d-evidence-v1", documentId, sourceSha256: document.source_sha256,
     finalPdfSha256: finalSha256, certificateSha256, fieldDefinitionSha256: layoutHash,
-    verificationId, consentVersion: "phase2d-synthetic-v1", completedAt,
+    verificationId, consentVersion: document.consent_version,
+    privacyDisclosure: {
+      version: document.privacy_disclosure_version,
+      esPrSha256: document.privacy_disclosure_es_pr_sha256,
+      enUsSha256: document.privacy_disclosure_en_us_sha256,
+      effectiveFrom: new Date(document.privacy_disclosure_effective_from).toISOString(),
+      approvalReference: document.privacy_disclosure_approval_reference,
+    },
+    completedAt,
     eventChainVerified: true,
   };
   const updated = await runtime.database.unsafe<{ id: string }>(
     `UPDATE public.signature_document_versions SET finalized_at=$2::timestamptz,
        final_r2_key=$3, final_filename=$4, final_mime_type='application/pdf', final_byte_count=$5,
-       final_page_count=page_count+1, final_pdf_metadata=$6::jsonb, final_pdf_sha256=$7,
+       final_page_count=page_count+1, final_pdf_metadata=$6::text::jsonb, final_pdf_sha256=$7,
        certificate_r2_key=$8, certificate_mime_type='application/pdf', certificate_byte_count=$9,
-       certificate_metadata=$10::jsonb, certificate_sha256=$11
+       certificate_metadata=$10::text::jsonb, certificate_sha256=$11
      WHERE id=$1::uuid AND finalized_at IS NULL RETURNING id::text`,
     [document.version_id, completedAt, finalKey, `completed-${document.filename_snapshot}`, finalized.finalBytes.byteLength,
       JSON.stringify({ verificationId, flattened: true }), finalSha256, certificateKey, certificateBytes.byteLength,

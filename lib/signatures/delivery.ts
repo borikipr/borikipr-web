@@ -195,7 +195,9 @@ export function createSignatureDeliveryService(input: {
         WHERE id=$1::uuid AND locked_by=$4::uuid`, [intentId, clock().toISOString(), deliveryResult.reference ?? null, workerId]);
       if (claimed.delivery_kind === "invitation") {
         await tx.unsafe(`UPDATE public.signature_participants SET status=CASE WHEN status='pending' THEN 'invited' ELSE status END,
-          invited_at=coalesce(invited_at,$2::timestamptz), delivery_sent_at=$2::timestamptz WHERE id=$1::uuid`,
+          invited_at=coalesce(invited_at,$2::timestamptz),
+          delivery_sent_at=coalesce(delivery_sent_at,$2::timestamptz)
+        WHERE id=$1::uuid`,
           [claimed.participant_id, clock().toISOString()]);
       }
     });
@@ -252,6 +254,13 @@ export function createSignatureDeliveryService(input: {
   }
 
   async function processPending(limit = 10) {
+    const staleBefore = new Date(clock().getTime() - 10 * 60_000).toISOString();
+    await input.database.unsafe(
+      `UPDATE public.signature_delivery_intents
+          SET status='pending', locked_at=NULL, locked_by=NULL, updated_at=$1::timestamptz
+        WHERE status='processing' AND locked_at<$2::timestamptz AND attempts<5`,
+      [clock().toISOString(), staleBefore]
+    );
     const rows = await input.database.unsafe<{ id: string }>(
       `SELECT id::text FROM public.signature_delivery_intents
         WHERE status='pending' AND attempts<5 ORDER BY created_at LIMIT $1`,

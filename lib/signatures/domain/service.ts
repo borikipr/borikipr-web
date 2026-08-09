@@ -267,7 +267,7 @@ export function createSignatureDomainServices({
          network_address_digest, user_agent_digest
        ) VALUES (
          $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7::uuid, $8::timestamptz,
-         $9, $10, $11::jsonb, $12::uuid, $13, $14, $15, $16, $17
+         $9, $10, $11::text::jsonb, $12::uuid, $13, $14, $15, $16, $17
        )
        RETURNING id::text, document_id::text, document_version_id::text,
                  participant_id::text, session_id::text, event_type, actor_class,
@@ -375,7 +375,7 @@ export function createSignatureDomainServices({
            mime_type, byte_count, page_count, source_sha256,
            page_geometry_manifest, created_by_admin_id
          ) VALUES ($1::uuid, 1, $2, $3, 'application/pdf', $4, $5, $6,
-                   $7::jsonb, $8::uuid)
+                   $7::text::jsonb, $8::uuid)
          RETURNING id::text`,
         [
           input.documentId,
@@ -459,7 +459,7 @@ export function createSignatureDomainServices({
            page_geometry_manifest, created_by_admin_id
          ) VALUES (
            $1::uuid, $2, $3, $4, 'application/pdf', $5, $6, $7,
-           $8::jsonb, $9::uuid
+           $8::text::jsonb, $9::uuid
          ) RETURNING id::text`,
         [
           input.documentId,
@@ -599,7 +599,7 @@ export function createSignatureDomainServices({
            validation_limits, immutable_definition_sha256
          ) VALUES (
            $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8,
-           $9::jsonb, $10, $11, $12, $13::jsonb, $14
+           $9::text::jsonb, $10, $11, $12, $13::text::jsonb, $14
          ) RETURNING id::text`,
         [
           input.documentVersionId,
@@ -742,8 +742,8 @@ export function createSignatureDomainServices({
            participant_id=$2::uuid, field_type=$3, page_index=$4,
            normalized_x=$5, normalized_y=$6,
            normalized_width=$7, normalized_height=$8,
-           page_geometry_reference=$9::jsonb, label=$10, required=$11,
-           tab_order=$12, validation_limits=$13::jsonb,
+           page_geometry_reference=$9::text::jsonb, label=$10, required=$11,
+           tab_order=$12, validation_limits=$13::text::jsonb,
            immutable_definition_sha256=$14
          WHERE id=$1::uuid`,
         [
@@ -826,6 +826,13 @@ export function createSignatureDomainServices({
     idempotencyKey: string;
     locale?: "es-PR" | "en-US";
     publicSigningEnabled?: boolean;
+    privacyDisclosure: Readonly<{
+      version: string;
+      approvalReference: string;
+      effectiveFrom: string;
+      esPRSha256: string;
+      enUSSha256: string;
+    }>;
   }) {
     return database.begin(async (transaction) => {
       const documents = await transaction.unsafe<DocumentRow>(
@@ -839,6 +846,16 @@ export function createSignatureDomainServices({
       }
       if (!input.publicSigningEnabled) {
         throw new Error("public_signing_disabled");
+      }
+      if (
+        !/^[a-z0-9][a-z0-9._-]{0,99}$/.test(input.privacyDisclosure.version) ||
+        !/^[0-9a-f]{64}$/.test(input.privacyDisclosure.esPRSha256) ||
+        !/^[0-9a-f]{64}$/.test(input.privacyDisclosure.enUSSha256) ||
+        !input.privacyDisclosure.approvalReference.trim() ||
+        Number.isNaN(Date.parse(input.privacyDisclosure.effectiveFrom)) ||
+        new Date(input.privacyDisclosure.effectiveFrom).getTime() > clock().getTime()
+      ) {
+        throw new Error("signature_privacy_disclosure_invalid");
       }
       const approvalRows = await transaction.unsafe<{
         id: string; approval_reference: string;
@@ -950,6 +967,11 @@ export function createSignatureDomainServices({
             SET document_type_approval_reference = $2,
                 document_type_approval_id = $5::uuid,
                 consent_version_id = $6::uuid,
+                privacy_disclosure_version = $7,
+                privacy_disclosure_es_pr_sha256 = $8,
+                privacy_disclosure_en_us_sha256 = $9,
+                privacy_disclosure_effective_from = $10::timestamptz,
+                privacy_disclosure_approval_reference = $11,
                 status = 'sent', sent_at = $3::timestamptz
           WHERE id = $1::uuid AND row_version = $4`,
         [
@@ -959,6 +981,11 @@ export function createSignatureDomainServices({
           document.row_version,
           approvalRows[0].id,
           consentRows[0].id,
+          input.privacyDisclosure.version,
+          input.privacyDisclosure.esPRSha256,
+          input.privacyDisclosure.enUSSha256,
+          input.privacyDisclosure.effectiveFrom,
+          input.privacyDisclosure.approvalReference,
         ]
       );
       await appendEventInTransaction(transaction, {
@@ -1426,7 +1453,7 @@ export function createSignatureDomainServices({
         WHERE t.token_digest=$1 AND t.consumed_at IS NULL AND t.revoked_at IS NULL
           AND t.superseded_at IS NULL AND t.expires_at>$2::timestamptz
           AND t.purpose='sign_document'
-          AND p.status IN ('invited','viewed') AND d.status IN ('sent','viewed','partially_signed')
+          AND p.status IN ('invited','viewed','consented') AND d.status IN ('sent','viewed','partially_signed')
           AND d.active_version_id=t.document_version_id`,
       [sha256SignatureValue(plaintextToken), iso(clock())]
     );
@@ -1660,7 +1687,7 @@ export function createSignatureDomainServices({
         `INSERT INTO public.signature_field_values (
            signature_field_id, participant_id, capture_method, sanitized_typed_value,
            sanitized_value_payload, value_artifact_sha256, signer_session_id
-         ) VALUES ($1::uuid,$2::uuid,$3,$4,$5::jsonb,$6,$7::uuid)
+         ) VALUES ($1::uuid,$2::uuid,$3,$4,$5::text::jsonb,$6,$7::uuid)
          ON CONFLICT (signature_field_id) DO NOTHING RETURNING id::text`,
         [input.fieldId, context.participantId, normalized.captureMethod, normalized.typedValue,
           normalized.valuePayload ? JSON.stringify(normalized.valuePayload) : null,

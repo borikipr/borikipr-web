@@ -15,10 +15,17 @@ const contentSecurityPolicy = [
   "worker-src 'self' blob:",
 ].join("; ");
 
+const isolatedSigningDevelopment =
+  process.env.NODE_ENV !== "production" &&
+  process.env.SIGNING_ISOLATED_ENVIRONMENT === "true";
+const signerScriptPolicy = isolatedSigningDevelopment
+  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+  : "script-src 'self'";
+
 const nextConfig: NextConfig = {
   // PDF.js page rendering uses a native Node binding in authenticated Admin
   // routes only. Keep it out of Turbopack's ESM/client chunks.
-  serverExternalPackages: ["@napi-rs/canvas"],
+  serverExternalPackages: ["@napi-rs/canvas", "@electric-sql/pglite"],
   images: {
     remotePatterns: [
       {
@@ -90,7 +97,7 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           {
             key: "Content-Security-Policy",
-            value: "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:",
+            value: `default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; ${signerScriptPolicy}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:`,
           },
         ],
       },

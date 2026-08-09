@@ -181,6 +181,7 @@ export async function prepareSignatureSendAction(
   if (!session) return { ok: false, message: "Sesión expirada." };
   try {
     const runtime = createSignatureDeliveryRuntime();
+    const privacy = inspectSignaturePrivacyDisclosure();
     const readiness = await evaluateSignatureSendReadiness({
       database: runtime.database,
       documentId,
@@ -188,7 +189,7 @@ export async function prepareSignatureSendAction(
       publicSigningEnabled: isPublicSigningEnabled(),
       eventKeysConfigured: Boolean(getSignatureSecurityConfig()),
       retentionPolicyConfigured: inspectSignatureRetentionPolicy().configured,
-      privacyDisclosureConfigured: inspectSignaturePrivacyDisclosure().configured,
+      privacyDisclosureConfigured: privacy.configured,
     });
     if (!readiness.eligible) {
       return {
@@ -196,12 +197,22 @@ export async function prepareSignatureSendAction(
         message: `El envío permanece bloqueado: ${readiness.reasons.join(", ")}`,
       };
     }
+    if (!privacy.configured || !privacy.disclosure) {
+      return { ok: false, message: "Falta la divulgación de privacidad aprobada." };
+    }
     await runtime.domain.prepareDocumentForSend({
       documentId,
       actorAdminId: session.id,
       idempotencyKey: randomUUID(),
       locale: "es-PR",
       publicSigningEnabled: true,
+      privacyDisclosure: {
+        version: privacy.disclosure.version,
+        approvalReference: privacy.disclosure.approvalReference,
+        effectiveFrom: privacy.disclosure.effectiveFrom,
+        esPRSha256: privacy.disclosure.locales["es-PR"].sha256,
+        enUSSha256: privacy.disclosure.locales["en-US"].sha256,
+      },
     });
     const detail = await createSignatureAdminRepository(runtime.database).detail(documentId);
     if (!detail) throw new Error("signature_document_not_found");

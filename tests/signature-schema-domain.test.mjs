@@ -39,6 +39,7 @@ const rollbackSql = await readFile(
 );
 const signerMigrationSql = await readFile(path.join(root, "db/migrations/0023_extend_signature_signer_evidence.sql"), "utf8");
 const deliveryMigrationSql = await readFile(path.join(root, "db/migrations/0024_add_signature_delivery_governance.sql"), "utf8");
+const privacyBindingMigrationSql = await readFile(path.join(root, "db/migrations/0025_bind_signature_privacy_disclosure.sql"), "utf8");
 const SOURCE_HASH = "a".repeat(64);
 const FINAL_HASH = "b".repeat(64);
 const CERTIFICATE_HASH = "c".repeat(64);
@@ -60,6 +61,7 @@ function pgliteDatabase(db) {
 }
 
 const db = new PGlite();
+const syntheticPrivacyDisclosure = { version: "synthetic-privacy-v1", approvalReference: "SYNTHETIC-ONLY", effectiveFrom: "2029-01-01T00:00:00.000Z", esPRSha256: "c".repeat(64), enUSSha256: "d".repeat(64) };
 let adminId;
 let leadId;
 let groupId;
@@ -94,6 +96,7 @@ before(async () => {
   await db.exec(migrationSql);
   await db.exec(signerMigrationSql);
   await db.exec(deliveryMigrationSql);
+  await db.exec(privacyBindingMigrationSql);
 });
 
 beforeEach(async () => {
@@ -225,9 +228,17 @@ async function sentFixture() {
     `UPDATE public.signature_documents
         SET document_type_approval_reference='synthetic-test-fixture',
             document_type_approval_id=$2::uuid, consent_version_id=$3::uuid,
+            privacy_disclosure_version=$5,
+            privacy_disclosure_es_pr_sha256=$6,
+            privacy_disclosure_en_us_sha256=$7,
+            privacy_disclosure_effective_from=$8::timestamptz,
+            privacy_disclosure_approval_reference=$9,
             status='sent', sent_at=$4::timestamptz
       WHERE id=$1::uuid`,
-    [fixture.documentId, approval.id, consent.id, FIXED_NOW.toISOString()]
+    [fixture.documentId, approval.id, consent.id, FIXED_NOW.toISOString(),
+      syntheticPrivacyDisclosure.version, syntheticPrivacyDisclosure.esPRSha256,
+      syntheticPrivacyDisclosure.enUSSha256, syntheticPrivacyDisclosure.effectiveFrom,
+      syntheticPrivacyDisclosure.approvalReference]
   );
   return fixture;
 }
@@ -277,6 +288,7 @@ test("valid draft creation preserves the counsel gate", async () => {
       idempotencyKey: randomUUID(),
       locale: "es",
       publicSigningEnabled: true,
+      privacyDisclosure: syntheticPrivacyDisclosure,
     }),
     /signature_document_type_not_counsel_approved/
   );
@@ -585,6 +597,14 @@ test("versions, fields, and identity snapshots are immutable after send", async 
       [fixture.participant.participantId]
     ),
     /identity snapshot is immutable/
+  );
+  await assert.rejects(
+    db.query(
+      `UPDATE public.signature_documents SET privacy_disclosure_version='replacement-v2'
+        WHERE id=$1::uuid`,
+      [fixture.documentId]
+    ),
+    /signature send governance evidence is immutable/
   );
 });
 

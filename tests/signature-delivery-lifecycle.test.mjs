@@ -14,14 +14,16 @@ import { finalizeCompletedSignatureDocument } from "../lib/signatures/signer/fin
 import { getCompletedArtifactDescriptor } from "../lib/signatures/completed-access.ts";
 
 const root = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
-const [foundationSql, signerSql, deliverySql, sourceBytes] = await Promise.all([
+const [foundationSql, signerSql, deliverySql, privacyBindingSql, sourceBytes] = await Promise.all([
   readFile(path.join(root, "db/migrations/0022_create_signature_foundation.sql"), "utf8"),
   readFile(path.join(root, "db/migrations/0023_extend_signature_signer_evidence.sql"), "utf8"),
   readFile(path.join(root, "db/migrations/0024_add_signature_delivery_governance.sql"), "utf8"),
+  readFile(path.join(root, "db/migrations/0025_bind_signature_privacy_disclosure.sql"), "utf8"),
   readFile(path.join(root, "tests/fixtures/signatures/rejections/valid-ordinary.pdf")),
 ]);
 function adapter(db) { const executor = (source) => ({ async unsafe(query, parameters = []) { return (await source.query(query, parameters)).rows; } }); return { ...executor(db), begin: (callback) => db.transaction((tx) => callback(executor(tx))) }; }
 const db = new PGlite();
+const syntheticPrivacyDisclosure = { version: "synthetic-privacy-v1", approvalReference: "SYNTHETIC-ONLY", effectiveFrom: "2031-01-01T00:00:00.000Z", esPRSha256: "c".repeat(64), enUSSha256: "d".repeat(64) };
 const now = new Date("2032-05-01T12:00:00.000Z");
 const geometry = { pageIndex: 0, mediaBox: { x: 0, y: 0, width: 612, height: 792 }, cropBox: { x: 0, y: 0, width: 612, height: 792 }, rotation: 0, userUnit: 1 };
 let adminId, database, domain, governance, delivery, sentMessages;
@@ -32,7 +34,7 @@ before(async () => {
     CREATE TABLE public.lead_groups (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
     INSERT INTO public.admin_users(username) VALUES ('synthetic-phase2e-admin');`);
   adminId = (await db.query(`SELECT id::text FROM public.admin_users LIMIT 1`)).rows[0].id;
-  await db.exec(foundationSql); await db.exec(signerSql); await db.exec(deliverySql);
+  await db.exec(foundationSql); await db.exec(signerSql); await db.exec(deliverySql); await db.exec(privacyBindingSql);
 });
 beforeEach(async () => {
   await db.exec(`TRUNCATE public.signature_events, public.signature_field_values, public.signature_sessions,
@@ -62,7 +64,7 @@ async function fixture({ approval = true, consent = true } = {}) {
 async function prepared(options) {
   const value = await fixture(options);
   const readiness = await evaluateSignatureSendReadiness({ database, documentId: value.documentId, locale: "es-PR", publicSigningEnabled: true, eventKeysConfigured: true, retentionPolicyConfigured: true, privacyDisclosureConfigured: true, now });
-  if (readiness.eligible) await domain.prepareDocumentForSend({ documentId: value.documentId, actorAdminId: adminId, idempotencyKey: randomUUID(), locale: "es-PR", publicSigningEnabled: true });
+  if (readiness.eligible) await domain.prepareDocumentForSend({ documentId: value.documentId, actorAdminId: adminId, idempotencyKey: randomUUID(), locale: "es-PR", publicSigningEnabled: true, privacyDisclosure: syntheticPrivacyDisclosure });
   return { value, readiness };
 }
 

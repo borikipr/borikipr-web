@@ -1,4 +1,5 @@
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 export type RenderedPdfPage = Readonly<{
   pageIndex: number;
@@ -12,11 +13,14 @@ export async function renderPdfWithPdfJs(
   bytes: Uint8Array,
   scale = 1.5
 ): Promise<readonly RenderedPdfPage[]> {
-  const [{ getDocument }, { createCanvas }] = await Promise.all([
+  const [pdfjs, { createCanvas }] = await Promise.all([
     import("pdfjs-dist/legacy/build/pdf.mjs"),
     import("@napi-rs/canvas"),
   ]);
-  const loadingTask = getDocument({
+  pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(
+    path.resolve(process.cwd(), "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs")
+  ).href;
+  const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(bytes),
     disableFontFace: true,
     standardFontDataUrl: `${path
