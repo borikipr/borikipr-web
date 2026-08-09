@@ -11,6 +11,8 @@ import { createSignatureDeliveryRuntime, createSignatureDomainRuntime } from "@/
 import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
 import { evaluateSignatureSendReadiness } from "@/lib/signatures/send-readiness";
 import { getSignatureSecurityConfig } from "@/lib/signatures/config";
+import { inspectSignatureRetentionPolicy } from "@/lib/signatures/retention-policy";
+import { inspectSignaturePrivacyDisclosure } from "@/lib/signatures/privacy-disclosure";
 
 export type SignatureAdminActionState = Readonly<{
   ok: boolean;
@@ -185,6 +187,8 @@ export async function prepareSignatureSendAction(
       locale: "es-PR",
       publicSigningEnabled: isPublicSigningEnabled(),
       eventKeysConfigured: Boolean(getSignatureSecurityConfig()),
+      retentionPolicyConfigured: inspectSignatureRetentionPolicy().configured,
+      privacyDisclosureConfigured: inspectSignaturePrivacyDisclosure().configured,
     });
     if (!readiness.eligible) {
       return {

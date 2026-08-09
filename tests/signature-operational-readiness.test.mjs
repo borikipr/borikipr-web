@@ -10,6 +10,7 @@ import { getSignatureGovernanceReadiness } from "../lib/signatures/governance-re
 import { inspectSignatureEventKeyCoverage } from "../lib/signatures/key-rotation.ts";
 import { getSignatureOperationalSnapshot } from "../lib/signatures/monitoring.ts";
 import { evaluateSignatureRetention, parseSignatureRetentionPolicy } from "../lib/signatures/retention-policy.ts";
+import { parseSignaturePrivacyDisclosure } from "../lib/signatures/privacy-disclosure.ts";
 
 const root = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const migrations = await Promise.all([
@@ -64,6 +65,16 @@ const policyJson = JSON.stringify({
   completedCleanupEnabled: false,
 });
 
+const privacyJson = JSON.stringify({
+  version: "synthetic-privacy-v1",
+  approvalReference: "SYNTHETIC-PRIVACY-ONLY",
+  effectiveFrom: "2032-04-01T00:00:00.000Z",
+  locales: {
+    "es-PR": "Divulgación sintética de privacidad para pruebas aisladas únicamente.",
+    "en-US": "Synthetic privacy disclosure for isolated tests only and not for production.",
+  },
+});
+
 test("retention configuration fails closed and preserves completed evidence", () => {
   assert.throws(() => parseSignatureRetentionPolicy(undefined), /signature_retention_policy_invalid/);
   assert.throws(() => parseSignatureRetentionPolicy(JSON.stringify({ version: "bad" })), /signature_retention_policy_invalid/);
@@ -72,12 +83,23 @@ test("retention configuration fails closed and preserves completed evidence", ()
   assert.deepEqual(evaluateSignatureRetention({ policy, recordType: "token", createdAt: new Date("2030-01-01"), now: new Date("2030-02-15"), legalHold: true, completedRecord: false }), { eligible: false, reason: "legal_hold" });
 });
 
+test("privacy disclosure requires both approved-language slots and hashes exact normalized text", () => {
+  assert.throws(() => parseSignaturePrivacyDisclosure(undefined), /signature_privacy_disclosure_invalid/);
+  assert.throws(() => parseSignaturePrivacyDisclosure(JSON.stringify({ version: "partial" })), /signature_privacy_disclosure_invalid/);
+  const disclosure = parseSignaturePrivacyDisclosure(privacyJson);
+  assert.equal(disclosure.locales["es-PR"].sha256.length, 64);
+  assert.equal(disclosure.locales["en-US"].sha256.length, 64);
+  assert.notEqual(disclosure.locales["es-PR"].sha256, disclosure.locales["en-US"].sha256);
+  assert.equal(Object.isFrozen(disclosure.locales), true);
+});
+
 test("governance readiness reports every fail-closed launch requirement", async () => {
   const blocked = await getSignatureGovernanceReadiness(database, environment(), new Date("2032-05-01"));
   assert.equal(blocked.launchReady, false);
   assert.deepEqual(new Set(blocked.blockers), new Set([
     "counsel_approval_missing", "approved_consent_es_pr_missing",
     "approved_consent_en_us_missing", "retention_policy_missing",
+    "privacy_disclosure_missing",
     "public_signing_disabled",
   ]));
   assert.equal(blocked.evidenceKeysConfigured, true);
@@ -96,6 +118,7 @@ test("approved synthetic governance records and full policy satisfy readiness on
   const ready = await getSignatureGovernanceReadiness(database, environment({
     SIGNING_PUBLIC_ENABLED: "true",
     SIGNATURE_RETENTION_POLICY_JSON: policyJson,
+    SIGNATURE_PRIVACY_DISCLOSURE_JSON: privacyJson,
   }), new Date("2032-05-01"));
   assert.equal(ready.launchReady, true);
   assert.deepEqual(ready.blockers, []);

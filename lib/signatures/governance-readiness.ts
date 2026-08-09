@@ -3,6 +3,7 @@ import { getSignatureSecurityConfig } from "./config";
 import { isPublicSigningEnabled } from "./public-config";
 import { inspectSignatureRetentionPolicy } from "./retention-policy";
 import { inspectSignatureEventKeyCoverage } from "./key-rotation";
+import { inspectSignaturePrivacyDisclosure } from "./privacy-disclosure";
 
 export async function getSignatureGovernanceReadiness(
   database: SignatureQueryExecutor,
@@ -22,6 +23,7 @@ export async function getSignatureGovernanceReadiness(
   const activeApprovals = approvals.filter((row) => row.status === "approved" && !row.revoked_at && row.effective_from && new Date(row.effective_from) <= now);
   const approvedLocales = new Set(consents.filter((row) => row.status === "approved" && row.effective_from && new Date(row.effective_from) <= now).map((row) => row.locale));
   const retention = inspectSignatureRetentionPolicy(environment);
+  const privacyDisclosure = inspectSignaturePrivacyDisclosure(environment, now);
   let evidenceKeysConfigured = false;
   let keyCoverage: Awaited<ReturnType<typeof inspectSignatureEventKeyCoverage>> | null = null;
   try {
@@ -35,10 +37,11 @@ export async function getSignatureGovernanceReadiness(
     ...(approvedLocales.has("es-PR") ? [] : ["approved_consent_es_pr_missing"]),
     ...(approvedLocales.has("en-US") ? [] : ["approved_consent_en_us_missing"]),
     ...(retention.configured ? [] : ["retention_policy_missing"]),
+    ...(privacyDisclosure.configured ? [] : ["privacy_disclosure_missing"]),
     ...(evidenceKeysConfigured ? [] : ["event_keys_unavailable"]),
     ...(publicSigningEnabled ? [] : ["public_signing_disabled"]),
   ];
   return { approvals, consents, consentSlots: (["es-PR", "en-US"] as const).map((locale) => ({ locale, approved: approvedLocales.has(locale) })),
-    retention, evidenceKeysConfigured, keyCoverage, publicSigningEnabled, activeApprovalCount: activeApprovals.length,
+    retention, privacyDisclosure, evidenceKeysConfigured, keyCoverage, publicSigningEnabled, activeApprovalCount: activeApprovals.length,
     launchReady: blockers.length === 0, blockers: Object.freeze(blockers) };
 }

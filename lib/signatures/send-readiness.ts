@@ -19,6 +19,8 @@ export async function evaluateSignatureSendReadiness(input: {
   locale: "es-PR" | "en-US";
   publicSigningEnabled: boolean;
   eventKeysConfigured: boolean;
+  retentionPolicyConfigured: boolean;
+  privacyDisclosureConfigured: boolean;
   now?: Date;
 }): Promise<SignatureSendReadiness> {
   const now = input.now ?? new Date();
@@ -47,6 +49,8 @@ export async function evaluateSignatureSendReadiness(input: {
   if (row?.locked_at) reasons.push("version_already_locked");
   if (!row?.expires_at || new Date(row.expires_at).getTime() <= now.getTime()) reasons.push("expiration_invalid");
   if (!input.eventKeysConfigured) reasons.push("event_keys_unavailable");
+  if (!input.retentionPolicyConfigured) reasons.push("retention_policy_missing");
+  if (!input.privacyDisclosureConfigured) reasons.push("privacy_disclosure_missing");
   if (!input.publicSigningEnabled) reasons.push("public_signing_disabled");
 
   let approvalReference: string | null = null;

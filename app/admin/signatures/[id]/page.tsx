@@ -10,6 +10,8 @@ import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/databas
 import { evaluateSignatureSendReadiness } from "@/lib/signatures/send-readiness";
 import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
 import { getSignatureSecurityConfig } from "@/lib/signatures/config";
+import { inspectSignatureRetentionPolicy } from "@/lib/signatures/retention-policy";
+import { inspectSignaturePrivacyDisclosure } from "@/lib/signatures/privacy-disclosure";
 
 export default async function SignatureDraftPage({ params }: { params: Promise<{ id: string }> }) {
   if (!(await getAdminSessionUser())) redirect("/admin/login");
@@ -24,6 +26,8 @@ export default async function SignatureDraftPage({ params }: { params: Promise<{
   const readiness = await evaluateSignatureSendReadiness({
     database: createPostgresSignatureDatabase(sql), documentId: id, locale: "es-PR",
     publicSigningEnabled: isPublicSigningEnabled(), eventKeysConfigured: keysConfigured,
+    retentionPolicyConfigured: inspectSignatureRetentionPolicy().configured,
+    privacyDisclosureConfigured: inspectSignaturePrivacyDisclosure().configured,
   });
 
   return (

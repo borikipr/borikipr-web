@@ -36,9 +36,54 @@ La configuración `SIGNATURE_RETENTION_POLICY_JSON` es obligatoria antes del lan
 - Tokens y sesiones expirados pueden limpiarse solo después de sus periodos aprobados.
 - Los eventos de auditoría y objetos completados no se eliminan automáticamente salvo política explícita y aprobada.
 
+La divulgación específica para firmantes se configura por separado en
+`SIGNATURE_PRIVACY_DISCLOSURE_JSON`. Debe contener versión, referencia de
+aprobación, vigencia y el texto exacto en `es-PR` y `en-US`. La aplicación
+normaliza cada texto con NFC y muestra su SHA-256 en Gobernanza. La ausencia o
+una sola traducción mantienen el lanzamiento bloqueado. No se debe copiar texto
+legal desde otra jurisdicción ni usar esta ranura como sustituto de la política
+general de privacidad o del consentimiento contractual.
+
+## Pasos para aprobaciones de clasificación y consentimiento
+
+1. El abogado licenciado entrega la decisión por tipo, alcance, referencia y fecha efectiva.
+2. El operador crea una decisión pendiente y registra la decisión recibida; no cambia `pending` a `approved` sin esa evidencia.
+3. El operador crea borradores separados del consentimiento `es-PR` y `en-US` con identificadores de versión nuevos.
+4. Legal compara el texto exacto y su SHA-256; el operador registra la referencia y fecha efectiva.
+5. Una versión aprobada nunca se edita. Para reemplazarla se retira y se crea una versión nueva.
+6. Gobernanza debe mostrar la clasificación vigente, ambos consentimientos y sus hashes antes de cualquier autorización de canary.
+
+## Matriz de retención propuesta para revisión
+
+Esta matriz es una recomendación operativa, no una decisión legal ni una
+configuración autorizada:
+
+| Evidencia | Propuesta inicial | Regla de seguridad |
+| --- | ---: | --- |
+| PDF fuente | 10 años | No borrar con retención legal ni mientras exista solicitud completada. |
+| PDF completado | Preservación indefinida hasta política aprobada | Limpieza desactivada. |
+| Certificado | Preservación indefinida hasta política aprobada | Mantener junto al PDF final. |
+| Manifiesto de evidencia | Preservación indefinida hasta política aprobada | Mantener para verificación. |
+| Tokens | 30 días después de expirar/revocar | Nunca conservar texto plano. |
+| Sesiones | 24 horas después de expirar/revocar | Solo digest; plazo máximo configurable 168 h. |
+| Digest de red | 90 días | Pseudónimo; sin IP cruda. |
+| Borradores fallidos/cancelados | 90 días | Solo si no hay hold ni obligación de conservar. |
+| Eventos | Preservación indefinida hasta política aprobada | Append-only; no limpieza automática. |
+
+Todo cambio aprobado debe producir una nueva versión JSON. El hash determinista
+de la política se muestra en Admin y debe registrarse junto a la referencia del
+cambio en el historial de despliegue. Esto hace el cambio detectable/auditable;
+no reemplaza un futuro registro legal duradero si la política exige evidencia en
+base de datos.
+
 ## Preparación del remitente
 
-La auditoría de Phase 2F confirmó un dominio verificado por Resend y registros de autenticación del proveedor en estado verificado. La plantilla de firma usa la identidad existente de Erickson Real Estate y no configura un `Reply-To` específico. No se encontró una política DMARC en el dominio visible del remitente durante la comprobación DNS; debe configurarse y verificarse antes del canary. Los límites de envío de la cuenta deben documentarse en el registro operativo porque la API disponible no expuso una cuota contractual fiable. Ninguna de estas comprobaciones envió correo.
+La auditoría de Phase 2F confirmó `borikipr.com` como dominio verificado por Resend. La plantilla de firma usa la identidad existente de Erickson Real Estate y no configura un `Reply-To` específico. No se encontró una política DMARC en el dominio visible del remitente durante la comprobación DNS; debe configurarse y verificarse antes del canary. El punto de partida recomendado por Resend es un TXT `_dmarc` con `v=DMARC1; p=none; rua=mailto:<buzón-aprobado-para-reportes>;`, seguido de verificación de todos los remitentes antes de endurecer a `quarantine` o `reject`. No publicar el placeholder. El propietario debe decidir un buzón `Reply-To` monitorizado.
+
+Resend documenta un límite inicial de 5 solicitudes/segundo por equipo. En una
+cuenta Free documenta 100 correos/día y 3,000/mes, pero el operador debe confirmar
+el plan y límites efectivos en **Resend → Settings → Usage**, y revisar respuestas
+`429` en **Resend → Logs**. Ninguna de estas comprobaciones envía correo.
 
 ## Rotación de claves HMAC
 
@@ -63,6 +108,13 @@ La recuperación requiere tres conjuntos coordinados: Neon, objetos privados R2 
 7. No reemitir invitaciones ni generar finales hasta completar la verificación.
 
 Antes del lanzamiento deben existir evidencia documentada de restauración Neon y garantías de durabilidad/recuperación R2. La mera existencia de copias del proveedor no sustituye un simulacro de recuperación aprobado.
+
+Cloudflare documenta que la durabilidad de R2 no protege contra borrados
+intencionales o accidentales. Los borrados son irreversibles si no existe una
+copia separada. Antes del canary se debe elegir y probar una de estas medidas:
+una regla de Bucket Lock aprobada para los prefijos final/certificates/manifests,
+o una copia independiente con credenciales y ciclo de vida separados. No activar
+una regla de borrado/lifecycle para evidencia completada sin política aprobada.
 
 ## Lista previa al cambio de feature flag
 

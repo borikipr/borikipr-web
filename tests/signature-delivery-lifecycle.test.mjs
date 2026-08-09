@@ -61,7 +61,7 @@ async function fixture({ approval = true, consent = true } = {}) {
 }
 async function prepared(options) {
   const value = await fixture(options);
-  const readiness = await evaluateSignatureSendReadiness({ database, documentId: value.documentId, locale: "es-PR", publicSigningEnabled: true, eventKeysConfigured: true, now });
+  const readiness = await evaluateSignatureSendReadiness({ database, documentId: value.documentId, locale: "es-PR", publicSigningEnabled: true, eventKeysConfigured: true, retentionPolicyConfigured: true, privacyDisclosureConfigured: true, now });
   if (readiness.eligible) await domain.prepareDocumentForSend({ documentId: value.documentId, actorAdminId: adminId, idempotencyKey: randomUUID(), locale: "es-PR", publicSigningEnabled: true });
   return { value, readiness };
 }
@@ -70,8 +70,11 @@ test("legal and consent gates fail closed", async () => {
   const noApproval = await prepared({ approval: false }); assert.ok(noApproval.readiness.reasons.includes("counsel_approval_missing"));
   await db.exec(`TRUNCATE public.signature_events, public.signature_fields, public.signature_participants, public.signature_document_versions, public.signature_documents, public.signature_consent_versions CASCADE`);
   const noConsent = await prepared({ consent: false }); assert.ok(noConsent.readiness.reasons.includes("approved_consent_missing"));
-  const disabled = await evaluateSignatureSendReadiness({ database, documentId: noConsent.value.documentId, locale: "es-PR", publicSigningEnabled: false, eventKeysConfigured: true, now });
+  const disabled = await evaluateSignatureSendReadiness({ database, documentId: noConsent.value.documentId, locale: "es-PR", publicSigningEnabled: false, eventKeysConfigured: true, retentionPolicyConfigured: true, privacyDisclosureConfigured: true, now });
   assert.ok(disabled.reasons.includes("public_signing_disabled"));
+  const policyBlocked = await evaluateSignatureSendReadiness({ database, documentId: noConsent.value.documentId, locale: "es-PR", publicSigningEnabled: true, eventKeysConfigured: true, retentionPolicyConfigured: false, privacyDisclosureConfigured: false, now });
+  assert.ok(policyBlocked.reasons.includes("retention_policy_missing"));
+  assert.ok(policyBlocked.reasons.includes("privacy_disclosure_missing"));
 });
 
 test("token is created only at delivery and never persisted in intent/html", async () => {

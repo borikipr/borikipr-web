@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export const SIGNATURE_RETENTION_POLICY_ENV = "SIGNATURE_RETENTION_POLICY_JSON";
 
 export type SignatureRetentionPolicy = Readonly<{
@@ -62,7 +64,11 @@ export function parseSignatureRetentionPolicy(value: string | undefined): Signat
 }
 
 export function inspectSignatureRetentionPolicy(environment: Readonly<Record<string, string | undefined>> = process.env) {
-  try { return { configured: true as const, policy: parseSignatureRetentionPolicy(environment[SIGNATURE_RETENTION_POLICY_ENV]), reasons: [] as readonly string[] }; }
+  try {
+    const policy = parseSignatureRetentionPolicy(environment[SIGNATURE_RETENTION_POLICY_ENV]);
+    const policySha256 = createHash("sha256").update(JSON.stringify(policy), "utf8").digest("hex");
+    return { configured: true as const, policy, policySha256, reasons: [] as readonly string[] };
+  }
   catch (error) { return { configured: false as const, policy: null, reasons: [error instanceof Error ? error.message : "signature_retention_policy_invalid"] as readonly string[] }; }
 }
 
