@@ -91,6 +91,14 @@ export const SIGNATURE_EVENT_TYPES = [
   "finalization_completed",
   "delivery_recorded",
   "document_downloaded",
+  "invitation_created",
+  "invitation_delivery_attempted",
+  "invitation_delivery_succeeded",
+  "invitation_delivery_failed",
+  "invitation_reissued",
+  "invitation_revoked",
+  "completed_document_accessed",
+  "certificate_accessed",
 ] as const;
 
 export type SignatureEventType = (typeof SIGNATURE_EVENT_TYPES)[number];

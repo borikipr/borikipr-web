@@ -131,6 +131,14 @@ if (!process.env.DATABASE_URL) {
             WHERE table_schema='public' AND table_name='signature_field_values'
               AND column_name='sanitized_value_payload'
           ) AS v0023
+          ,to_regclass('public.signature_document_type_approvals') IS NOT NULL
+            AND to_regclass('public.signature_consent_versions') IS NOT NULL
+            AND to_regclass('public.signature_delivery_intents') IS NOT NULL
+            AND EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='signature_documents'
+                AND column_name='consent_version_id'
+            ) AS v0024
       )
       SELECT * FROM facts
     `;

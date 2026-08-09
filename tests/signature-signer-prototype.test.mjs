@@ -14,9 +14,10 @@ import { shouldExcludeAnalyticsPath } from "../lib/analytics-routes.ts";
 import { normalizeSignerCapture } from "../lib/signatures/signer/capture.ts";
 
 const root = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
-const [foundationSql, signerSql, sourceBytes] = await Promise.all([
+const [foundationSql, signerSql, deliverySql, sourceBytes] = await Promise.all([
   readFile(path.join(root, "db/migrations/0022_create_signature_foundation.sql"), "utf8"),
   readFile(path.join(root, "db/migrations/0023_extend_signature_signer_evidence.sql"), "utf8"),
+  readFile(path.join(root, "db/migrations/0024_add_signature_delivery_governance.sql"), "utf8"),
   readFile(path.join(root, "tests/fixtures/signatures/rejections/valid-ordinary.pdf")),
 ]);
 
@@ -36,7 +37,7 @@ before(async () => {
     CREATE TABLE public.lead_groups (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
     INSERT INTO public.admin_users(username) VALUES ('synthetic-phase2d-admin');`);
   adminId = (await db.query(`SELECT id::text FROM public.admin_users LIMIT 1`)).rows[0].id;
-  await db.exec(foundationSql); await db.exec(signerSql);
+  await db.exec(foundationSql); await db.exec(signerSql); await db.exec(deliverySql);
 });
 
 beforeEach(async () => {
@@ -44,6 +45,8 @@ beforeEach(async () => {
   await db.exec(`TRUNCATE public.signature_events, public.signature_field_values, public.signature_sessions,
     public.signature_signing_tokens, public.signature_fields, public.signature_participants,
     public.signature_document_versions, public.signature_documents CASCADE`);
+  await db.exec(`TRUNCATE public.signature_delivery_intents, public.signature_consent_versions,
+    public.signature_document_type_approvals CASCADE`);
   services = createSignatureDomainServices({ database: pgliteDatabase(db),
     eventHmacKey: "phase2d-event-key-at-least-thirty-two-bytes", eventHmacKeyVersion: 1,
     networkEvidenceHmacKey: "phase2d-network-key-at-least-thirty-two-bytes", clock: () => new Date(clockState.now) });
@@ -51,6 +54,8 @@ beforeEach(async () => {
 after(() => db.close());
 
 const geometry = { pageIndex: 0, mediaBox: { x: 0, y: 0, width: 612, height: 792 }, cropBox: { x: 0, y: 0, width: 612, height: 792 }, rotation: 0, userUnit: 1 };
+const syntheticConsentText = "PROTOTIPO SINTÉTICO — NO APROBADO LEGALMENTE. Consentimiento técnico aislado.";
+const syntheticConsentSha = sha256SignatureValue(syntheticConsentText);
 
 async function syntheticRequest({ participants = 1 } = {}) {
   const documentId = randomUUID(); const sourceSha256 = sha256SignatureValue(sourceBytes);
@@ -86,7 +91,17 @@ async function syntheticRequest({ participants = 1 } = {}) {
     normalizedY: row.normalized_y, normalizedWidth: row.normalized_width, normalizedHeight: row.normalized_height,
     required: row.required, tabOrder: row.tab_order, validationLimits: row.validation_limits })) });
   await db.query(`UPDATE public.signature_document_versions SET field_definition_sha256=$2, locked_at=$3 WHERE id=$1::uuid`, [draft.documentVersionId, fieldHash, clockState.now]);
-  await db.query(`UPDATE public.signature_documents SET document_type_approval_reference='synthetic-test-only', status='sent', sent_at=$2 WHERE id=$1::uuid`, [documentId, clockState.now]);
+  const approval = (await db.query(`INSERT INTO public.signature_document_type_approvals
+    (document_type,status,approval_reference,approval_date,reviewed_by,source_reference,effective_from)
+    VALUES ('ordinary_brokerage_agreement','approved','synthetic-test-only','2031-01-01','synthetic-reviewer','synthetic-only',$1)
+    RETURNING id::text`, [new Date("2031-01-01T00:00:00Z")])).rows[0];
+  const consent = (await db.query(`INSERT INTO public.signature_consent_versions
+    (version_identifier,locale,consent_text,consent_text_sha256,status,effective_from,approval_reference,created_by_admin_id)
+    VALUES ('phase2d-synthetic-v1','es-PR',$1,$2,'approved',$3,'synthetic-test-only',$4::uuid) RETURNING id::text`,
+    [syntheticConsentText, syntheticConsentSha, new Date("2031-01-01T00:00:00Z"), adminId])).rows[0];
+  await db.query(`UPDATE public.signature_documents SET document_type_approval_reference='synthetic-test-only',
+    document_type_approval_id=$2::uuid, consent_version_id=$3::uuid, status='sent', sent_at=$4
+    WHERE id=$1::uuid`, [documentId, approval.id, consent.id, clockState.now]);
   for (const participant of participantRows) await services.transitionParticipantState({ participantId: participant.participantId,
     targetStatus: "invited", actorClass: "admin", actorAdminId: adminId, idempotencyKey: randomUUID() });
   return { ...draft, documentId, sourceSha256, participants: participantRows, fields, fieldHash };
@@ -136,10 +151,10 @@ test("consent, CSRF, ownership, limits, and immutable submissions are enforced",
     csrfNonce: session.csrfNonce, fieldId: fixture.fields[0].fieldId, value: { method: "typed", value: "Synthetic" },
     idempotencyKey: randomUUID() }), /signature_field_not_owned/);
   await assert.rejects(services.acceptSignerConsent({ sessionId: session.sessionId, sessionSecret: session.sessionSecret,
-    csrfNonce: "wrong", consentVersion: "phase2d-synthetic-v1", consentTextSha256: "a".repeat(64), locale: "es-PR",
+    csrfNonce: "wrong", consentVersion: "phase2d-synthetic-v1", consentTextSha256: syntheticConsentSha, locale: "es-PR",
     idempotencyKey: randomUUID() }), /signature_session_invalid/);
   await services.acceptSignerConsent({ sessionId: session.sessionId, sessionSecret: session.sessionSecret,
-    csrfNonce: session.csrfNonce, consentVersion: "phase2d-synthetic-v1", consentTextSha256: "a".repeat(64), locale: "es-PR",
+    csrfNonce: session.csrfNonce, consentVersion: "phase2d-synthetic-v1", consentTextSha256: syntheticConsentSha, locale: "es-PR",
     idempotencyKey: randomUUID() });
   await assert.rejects(services.submitSignerField({ sessionId: session.sessionId, sessionSecret: session.sessionSecret,
     csrfNonce: session.csrfNonce, fieldId: fixture.fields.at(-1).fieldId, value: { method: "typed", value: "Not mine" },
@@ -163,7 +178,7 @@ test("session idle expiry fails closed", async () => {
 test("synthetic flow finalizes once, writes private outputs, and verifies event chain", async () => {
   const { fixture, session } = await sessionFixture();
   await services.acceptSignerConsent({ sessionId: session.sessionId, sessionSecret: session.sessionSecret, csrfNonce: session.csrfNonce,
-    consentVersion: "phase2d-synthetic-v1", consentTextSha256: "b".repeat(64), locale: "es-PR", idempotencyKey: randomUUID() });
+    consentVersion: "phase2d-synthetic-v1", consentTextSha256: syntheticConsentSha, locale: "es-PR", idempotencyKey: randomUUID() });
   const values = [{ method: "drawn", strokes: [[{ x: 0.1, y: 0.2 }, { x: 0.7, y: 0.6 }]] },
     { method: "typed", value: "Synthetic Signer" }, { method: "typed", value: "SS" },
     { method: "date", value: "2031-01-05" }, { method: "text", value: "Synthetic acceptance only" }];

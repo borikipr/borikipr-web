@@ -6,12 +6,16 @@ export function createSignerRepository(database: SignatureQueryExecutor) {
       const documents = await database.unsafe<{
         title: string; role: string; page_count: number; page_geometry_manifest: unknown;
         participant_status: string; consent_version: string | null;
+        consent_text: string | null; consent_text_sha256: string | null;
+        consent_locale: "es-PR" | "en-US" | null;
       }>(
         `SELECT d.title, p.role, v.page_count, v.page_geometry_manifest,
-                p.status AS participant_status, p.consent_version
+                p.status AS participant_status, p.consent_version,
+                cv.consent_text, cv.consent_text_sha256, cv.locale AS consent_locale
            FROM public.signature_participants p
            JOIN public.signature_document_versions v ON v.id=p.document_version_id
            JOIN public.signature_documents d ON d.id=v.document_id
+           LEFT JOIN public.signature_consent_versions cv ON cv.id=d.consent_version_id
           WHERE p.id=$1::uuid AND p.document_version_id=$2::uuid`,
         [participantId, documentVersionId]
       );

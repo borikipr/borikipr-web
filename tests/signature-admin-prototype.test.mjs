@@ -13,6 +13,8 @@ import { hashSignatureFieldDefinition } from "../lib/signatures/field-definition
 
 const root = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const migrationSql = await readFile(path.join(root, "db/migrations/0022_create_signature_foundation.sql"), "utf8");
+const signerMigrationSql = await readFile(path.join(root, "db/migrations/0023_extend_signature_signer_evidence.sql"), "utf8");
+const deliveryMigrationSql = await readFile(path.join(root, "db/migrations/0024_add_signature_delivery_governance.sql"), "utf8");
 const compatibleBytes = new Uint8Array(await readFile(path.join(root, "tests/fixtures/signatures/representative/HOJA DE OFERTA - con logo.pdf")));
 const EVENT_KEY = Buffer.alloc(32, 7).toString("base64url");
 const OLD_KEY = Buffer.alloc(32, 3).toString("base64url");
@@ -47,6 +49,8 @@ before(async () => {
   `);
   adminId = (await db.query(`SELECT id::text FROM public.admin_users LIMIT 1`)).rows[0].id;
   await db.exec(migrationSql);
+  await db.exec(signerMigrationSql);
+  await db.exec(deliveryMigrationSql);
   database = pgliteDatabase(db);
 });
 
@@ -81,7 +85,7 @@ test("Phase 2C creates a compatible private draft and deterministic whole-layout
   assert.equal(detail.currentFieldDefinitionSha256.length, 64);
   assert.equal(detail.currentFieldDefinitionSha256, hashSignatureFieldDefinition({ documentVersionId: detail.version.id, fields: [...detail.fields].reverse() }));
 
-  await assert.rejects(domain.prepareDocumentForSend({ documentId: created.documentId, actorAdminId: adminId, idempotencyKey: randomUUID() }), /signature_document_type_not_counsel_approved/);
+  await assert.rejects(domain.prepareDocumentForSend({ documentId: created.documentId, actorAdminId: adminId, idempotencyKey: randomUUID(), locale: "es", publicSigningEnabled: true }), /signature_document_type_not_counsel_approved/);
   const counts = await db.query(`SELECT (SELECT count(*) FROM public.signature_signing_tokens)::integer AS tokens, (SELECT count(*) FROM public.signature_documents WHERE status <> 'draft')::integer AS non_drafts`);
   assert.deepEqual(counts.rows[0], { tokens: 0, non_drafts: 0 });
 });

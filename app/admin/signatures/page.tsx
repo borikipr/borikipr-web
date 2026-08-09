@@ -68,13 +68,14 @@ export default async function SignatureDocumentsPage({
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] border-collapse">
-              <thead className="bg-[#0d1b2a] text-left text-sm text-white"><tr><th className="px-4 py-3">Documento</th><th className="px-4 py-3">Estado</th><th className="px-4 py-3">Participantes</th><th className="px-4 py-3">Páginas</th><th className="px-4 py-3">Actualizado</th><th className="px-4 py-3">Acción</th></tr></thead>
+              <thead className="bg-[#0d1b2a] text-left text-sm text-white"><tr><th className="px-4 py-3">Documento</th><th className="px-4 py-3">Estado</th><th className="px-4 py-3">Participantes</th><th className="px-4 py-3">Entrega</th><th className="px-4 py-3">Páginas</th><th className="px-4 py-3">Actualizado</th><th className="px-4 py-3">Acción</th></tr></thead>
               <tbody>
                 {rows.map((row) => (
                   <tr className="border-b border-[#e5e5e5]" key={row.id}>
                     <td className="px-4 py-4"><p className="font-semibold">{row.title}</p><p className="mt-1 text-xs text-[#666]">{row.document_type}</p></td>
                     <td className="px-4 py-4">{STATUS_LABELS[row.status] ?? row.status}</td>
-                    <td className="px-4 py-4">{Number(row.participant_count)}</td>
+                    <td className="px-4 py-4">{Number(row.completed_participant_count)} / {Number(row.participant_count)}</td>
+                    <td className="px-4 py-4">{row.last_delivery_status ?? "Sin entrega"}</td>
                     <td className="px-4 py-4">{row.page_count}</td>
                     <td className="px-4 py-4">{new Date(row.updated_at).toLocaleDateString("es-PR")}</td>
                     <td className="px-4 py-4"><Link className="font-semibold text-[#11518b] hover:underline" href={`/admin/signatures/${row.id}`}>Abrir</Link></td>

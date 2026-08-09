@@ -1,8 +1,5 @@
-import {
-  getSignatureDocumentTypeDefinition,
-  isSignatureDocumentTypeApproved,
-} from "../document-classification";
 import { hashSignatureFieldDefinition } from "../field-definition";
+import { getSignatureDocumentTypeDefinition } from "../document-classification";
 import {
   canonicalSignatureJson,
   constantTimeDigestMatch,
@@ -827,6 +824,8 @@ export function createSignatureDomainServices({
     documentId: string;
     actorAdminId: string;
     idempotencyKey: string;
+    locale?: "es-PR" | "en-US";
+    publicSigningEnabled?: boolean;
   }) {
     return database.begin(async (transaction) => {
       const documents = await transaction.unsafe<DocumentRow>(
@@ -835,15 +834,36 @@ export function createSignatureDomainServices({
         [input.documentId]
       );
       const document = documents[0];
-      const definition = document
-        ? getSignatureDocumentTypeDefinition(document.document_type)
-        : null;
       if (!document || document.status !== "draft" || !document.active_version_id) {
         throw new Error("signature_send_requires_complete_draft");
       }
-      if (!definition || !isSignatureDocumentTypeApproved(definition)) {
+      if (!input.publicSigningEnabled) {
+        throw new Error("public_signing_disabled");
+      }
+      const approvalRows = await transaction.unsafe<{
+        id: string; approval_reference: string;
+      }>(
+        `SELECT id::text, approval_reference
+           FROM public.signature_document_type_approvals
+          WHERE document_type=$1 AND status='approved' AND revoked_at IS NULL
+            AND effective_from <= $2::timestamptz
+          ORDER BY effective_from DESC LIMIT 1 FOR UPDATE`,
+        [document.document_type, iso(clock())]
+      );
+      if (!approvalRows[0]) {
         throw new Error("signature_document_type_not_counsel_approved");
       }
+      const locale = input.locale ?? "es-PR";
+      const consentRows = await transaction.unsafe<{
+        id: string; version_identifier: string; consent_text_sha256: string;
+      }>(
+        `SELECT id::text, version_identifier, consent_text_sha256
+           FROM public.signature_consent_versions
+          WHERE locale=$1 AND status='approved' AND effective_from <= $2::timestamptz
+          ORDER BY effective_from DESC LIMIT 1 FOR UPDATE`,
+        [locale, iso(clock())]
+      );
+      if (!consentRows[0]) throw new Error("signature_approved_consent_missing");
       const versions = await transaction.unsafe<VersionRow>(
         `SELECT id::text, document_id::text, version_number, source_sha256,
                 field_definition_sha256, locked_at
@@ -871,13 +891,34 @@ export function createSignatureDomainServices({
           ORDER BY tab_order, id`,
         [document.active_version_id]
       );
-      const participantCount = await transaction.unsafe<{ count: number | bigint }>(
-        `SELECT count(*) AS count FROM public.signature_participants
+      const participantCount = await transaction.unsafe<{
+        count: number | bigint; invalid_emails: number | bigint; without_required_fields: number | bigint;
+      }>(
+        `SELECT count(*) AS count,
+                count(*) FILTER (WHERE normalized_email !~ '^[^@[:space:]]+@[^@[:space:]]+[.][^@[:space:]]+$') AS invalid_emails,
+                count(*) FILTER (WHERE NOT EXISTS (
+                  SELECT 1 FROM public.signature_fields f
+                   WHERE f.participant_id=p.id AND f.required
+                )) AS without_required_fields
+           FROM public.signature_participants p
           WHERE document_version_id = $1::uuid`,
         [document.active_version_id]
       );
       if (!versions[0] || fieldRows.length === 0 || Number(participantCount[0].count) === 0) {
         throw new Error("signature_send_requires_participants_and_fields");
+      }
+      if (Number(participantCount[0].invalid_emails) > 0) {
+        throw new Error("signature_send_participant_email_invalid");
+      }
+      if (Number(participantCount[0].without_required_fields) > 0) {
+        throw new Error("signature_send_required_fields_missing");
+      }
+      const expirationRows = await transaction.unsafe<{ expires_at: string | Date | null }>(
+        `SELECT expires_at FROM public.signature_documents WHERE id=$1::uuid`,
+        [input.documentId]
+      );
+      if (!expirationRows[0]?.expires_at || new Date(expirationRows[0].expires_at).getTime() <= clock().getTime()) {
+        throw new Error("signature_send_expiration_invalid");
       }
       const fieldDefinitionSha256 = hashSignatureFieldDefinition({
         documentVersionId: document.active_version_id,
@@ -907,15 +948,35 @@ export function createSignatureDomainServices({
       await transaction.unsafe(
         `UPDATE public.signature_documents
             SET document_type_approval_reference = $2,
+                document_type_approval_id = $5::uuid,
+                consent_version_id = $6::uuid,
                 status = 'sent', sent_at = $3::timestamptz
           WHERE id = $1::uuid AND row_version = $4`,
         [
           input.documentId,
-          definition.counselReference,
+          approvalRows[0].approval_reference,
           sentAt,
           document.row_version,
+          approvalRows[0].id,
+          consentRows[0].id,
         ]
       );
+      await appendEventInTransaction(transaction, {
+        documentId: input.documentId,
+        documentVersionId: document.active_version_id,
+        eventType: "send_prepared",
+        actorClass: "admin",
+        actorAdminId: input.actorAdminId,
+        versionHash: versions[0].source_sha256,
+        controlledMetadata: {
+          document_status: "sent",
+          consent_version: consentRows[0].version_identifier,
+          consent_text_sha256: consentRows[0].consent_text_sha256,
+          locale,
+          approval_status: "approved",
+        },
+        idempotencyKey: input.idempotencyKey,
+      });
       await appendEventInTransaction(transaction, {
         documentId: input.documentId,
         documentVersionId: document.active_version_id,
@@ -924,9 +985,17 @@ export function createSignatureDomainServices({
         actorAdminId: input.actorAdminId,
         versionHash: versions[0].source_sha256,
         controlledMetadata: { document_status: "sent" },
-        idempotencyKey: input.idempotencyKey,
+        idempotencyKey: derivedIdempotencyKey(input.idempotencyKey, "document_sent"),
       });
-      return { status: "sent" as const, fieldDefinitionSha256 };
+      return {
+        status: "sent" as const,
+        fieldDefinitionSha256,
+        approvalReference: approvalRows[0].approval_reference,
+        consentVersionId: consentRows[0].id,
+        consentVersion: consentRows[0].version_identifier,
+        consentTextSha256: consentRows[0].consent_text_sha256,
+        locale,
+      };
     });
   }
 
@@ -1075,6 +1144,7 @@ export function createSignatureDomainServices({
     actorAdminId: string;
     idempotencyKey: string;
     supersedeExisting?: boolean;
+    purpose?: "sign_document" | "completed_document_access";
   }) {
     const material = createSigningTokenMaterial();
     return database.begin(async (transaction) => {
@@ -1094,20 +1164,20 @@ export function createSignatureDomainServices({
         [input.participantId, input.documentVersionId]
       );
       const binding = rows[0];
-      if (
-        !binding ||
-        !ACTIVE_DOCUMENT_STATUSES.has(binding.status) ||
-        binding.active_version_id !== input.documentVersionId
-      ) {
+      const purpose = input.purpose ?? "sign_document";
+      const statusEligible = purpose === "sign_document"
+        ? ACTIVE_DOCUMENT_STATUSES.has(binding?.status)
+        : binding?.status === "completed";
+      if (!binding || !statusEligible || binding.active_version_id !== input.documentVersionId) {
         throw new Error("signature_token_binding_not_active");
       }
       const active = await transaction.unsafe<{ id: string }>(
         `SELECT id::text FROM public.signature_signing_tokens
           WHERE participant_id = $1::uuid AND document_version_id = $2::uuid
-            AND consumed_at IS NULL AND revoked_at IS NULL AND superseded_at IS NULL
+            AND purpose=$4 AND consumed_at IS NULL AND revoked_at IS NULL AND superseded_at IS NULL
             AND expires_at > $3::timestamptz
           FOR UPDATE`,
-        [input.participantId, input.documentVersionId, iso(clock())]
+        [input.participantId, input.documentVersionId, iso(clock()), purpose]
       );
       if (active.length > 0 && !input.supersedeExisting) {
         throw new Error("signature_active_token_exists");
@@ -1116,21 +1186,22 @@ export function createSignatureDomainServices({
         await transaction.unsafe(
           `UPDATE public.signature_signing_tokens SET superseded_at = $2::timestamptz
             WHERE participant_id = $1::uuid AND consumed_at IS NULL
-              AND revoked_at IS NULL
+              AND revoked_at IS NULL AND purpose=$3
               AND superseded_at IS NULL`,
-          [input.participantId, iso(clock())]
+          [input.participantId, iso(clock()), purpose]
         );
       }
       const tokenRows = await transaction.unsafe<{ id: string }>(
         `INSERT INTO public.signature_signing_tokens (
-           participant_id, document_version_id, token_digest, key_version,
+           participant_id, document_version_id, token_digest, purpose, key_version,
            issued_at, expires_at
-         ) VALUES ($1::uuid, $2::uuid, $3, $4, $5::timestamptz, $6::timestamptz)
+         ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::timestamptz, $7::timestamptz)
          RETURNING id::text`,
         [
           input.participantId,
           input.documentVersionId,
           material.digest,
+          purpose,
           input.keyVersion,
           iso(clock()),
           iso(input.expiresAt),
@@ -1200,6 +1271,7 @@ export function createSignatureDomainServices({
     idempotencyKey: string;
     networkAddress?: string | null;
     userAgent?: string | null;
+    purpose?: "sign_document" | "completed_document_access";
   }) {
     const material = createSignerSessionMaterial();
     return database.begin(async (transaction) => {
@@ -1217,12 +1289,13 @@ export function createSignatureDomainServices({
         source_sha256: string;
         participant_status: SignatureParticipantStatus;
         document_status: SignatureDocumentStatus;
+        purpose: "sign_document" | "completed_document_access";
       }>(
         `SELECT t.id::text, t.participant_id::text, t.document_version_id::text,
                 t.token_digest, t.expires_at, t.consumed_at,
                 t.revoked_at, t.superseded_at,
                 v.document_id::text, v.source_sha256,
-                p.status AS participant_status, d.status AS document_status
+                p.status AS participant_status, d.status AS document_status, t.purpose
            FROM public.signature_signing_tokens t
            JOIN public.signature_participants p ON p.id = t.participant_id
            JOIN public.signature_document_versions v ON v.id = t.document_version_id
@@ -1232,8 +1305,10 @@ export function createSignatureDomainServices({
       );
       const token = tokens[0];
       const now = clock();
+      const purpose = input.purpose ?? "sign_document";
       if (
         !token ||
+        token.purpose !== purpose ||
         !verifySigningToken({
           plaintext: input.plaintextToken,
           stored: {
@@ -1269,10 +1344,10 @@ export function createSignatureDomainServices({
         `INSERT INTO public.signature_sessions (
            token_id, participant_id, document_version_id,
            session_secret_digest, csrf_nonce_digest, created_at, last_seen_at,
-           expires_at, idle_expires_at
+           expires_at, idle_expires_at, purpose
          ) VALUES (
            $1::uuid, $2::uuid, $3::uuid, $4, $5, $6::timestamptz,
-           $6::timestamptz, $7::timestamptz, $8::timestamptz
+           $6::timestamptz, $7::timestamptz, $8::timestamptz, $9
          ) RETURNING id::text`,
         [
           token.id,
@@ -1283,6 +1358,7 @@ export function createSignatureDomainServices({
           iso(now),
           iso(expiresAt),
           iso(idleExpiresAt),
+          purpose,
         ]
       );
       await appendEventInTransaction(transaction, {
@@ -1297,7 +1373,7 @@ export function createSignatureDomainServices({
         networkAddress: input.networkAddress,
         userAgent: input.userAgent,
       });
-      if (token.participant_status === "invited") {
+      if (purpose === "sign_document" && token.participant_status === "invited") {
         await transaction.unsafe(
           `UPDATE public.signature_participants SET status='viewed', viewed_at=$2::timestamptz WHERE id=$1::uuid`,
           [input.participantId, iso(now)]
@@ -1313,7 +1389,7 @@ export function createSignatureDomainServices({
           idempotencyKey: derivedIdempotencyKey(input.idempotencyKey, "participant_viewed"),
         });
       }
-      if (token.document_status === "sent") {
+      if (purpose === "sign_document" && token.document_status === "sent") {
         await transaction.unsafe(
           `UPDATE public.signature_documents SET status='viewed' WHERE id=$1::uuid`,
           [token.document_id]
@@ -1349,6 +1425,7 @@ export function createSignatureDomainServices({
          JOIN public.signature_documents d ON d.id=v.document_id
         WHERE t.token_digest=$1 AND t.consumed_at IS NULL AND t.revoked_at IS NULL
           AND t.superseded_at IS NULL AND t.expires_at>$2::timestamptz
+          AND t.purpose='sign_document'
           AND p.status IN ('invited','viewed') AND d.status IN ('sent','viewed','partially_signed')
           AND d.active_version_id=t.document_version_id`,
       [sha256SignatureValue(plaintextToken), iso(clock())]
@@ -1376,11 +1453,47 @@ export function createSignatureDomainServices({
     });
   }
 
+  async function inspectCompletionAccessToken(plaintextToken: string) {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(plaintextToken)) return { eligible: false as const };
+    const rows = await database.unsafe<{ participant_id: string; document_version_id: string }>(
+      `SELECT t.participant_id::text, t.document_version_id::text
+         FROM public.signature_signing_tokens t
+         JOIN public.signature_participants p ON p.id=t.participant_id
+         JOIN public.signature_document_versions v ON v.id=t.document_version_id
+         JOIN public.signature_documents d ON d.id=v.document_id
+        WHERE t.token_digest=$1 AND t.purpose='completed_document_access'
+          AND t.consumed_at IS NULL AND t.revoked_at IS NULL AND t.superseded_at IS NULL
+          AND t.expires_at>$2::timestamptz AND p.status='completed' AND d.status='completed'
+          AND d.active_version_id=t.document_version_id`,
+      [sha256SignatureValue(plaintextToken), iso(clock())]
+    );
+    return rows[0]
+      ? { eligible: true as const, participantId: rows[0].participant_id, documentVersionId: rows[0].document_version_id }
+      : { eligible: false as const };
+  }
+
+  async function redeemCompletionAccessToken(input: {
+    plaintextToken: string;
+    idempotencyKey: string;
+    networkAddress?: string | null;
+    userAgent?: string | null;
+  }) {
+    const eligibility = await inspectCompletionAccessToken(input.plaintextToken);
+    if (!eligibility.eligible) throw new Error("signature_token_verification_failed");
+    return createSignerSession({
+      ...input,
+      participantId: eligibility.participantId,
+      documentVersionId: eligibility.documentVersionId,
+      purpose: "completed_document_access",
+    });
+  }
+
   async function getSessionContext(input: {
     sessionId: string;
     sessionSecret: string;
     csrfNonce?: string;
     touch?: boolean;
+    purpose?: "sign_document" | "completed_document_access";
   }) {
     const rows = await database.unsafe<{
       participant_id: string; document_version_id: string; session_secret_digest: string;
@@ -1388,20 +1501,30 @@ export function createSignatureDomainServices({
       revoked_at: string | Date | null; completed_at: string | Date | null;
       document_id: string; source_sha256: string; field_definition_sha256: string;
       title: string; role: string; participant_status: SignatureParticipantStatus;
+      purpose: "sign_document" | "completed_document_access";
+      bound_consent_version: string | null; bound_consent_sha256: string | null;
+      bound_consent_locale: "es-PR" | "en-US" | null;
     }>(
       `SELECT s.participant_id::text, s.document_version_id::text, s.session_secret_digest,
               s.csrf_nonce_digest, s.expires_at, s.idle_expires_at, s.revoked_at, s.completed_at,
               v.document_id::text, v.source_sha256, v.field_definition_sha256,
-              d.title, p.role, p.status AS participant_status
+              d.title, p.role, p.status AS participant_status, s.purpose,
+              cv.version_identifier AS bound_consent_version,
+              cv.consent_text_sha256 AS bound_consent_sha256,
+              cv.locale AS bound_consent_locale
          FROM public.signature_sessions s
          JOIN public.signature_participants p ON p.id=s.participant_id
          JOIN public.signature_document_versions v ON v.id=s.document_version_id
          JOIN public.signature_documents d ON d.id=v.document_id
+         LEFT JOIN public.signature_consent_versions cv ON cv.id=d.consent_version_id
         WHERE s.id=$1::uuid`,
       [input.sessionId]
     );
     const row = rows[0];
     if (!row) throw new Error("signature_session_invalid");
+    if (row.purpose !== (input.purpose ?? "sign_document")) {
+      throw new Error("signature_session_invalid");
+    }
     const csrf = input.csrfNonce ?? "invalid";
     const valid = verifySignerSession({
       sessionSecret: input.sessionSecret,
@@ -1433,6 +1556,10 @@ export function createSignatureDomainServices({
       participantId: row.participant_id, sourceSha256: row.source_sha256,
       fieldDefinitionSha256: row.field_definition_sha256, title: row.title,
       role: row.role, participantStatus: row.participant_status,
+      purpose: row.purpose,
+      consentVersion: row.bound_consent_version,
+      consentTextSha256: row.bound_consent_sha256,
+      consentLocale: row.bound_consent_locale,
     };
   }
 
@@ -1467,6 +1594,12 @@ export function createSignatureDomainServices({
     idempotencyKey: string;
   }) {
     const context = await getSessionContext(input);
+    if (!context.consentVersion || !context.consentTextSha256 || !context.consentLocale
+      || context.consentVersion !== input.consentVersion
+      || context.consentTextSha256 !== input.consentTextSha256
+      || context.consentLocale !== input.locale) {
+      throw new Error("signature_consent_version_mismatch");
+    }
     return database.begin(async (transaction) => {
       await assertActiveSessionInTransaction(transaction, input, context);
       const locked = await transaction.unsafe<{ status: SignatureParticipantStatus }>(
@@ -1638,6 +1771,55 @@ export function createSignatureDomainServices({
     });
   }
 
+  async function expireSignatureDocument(input: {
+    documentId: string;
+    idempotencyKey: string;
+  }) {
+    return database.begin(async (transaction) => {
+      const documents = await transaction.unsafe<{
+        id: string; active_version_id: string; status: SignatureDocumentStatus;
+        expires_at: string | Date; source_sha256: string;
+      }>(`SELECT d.id::text, d.active_version_id::text, d.status, d.expires_at, v.source_sha256
+             FROM public.signature_documents d
+             JOIN public.signature_document_versions v ON v.id=d.active_version_id
+            WHERE d.id=$1::uuid FOR UPDATE OF d`, [input.documentId]);
+      const document = documents[0];
+      if (!document || !["sent","viewed","partially_signed"].includes(document.status)
+        || new Date(document.expires_at).getTime() > clock().getTime()) {
+        throw new Error("signature_document_not_expirable");
+      }
+      const participants = await transaction.unsafe<{ id: string }>(
+        `SELECT id::text FROM public.signature_participants
+          WHERE document_version_id=$1::uuid AND status IN ('pending','invited','viewed','consented')
+          FOR UPDATE`, [document.active_version_id]);
+      const now = iso(clock());
+      for (const participant of participants) {
+        await transaction.unsafe(`UPDATE public.signature_participants SET status='expired'
+          WHERE id=$1::uuid`, [participant.id]);
+        await appendEventInTransaction(transaction, {
+          documentId: input.documentId, documentVersionId: document.active_version_id,
+          participantId: participant.id, eventType: "participant_expired", actorClass: "system",
+          versionHash: document.source_sha256, controlledMetadata: { participant_status: "expired" },
+          idempotencyKey: derivedIdempotencyKey(input.idempotencyKey, `participant:${participant.id}`),
+        });
+      }
+      await transaction.unsafe(`UPDATE public.signature_signing_tokens SET revoked_at=coalesce(revoked_at,$2::timestamptz)
+        WHERE document_version_id=$1::uuid AND revoked_at IS NULL`, [document.active_version_id, now]);
+      await transaction.unsafe(`UPDATE public.signature_sessions SET revoked_at=coalesce(revoked_at,$2::timestamptz)
+        WHERE document_version_id=$1::uuid AND revoked_at IS NULL AND completed_at IS NULL`, [document.active_version_id, now]);
+      await transaction.unsafe(`UPDATE public.signature_delivery_intents SET status='cancelled', cancelled_at=$2::timestamptz,
+        locked_at=NULL, locked_by=NULL, updated_at=$2::timestamptz
+        WHERE document_version_id=$1::uuid AND status IN ('pending','processing')`, [document.active_version_id, now]);
+      await transaction.unsafe(`UPDATE public.signature_documents SET status='expired' WHERE id=$1::uuid`, [input.documentId]);
+      await appendEventInTransaction(transaction, {
+        documentId: input.documentId, documentVersionId: document.active_version_id,
+        eventType: "document_expired", actorClass: "system", versionHash: document.source_sha256,
+        controlledMetadata: { document_status: "expired" }, idempotencyKey: input.idempotencyKey,
+      });
+      return { status: "expired" as const, participantsExpired: participants.length };
+    });
+  }
+
   async function verifyEventChain(documentId: string) {
     const rows = await database.unsafe<EventRow>(
       `SELECT id::text, document_id::text, document_version_id::text,
@@ -1672,10 +1854,13 @@ export function createSignatureDomainServices({
     createSignerSession,
     inspectSigningToken,
     redeemSigningToken,
+    inspectCompletionAccessToken,
+    redeemCompletionAccessToken,
     getSessionContext,
     acceptSignerConsent,
     submitSignerField,
     completeSignerParticipant,
     revokeSignerSession,
+    expireSignatureDocument,
   };
 }

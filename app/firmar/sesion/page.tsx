@@ -5,10 +5,6 @@ import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
 import { createSignerRepository } from "@/lib/signatures/signer/repository";
 import { requireSignerRequestContext } from "@/lib/signatures/signer/request";
 import { SIGNER_CSRF_COOKIE_NAME } from "@/lib/signatures/signer/cookie";
-import {
-  SIGNATURE_PROTOTYPE_CONSENT_TEXT,
-  SIGNATURE_PROTOTYPE_CONSENT_VERSION,
-} from "@/lib/signatures/signer/consent";
 import SignerFieldForm from "./SignerFieldForm";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +19,7 @@ export default async function SignerSessionPage() {
       signer.context.documentVersionId,
       signer.context.participantId
     );
-    if (!view) notFound();
+    if (!view || !view.consent_text || !view.consent_text_sha256 || !view.consent_locale) notFound();
     const consented = view.participant_status === "consented";
     return (
       <section className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
@@ -35,9 +31,9 @@ export default async function SignerSessionPage() {
         {!consented ? (
           <form action="/api/signatures/session/consent" method="post" className="mt-6 rounded-xl border-2 border-amber-300 bg-amber-50 p-5">
             <h2 className="font-semibold">Consentimiento electrónico</h2>
-            <p className="mt-2 text-sm leading-6">{SIGNATURE_PROTOTYPE_CONSENT_TEXT}</p>
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{view.consent_text}</p>
+            <p className="mt-2 text-xs text-slate-600">Versión: {signer.context.consentVersion}</p>
             <input type="hidden" name="csrf" value={csrf} />
-            <input type="hidden" name="consentVersion" value={SIGNATURE_PROTOTYPE_CONSENT_VERSION} />
             <button className="mt-4 rounded-lg bg-slate-950 px-4 py-2 text-white">Acepto expresamente y deseo continuar</button>
           </form>
         ) : (

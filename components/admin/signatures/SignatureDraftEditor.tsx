@@ -5,11 +5,15 @@ import {
   addSignatureFieldAction,
   addSignatureParticipantAction,
   prepareSignatureSendAction,
+  resendSignatureInvitationAction,
+  expireSignatureDocumentAction,
+  voidSignatureDocumentAction,
   removeSignatureFieldAction,
   updateSignatureFieldAction,
   type SignatureAdminActionState,
 } from "@/app/admin/signatures/actions";
 import type { SignatureDraftDetail } from "@/lib/signatures/admin-repository";
+import type { SignatureSendReadiness } from "@/lib/signatures/send-readiness";
 
 const INITIAL: SignatureAdminActionState = { ok: false, message: "" };
 const COLORS = ["#11518b", "#8a5a00", "#6b3fa0", "#16704a", "#a33a3a", "#226e78", "#704214", "#565b66"];
@@ -137,13 +141,33 @@ function FieldOverlay({
   );
 }
 
-export default function SignatureDraftEditor({ detail }: { detail: SignatureDraftDetail }) {
+const READINESS_LABELS: Record<string, string> = {
+  document_not_draft: "El documento ya no está en borrador.",
+  active_version_missing: "Falta la versión activa.",
+  source_pdf_incompatible: "El PDF fuente no pasó la compatibilidad.",
+  version_already_locked: "La versión ya está bloqueada.",
+  expiration_invalid: "La fecha de expiración falta o no es válida.",
+  event_keys_unavailable: "La configuración de evidencia no está disponible.",
+  public_signing_disabled: "La firma pública permanece desactivada.",
+  counsel_approval_missing: "Este tipo de documento todavía no está autorizado para firma electrónica.",
+  approved_consent_missing: "Falta una versión de consentimiento aprobada.",
+  participant_count_invalid: "La cantidad de participantes no es válida.",
+  participant_email_invalid: "Hay un correo de participante inválido.",
+  field_count_invalid: "La cantidad de campos no es válida.",
+  required_participant_field_missing: "Cada participante necesita al menos un campo requerido.",
+  field_definition_hash_stale: "La definición de campos cambió y debe recalcularse.",
+};
+
+export default function SignatureDraftEditor({ detail, readiness }: { detail: SignatureDraftDetail; readiness: SignatureSendReadiness }) {
   const [pageIndex, setPageIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [participantId, setParticipantId] = useState(detail.participants[0]?.id ?? "");
   const [participantState, participantAction, participantPending] = useActionState(addSignatureParticipantAction, INITIAL);
   const [fieldState, fieldAction, fieldPending] = useActionState(addSignatureFieldAction, INITIAL);
   const [sendState, sendAction, sendPending] = useActionState(prepareSignatureSendAction, INITIAL);
+  const [resendState, resendAction, resendPending] = useActionState(resendSignatureInvitationAction, INITIAL);
+  const [expireState, expireAction, expirePending] = useActionState(expireSignatureDocumentAction, INITIAL);
+  const [voidState, voidAction, voidPending] = useActionState(voidSignatureDocumentAction, INITIAL);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   function createField(fieldType: FieldType, rect: Rect) {
@@ -211,7 +235,7 @@ export default function SignatureDraftEditor({ detail }: { detail: SignatureDraf
       <aside className="min-w-0 space-y-6">
         <section className="surface-card p-5">
           <h2 className="text-lg font-semibold">Participantes ({detail.participants.length}/8)</h2>
-          <ul className="mt-4 space-y-3">{detail.participants.map((participant, index) => <li className="rounded-xl border p-3" key={participant.id} style={{ borderLeftColor: COLORS[index % COLORS.length], borderLeftWidth: 5 }}><p className="font-semibold">{participant.name}</p><p className="break-all text-sm text-[#555]">{participant.email}</p><p className="mt-1 text-xs uppercase tracking-wide text-[#666]">{participant.role}</p></li>)}</ul>
+          <ul className="mt-4 space-y-3">{detail.participants.map((participant, index) => <li className="rounded-xl border p-3" key={participant.id} style={{ borderLeftColor: COLORS[index % COLORS.length], borderLeftWidth: 5 }}><p className="font-semibold">{participant.name}</p><p className="break-all text-sm text-[#555]">{participant.email}</p><p className="mt-1 text-xs uppercase tracking-wide text-[#666]">{participant.role} · {participant.status}</p><p className="mt-1 text-xs text-[#666]">Última entrega: {participant.lastDeliveryStatus ?? "sin entrega"}</p>{participant.completedAt && <p className="mt-1 text-xs text-green-700">Completado: {new Date(participant.completedAt).toLocaleString("es-PR")}</p>}{["invited","viewed","consented"].includes(participant.status) && <form action={resendAction} className="mt-2"><input name="documentId" type="hidden" value={detail.id} /><input name="participantId" type="hidden" value={participant.id} /><button className="text-xs font-semibold text-[#11518b]" disabled={resendPending} type="submit">Reenviar invitación</button></form>}</li>)}</ul>
           <form action={participantAction} className="mt-5 space-y-3">
             <input name="documentId" type="hidden" value={detail.id} />
             <label className="block"><span className="text-sm font-semibold">Nombre</span><input className="mt-1 w-full rounded-lg border px-3 py-2" maxLength={160} name="name" required /></label>
@@ -233,9 +257,12 @@ export default function SignatureDraftEditor({ detail }: { detail: SignatureDraf
 
         <section className="surface-card p-5">
           <h2 className="text-lg font-semibold">Preparación de envío</h2>
-          <p className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Este tipo de documento todavía no está autorizado para firma electrónica.</p>
-          <form action={sendAction} className="mt-4"><input name="documentId" type="hidden" value={detail.id} /><input name="documentType" type="hidden" value={detail.documentType} /><button className="btn-primary w-full opacity-60" disabled={sendPending} type="submit">Validar envío (bloqueado)</button></form>
+          <p className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{readiness.eligible ? "La solicitud cumple las validaciones de preparación." : "El envío permanece bloqueado."}</p>
+          {!readiness.eligible && <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-[#555]">{readiness.reasons.map((reason) => <li key={reason}>{READINESS_LABELS[reason] ?? reason}</li>)}</ul>}
+          <dl className="mt-3 grid gap-2 text-xs"><div><dt className="font-semibold">Consentimiento</dt><dd>{readiness.consentVersion ?? "No aprobado"}</dd></div><div><dt className="font-semibold">Aprobación legal</dt><dd>{readiness.approvalReference ? "Activa" : "Pendiente"}</dd></div></dl>
+          <form action={sendAction} className="mt-4"><input name="documentId" type="hidden" value={detail.id} /><input name="documentType" type="hidden" value={detail.documentType} /><button className="btn-primary w-full disabled:opacity-60" disabled={sendPending || !readiness.eligible} type="submit">{readiness.eligible ? "Preparar invitaciones" : "Envío bloqueado"}</button></form>
           <Feedback state={sendState} />
+          {!["draft","completed","voided","expired"].includes(detail.status) && <div className="mt-4 grid gap-2"><form action={expireAction}><input name="documentId" type="hidden" value={detail.id} /><button className="btn-secondary w-full" disabled={expirePending} type="submit">Marcar expirada si corresponde</button></form><form action={voidAction}><input name="documentId" type="hidden" value={detail.id} /><button className="w-full rounded-lg border border-red-300 px-3 py-2 font-semibold text-red-800" disabled={voidPending} type="submit">Anular solicitud</button></form><Feedback state={expireState} /><Feedback state={voidState} /><Feedback state={resendState} /></div>}
         </section>
       </aside>
     </div>

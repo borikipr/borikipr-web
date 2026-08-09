@@ -1,17 +1,16 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { getAdminSession } from "@/lib/admin/auth";
 import {
   createSignatureAdminRepository,
   type SignatureDraftDetail,
 } from "@/lib/signatures/admin-repository";
-import {
-  getSignatureDocumentTypeDefinition,
-  isSignatureDocumentTypeApproved,
-} from "@/lib/signatures/document-classification";
-import { createSignatureDomainRuntime } from "@/lib/signatures/runtime";
+import { createSignatureDeliveryRuntime, createSignatureDomainRuntime } from "@/lib/signatures/runtime";
+import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { evaluateSignatureSendReadiness } from "@/lib/signatures/send-readiness";
+import { getSignatureSecurityConfig } from "@/lib/signatures/config";
 
 export type SignatureAdminActionState = Readonly<{
   ok: boolean;
@@ -178,24 +177,101 @@ export async function prepareSignatureSendAction(
   const documentId = value(formData, "documentId");
   const session = await getAdminSession();
   if (!session) return { ok: false, message: "Sesión expirada." };
-  const documentType = value(formData, "documentType");
-  const definition = getSignatureDocumentTypeDefinition(documentType);
-  if (!definition || !isSignatureDocumentTypeApproved(definition)) {
-    return {
-      ok: false,
-      message: "Este tipo de documento todavía no está autorizado para firma electrónica.",
-    };
-  }
   try {
-    const runtime = createSignatureDomainRuntime();
+    const runtime = createSignatureDeliveryRuntime();
+    const readiness = await evaluateSignatureSendReadiness({
+      database: runtime.database,
+      documentId,
+      locale: "es-PR",
+      publicSigningEnabled: isPublicSigningEnabled(),
+      eventKeysConfigured: Boolean(getSignatureSecurityConfig()),
+    });
+    if (!readiness.eligible) {
+      return {
+        ok: false,
+        message: `El envío permanece bloqueado: ${readiness.reasons.join(", ")}`,
+      };
+    }
     await runtime.domain.prepareDocumentForSend({
       documentId,
       actorAdminId: session.id,
       idempotencyKey: randomUUID(),
+      locale: "es-PR",
+      publicSigningEnabled: true,
     });
+    const detail = await createSignatureAdminRepository(runtime.database).detail(documentId);
+    if (!detail) throw new Error("signature_document_not_found");
+    for (const participant of detail.participants) {
+      await runtime.delivery.createIntent({
+        participantId: participant.id,
+        documentVersionId: detail.version.id,
+        locale: "es-PR",
+        actorAdminId: session.id,
+        idempotencyKey: randomUUID(),
+      });
+    }
     refresh(documentId);
-    return { ok: true, message: "Preparación completada." };
+    return { ok: true, message: "Preparación completada; invitaciones en cola." };
   } catch {
     return { ok: false, message: INITIAL_ERROR };
   }
+}
+
+export async function resendSignatureInvitationAction(
+  _state: SignatureAdminActionState,
+  formData: FormData
+): Promise<SignatureAdminActionState> {
+  const session = await getAdminSession();
+  if (!session || !isPublicSigningEnabled()) return { ok: false, message: "El reenvío permanece desactivado." };
+  const documentId = value(formData, "documentId");
+  try {
+    const runtime = createSignatureDeliveryRuntime();
+    const detail = await createSignatureAdminRepository(runtime.database).detail(documentId);
+    const participant = detail?.participants.find((item) => item.id === value(formData, "participantId"));
+    if (!detail || !participant) throw new Error("signature_participant_not_found");
+    const counts = await runtime.database.unsafe<{ count: number }>(
+      `SELECT count(*)::integer AS count FROM public.signature_delivery_intents
+        WHERE participant_id=$1::uuid AND delivery_kind='invitation'`, [participant.id]
+    );
+    const digest = createHash("sha256").update(`resend:${participant.id}:${counts[0]?.count ?? 0}`).digest("hex");
+    const idempotencyKey = `${digest.slice(0,8)}-${digest.slice(8,12)}-4${digest.slice(13,16)}-8${digest.slice(17,20)}-${digest.slice(20,32)}`;
+    await runtime.delivery.reissueInvitation({ participantId: participant.id,
+      documentVersionId: detail.version.id, locale: "es-PR", actorAdminId: session.id,
+      idempotencyKey });
+    refresh(documentId);
+    return { ok: true, message: "Reenvío puesto en cola." };
+  } catch { return { ok: false, message: "No se puede reenviar en el estado actual." }; }
+}
+
+export async function expireSignatureDocumentAction(
+  _state: SignatureAdminActionState,
+  formData: FormData
+): Promise<SignatureAdminActionState> {
+  const session = await getAdminSession();
+  if (!session) return { ok: false, message: "Sesión expirada." };
+  const documentId = value(formData, "documentId");
+  try {
+    await createSignatureDomainRuntime().domain.expireSignatureDocument({
+      documentId, idempotencyKey: value(formData, "idempotencyKey") || randomUUID(),
+    });
+    refresh(documentId);
+    return { ok: true, message: "Solicitud expirada." };
+  } catch { return { ok: false, message: "La solicitud todavía no es elegible para expirar." }; }
+}
+
+export async function voidSignatureDocumentAction(
+  _state: SignatureAdminActionState,
+  formData: FormData
+): Promise<SignatureAdminActionState> {
+  const session = await getAdminSession();
+  if (!session) return { ok: false, message: "Sesión expirada." };
+  const documentId = value(formData, "documentId");
+  try {
+    await createSignatureDomainRuntime().domain.transitionDocumentState({
+      documentId, targetStatus: "voided", actorClass: "admin", actorAdminId: session.id,
+      reason: "admin_voided", idempotencyKey: value(formData, "idempotencyKey") || randomUUID(),
+    });
+    refresh(documentId);
+    return { ok: true, message: "Solicitud anulada." };
+  } catch { return { ok: false, message: "No se puede anular en el estado actual." }; }
 }

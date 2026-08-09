@@ -37,6 +37,8 @@ const rollbackSql = await readFile(
   path.join(root, "db/migrations/0022_create_signature_foundation.rollback.sql"),
   "utf8"
 );
+const signerMigrationSql = await readFile(path.join(root, "db/migrations/0023_extend_signature_signer_evidence.sql"), "utf8");
+const deliveryMigrationSql = await readFile(path.join(root, "db/migrations/0024_add_signature_delivery_governance.sql"), "utf8");
 const SOURCE_HASH = "a".repeat(64);
 const FINAL_HASH = "b".repeat(64);
 const CERTIFICATE_HASH = "c".repeat(64);
@@ -90,6 +92,8 @@ before(async () => {
     await db.query(`SELECT id::text FROM public.lead_groups LIMIT 1`)
   ).rows[0].id;
   await db.exec(migrationSql);
+  await db.exec(signerMigrationSql);
+  await db.exec(deliveryMigrationSql);
 });
 
 beforeEach(async () => {
@@ -102,7 +106,10 @@ beforeEach(async () => {
       public.signature_fields,
       public.signature_participants,
       public.signature_document_versions,
-      public.signature_documents
+      public.signature_documents,
+      public.signature_delivery_intents,
+      public.signature_consent_versions,
+      public.signature_document_type_approvals
     CASCADE;
   `);
   services = createSignatureDomainServices({
@@ -205,17 +212,27 @@ async function sentFixture() {
       WHERE id=$1::uuid`,
     [fixture.documentVersionId, fieldDefinitionHash, FIXED_NOW.toISOString()]
   );
+  const approval = (await db.query(`INSERT INTO public.signature_document_type_approvals
+    (document_type,status,approval_reference,approval_date,reviewed_by,source_reference,effective_from)
+    VALUES ('ordinary_brokerage_agreement','approved','synthetic-test-fixture','2030-01-01',
+      'synthetic-reviewer','synthetic-source',$1) RETURNING id::text`, [new Date("2030-01-01T00:00:00Z")])).rows[0];
+  const consentText = "Synthetic consent text for isolated Phase 2B schema tests only.";
+  const consent = (await db.query(`INSERT INTO public.signature_consent_versions
+    (version_identifier,locale,consent_text,consent_text_sha256,status,effective_from,approval_reference,created_by_admin_id)
+    VALUES ('phase2b-synthetic-v1','es-PR',$1,$2,'approved',$3,'synthetic-test-fixture',$4::uuid)
+    RETURNING id::text`, [consentText, sha256SignatureValue(consentText), new Date("2030-01-01T00:00:00Z"), adminId])).rows[0];
   await db.query(
     `UPDATE public.signature_documents
         SET document_type_approval_reference='synthetic-test-fixture',
-            status='sent', sent_at=$2::timestamptz
+            document_type_approval_id=$2::uuid, consent_version_id=$3::uuid,
+            status='sent', sent_at=$4::timestamptz
       WHERE id=$1::uuid`,
-    [fixture.documentId, FIXED_NOW.toISOString()]
+    [fixture.documentId, approval.id, consent.id, FIXED_NOW.toISOString()]
   );
   return fixture;
 }
 
-test("0022 creates exactly the isolated signature foundation tables", async () => {
+test("latest isolated signing schema preserves the foundation tables", async () => {
   const rows = await db.query(`
     SELECT table_name FROM information_schema.tables
      WHERE table_schema = 'public' AND table_name LIKE 'signature_%'
@@ -224,6 +241,9 @@ test("0022 creates exactly the isolated signature foundation tables", async () =
   assert.deepEqual(
     rows.rows.map((row) => row.table_name),
     [
+      "signature_consent_versions",
+      "signature_delivery_intents",
+      "signature_document_type_approvals",
       "signature_document_versions",
       "signature_documents",
       "signature_events",
@@ -255,6 +275,8 @@ test("valid draft creation preserves the counsel gate", async () => {
       documentId: fixture.documentId,
       actorAdminId: adminId,
       idempotencyKey: randomUUID(),
+      locale: "es",
+      publicSigningEnabled: true,
     }),
     /signature_document_type_not_counsel_approved/
   );

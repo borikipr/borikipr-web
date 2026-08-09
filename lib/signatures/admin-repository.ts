@@ -42,6 +42,12 @@ export type SignatureDraftDetail = Readonly<{
     role: string;
     routingOrder: number | null;
     status: string;
+    invitedAt: string | Date | null;
+    viewedAt: string | Date | null;
+    consentedAt: string | Date | null;
+    completedAt: string | Date | null;
+    lastDeliveryStatus: string | null;
+    lastDeliveryAt: string | Date | null;
   }>[];
   fields: readonly Readonly<{
     id: string;
@@ -79,11 +85,16 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         created_at: string | Date;
         updated_at: string | Date;
         participant_count: number | bigint;
+        completed_participant_count: number | bigint;
+        last_delivery_status: string | null;
         page_count: number;
       }>(
         `SELECT d.id::text, d.title, d.document_type, d.status,
                 d.created_at, d.updated_at, v.page_count,
-                count(p.id)::integer AS participant_count
+                count(p.id)::integer AS participant_count,
+                count(p.id) FILTER (WHERE p.status='completed')::integer AS completed_participant_count,
+                (SELECT di.status FROM public.signature_delivery_intents di
+                  WHERE di.document_version_id=v.id ORDER BY di.created_at DESC LIMIT 1) AS last_delivery_status
            FROM public.signature_documents d
            JOIN public.signature_document_versions v ON v.id=d.active_version_id
            LEFT JOIN public.signature_participants p ON p.document_version_id=v.id
@@ -144,12 +155,26 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         role: string;
         routing_order: number | null;
         status: string;
+        invited_at: string | Date | null;
+        viewed_at: string | Date | null;
+        consented_at: string | Date | null;
+        completed_at: string | Date | null;
+        last_delivery_status: string | null;
+        last_delivery_at: string | Date | null;
       }>(
-        `SELECT id::text, canonical_lead_id::text, name_snapshot,
-                email_snapshot, role, routing_order, status
-           FROM public.signature_participants
-          WHERE document_version_id=$1::uuid
-          ORDER BY routing_order NULLS LAST, created_at, id`,
+        `SELECT p.id::text, p.canonical_lead_id::text, p.name_snapshot,
+                p.email_snapshot, p.role, p.routing_order, p.status,
+                p.invited_at, p.viewed_at, p.consented_at, p.completed_at,
+                last_delivery.status AS last_delivery_status,
+                last_delivery.delivered_at AS last_delivery_at
+           FROM public.signature_participants p
+           LEFT JOIN LATERAL (
+             SELECT di.status, di.delivered_at
+               FROM public.signature_delivery_intents di
+              WHERE di.participant_id=p.id ORDER BY di.created_at DESC LIMIT 1
+           ) last_delivery ON true
+          WHERE p.document_version_id=$1::uuid
+          ORDER BY p.routing_order NULLS LAST, p.created_at, p.id`,
         [documents[0].version_id]
       );
       const fields = await database.unsafe<{
@@ -221,6 +246,12 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
           role: participant.role,
           routingOrder: participant.routing_order,
           status: participant.status,
+          invitedAt: participant.invited_at,
+          viewedAt: participant.viewed_at,
+          consentedAt: participant.consented_at,
+          completedAt: participant.completed_at,
+          lastDeliveryStatus: participant.last_delivery_status,
+          lastDeliveryAt: participant.last_delivery_at,
         })),
         fields: normalizedFields,
         currentFieldDefinitionSha256: hashSignatureFieldDefinition({
@@ -252,6 +283,34 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
             sourceSha256: rows[0].source_sha256,
           }
         : null;
+    },
+
+    async completedDescriptor(documentId: string) {
+      if (!isSignatureUuid(documentId)) return null;
+      const rows = await database.unsafe<{
+        id: string; title: string; source_sha256: string; field_definition_sha256: string;
+        final_r2_key: string; final_filename: string; final_byte_count: number | bigint;
+        final_pdf_sha256: string; certificate_r2_key: string;
+        certificate_byte_count: number | bigint; certificate_sha256: string;
+        certificate_metadata: unknown;
+      }>(`SELECT d.id::text, d.title, v.source_sha256, v.field_definition_sha256,
+                  v.final_r2_key, v.final_filename, v.final_byte_count, v.final_pdf_sha256,
+                  v.certificate_r2_key, v.certificate_byte_count, v.certificate_sha256,
+                  v.certificate_metadata
+             FROM public.signature_documents d
+             JOIN public.signature_document_versions v ON v.id=d.active_version_id
+            WHERE d.id=$1::uuid AND d.status='completed' AND v.finalized_at IS NOT NULL`,
+        [documentId]);
+      return rows[0] ? {
+        documentId: rows[0].id, title: rows[0].title, sourceSha256: rows[0].source_sha256,
+        fieldDefinitionSha256: rows[0].field_definition_sha256,
+        final: { key: rows[0].final_r2_key, filename: rows[0].final_filename,
+          byteCount: Number(rows[0].final_byte_count), sha256: rows[0].final_pdf_sha256 },
+        certificate: { key: rows[0].certificate_r2_key,
+          filename: `${rows[0].title.slice(0, 180)} - certificado.pdf`,
+          byteCount: Number(rows[0].certificate_byte_count), sha256: rows[0].certificate_sha256 },
+        evidence: json<Record<string, unknown>>(rows[0].certificate_metadata),
+      } : null;
     },
 
     async linkageOptions() {

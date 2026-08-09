@@ -7,6 +7,9 @@ import { sql } from "@/lib/db";
 import { createSignatureAdminRepository } from "@/lib/signatures/admin-repository";
 import { getSignatureDocumentTypeDefinition, isSignatureDocumentTypeApproved } from "@/lib/signatures/document-classification";
 import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/database";
+import { evaluateSignatureSendReadiness } from "@/lib/signatures/send-readiness";
+import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { getSignatureSecurityConfig } from "@/lib/signatures/config";
 
 export default async function SignatureDraftPage({ params }: { params: Promise<{ id: string }> }) {
   if (!(await getAdminSessionUser())) redirect("/admin/login");
@@ -16,6 +19,12 @@ export default async function SignatureDraftPage({ params }: { params: Promise<{
   if (!detail) notFound();
   const definition = getSignatureDocumentTypeDefinition(detail.documentType);
   const approved = definition ? isSignatureDocumentTypeApproved(definition) : false;
+  let keysConfigured = false;
+  try { getSignatureSecurityConfig(); keysConfigured = true; } catch { keysConfigured = false; }
+  const readiness = await evaluateSignatureSendReadiness({
+    database: createPostgresSignatureDatabase(sql), documentId: id, locale: "es-PR",
+    publicSigningEnabled: isPublicSigningEnabled(), eventKeysConfigured: keysConfigured,
+  });
 
   return (
     <AdminPageShell>
@@ -30,7 +39,13 @@ export default async function SignatureDraftPage({ params }: { params: Promise<{
         <div className="min-w-0 sm:col-span-2"><p className="font-semibold text-[#555]">SHA-256 definición de campos</p><code className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap" title={detail.currentFieldDefinitionSha256}>{detail.currentFieldDefinitionSha256}</code></div>
       </section>
 
-      <SignatureDraftEditor detail={detail} />
+      {detail.status === "completed" && <section className="surface-card flex flex-wrap gap-3 p-5">
+        <Link className="btn-primary" href={`/admin/signatures/${detail.id}/final`}>Descargar PDF firmado</Link>
+        <Link className="btn-secondary" href={`/admin/signatures/${detail.id}/certificate`}>Descargar certificado</Link>
+        <Link className="btn-secondary" href={`/admin/signatures/${detail.id}/evidence`}>Ver resumen de evidencia</Link>
+      </section>}
+
+      <SignatureDraftEditor detail={detail} readiness={readiness} />
     </AdminPageShell>
   );
 }

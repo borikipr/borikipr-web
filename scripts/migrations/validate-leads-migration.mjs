@@ -1924,6 +1924,12 @@ const signatureSignerMigrationSql = await readMigration(
 const signatureSignerRollbackSql = await readMigration(
   "0023_extend_signature_signer_evidence.rollback.sql"
 );
+const signatureDeliveryMigrationSql = await readMigration(
+  "0024_add_signature_delivery_governance.sql"
+);
+const signatureDeliveryRollbackSql = await readMigration(
+  "0024_add_signature_delivery_governance.rollback.sql"
+);
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -1978,6 +1984,29 @@ try {
     vector_payload: true,
     signer_events: true,
   }]);
+  await signatureFoundationDb.exec(signatureDeliveryMigrationSql);
+  const deliveryCatalog = await signatureFoundationDb.query(`
+    SELECT
+      to_regclass('public.signature_document_type_approvals')::text AS approvals,
+      to_regclass('public.signature_consent_versions')::text AS consents,
+      to_regclass('public.signature_delivery_intents')::text AS deliveries,
+      EXISTS (SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='signature_documents'
+          AND column_name='consent_version_id') AS document_consent_binding,
+      EXISTS (SELECT 1 FROM pg_trigger
+        WHERE tgname='signature_consent_versions_immutable_trigger') AS consent_immutable,
+      EXISTS (SELECT 1 FROM pg_trigger
+        WHERE tgname='signature_type_approvals_immutable_trigger') AS approval_immutable
+  `);
+  assert.deepEqual(deliveryCatalog.rows, [{
+    approvals: "signature_document_type_approvals",
+    consents: "signature_consent_versions",
+    deliveries: "signature_delivery_intents",
+    document_consent_binding: true,
+    consent_immutable: true,
+    approval_immutable: true,
+  }]);
+  await signatureFoundationDb.exec(signatureDeliveryRollbackSql);
   await signatureFoundationDb.exec(signatureSignerRollbackSql);
   await signatureFoundationDb.exec(signatureFoundationRollbackSql);
   const signatureRollback = await signatureFoundationDb.query(`
@@ -1988,7 +2017,8 @@ try {
   assert.deepEqual(signatureRollback.rows, [{ signature_table_count: 0 }]);
   console.log("Validated the isolated signature foundation migration 0022.");
   console.log("Validated the disabled signer evidence extension migration 0023 and rollback.");
-  console.log("Verified eight tables, immutable evidence triggers, and empty rollback.");
+  console.log("Validated signature delivery governance migration 0024 and rollback.");
+  console.log("Verified governance, consent, delivery, immutable evidence, and empty rollback.");
 } finally {
   await signatureFoundationDb.close();
 }

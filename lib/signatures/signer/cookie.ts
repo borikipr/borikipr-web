@@ -1,6 +1,8 @@
 export const SIGNER_COOKIE_NAME = "borikipr_signer_session";
 export const SIGNER_CSRF_COOKIE_NAME = "borikipr_signer_csrf";
 export const SIGNER_COOKIE_PATH = "/firmar";
+export const COMPLETION_COOKIE_NAME = "borikipr_signature_completion";
+export const COMPLETION_COOKIE_PATH = "/firmar/completado";
 
 export function encodeSignerCookie(sessionId: string, sessionSecret: string) {
   return `${sessionId}.${sessionSecret}`;

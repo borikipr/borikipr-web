@@ -50,6 +50,8 @@ export type ImmutableSignaturePdfObject = Readonly<{
 export interface SignatureCompletedStorage extends SignatureSourceStorage {
   putFinal(input: ImmutableSignaturePdfObject): Promise<"created" | "existing">;
   putCertificate(input: ImmutableSignaturePdfObject): Promise<"created" | "existing">;
+  getFinal(input: { key: string; byteCount: number; sha256: string }): Promise<Uint8Array>;
+  getCertificate(input: { key: string; byteCount: number; sha256: string }): Promise<Uint8Array>;
 }
 
 export function sanitizeSignatureFilename(filename: string) {
@@ -181,6 +183,25 @@ export function createPrivateSignatureR2Storage(): SignatureCompletedStorage {
     }
   }
 
+  async function getImmutablePdf(
+    input: { key: string; byteCount: number; sha256: string },
+    keyPattern: RegExp,
+    maximumBytes: number
+  ) {
+    if (!keyPattern.test(input.key) || input.byteCount < 1 || input.byteCount > maximumBytes) {
+      throw new Error("signature_completed_descriptor_invalid");
+    }
+    const result = await client.send(new GetObjectCommand({ Bucket: config.bucketName, Key: input.key }));
+    if (!result.Body || result.ContentType !== "application/pdf") {
+      throw new Error("signature_completed_object_unavailable");
+    }
+    const bytes = await result.Body.transformToByteArray();
+    if (bytes.byteLength !== input.byteCount || sha256SignatureValue(bytes) !== input.sha256) {
+      throw new Error("signature_completed_object_integrity_failed");
+    }
+    return bytes;
+  }
+
   return {
     async putSource(input) {
       assertSourceObject(input);
@@ -230,5 +251,8 @@ export function createPrivateSignatureR2Storage(): SignatureCompletedStorage {
     putFinal: (input) => putImmutablePdf(input, FINAL_KEY_PATTERN, MAX_SIGNATURE_FINAL_BYTES),
     putCertificate: (input) =>
       putImmutablePdf(input, CERTIFICATE_KEY_PATTERN, MAX_SIGNATURE_CERTIFICATE_BYTES),
+    getFinal: (input) => getImmutablePdf(input, FINAL_KEY_PATTERN, MAX_SIGNATURE_FINAL_BYTES),
+    getCertificate: (input) =>
+      getImmutablePdf(input, CERTIFICATE_KEY_PATTERN, MAX_SIGNATURE_CERTIFICATE_BYTES),
   };
 }
