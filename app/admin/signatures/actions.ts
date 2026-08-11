@@ -8,7 +8,11 @@ import {
   type SignatureDraftDetail,
 } from "@/lib/signatures/admin-repository";
 import { createSignatureDeliveryRuntime, createSignatureDomainRuntime } from "@/lib/signatures/runtime";
-import { isInternalCanarySigningEnabled, isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import {
+  isInternalCanarySigningEnabled,
+  isPublicSigningEnabled,
+  isSignerRuntimeEnabled,
+} from "@/lib/signatures/public-config";
 import { isSignerAccessAuthorized } from "@/lib/signatures/canary-gate";
 import { evaluateSignatureSendReadiness } from "@/lib/signatures/send-readiness";
 import { getSignatureSecurityConfig } from "@/lib/signatures/config";
@@ -260,13 +264,17 @@ export async function resendSignatureInvitationAction(
   formData: FormData
 ): Promise<SignatureAdminActionState> {
   const session = await getAdminSession();
-  if (!session || !isPublicSigningEnabled()) return { ok: false, message: "El reenvío permanece desactivado." };
+  if (!session || !isSignerRuntimeEnabled()) return { ok: false, message: "El reenvío permanece desactivado." };
   const documentId = value(formData, "documentId");
   try {
     const runtime = createSignatureDeliveryRuntime();
     const detail = await createSignatureAdminRepository(runtime.database).detail(documentId);
     const participant = detail?.participants.find((item) => item.id === value(formData, "participantId"));
     if (!detail || !participant) throw new Error("signature_participant_not_found");
+    if (!(await isSignerAccessAuthorized(runtime.database, {
+      participantId: participant.id,
+      documentVersionId: detail.version.id,
+    }))) throw new Error("signature_participant_not_authorized");
     const counts = await runtime.database.unsafe<{ count: number }>(
       `SELECT count(*)::integer AS count FROM public.signature_delivery_intents
         WHERE participant_id=$1::uuid AND delivery_kind='invitation'`, [participant.id]

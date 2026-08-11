@@ -171,3 +171,21 @@ test("Admin editor exposes keyboard movement, participant assignment, limits, an
   assert.match(source, /overflow-auto/);
   assert.match(source, /aria-label/);
 });
+
+test("isolated delivery UI and invitation reissue remain server-gated", async () => {
+  const [actions, isolatedPage, isolatedControl, isolatedRoute] = await Promise.all([
+    readFile(path.join(root, "app/admin/signatures/actions.ts"), "utf8"),
+    readFile(path.join(root, "app/admin/signatures/isolated-delivery/page.tsx"), "utf8"),
+    readFile(path.join(root, "app/admin/signatures/isolated-delivery/IsolatedDeliveryControl.tsx"), "utf8"),
+    readFile(path.join(root, "app/api/admin/signatures/isolated-sink/route.ts"), "utf8"),
+  ]);
+  assert.match(actions, /resendSignatureInvitationAction[\s\S]*isSignerRuntimeEnabled\(\)/);
+  assert.match(actions, /resendSignatureInvitationAction[\s\S]*isSignerAccessAuthorized/);
+  assert.match(isolatedPage, /NODE_ENV === "production"/);
+  assert.match(isolatedPage, /SIGNING_ISOLATED_ENVIRONMENT/);
+  assert.match(isolatedPage, /SIGNING_ISOLATED_EMAIL_SINK/);
+  assert.match(isolatedPage, /getAdminSession/);
+  assert.match(isolatedControl, /\/api\/admin\/signatures\/isolated-sink/);
+  assert.doesNotMatch(isolatedControl, /localStorage|sessionStorage|console\./);
+  assert.match(isolatedRoute, /sameOrigin/);
+});
