@@ -28,12 +28,12 @@ const OPERATIONAL_CHECKS: ReadonlyArray<Readonly<{
   evidence: string;
 }>> = [
   { label: "DMARC del dominio remitente", state: "PASS", owner: "Operador DNS", evidence: "DMARC presente con p=none (monitoreo)." },
-  { label: "Límites de cuenta de Resend", state: "PASS", owner: "Operador Resend", evidence: "Cuenta Free verificada manualmente: 100/día y 3,000/mes." },
+  { label: "Límites de cuenta de Resend", state: "WARNING", owner: "Operador Resend", evidence: "Cuenta Free verificada manualmente: 100/día y 3,000/mes; el API no expone el rate limit específico." },
   { label: "Restauración aislada de Neon", state: "BLOCKED", owner: "Operador Neon", evidence: "Falta una restauración real en rama/base aislada; las pruebas de migración no sustituyen un restore." },
   { label: "Recuperación de objetos R2", state: "BLOCKED", owner: "Operador Cloudflare", evidence: "La durabilidad no recupera borrados; falta lock o copia independiente verificada." },
   { label: "Simulacro habilitado de escritorio", state: "PASS", owner: "QA", evidence: "Flujo Chromium sintético habilitado completado en ambiente aislado." },
   { label: "Simulacro habilitado móvil/touch", state: "PASS", owner: "QA", evidence: "Touch real emulado, dibujo y finalización completados en ambiente aislado." },
-  { label: "PDF máximo (25/8/100)", state: "PASS", owner: "Ingeniería", evidence: "Topología y finalización cubiertas por pruebas sintéticas automatizadas." },
+  { label: "PDF máximo (25/8/100)", state: "WARNING", owner: "Ingeniería", evidence: "Topología y finalización automatizadas aprobadas; falta una ejecución interactiva completa de 25 páginas en navegador." },
 ];
 
 const SUPPORT = [
