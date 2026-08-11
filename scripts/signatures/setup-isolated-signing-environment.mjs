@@ -72,6 +72,7 @@ if (!existing.rows[0]?.relation) {
     "0028_harden_signature_launch_governance.sql",
     "0029_add_signature_governance_workflows.sql",
     "0030_harden_signature_governance_workflow_immutability.sql",
+    "0031_add_signature_legal_holds.sql",
   ];
   for (const name of names) {
     await db.exec(await readFile(path.join(root, "db", "migrations", name), "utf8"));
@@ -106,6 +107,10 @@ const governanceRetirementColumn = await db.query(`SELECT count(*)::integer AS c
     AND table_name='signature_document_type_approvals' AND column_name='retired_at'`);
 if (governanceRetirementColumn.rows[0]?.count === 0) {
   await db.exec(await readFile(path.join(root,"db","migrations","0030_harden_signature_governance_workflow_immutability.sql"),"utf8"));
+}
+const legalHoldsTable = await db.query(`SELECT to_regclass('public.signature_legal_holds')::text AS relation`);
+if (!legalHoldsTable.rows[0]?.relation) {
+  await db.exec(await readFile(path.join(root,"db","migrations","0031_add_signature_legal_holds.sql"),"utf8"));
 }
 
 const passwordHash = await bcrypt.hash(password, 12);

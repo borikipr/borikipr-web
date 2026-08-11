@@ -5,6 +5,7 @@ import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
 import { createSignatureDomainRuntime } from "@/lib/signatures/runtime";
 import { COMPLETION_COOKIE_NAME, COMPLETION_COOKIE_PATH, encodeSignerCookie } from "@/lib/signatures/signer/cookie";
 import { sameSignerOrigin } from "@/lib/signatures/signer/request";
+import { isSignerAccessAuthorized } from "@/lib/signatures/canary-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +19,10 @@ export async function POST(request: Request) {
     const clientIp = getClientIp(request);
     const limit = await checkRateLimit({ key: `signature_completion_exchange:${clientIp}`, limit: 10, windowMs: 15 * 60_000 });
     if (!limit.allowed) return new Response(null, { status: 404 });
-    const session = await createSignatureDomainRuntime().domain.redeemCompletionAccessToken({
+    const runtime=createSignatureDomainRuntime();
+    const eligibility=await runtime.domain.inspectCompletionAccessToken(token);
+    if(!eligibility.eligible || !await isSignerAccessAuthorized(runtime.database,eligibility)) return new Response(null,{status:404});
+    const session = await runtime.domain.redeemCompletionAccessToken({
       plaintextToken: token, idempotencyKey: randomUUID(), networkAddress: clientIp,
       userAgent: request.headers.get("user-agent"),
     });

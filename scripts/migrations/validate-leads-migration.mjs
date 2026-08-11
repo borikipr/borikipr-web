@@ -1966,6 +1966,8 @@ const signatureGovernanceWorkflowHardeningMigrationSql = await readMigration(
 const signatureGovernanceWorkflowHardeningRollbackSql = await readMigration(
   "0030_harden_signature_governance_workflow_immutability.rollback.sql"
 );
+const signatureLegalHoldsMigrationSql = await readMigration("0031_add_signature_legal_holds.sql");
+const signatureLegalHoldsRollbackSql = await readMigration("0031_add_signature_legal_holds.rollback.sql");
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -2112,6 +2114,12 @@ try {
       AND table_name='signature_document_type_approvals' AND column_name='retired_at'
   ) AS classification_retirement`);
   assert.deepEqual(workflowHardeningCatalog.rows, [{ classification_retirement: true }]);
+  await signatureFoundationDb.exec(signatureLegalHoldsMigrationSql);
+  const legalHoldsCatalog = await signatureFoundationDb.query(`SELECT
+    to_regclass('public.signature_legal_holds')::text AS legal_holds,
+    EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='signature_legal_holds_immutable_trigger') AS immutable`);
+  assert.deepEqual(legalHoldsCatalog.rows, [{ legal_holds: 'signature_legal_holds', immutable: true }]);
+  await signatureFoundationDb.exec(signatureLegalHoldsRollbackSql);
   await signatureFoundationDb.exec(signatureGovernanceWorkflowHardeningRollbackSql);
   await signatureFoundationDb.exec(signatureGovernanceWorkflowRollbackSql);
   await signatureFoundationDb.exec(signatureLaunchGovernanceHardeningRollbackSql);
@@ -2136,6 +2144,7 @@ try {
   console.log("Validated signature launch governance hardening migration 0028 and rollback.");
   console.log("Validated signature governance workflow migration 0029 and rollback guard.");
   console.log("Validated signature governance immutability hardening migration 0030 and rollback.");
+  console.log("Validated persisted signature legal holds migration 0031 and rollback guard.");
   console.log("Verified governance, consent, delivery, immutable evidence, and empty rollback.");
 } finally {
   await signatureFoundationDb.close();

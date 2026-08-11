@@ -8,7 +8,8 @@ import {
   type SignatureDraftDetail,
 } from "@/lib/signatures/admin-repository";
 import { createSignatureDeliveryRuntime, createSignatureDomainRuntime } from "@/lib/signatures/runtime";
-import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { isInternalCanarySigningEnabled, isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { isSignerAccessAuthorized } from "@/lib/signatures/canary-gate";
 import { evaluateSignatureSendReadiness } from "@/lib/signatures/send-readiness";
 import { getSignatureSecurityConfig } from "@/lib/signatures/config";
 import { inspectSignatureRetentionPolicy } from "@/lib/signatures/retention-policy";
@@ -191,11 +192,22 @@ export async function prepareSignatureSendAction(
       },
     } } : inspectSignaturePrivacyDisclosure();
     const durableRetention = await loadActiveRetentionPolicy(runtime.database);
+    const authorizationDetail = await createSignatureAdminRepository(runtime.database).detail(documentId);
+    const publicEnabled = isPublicSigningEnabled();
+    const isolatedEnabled = isInternalCanarySigningEnabled();
+    const scopedProductionCanaryEnabled = Boolean(authorizationDetail?.participants.length) &&
+      Boolean(authorizationDetail?.version.id) &&
+      (await Promise.all((authorizationDetail?.participants ?? []).map((participant) =>
+        isSignerAccessAuthorized(runtime.database, {
+          participantId: participant.id,
+          documentVersionId: authorizationDetail!.version.id,
+        })
+      ))).every(Boolean);
     const readiness = await evaluateSignatureSendReadiness({
       database: runtime.database,
       documentId,
       locale: "es-PR",
-      publicSigningEnabled: isPublicSigningEnabled(),
+      publicSigningEnabled: publicEnabled || isolatedEnabled || scopedProductionCanaryEnabled,
       eventKeysConfigured: Boolean(getSignatureSecurityConfig()),
       retentionPolicyConfigured: Boolean(durableRetention) || inspectSignatureRetentionPolicy().configured,
       privacyDisclosureConfigured: privacy.configured,

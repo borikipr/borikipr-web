@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
 import { getCompletedArtifactDescriptor, safeCompletedFilename } from "@/lib/signatures/completed-access";
 import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
+import { assertSignerAccessAuthorized } from "@/lib/signatures/canary-gate";
 import { createSignatureRuntime } from "@/lib/signatures/runtime";
 import { COMPLETION_COOKIE_NAME, parseSignerCookie } from "@/lib/signatures/signer/cookie";
 
@@ -17,6 +18,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ kin
   try {
     const runtime = createSignatureRuntime();
     const context = await runtime.domain.getSessionContext({ ...parsed, purpose: "completed_document_access", touch: true });
+    await assertSignerAccessAuthorized(runtime.database,{participantId:context.participantId,documentVersionId:context.documentVersionId});
     const descriptor = await getCompletedArtifactDescriptor({ database: runtime.database,
       documentVersionId: context.documentVersionId, participantId: context.participantId, kind });
     if (!descriptor) return new Response(null, { status: 404 });

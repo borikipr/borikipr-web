@@ -7,7 +7,7 @@ import type { SignatureRetentionPolicy } from "./retention-policy";
 import { GOVERNANCE_APPROVAL_PHRASE } from "./governance-constants";
 
 type AuditInput = Readonly<{
-  entityType: "document_classification" | "consent_version" | "privacy_disclosure" | "retention_policy" | "launch_authorization";
+  entityType: "document_classification" | "consent_version" | "privacy_disclosure" | "retention_policy" | "launch_authorization" | "legal_hold";
   entityId: string;
   action: "created" | "submitted" | "approved" | "activated" | "retired" | "restricted" | "authorized" | "revoked";
   actorAdminId: string;
@@ -293,6 +293,20 @@ export function createSignatureGovernanceWorkflow(database: SignatureDatabase, c
         return rows[0];
       });
     },
+    async revokeProductionCanary(input: { id: string; actorAdminId: string; explicitConfirmation: boolean; idempotencyKey?: string }) {
+      if (!input.explicitConfirmation) throw new Error("signature_production_canary_revoke_confirmation_required");
+      return database.begin(async (tx) => {
+        const now = clock().toISOString();
+        const rows = await tx.unsafe<{id:string;readiness_snapshot_sha256:string}>(`UPDATE signature_launch_authorizations
+          SET status='revoked',revoked_at=$2::timestamptz
+          WHERE id=$1::uuid AND environment='production' AND authorization_type='internal_canary' AND status='active'
+          RETURNING id::text,readiness_snapshot_sha256`,[input.id,now]);
+        if (!rows[0]) throw new Error("signature_production_canary_revoke_rejected");
+        await audit(tx,{entityType:"launch_authorization",entityId:rows[0].id,action:"revoked",actorAdminId:input.actorAdminId,
+          previousState:"active",newState:"revoked",snapshot:{environment:"production",type:"internal_canary",readiness:rows[0].readiness_snapshot_sha256,revokedAt:now},idempotencyKey:input.idempotencyKey});
+        return rows[0];
+      });
+    },
   };
 }
 
@@ -304,6 +318,6 @@ export async function getSignatureRetentionPreview(database: SignatureQueryExecu
     (SELECT count(*)::int FROM signature_sessions WHERE completed_at IS NULL AND revoked_at IS NULL) sessions,
     (SELECT count(*)::int FROM signature_signing_tokens WHERE revoked_at IS NULL AND superseded_at IS NULL) tokens,
     (SELECT count(*)::int FROM signature_documents WHERE status='completed') completed,
-    0::int legal_holds`);
+    (SELECT count(*)::int FROM signature_legal_holds WHERE status='active') legal_holds`);
   return Object.freeze({ asOf: now.toISOString(), ...rows[0], destructiveActionPerformed: false as const });
 }

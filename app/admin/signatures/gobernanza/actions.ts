@@ -6,6 +6,7 @@ import { getAdminSession } from "@/lib/admin/auth";
 import { createSignatureDomainRuntime } from "@/lib/signatures/runtime";
 import { createSignatureGovernanceWorkflow } from "@/lib/signatures/governance-workflow";
 import { parseSignatureRetentionPolicy } from "@/lib/signatures/retention-policy";
+import { createSignatureLegalHoldService, type SignatureEvidenceClass } from "@/lib/signatures/legal-holds";
 
 export type GovernanceActionState = Readonly<{ ok: boolean; message: string }>;
 
@@ -102,4 +103,14 @@ export async function approveRetentionAction(_: GovernanceActionState, data: For
 }
 export async function activateRetentionAction(_: GovernanceActionState, data: FormData) {
   return run(async () => { const {session,workflow}=await context(); await workflow.activateRetention({id:value(data,"id"),actorAdminId:session.id,confirmationPhrase:value(data,"confirmationPhrase"),immutableAcknowledged:checked(data,"immutableAcknowledged"),idempotencyKey:randomUUID()}); }, "Política activada explícitamente.");
+}
+export async function placeLegalHoldAction(_: GovernanceActionState,data:FormData) {
+  return run(async()=>{const {session}=await context();const runtime=createSignatureDomainRuntime();
+    await createSignatureLegalHoldService(runtime.database).place({scopeType:"document",documentId:value(data,"documentId"),evidenceClasses:[] as SignatureEvidenceClass[],reasonReference:value(data,"reasonReference"),externalLegalReference:value(data,"externalLegalReference"),actorAdminId:session.id,idempotencyKey:randomUUID()});
+  },"Retención legal activa registrada de forma auditable.");
+}
+export async function releaseLegalHoldAction(_:GovernanceActionState,data:FormData) {
+  return run(async()=>{if(!checked(data,"immutableAcknowledged")||value(data,"confirmationPhrase")!=="LIBERAR RETENCION LEGAL") throw new Error("signature_legal_hold_release_confirmation_required");const {session}=await context();const runtime=createSignatureDomainRuntime();
+    await createSignatureLegalHoldService(runtime.database).release({id:value(data,"id"),releaseReference:value(data,"releaseReference"),actorAdminId:session.id,idempotencyKey:randomUUID()});
+  },"Liberación explícita registrada; el historial permanece inmutable.");
 }

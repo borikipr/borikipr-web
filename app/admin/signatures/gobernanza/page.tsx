@@ -32,10 +32,12 @@ const OPERATIONAL_CHECKS: ReadonlyArray<Readonly<{
   { label: "DMARC del dominio remitente", state: "PASS", owner: "Operador DNS", evidence: "DMARC presente con p=none (monitoreo)." },
   { label: "Límites de cuenta de Resend", state: "WARNING", owner: "Operador Resend", evidence: "Cuenta Free verificada manualmente: 100/día y 3,000/mes; el API no expone el rate limit específico." },
   { label: "Restauración aislada de Neon", state: "BLOCKED", owner: "Operador Neon", evidence: "Falta una restauración real en rama/base aislada; las pruebas de migración no sustituyen un restore." },
-  { label: "Recuperación de objetos R2", state: "BLOCKED", owner: "Operador Cloudflare", evidence: "La durabilidad no recupera borrados; falta lock o copia independiente verificada." },
+  { label: "Recuperación de objetos R2", state: "WARNING", owner: "Operador Cloudflare", evidence: "Copia privada controlada y restauración byte por byte probadas con objeto sintético; falta respaldo independiente del mismo bucket/cuenta." },
   { label: "Simulacro habilitado de escritorio", state: "PASS", owner: "QA", evidence: "Flujo Chromium sintético habilitado completado en ambiente aislado." },
   { label: "Simulacro habilitado móvil/touch", state: "PASS", owner: "QA", evidence: "Touch real emulado, dibujo y finalización completados en ambiente aislado." },
-  { label: "PDF máximo (25/8/100)", state: "WARNING", owner: "Ingeniería", evidence: "Topología y finalización automatizadas aprobadas; falta una ejecución interactiva completa de 25 páginas en navegador." },
+  { label: "PDF máximo (25/8/100)", state: "BLOCKED", owner: "Ingeniería", evidence: "UI real: 25 páginas, 100 overlays y 100 campos enviados. La finalización interactiva devolvió error seguro; requiere reproducción limpia y corrección antes del canary." },
+  { label: "Retenciones legales persistentes", state: "PASS", owner: "Ingeniería / Admin", evidence: "Persistencia, prioridad sobre retención, liberación explícita e historial inmutable validados." },
+  { label: "Puerta interna de canary", state: "PASS", owner: "Ingeniería / lanzamiento", evidence: "Separada de firma pública; exige bandera servidor, hash de readiness y autorización vigente con participante y clasificación exactos." },
   { label: "Flujo de mutación de gobernanza", state: "PASS", owner: "Ingeniería / Admin", evidence: "Borrador, revisión externa, confirmación fuerte, aprobación inmutable y auditoría del operador." },
   { label: "Autorización de canary de producción", state: "BLOCKED", owner: "Propietario / operador", evidence: "Infraestructura de alcance y expiración disponible; no existe autorización de producción y no se creó en esta fase." },
   { label: "Autorización de lanzamiento público", state: "BLOCKED", owner: "Propietario / legal", evidence: "READY no equivale a ENABLED; requiere autorización humana separada." },
@@ -55,7 +57,7 @@ const SUPPORT = [
 export default async function SignatureGovernancePage() {
   if (!(await getAdminSession())) redirect("/admin/login");
   const database = createPostgresSignatureDatabase(sql);
-  const [readiness, monitoring, retentionPreview, classifications, consents, privacy, retention] = await Promise.all([
+  const [readiness, monitoring, retentionPreview, classifications, consents, privacy, retention, documents, legalHolds] = await Promise.all([
     getSignatureGovernanceReadiness(database),
     getSignatureOperationalSnapshot(database),
     getSignatureRetentionPreview(database),
@@ -63,12 +65,16 @@ export default async function SignatureGovernancePage() {
     database.unsafe<{id:string;version_identifier:string;locale:string;status:string}>(`SELECT id::text,version_identifier,locale,status FROM signature_consent_versions WHERE status IN ('draft','pending_review') ORDER BY created_at DESC`),
     database.unsafe<{id:string;version_identifier:string;status:string}>(`SELECT id::text,version_identifier,status FROM signature_privacy_disclosure_versions WHERE status IN ('draft','pending_review') ORDER BY created_at DESC`),
     database.unsafe<{id:string;version_identifier:string;status:string}>(`SELECT id::text,version_identifier,status FROM signature_retention_policy_versions WHERE status IN ('draft','pending_review','approved') ORDER BY created_at DESC`),
+    database.unsafe<{id:string;title:string;status:string}>(`SELECT id::text,title,status FROM signature_documents ORDER BY created_at DESC LIMIT 100`),
+    database.unsafe<{id:string;reason_reference:string}>(`SELECT id::text,reason_reference FROM signature_legal_holds WHERE status='active' ORDER BY created_at DESC`),
   ]);
   const governanceDrafts = {
     classifications: classifications.map((row) => ({ id: row.id, label: `${row.document_type} v${row.version_number} · ${row.status}` })),
     consents: consents.map((row) => ({ id: row.id, label: `${row.locale} · ${row.version_identifier} · ${row.status}` })),
     privacy: privacy.map((row) => ({ id: row.id, label: `${row.version_identifier} · ${row.status}` })),
     retention: retention.map((row) => ({ id: row.id, label: `${row.version_identifier} · ${row.status}`, status: row.status })),
+    documents: documents.map(row=>({id:row.id,label:`${row.title} · ${row.status}`})),
+    legalHolds: legalHolds.map(row=>({id:row.id,label:row.reason_reference})),
   };
   const launchChecks: ReadonlyArray<Readonly<{ label: string; state: ReadinessState; owner: string; evidence: string }>> = [
     { label: "Clasificaciones aprobadas por asesoría legal", state: readiness.activeApprovalCount > 0 ? "PASS" as const : "BLOCKED" as const, owner: "Abogado licenciado / operador", evidence: readiness.activeApprovalCount > 0 ? `${readiness.activeApprovalCount} aprobación(es) vigente(s).` : "No existen aprobaciones vigentes; requiere decisión legal humana." },

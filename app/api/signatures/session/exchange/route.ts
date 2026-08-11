@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
 import { createSignatureDomainRuntime } from "@/lib/signatures/runtime";
+import { isSignerAccessAuthorized } from "@/lib/signatures/canary-gate";
 import {
   encodeSignerCookie,
   SIGNER_COOKIE_NAME,
@@ -28,7 +29,10 @@ export async function POST(request: Request) {
     const clientIp = getClientIp(request);
     const limit = await checkRateLimit({ key: `signature_exchange:${clientIp}`, limit: 10, windowMs: 15 * 60_000 });
     if (!limit.allowed) return new Response(null, { status: 404 });
-    const session = await createSignatureDomainRuntime().domain.redeemSigningToken({
+    const runtime = createSignatureDomainRuntime();
+    const eligibility = await runtime.domain.inspectSigningToken(token);
+    if (!eligibility.eligible || !await isSignerAccessAuthorized(runtime.database, eligibility)) return new Response(null,{status:404});
+    const session = await runtime.domain.redeemSigningToken({
       plaintextToken: token,
       idempotencyKey: randomUUID(),
       networkAddress: clientIp,

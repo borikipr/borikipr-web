@@ -169,6 +169,8 @@ if (!process.env.DATABASE_URL) {
           ,EXISTS (SELECT 1 FROM information_schema.columns
             WHERE table_schema='public' AND table_name='signature_document_type_approvals'
               AND column_name='retired_at') AS v0030
+          ,to_regclass('public.signature_legal_holds') IS NOT NULL
+            AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='signature_legal_holds_immutable_trigger') AS v0031
       )
       SELECT * FROM facts
     `;

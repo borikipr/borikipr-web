@@ -9,26 +9,39 @@ import { createSignatureAdminRepository } from "@/lib/signatures/admin-repositor
 import { getSignatureDocumentTypeDefinition, isSignatureDocumentTypeApproved } from "@/lib/signatures/document-classification";
 import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/database";
 import { evaluateSignatureSendReadiness } from "@/lib/signatures/send-readiness";
-import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { isInternalCanarySigningEnabled, isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { isSignerAccessAuthorized } from "@/lib/signatures/canary-gate";
 import { getSignatureSecurityConfig } from "@/lib/signatures/config";
 import { inspectSignatureRetentionPolicy } from "@/lib/signatures/retention-policy";
 import { inspectSignaturePrivacyDisclosure } from "@/lib/signatures/privacy-disclosure";
+import { loadActivePrivacyDisclosure, loadActiveRetentionPolicy } from "@/lib/signatures/governance-config";
 
 export default async function SignatureDraftPage({ params }: { params: Promise<{ id: string }> }) {
   if (!(await getAdminSessionUser())) redirect("/admin/login");
   const { id } = await params;
-  const repository = createSignatureAdminRepository(createPostgresSignatureDatabase(sql));
+  const database = createPostgresSignatureDatabase(sql);
+  const repository = createSignatureAdminRepository(database);
   const detail = await repository.detail(id);
   if (!detail) notFound();
   const definition = getSignatureDocumentTypeDefinition(detail.documentType);
   const approved = definition ? isSignatureDocumentTypeApproved(definition) : false;
   let keysConfigured = false;
   try { getSignatureSecurityConfig(); keysConfigured = true; } catch { keysConfigured = false; }
+  const [durableRetention,durablePrivacy,participantAuthorizations] = await Promise.all([
+    loadActiveRetentionPolicy(database),
+    loadActivePrivacyDisclosure(database),
+    Promise.all(detail.participants.map((participant) => isSignerAccessAuthorized(database, {
+      participantId: participant.id,
+      documentVersionId: detail.version.id,
+    }))),
+  ]);
+  const signingAccessEnabled = isPublicSigningEnabled() || isInternalCanarySigningEnabled() ||
+    (detail.participants.length > 0 && participantAuthorizations.every(Boolean));
   const readiness = await evaluateSignatureSendReadiness({
-    database: createPostgresSignatureDatabase(sql), documentId: id, locale: "es-PR",
-    publicSigningEnabled: isPublicSigningEnabled(), eventKeysConfigured: keysConfigured,
-    retentionPolicyConfigured: inspectSignatureRetentionPolicy().configured,
-    privacyDisclosureConfigured: inspectSignaturePrivacyDisclosure().configured,
+    database, documentId: id, locale: "es-PR",
+    publicSigningEnabled: signingAccessEnabled, eventKeysConfigured: keysConfigured,
+    retentionPolicyConfigured: Boolean(durableRetention) || inspectSignatureRetentionPolicy().configured,
+    privacyDisclosureConfigured: Boolean(durablePrivacy) || inspectSignaturePrivacyDisclosure().configured,
   });
 
   return (

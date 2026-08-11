@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { createSignatureDomainRuntime } from "../runtime";
 import { parseSignerCookie, SIGNER_COOKIE_NAME } from "./cookie";
+import { assertSignerAccessAuthorized } from "../canary-gate";
 export { isIsolatedLocalSignerRequest, sameSignerOrigin } from "./origin";
 
 export async function requireSignerRequestContext(options?: { csrfNonce?: string; touch?: boolean }) {
@@ -13,5 +14,6 @@ export async function requireSignerRequestContext(options?: { csrfNonce?: string
     csrfNonce: options?.csrfNonce,
     touch: options?.touch,
   });
+  await assertSignerAccessAuthorized(runtime.database, { participantId: context.participantId, documentVersionId: context.documentVersionId });
   return { runtime, ...parsed, context };
 }

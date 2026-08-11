@@ -1,14 +1,17 @@
 import { notFound } from "next/navigation";
 import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
 import { createSignatureDomainRuntime } from "@/lib/signatures/runtime";
+import { isSignerAccessAuthorized } from "@/lib/signatures/canary-gate";
 
 export const dynamic = "force-dynamic";
 
 export default async function CompletionAccessLanding({ params }: { params: Promise<{ token: string }> }) {
   if (!isSignerRuntimeEnabled()) notFound();
   const { token } = await params;
-  const eligibility = await createSignatureDomainRuntime().domain.inspectCompletionAccessToken(token);
+  const runtime=createSignatureDomainRuntime();
+  const eligibility = await runtime.domain.inspectCompletionAccessToken(token);
   if (!eligibility.eligible) notFound();
+  if (!await isSignerAccessAuthorized(runtime.database,eligibility)) notFound();
   return <section className="mx-auto flex min-h-screen max-w-xl items-center px-5 py-12">
     <div className="w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">BorikiPR</p>
