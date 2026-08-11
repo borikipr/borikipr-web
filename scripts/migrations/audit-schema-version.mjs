@@ -157,6 +157,9 @@ if (!process.env.DATABASE_URL) {
             AND to_regclass('public.signature_retention_policy_versions') IS NOT NULL
             AND to_regclass('public.signature_launch_authorizations') IS NOT NULL
             AND to_regclass('public.signature_governance_events') IS NOT NULL AS v0027
+          ,EXISTS (SELECT 1 FROM pg_trigger
+            WHERE tgname='signature_launch_authorizations_immutable_trigger'
+              AND NOT tgisinternal) AS v0028
       )
       SELECT * FROM facts
     `;

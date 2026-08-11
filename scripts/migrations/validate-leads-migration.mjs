@@ -1948,6 +1948,12 @@ const signatureLaunchGovernanceMigrationSql = await readMigration(
 const signatureLaunchGovernanceRollbackSql = await readMigration(
   "0027_add_signature_launch_governance.rollback.sql"
 );
+const signatureLaunchGovernanceHardeningMigrationSql = await readMigration(
+  "0028_harden_signature_launch_governance.sql"
+);
+const signatureLaunchGovernanceHardeningRollbackSql = await readMigration(
+  "0028_harden_signature_launch_governance.rollback.sql"
+);
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -2072,6 +2078,12 @@ try {
     governance_events: "signature_governance_events",
     events_immutable: true,
   }]);
+  await signatureFoundationDb.exec(signatureLaunchGovernanceHardeningMigrationSql);
+  const hardeningCatalog = await signatureFoundationDb.query(`SELECT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname='signature_launch_authorizations_immutable_trigger'
+  ) AS launch_authorization_immutable`);
+  assert.deepEqual(hardeningCatalog.rows, [{ launch_authorization_immutable: true }]);
+  await signatureFoundationDb.exec(signatureLaunchGovernanceHardeningRollbackSql);
   await signatureFoundationDb.exec(signatureLaunchGovernanceRollbackSql);
   await signatureFoundationDb.exec(signaturePrivacyHistoryRollbackSql);
   await signatureFoundationDb.exec(signaturePrivacyBindingRollbackSql);
@@ -2090,6 +2102,7 @@ try {
   console.log("Validated signature privacy disclosure binding migration 0025 and rollback.");
   console.log("Validated durable signature privacy disclosure history migration 0026 and rollback.");
   console.log("Validated signature launch governance migration 0027 and rollback.");
+  console.log("Validated signature launch governance hardening migration 0028 and rollback.");
   console.log("Verified governance, consent, delivery, immutable evidence, and empty rollback.");
 } finally {
   await signatureFoundationDb.close();

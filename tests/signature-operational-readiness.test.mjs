@@ -23,6 +23,7 @@ const migrations = await Promise.all([
   "0025_bind_signature_privacy_disclosure.sql",
   "0026_preserve_signature_privacy_disclosure_text.sql",
   "0027_add_signature_launch_governance.sql",
+  "0028_harden_signature_launch_governance.sql",
 ].map((name) => readFile(path.join(root, "db/migrations", name), "utf8")));
 const db = new PGlite();
 const executor = (source) => ({ async unsafe(query, parameters = []) { return (await source.query(query, parameters)).rows; } });
@@ -124,6 +125,7 @@ test("governance versions are durable, audited, and require explicit launch conf
   await service.activateRetention({ id: policyId, actorAdminId: adminId });
   await assert.rejects(service.authorize({ environment: "isolated", authorizationType: "internal_canary", readinessSnapshotSha256: "a".repeat(64), expiresAt: new Date("2032-05-02"), actorAdminId: adminId, explicitConfirmation: false }), /confirmation_required/);
   await service.authorize({ environment: "isolated", authorizationType: "internal_canary", readinessSnapshotSha256: "a".repeat(64), expiresAt: new Date("2032-05-02"), actorAdminId: adminId, explicitConfirmation: true });
+  await assert.rejects(db.query(`UPDATE public.signature_launch_authorizations SET notes='rewritten'`), /immutable/);
   const counts = (await db.query(`SELECT (SELECT count(*)::int FROM signature_governance_events) events,(SELECT count(*)::int FROM signature_launch_authorizations) authorizations`)).rows[0];
   assert.deepEqual(counts, { events: 5, authorizations: 1 });
   await assert.rejects(db.query(`DELETE FROM signature_governance_events`), /immutable/);
