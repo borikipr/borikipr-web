@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
 import { requireSignerRequestContext, sameSignerOrigin } from "@/lib/signatures/signer/request";
 import { SIGNER_COOKIE_NAME, SIGNER_COOKIE_PATH, SIGNER_CSRF_COOKIE_NAME } from "@/lib/signatures/signer/cookie";
 
 export async function POST(request: Request) {
-  if (!isPublicSigningEnabled() || !sameSignerOrigin(request)) return new Response(null, { status: 404 });
+  if (!isSignerRuntimeEnabled() || !sameSignerOrigin(request)) return new Response(null, { status: 404 });
   const form = await request.formData().catch(() => null);
   const csrfNonce = String(form?.get("csrf") ?? "");
   try {

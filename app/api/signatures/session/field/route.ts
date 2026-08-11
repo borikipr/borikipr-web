@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
 import { requireSignerRequestContext, sameSignerOrigin } from "@/lib/signatures/signer/request";
 import type { DrawnStroke } from "@/lib/signatures/prototype/types";
 
@@ -12,7 +12,7 @@ function parseStrokes(value: FormDataEntryValue | null): readonly DrawnStroke[] 
 }
 
 export async function POST(request: Request) {
-  if (!isPublicSigningEnabled() || !sameSignerOrigin(request)) return new Response(null, { status: 404 });
+  if (!isSignerRuntimeEnabled() || !sameSignerOrigin(request)) return new Response(null, { status: 404 });
   const form = await request.formData().catch(() => null);
   if (!form) return new Response(null, { status: 400 });
   const csrfNonce = String(form.get("csrf") ?? "");

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
 import { createSignerRepository } from "@/lib/signatures/signer/repository";
 import { requireSignerRequestContext } from "@/lib/signatures/signer/request";
 import { SIGNER_CSRF_COOKIE_NAME } from "@/lib/signatures/signer/cookie";
@@ -11,7 +11,7 @@ import SignerFieldForm from "./SignerFieldForm";
 export const dynamic = "force-dynamic";
 
 export default async function SignerSessionPage() {
-  if (!isPublicSigningEnabled()) notFound();
+  if (!isSignerRuntimeEnabled()) notFound();
   try {
     const signer = await requireSignerRequestContext({ touch: true });
     const csrf = (await cookies()).get(SIGNER_CSRF_COOKIE_NAME)?.value;

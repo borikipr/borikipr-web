@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
-import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
 import { createSignatureDomainRuntime } from "@/lib/signatures/runtime";
 import {
   encodeSignerCookie,
@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const isolatedLocalDevelopment = isIsolatedLocalSignerRequest(request);
-  if (!isPublicSigningEnabled()) return new Response(null, { status: 404 });
+  if (!isSignerRuntimeEnabled()) return new Response(null, { status: 404 });
   if (!sameSignerOrigin(request)) return new Response(null, { status: 404 });
   const form = await request.formData().catch(() => null);
   const token = String(form?.get("token") ?? "");

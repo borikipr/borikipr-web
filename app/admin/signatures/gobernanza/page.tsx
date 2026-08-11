@@ -19,7 +19,7 @@ const BLOCKERS: Record<string, string> = {
   public_signing_disabled: "La firma pública permanece desactivada.",
 };
 
-type ReadinessState = "READY" | "BLOCKED" | "NOT CONFIGURED" | "REQUIRES LEGAL APPROVAL" | "REQUIRES OPERATOR ACTION";
+type ReadinessState = "PASS" | "BLOCKED" | "WARNING" | "NOT APPLICABLE";
 
 const OPERATIONAL_CHECKS: ReadonlyArray<Readonly<{
   label: string;
@@ -27,13 +27,13 @@ const OPERATIONAL_CHECKS: ReadonlyArray<Readonly<{
   owner: string;
   evidence: string;
 }>> = [
-  { label: "DMARC del dominio remitente", state: "REQUIRES OPERATOR ACTION", owner: "Operador DNS", evidence: "Verificar y documentar el registro antes del canary." },
-  { label: "Límites de cuenta de Resend", state: "REQUIRES OPERATOR ACTION", owner: "Operador Resend", evidence: "Settings → Usage; registrar cuota diaria, mensual y rate limit." },
+  { label: "DMARC del dominio remitente", state: "PASS", owner: "Operador DNS", evidence: "DMARC presente con p=none (monitoreo)." },
+  { label: "Límites de cuenta de Resend", state: "PASS", owner: "Operador Resend", evidence: "Cuenta Free verificada manualmente: 100/día y 3,000/mes." },
   { label: "Restauración aislada de Neon", state: "BLOCKED", owner: "Operador Neon", evidence: "Falta una restauración real en rama/base aislada; las pruebas de migración no sustituyen un restore." },
   { label: "Recuperación de objetos R2", state: "BLOCKED", owner: "Operador Cloudflare", evidence: "La durabilidad no recupera borrados; falta lock o copia independiente verificada." },
-  { label: "Simulacro habilitado de escritorio", state: "REQUIRES OPERATOR ACTION", owner: "QA", evidence: "Requiere ambiente aislado con base y almacenamiento sintéticos." },
-  { label: "Simulacro habilitado móvil/touch", state: "REQUIRES OPERATOR ACTION", owner: "QA", evidence: "Requiere ambiente aislado con base y almacenamiento sintéticos." },
-  { label: "PDF máximo (25/8/100)", state: "READY", owner: "Ingeniería", evidence: "Topología y límites cubiertos por pruebas sintéticas automatizadas." },
+  { label: "Simulacro habilitado de escritorio", state: "PASS", owner: "QA", evidence: "Flujo Chromium sintético habilitado completado en ambiente aislado." },
+  { label: "Simulacro habilitado móvil/touch", state: "PASS", owner: "QA", evidence: "Touch real emulado, dibujo y finalización completados en ambiente aislado." },
+  { label: "PDF máximo (25/8/100)", state: "PASS", owner: "Ingeniería", evidence: "Topología y finalización cubiertas por pruebas sintéticas automatizadas." },
 ];
 
 const SUPPORT = [
@@ -55,11 +55,11 @@ export default async function SignatureGovernancePage() {
     getSignatureOperationalSnapshot(database),
   ]);
   const launchChecks: ReadonlyArray<Readonly<{ label: string; state: ReadinessState; owner: string; evidence: string }>> = [
-    { label: "Clasificaciones aprobadas por asesoría legal", state: readiness.activeApprovalCount > 0 ? "READY" as const : "REQUIRES LEGAL APPROVAL" as const, owner: "Abogado licenciado / operador", evidence: readiness.activeApprovalCount > 0 ? `${readiness.activeApprovalCount} aprobación(es) vigente(s).` : "No existen aprobaciones vigentes." },
-    ...readiness.consentSlots.map((slot) => ({ label: `Consentimiento ${slot.locale}`, state: slot.approved ? "READY" as const : "REQUIRES LEGAL APPROVAL" as const, owner: "Abogado licenciado / operador", evidence: slot.approved ? "Versión aprobada y vigente." : "Falta texto exacto, referencia y aprobación." })),
-    { label: "Divulgación de privacidad", state: readiness.privacyDisclosure.configured ? "READY" as const : "NOT CONFIGURED" as const, owner: "Legal / privacidad / operador", evidence: readiness.privacyDisclosure.configured ? "Ambos idiomas configurados con hashes." : "Falta texto versionado y aprobado en es-PR y en-US." },
-    { label: "Política de retención", state: readiness.retention.configured ? "READY" as const : "NOT CONFIGURED" as const, owner: "Legal / negocio / operador", evidence: readiness.retention.configured ? "Configuración validada; evidencia completada protegida según política." : "La ausencia mantiene toda limpieza de evidencia completada desactivada." },
-    { label: "Bandera de firma pública", state: readiness.publicSigningEnabled ? "READY" as const : "BLOCKED" as const, owner: "Propietario / lanzamiento", evidence: readiness.publicSigningEnabled ? "Habilitada." : "Desactivada; requiere autorización separada." },
+    { label: "Clasificaciones aprobadas por asesoría legal", state: readiness.activeApprovalCount > 0 ? "PASS" as const : "BLOCKED" as const, owner: "Abogado licenciado / operador", evidence: readiness.activeApprovalCount > 0 ? `${readiness.activeApprovalCount} aprobación(es) vigente(s).` : "No existen aprobaciones vigentes; requiere decisión legal humana." },
+    ...readiness.consentSlots.map((slot) => ({ label: `Consentimiento ${slot.locale}`, state: slot.approved ? "PASS" as const : "BLOCKED" as const, owner: "Abogado licenciado / operador", evidence: slot.approved ? "Versión aprobada y vigente." : "Falta texto exacto, referencia y aprobación legal." })),
+    { label: "Divulgación de privacidad", state: readiness.privacyDisclosure.configured ? "PASS" as const : "BLOCKED" as const, owner: "Legal / privacidad / operador", evidence: readiness.privacyDisclosure.configured ? "Ambos idiomas configurados con hashes." : "Falta texto versionado y aprobado en es-PR y en-US." },
+    { label: "Política de retención", state: readiness.retention.configured ? "PASS" as const : "BLOCKED" as const, owner: "Legal / negocio / operador", evidence: readiness.retention.configured ? "Configuración validada; evidencia completada protegida según política." : "La ausencia mantiene toda limpieza desactivada y bloquea lanzamiento." },
+    { label: "Bandera de firma pública desactivada", state: readiness.publicSigningEnabled ? "WARNING" as const : "PASS" as const, owner: "Propietario / lanzamiento", evidence: readiness.publicSigningEnabled ? "Habilitada; revisar autorización inmediatamente." : "Desactivada. READY no equivale a ENABLED." },
     ...OPERATIONAL_CHECKS,
   ];
   return <AdminPageShell>

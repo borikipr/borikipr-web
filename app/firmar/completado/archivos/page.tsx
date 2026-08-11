@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
 import { createSignatureDomainRuntime } from "@/lib/signatures/runtime";
 import { COMPLETION_COOKIE_NAME, parseSignerCookie } from "@/lib/signatures/signer/cookie";
 
 export const dynamic = "force-dynamic";
 
 export default async function CompletedFilesPage() {
-  if (!isPublicSigningEnabled()) notFound();
+  if (!isSignerRuntimeEnabled()) notFound();
   const parsed = parseSignerCookie((await cookies()).get(COMPLETION_COOKIE_NAME)?.value);
   if (!parsed) notFound();
   let title: string;

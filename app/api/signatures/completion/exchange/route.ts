@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
-import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
 import { createSignatureDomainRuntime } from "@/lib/signatures/runtime";
 import { COMPLETION_COOKIE_NAME, COMPLETION_COOKIE_PATH, encodeSignerCookie } from "@/lib/signatures/signer/cookie";
 import { sameSignerOrigin } from "@/lib/signatures/signer/request";
@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  if (!isPublicSigningEnabled() || !sameSignerOrigin(request)) return new Response(null, { status: 404 });
+  if (!isSignerRuntimeEnabled() || !sameSignerOrigin(request)) return new Response(null, { status: 404 });
   const form = await request.formData().catch(() => null);
   const token = String(form?.get("token") ?? "");
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return new Response(null, { status: 404 });

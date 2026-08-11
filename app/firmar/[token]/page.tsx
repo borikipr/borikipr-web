@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
-import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
 import { createSignatureDomainRuntime } from "@/lib/signatures/runtime";
 
 export const dynamic = "force-dynamic";
 
 export default async function SigningLanding({ params }: { params: Promise<{ token: string }> }) {
-  if (!isPublicSigningEnabled()) notFound();
+  if (!isSignerRuntimeEnabled()) notFound();
   const { token } = await params;
   const eligibility = await createSignatureDomainRuntime().domain.inspectSigningToken(token);
   if (!eligibility.eligible) notFound();

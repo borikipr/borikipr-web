@@ -139,6 +139,24 @@ if (!process.env.DATABASE_URL) {
               WHERE table_schema='public' AND table_name='signature_documents'
                 AND column_name='consent_version_id'
             ) AS v0024
+          ,EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='signature_documents'
+              AND column_name='privacy_disclosure_version'
+          ) AS v0025
+          ,EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='signature_documents'
+              AND column_name='privacy_disclosure_es_pr_text'
+          ) AND EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='signature_documents'
+              AND column_name='privacy_disclosure_en_us_text'
+          ) AS v0026
+          ,to_regclass('public.signature_privacy_disclosure_versions') IS NOT NULL
+            AND to_regclass('public.signature_retention_policy_versions') IS NOT NULL
+            AND to_regclass('public.signature_launch_authorizations') IS NOT NULL
+            AND to_regclass('public.signature_governance_events') IS NOT NULL AS v0027
       )
       SELECT * FROM facts
     `;

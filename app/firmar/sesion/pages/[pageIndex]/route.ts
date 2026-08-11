@@ -1,4 +1,4 @@
-import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
 import { requireSignerRequestContext } from "@/lib/signatures/signer/request";
 import { createSignerRepository } from "@/lib/signatures/signer/repository";
 import { createPrivateSignatureStorage } from "@/lib/signatures/storage";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 const HEADERS = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex, nofollow, noarchive" };
 
 export async function GET(_request: Request, { params }: { params: Promise<{ pageIndex: string }> }) {
-  if (!isPublicSigningEnabled()) return new Response(null, { status: 404, headers: HEADERS });
+  if (!isSignerRuntimeEnabled()) return new Response(null, { status: 404, headers: HEADERS });
   try {
     const signer = await requireSignerRequestContext();
     const descriptor = await createSignerRepository(signer.runtime.database).sourceDescriptor(signer.context.documentVersionId);

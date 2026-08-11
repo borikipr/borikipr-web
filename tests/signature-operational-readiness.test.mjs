@@ -11,6 +11,8 @@ import { inspectSignatureEventKeyCoverage } from "../lib/signatures/key-rotation
 import { getSignatureOperationalSnapshot } from "../lib/signatures/monitoring.ts";
 import { evaluateSignatureRetention, parseSignatureRetentionPolicy } from "../lib/signatures/retention-policy.ts";
 import { parseSignaturePrivacyDisclosure } from "../lib/signatures/privacy-disclosure.ts";
+import { createSignatureGovernanceConfigurationService } from "../lib/signatures/governance-config.ts";
+import { isInternalCanarySigningEnabled, isSignerRuntimeEnabled } from "../lib/signatures/public-config.ts";
 
 const root = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const deliverySource = await readFile(path.join(root, "lib/signatures/delivery.ts"), "utf8");
@@ -20,6 +22,7 @@ const migrations = await Promise.all([
   "0024_add_signature_delivery_governance.sql",
   "0025_bind_signature_privacy_disclosure.sql",
   "0026_preserve_signature_privacy_disclosure_text.sql",
+  "0027_add_signature_launch_governance.sql",
 ].map((name) => readFile(path.join(root, "db/migrations", name), "utf8")));
 const db = new PGlite();
 const executor = (source) => ({ async unsafe(query, parameters = []) { return (await source.query(query, parameters)).rows; } });
@@ -34,7 +37,9 @@ before(async () => {
   adminId = (await db.query(`SELECT id::text FROM public.admin_users LIMIT 1`)).rows[0].id;
   for (const migration of migrations) await db.exec(migration);
 });
-beforeEach(async () => db.exec(`TRUNCATE public.signature_events, public.signature_field_values,
+beforeEach(async () => db.exec(`TRUNCATE public.signature_governance_events, public.signature_launch_authorizations,
+  public.signature_retention_policy_versions, public.signature_privacy_disclosure_versions,
+  public.signature_events, public.signature_field_values,
   public.signature_sessions, public.signature_delivery_intents, public.signature_signing_tokens,
   public.signature_fields, public.signature_participants, public.signature_document_versions,
   public.signature_documents, public.signature_consent_versions,
@@ -102,6 +107,28 @@ test("production signing mail requires an explicit Reply-To without logging it",
   assert.doesNotMatch(deliverySource, /console\.(?:log|info|warn|error)/);
 });
 
+test("internal canary gate is isolated-only and never weakens production", () => {
+  assert.equal(isInternalCanarySigningEnabled({ NODE_ENV: "production", SIGNING_ISOLATED_ENVIRONMENT: "true", SIGNING_INTERNAL_CANARY_ENABLED: "true" }), false);
+  assert.equal(isInternalCanarySigningEnabled({ NODE_ENV: "development", SIGNING_ISOLATED_ENVIRONMENT: "false", SIGNING_INTERNAL_CANARY_ENABLED: "true" }), false);
+  assert.equal(isSignerRuntimeEnabled({ NODE_ENV: "development", SIGNING_ISOLATED_ENVIRONMENT: "true", SIGNING_INTERNAL_CANARY_ENABLED: "true", SIGNING_PUBLIC_ENABLED: "false" }), true);
+  assert.equal(isSignerRuntimeEnabled({ NODE_ENV: "production", SIGNING_INTERNAL_CANARY_ENABLED: "true", SIGNING_PUBLIC_ENABLED: "false" }), false);
+});
+
+test("governance versions are durable, audited, and require explicit launch confirmation", async () => {
+  const service = createSignatureGovernanceConfigurationService(database, () => new Date("2032-05-01T00:00:00Z"));
+  const privacyId = await service.createPrivacyDraft({ versionIdentifier: "synthetic-privacy-v2", esPRText: "Texto sintético de privacidad suficientemente largo.", enUSText: "Synthetic privacy wording sufficiently long for tests.", actorAdminId: adminId });
+  await service.approvePrivacy({ id: privacyId, approvalReference: "TEST-ONLY", effectiveFrom: new Date("2032-05-01"), actorAdminId: adminId });
+  await assert.rejects(db.query(`UPDATE public.signature_privacy_disclosure_versions SET es_pr_text='changed after approval' WHERE id=$1`, [privacyId]), /immutable/);
+  const policy = parseSignatureRetentionPolicy(policyJson);
+  const policyId = await service.createRetentionDraft({ versionIdentifier: "synthetic-retention-v2", approvalReference: "TEST-ONLY", privacyReference: "TEST-ONLY", policy, actorAdminId: adminId });
+  await service.activateRetention({ id: policyId, actorAdminId: adminId });
+  await assert.rejects(service.authorize({ environment: "isolated", authorizationType: "internal_canary", readinessSnapshotSha256: "a".repeat(64), expiresAt: new Date("2032-05-02"), actorAdminId: adminId, explicitConfirmation: false }), /confirmation_required/);
+  await service.authorize({ environment: "isolated", authorizationType: "internal_canary", readinessSnapshotSha256: "a".repeat(64), expiresAt: new Date("2032-05-02"), actorAdminId: adminId, explicitConfirmation: true });
+  const counts = (await db.query(`SELECT (SELECT count(*)::int FROM signature_governance_events) events,(SELECT count(*)::int FROM signature_launch_authorizations) authorizations`)).rows[0];
+  assert.deepEqual(counts, { events: 5, authorizations: 1 });
+  await assert.rejects(db.query(`DELETE FROM signature_governance_events`), /immutable/);
+});
+
 test("governance readiness reports every fail-closed launch requirement", async () => {
   const blocked = await getSignatureGovernanceReadiness(database, environment(), new Date("2032-05-01"));
   assert.equal(blocked.launchReady, false);
@@ -109,7 +136,6 @@ test("governance readiness reports every fail-closed launch requirement", async 
     "counsel_approval_missing", "approved_consent_es_pr_missing",
     "approved_consent_en_us_missing", "retention_policy_missing",
     "privacy_disclosure_missing",
-    "public_signing_disabled",
   ]));
   assert.equal(blocked.evidenceKeysConfigured, true);
 });

@@ -398,7 +398,7 @@ test("signer routes enforce the server gate, same-origin POSTs, private headers,
     readFile(path.join(root, "next.config.ts"), "utf8"),
     readFile(path.join(root, "lib/signatures/storage.ts"), "utf8"),
   ]);
-  for (const route of [landing, exchange, consent, field, complete]) assert.match(route, /isPublicSigningEnabled/);
+  for (const route of [landing, exchange, consent, field, complete]) assert.match(route, /isSignerRuntimeEnabled/);
   for (const route of [exchange, consent, field, complete]) assert.match(route, /sameSignerOrigin/);
   assert.match(exchange, /checkRateLimit/); assert.match(exchange, /httpOnly: true/); assert.match(exchange, /sameSite: "strict"/);
   assert.match(exchange, /secure: !isolatedLocalDevelopment/); assert.match(exchange, /encodeSignerCookie\(session\.sessionId, session\.sessionSecret\)/);

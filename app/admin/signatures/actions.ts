@@ -13,6 +13,7 @@ import { evaluateSignatureSendReadiness } from "@/lib/signatures/send-readiness"
 import { getSignatureSecurityConfig } from "@/lib/signatures/config";
 import { inspectSignatureRetentionPolicy } from "@/lib/signatures/retention-policy";
 import { inspectSignaturePrivacyDisclosure } from "@/lib/signatures/privacy-disclosure";
+import { loadActivePrivacyDisclosure, loadActiveRetentionPolicy } from "@/lib/signatures/governance-config";
 
 export type SignatureAdminActionState = Readonly<{
   ok: boolean;
@@ -181,14 +182,22 @@ export async function prepareSignatureSendAction(
   if (!session) return { ok: false, message: "Sesión expirada." };
   try {
     const runtime = createSignatureDeliveryRuntime();
-    const privacy = inspectSignaturePrivacyDisclosure();
+    const durablePrivacy = await loadActivePrivacyDisclosure(runtime.database);
+    const privacy = durablePrivacy ? { configured: true as const, disclosure: {
+      version: durablePrivacy.version_identifier, approvalReference: durablePrivacy.approval_reference,
+      effectiveFrom: new Date(durablePrivacy.effective_from).toISOString(), locales: {
+        "es-PR": { text: durablePrivacy.es_pr_text, sha256: durablePrivacy.es_pr_sha256 },
+        "en-US": { text: durablePrivacy.en_us_text, sha256: durablePrivacy.en_us_sha256 },
+      },
+    } } : inspectSignaturePrivacyDisclosure();
+    const durableRetention = await loadActiveRetentionPolicy(runtime.database);
     const readiness = await evaluateSignatureSendReadiness({
       database: runtime.database,
       documentId,
       locale: "es-PR",
       publicSigningEnabled: isPublicSigningEnabled(),
       eventKeysConfigured: Boolean(getSignatureSecurityConfig()),
-      retentionPolicyConfigured: inspectSignatureRetentionPolicy().configured,
+      retentionPolicyConfigured: Boolean(durableRetention) || inspectSignatureRetentionPolicy().configured,
       privacyDisclosureConfigured: privacy.configured,
     });
     if (!readiness.eligible) {
