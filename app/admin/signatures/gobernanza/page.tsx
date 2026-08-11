@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
-import { getAdminSessionUser } from "@/lib/admin/auth";
+import { getAdminSession } from "@/lib/admin/auth";
 import { sql } from "@/lib/db";
 import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/database";
 import { getSignatureGovernanceReadiness } from "@/lib/signatures/governance-readiness";
 import { getSignatureOperationalSnapshot } from "@/lib/signatures/monitoring";
+import { getSignatureRetentionPreview } from "@/lib/signatures/governance-workflow";
+import { GovernanceForms } from "./GovernanceForms";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +21,7 @@ const BLOCKERS: Record<string, string> = {
   public_signing_disabled: "La firma pública permanece desactivada.",
 };
 
-type ReadinessState = "PASS" | "BLOCKED" | "WARNING" | "NOT APPLICABLE";
+type ReadinessState = "PASS" | "BLOCKED" | "WARNING" | "DEFERRED" | "NOT APPLICABLE";
 
 const OPERATIONAL_CHECKS: ReadonlyArray<Readonly<{
   label: string;
@@ -34,6 +36,9 @@ const OPERATIONAL_CHECKS: ReadonlyArray<Readonly<{
   { label: "Simulacro habilitado de escritorio", state: "PASS", owner: "QA", evidence: "Flujo Chromium sintético habilitado completado en ambiente aislado." },
   { label: "Simulacro habilitado móvil/touch", state: "PASS", owner: "QA", evidence: "Touch real emulado, dibujo y finalización completados en ambiente aislado." },
   { label: "PDF máximo (25/8/100)", state: "WARNING", owner: "Ingeniería", evidence: "Topología y finalización automatizadas aprobadas; falta una ejecución interactiva completa de 25 páginas en navegador." },
+  { label: "Flujo de mutación de gobernanza", state: "PASS", owner: "Ingeniería / Admin", evidence: "Borrador, revisión externa, confirmación fuerte, aprobación inmutable y auditoría del operador." },
+  { label: "Autorización de canary de producción", state: "BLOCKED", owner: "Propietario / operador", evidence: "Infraestructura de alcance y expiración disponible; no existe autorización de producción y no se creó en esta fase." },
+  { label: "Autorización de lanzamiento público", state: "BLOCKED", owner: "Propietario / legal", evidence: "READY no equivale a ENABLED; requiere autorización humana separada." },
 ];
 
 const SUPPORT = [
@@ -48,12 +53,23 @@ const SUPPORT = [
 ] as const;
 
 export default async function SignatureGovernancePage() {
-  if (!(await getAdminSessionUser())) redirect("/admin/login");
+  if (!(await getAdminSession())) redirect("/admin/login");
   const database = createPostgresSignatureDatabase(sql);
-  const [readiness, monitoring] = await Promise.all([
+  const [readiness, monitoring, retentionPreview, classifications, consents, privacy, retention] = await Promise.all([
     getSignatureGovernanceReadiness(database),
     getSignatureOperationalSnapshot(database),
+    getSignatureRetentionPreview(database),
+    database.unsafe<{id:string;document_type:string;version_number:number;status:string}>(`SELECT id::text,document_type,version_number,status FROM signature_document_type_approvals WHERE status IN ('draft','pending') ORDER BY created_at DESC`),
+    database.unsafe<{id:string;version_identifier:string;locale:string;status:string}>(`SELECT id::text,version_identifier,locale,status FROM signature_consent_versions WHERE status IN ('draft','pending_review') ORDER BY created_at DESC`),
+    database.unsafe<{id:string;version_identifier:string;status:string}>(`SELECT id::text,version_identifier,status FROM signature_privacy_disclosure_versions WHERE status IN ('draft','pending_review') ORDER BY created_at DESC`),
+    database.unsafe<{id:string;version_identifier:string;status:string}>(`SELECT id::text,version_identifier,status FROM signature_retention_policy_versions WHERE status IN ('draft','pending_review','approved') ORDER BY created_at DESC`),
   ]);
+  const governanceDrafts = {
+    classifications: classifications.map((row) => ({ id: row.id, label: `${row.document_type} v${row.version_number} · ${row.status}` })),
+    consents: consents.map((row) => ({ id: row.id, label: `${row.locale} · ${row.version_identifier} · ${row.status}` })),
+    privacy: privacy.map((row) => ({ id: row.id, label: `${row.version_identifier} · ${row.status}` })),
+    retention: retention.map((row) => ({ id: row.id, label: `${row.version_identifier} · ${row.status}`, status: row.status })),
+  };
   const launchChecks: ReadonlyArray<Readonly<{ label: string; state: ReadinessState; owner: string; evidence: string }>> = [
     { label: "Clasificaciones aprobadas por asesoría legal", state: readiness.activeApprovalCount > 0 ? "PASS" as const : "BLOCKED" as const, owner: "Abogado licenciado / operador", evidence: readiness.activeApprovalCount > 0 ? `${readiness.activeApprovalCount} aprobación(es) vigente(s).` : "No existen aprobaciones vigentes; requiere decisión legal humana." },
     ...readiness.consentSlots.map((slot) => ({ label: `Consentimiento ${slot.locale}`, state: slot.approved ? "PASS" as const : "BLOCKED" as const, owner: "Abogado licenciado / operador", evidence: slot.approved ? "Versión aprobada y vigente." : "Falta texto exacto, referencia y aprobación legal." })),
@@ -82,6 +98,10 @@ export default async function SignatureGovernancePage() {
     <section className="surface-card overflow-hidden"><h2 className="p-5 text-lg font-semibold">Matriz de preparación operativa</h2><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead className="bg-slate-950 text-left text-white"><tr><th className="p-3">Control</th><th className="p-3">Estado</th><th className="p-3">Responsable</th><th className="p-3">Evidencia pendiente/actual</th></tr></thead><tbody>{launchChecks.map((item) => <tr className="border-b" key={item.label}><td className="p-3 font-medium">{item.label}</td><td className="p-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold">{item.state}</span></td><td className="p-3">{item.owner}</td><td className="p-3 text-[#555]">{item.evidence}</td></tr>)}</tbody></table></div></section>
 
     <section className="surface-card p-5"><h2 className="text-lg font-semibold">Pasos del operador (sin fabricar aprobaciones)</h2><ol className="mt-4 list-decimal space-y-2 pl-5 text-sm"><li>Obtener del abogado licenciado la clasificación, decisión, referencia, fecha efectiva y alcance.</li><li>Crear una decisión pendiente por tipo y registrar la decisión legal. Revocar cuando corresponda; no editar evidencia aprobada.</li><li>Crear versiones nuevas e independientes del consentimiento es-PR y en-US con el texto exacto aprobado.</li><li>Verificar el SHA-256 mostrado contra el texto aprobado y registrar la referencia de aprobación y vigencia.</li><li>Para reemplazar texto, retirar la versión anterior y crear otra; nunca editar una versión aprobada.</li><li>Confirmar que esta pantalla muestre la clasificación vigente y ambos locales aprobados. La bandera pública sigue siendo una autorización separada.</li></ol></section>
+
+    <section className="surface-card p-5"><h2 className="text-lg font-semibold">Vista previa de retención (solo agregados)</h2><p className="mt-2 text-sm text-slate-600">Calculada {new Date(retentionPreview.asOf).toLocaleString("es-PR")}. Esta vista no elimina ni modifica registros.</p><dl className="mt-4 grid gap-3 sm:grid-cols-5"><div><dt>Borradores</dt><dd className="text-xl font-semibold">{retentionPreview.drafts}</dd></div><div><dt>Sesiones activas</dt><dd className="text-xl font-semibold">{retentionPreview.sessions}</dd></div><div><dt>Tokens activos</dt><dd className="text-xl font-semibold">{retentionPreview.tokens}</dd></div><div><dt>Completados protegidos</dt><dd className="text-xl font-semibold">{retentionPreview.completed}</dd></div><div><dt>Retenciones legales</dt><dd className="text-xl font-semibold">{retentionPreview.legal_holds}</dd></div></dl></section>
+
+    <GovernanceForms drafts={governanceDrafts} />
 
     <section className="surface-card p-5"><h2 className="text-lg font-semibold">Monitoreo agregado</h2><dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">{Object.entries(monitoring).map(([label, value]) => <div className="rounded-lg border p-3" key={label}><dt className="font-semibold">{label.replaceAll("_", " ")}</dt><dd className="mt-1 text-2xl">{value}</dd></div>)}</dl></section>
 

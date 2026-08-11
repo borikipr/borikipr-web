@@ -68,6 +68,10 @@ if (!existing.rows[0]?.relation) {
     "0024_add_signature_delivery_governance.sql",
     "0025_bind_signature_privacy_disclosure.sql",
     "0026_preserve_signature_privacy_disclosure_text.sql",
+    "0027_add_signature_launch_governance.sql",
+    "0028_harden_signature_launch_governance.sql",
+    "0029_add_signature_governance_workflows.sql",
+    "0030_harden_signature_governance_workflow_immutability.sql",
   ];
   for (const name of names) {
     await db.exec(await readFile(path.join(root, "db", "migrations", name), "utf8"));
@@ -80,6 +84,28 @@ const privacyTextColumns = await db.query(`SELECT count(*)::integer AS count
    AND column_name IN ('privacy_disclosure_es_pr_text','privacy_disclosure_en_us_text')`);
 if (privacyTextColumns.rows[0]?.count === 0) {
   await db.exec(await readFile(path.join(root, "db", "migrations", "0026_preserve_signature_privacy_disclosure_text.sql"), "utf8"));
+}
+const governanceWorkflowColumns = await db.query(`SELECT count(*)::integer AS count
+  FROM information_schema.columns WHERE table_schema='public'
+    AND table_name='signature_document_type_approvals' AND column_name='counsel_name'`);
+if (governanceWorkflowColumns.rows[0]?.count === 0) {
+  for (const name of ["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql"]) {
+    const fingerprint = name.startsWith("0027") ? "signature_privacy_disclosure_versions"
+      : name.startsWith("0028") ? "signature_launch_authorizations_immutable_trigger" : null;
+    if (fingerprint) {
+      const exists = fingerprint.endsWith("trigger")
+        ? (await db.query(`SELECT EXISTS(SELECT 1 FROM pg_trigger WHERE tgname=$1) AS present`,[fingerprint])).rows[0].present
+        : (await db.query(`SELECT to_regclass($1)::text AS relation`,[`public.${fingerprint}`])).rows[0].relation;
+      if (exists) continue;
+    }
+    await db.exec(await readFile(path.join(root,"db","migrations",name),"utf8"));
+  }
+}
+const governanceRetirementColumn = await db.query(`SELECT count(*)::integer AS count
+  FROM information_schema.columns WHERE table_schema='public'
+    AND table_name='signature_document_type_approvals' AND column_name='retired_at'`);
+if (governanceRetirementColumn.rows[0]?.count === 0) {
+  await db.exec(await readFile(path.join(root,"db","migrations","0030_harden_signature_governance_workflow_immutability.sql"),"utf8"));
 }
 
 const passwordHash = await bcrypt.hash(password, 12);
@@ -100,14 +126,18 @@ const admin = (await db.query(
 await db.query(
   `INSERT INTO public.signature_document_type_approvals (
      document_type, status, approval_reference, approval_date, reviewed_by,
-     source_reference, notes, effective_from
+     source_reference, notes, effective_from, version_number, display_name,
+     description, permitted_signing_use, created_by_admin_id, entered_by_admin_id,
+     counsel_name, counsel_law_firm, submitted_at, approved_at
    ) SELECT 'ordinary_brokerage_agreement','approved','TEST-NON-PRODUCTION',
             current_date,'Synthetic Test Harness','TEST-NON-PRODUCTION',
-            'Synthetic isolated drill only',now()
+            'Synthetic isolated drill only',now(),1,'Synthetic isolated classification',
+            'TEST / NON-PRODUCTION','Synthetic isolated signing only',$1::uuid,$1::uuid,
+            'Synthetic External Reviewer','Synthetic Test Firm',now(),now()
      WHERE NOT EXISTS (
        SELECT 1 FROM public.signature_document_type_approvals
         WHERE document_type='ordinary_brokerage_agreement' AND status='approved'
-     )`
+  )`, [admin.id]
 );
 
 for (const [locale, identifier, text] of [
@@ -119,8 +149,10 @@ for (const [locale, identifier, text] of [
   await db.query(
     `INSERT INTO public.signature_consent_versions (
        version_identifier, locale, consent_text, consent_text_sha256, status,
-       effective_from, approval_reference, created_by_admin_id
-     ) VALUES ($1,$2,$3,$4,'approved',now(),'TEST-NON-PRODUCTION',$5::uuid)
+       effective_from, approval_reference, created_by_admin_id,submitted_at,approved_at,
+       approved_by_admin_id,external_reviewer_name,external_reviewer_reference
+     ) VALUES ($1,$2,$3,$4,'approved',now(),'TEST-NON-PRODUCTION',$5::uuid,now(),now(),
+       $5::uuid,'Synthetic External Reviewer','TEST-NON-PRODUCTION')
      ON CONFLICT (version_identifier, locale) DO NOTHING`,
     [identifier, locale, text, hash, admin.id]
   );

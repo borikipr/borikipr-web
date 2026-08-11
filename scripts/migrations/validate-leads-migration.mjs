@@ -1954,6 +1954,18 @@ const signatureLaunchGovernanceHardeningMigrationSql = await readMigration(
 const signatureLaunchGovernanceHardeningRollbackSql = await readMigration(
   "0028_harden_signature_launch_governance.rollback.sql"
 );
+const signatureGovernanceWorkflowMigrationSql = await readMigration(
+  "0029_add_signature_governance_workflows.sql"
+);
+const signatureGovernanceWorkflowRollbackSql = await readMigration(
+  "0029_add_signature_governance_workflows.rollback.sql"
+);
+const signatureGovernanceWorkflowHardeningMigrationSql = await readMigration(
+  "0030_harden_signature_governance_workflow_immutability.sql"
+);
+const signatureGovernanceWorkflowHardeningRollbackSql = await readMigration(
+  "0030_harden_signature_governance_workflow_immutability.rollback.sql"
+);
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -2083,6 +2095,25 @@ try {
     SELECT 1 FROM pg_trigger WHERE tgname='signature_launch_authorizations_immutable_trigger'
   ) AS launch_authorization_immutable`);
   assert.deepEqual(hardeningCatalog.rows, [{ launch_authorization_immutable: true }]);
+  await signatureFoundationDb.exec(signatureGovernanceWorkflowMigrationSql);
+  const workflowCatalog = await signatureFoundationDb.query(`SELECT
+    EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public'
+      AND table_name='signature_document_type_approvals' AND column_name='counsel_name') AS external_counsel,
+    EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public'
+      AND table_name='signature_retention_policy_versions' AND column_name='policy_sha256') AS policy_hash,
+    EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public'
+      AND table_name='signature_governance_events' AND column_name='previous_state') AS state_audit,
+    EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public'
+      AND table_name='signature_launch_authorizations' AND column_name='authorized_participant_scope') AS canary_scope`);
+  assert.deepEqual(workflowCatalog.rows, [{ external_counsel: true, policy_hash: true, state_audit: true, canary_scope: true }]);
+  await signatureFoundationDb.exec(signatureGovernanceWorkflowHardeningMigrationSql);
+  const workflowHardeningCatalog = await signatureFoundationDb.query(`SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns WHERE table_schema='public'
+      AND table_name='signature_document_type_approvals' AND column_name='retired_at'
+  ) AS classification_retirement`);
+  assert.deepEqual(workflowHardeningCatalog.rows, [{ classification_retirement: true }]);
+  await signatureFoundationDb.exec(signatureGovernanceWorkflowHardeningRollbackSql);
+  await signatureFoundationDb.exec(signatureGovernanceWorkflowRollbackSql);
   await signatureFoundationDb.exec(signatureLaunchGovernanceHardeningRollbackSql);
   await signatureFoundationDb.exec(signatureLaunchGovernanceRollbackSql);
   await signatureFoundationDb.exec(signaturePrivacyHistoryRollbackSql);
@@ -2103,6 +2134,8 @@ try {
   console.log("Validated durable signature privacy disclosure history migration 0026 and rollback.");
   console.log("Validated signature launch governance migration 0027 and rollback.");
   console.log("Validated signature launch governance hardening migration 0028 and rollback.");
+  console.log("Validated signature governance workflow migration 0029 and rollback guard.");
+  console.log("Validated signature governance immutability hardening migration 0030 and rollback.");
   console.log("Verified governance, consent, delivery, immutable evidence, and empty rollback.");
 } finally {
   await signatureFoundationDb.close();

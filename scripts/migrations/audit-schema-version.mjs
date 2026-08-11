@@ -160,6 +160,15 @@ if (!process.env.DATABASE_URL) {
           ,EXISTS (SELECT 1 FROM pg_trigger
             WHERE tgname='signature_launch_authorizations_immutable_trigger'
               AND NOT tgisinternal) AS v0028
+          ,EXISTS (SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='signature_document_type_approvals'
+              AND column_name='counsel_name')
+            AND EXISTS (SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='signature_governance_events'
+              AND column_name='previous_state') AS v0029
+          ,EXISTS (SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='signature_document_type_approvals'
+              AND column_name='retired_at') AS v0030
       )
       SELECT * FROM facts
     `;
