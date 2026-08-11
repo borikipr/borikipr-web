@@ -388,9 +388,10 @@ test("0023 stores no plaintext token, consent copy, or PDF body", async () => {
 });
 
 test("signer routes enforce the server gate, same-origin POSTs, private headers, and no email/public storage", async () => {
-  const [landing, sessionPage, exchange, consent, field, complete, config, storage] = await Promise.all([
+  const [landing, sessionPage, documentViewer, exchange, consent, field, complete, config, storage] = await Promise.all([
     readFile(path.join(root, "app/firmar/[token]/page.tsx"), "utf8"),
     readFile(path.join(root, "app/firmar/sesion/page.tsx"), "utf8"),
+    readFile(path.join(root, "app/firmar/sesion/SignerDocumentViewer.tsx"), "utf8"),
     readFile(path.join(root, "app/api/signatures/session/exchange/route.ts"), "utf8"),
     readFile(path.join(root, "app/api/signatures/session/consent/route.ts"), "utf8"),
     readFile(path.join(root, "app/api/signatures/session/field/route.ts"), "utf8"),
@@ -408,4 +409,9 @@ test("signer routes enforce the server gate, same-origin POSTs, private headers,
   assert.doesNotMatch(storage, /publicUrl|presign|R2_PUBLIC_BASE_URL/);
   assert.match(sessionPage, /privacy_disclosure_es_pr_text/);
   assert.doesNotMatch(sessionPage, /inspectSignaturePrivacyDisclosure/);
+  assert.match(sessionPage, /SignerDocumentViewer pageCount=\{view\.page_count\}/);
+  assert.match(documentViewer, /src=\{`\/firmar\/sesion\/pages\/\$\{pageIndex\}`\}/);
+  assert.equal(documentViewer.match(/<Image/g)?.length, 1);
+  assert.match(documentViewer, /max-h-\[75vh\]/);
+  assert.match(documentViewer, /overscroll-contain/);
 });

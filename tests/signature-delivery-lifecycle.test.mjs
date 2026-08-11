@@ -5,6 +5,7 @@ import path from "node:path";
 import test, { after, before, beforeEach } from "node:test";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
+import { PDFDocument } from "pdf-lib";
 import { createSignatureDomainServices } from "../lib/signatures/domain/service.ts";
 import { createSignatureGovernanceService } from "../lib/signatures/governance.ts";
 import { createSignatureDeliveryService } from "../lib/signatures/delivery.ts";
@@ -55,11 +56,11 @@ beforeEach(async () => {
 });
 after(() => db.close());
 
-async function fixture({ approval = true, consent = true } = {}) {
+async function fixture({ approval = true, consent = true, pdfBytes = sourceBytes, geometries = [geometry] } = {}) {
   if (approval) { const record = await governance.createPendingApproval({ documentType: "ordinary_brokerage_agreement" }); await governance.recordCounselDecision({ approvalId: record.approvalId, status: "approved", approvalReference: "SYNTHETIC-ONLY", approvalDate: "2032-04-30", reviewedBy: "Synthetic Reviewer", sourceReference: "synthetic-fixture", effectiveFrom: new Date("2032-05-01T00:00:00Z") }); }
   if (consent) { const record = await governance.createConsentDraft({ versionIdentifier: "phase2e-synthetic-v1", locale: "es-PR", consentText: "CONSENTIMIENTO SINTÉTICO NO APROBADO PARA PRODUCCIÓN. Prueba técnica aislada.", createdByAdminId: adminId }); await governance.approveConsent({ consentVersionId: record.consentVersionId, approvalReference: "SYNTHETIC-ONLY", effectiveFrom: new Date("2032-05-01T00:00:00Z") }); }
   const documentId = randomUUID();
-  const draft = await domain.createDraftWithVersion({ documentId, title: "Synthetic Phase 2E request", documentType: "ordinary_brokerage_agreement", createdByAdminId: adminId, expiresAt: new Date("2032-05-03T12:00:00Z"), filename: "synthetic.pdf", byteCount: sourceBytes.byteLength, pageCount: 1, sourceSha256: sha256SignatureValue(sourceBytes), pageGeometryManifest: [geometry], documentCreatedIdempotencyKey: randomUUID(), versionCreatedIdempotencyKey: randomUUID() });
+  const draft = await domain.createDraftWithVersion({ documentId, title: "Synthetic Phase 2E request", documentType: "ordinary_brokerage_agreement", createdByAdminId: adminId, expiresAt: new Date("2032-05-03T12:00:00Z"), filename: "synthetic.pdf", byteCount: pdfBytes.byteLength, pageCount: geometries.length, sourceSha256: sha256SignatureValue(pdfBytes), pageGeometryManifest: geometries, documentCreatedIdempotencyKey: randomUUID(), versionCreatedIdempotencyKey: randomUUID() });
   const participant = await domain.addParticipant({ documentVersionId: draft.documentVersionId, nameSnapshot: "Synthetic Participant", emailSnapshot: "synthetic@example.test", role: "buyer", routingOrder: 1, actorAdminId: adminId, idempotencyKey: randomUUID() });
   const field = await domain.addField({ documentVersionId: draft.documentVersionId, participantId: participant.participantId, fieldType: "signature", pageIndex: 0, rect: { x: .1, y: .7, width: .35, height: .1 }, pageGeometryReference: geometry, label: "Firma sintética", required: true, tabOrder: 1, validationLimits: { maxLength: 120 }, actorAdminId: adminId, idempotencyKey: randomUUID() });
   return { ...draft, documentId, participantId: participant.participantId, fieldId: field.fieldId };
@@ -192,6 +193,76 @@ test("synthetic invitation signs, finalizes, and yields participant-bound privat
   const descriptor = await getCompletedArtifactDescriptor({ database, documentVersionId: accessContext.documentVersionId, participantId: accessContext.participantId, kind: "document" });
   assert.ok(descriptor); assert.equal((await storage.getFinal(descriptor)).byteLength, descriptor.byteCount);
   assert.equal((await domain.verifyEventChain(value.documentId)).valid, true); assert.equal(sentMessages.length, 2);
+});
+
+test("browser-equivalent 25-page 100-field multi-participant state finalizes after the last participant", async () => {
+  const source = await PDFDocument.create();
+  const geometries = Array.from({ length: 25 }, (_, pageIndex) => {
+    source.addPage([612, 792]);
+    return { ...geometry, pageIndex };
+  });
+  const maximumSourceBytes = new Uint8Array(await source.save({ useObjectStreams: false }));
+  const value = await fixture({ pdfBytes: maximumSourceBytes, geometries });
+  const participantIds = [value.participantId];
+  for (const [name, role] of [["Synthetic Participant B", "seller"], ["Synthetic Participant C", "broker"]]) {
+    participantIds.push((await domain.addParticipant({ documentVersionId: value.documentVersionId,
+      nameSnapshot: name, emailSnapshot: `${role}@example.test`, role, routingOrder: null,
+      actorAdminId: adminId, idempotencyKey: randomUUID() })).participantId);
+  }
+  const fields = [{ fieldId: value.fieldId, participantId: value.participantId, fieldType: "signature" }];
+  const fieldTypes = ["text", "signature", "date", "initials"];
+  for (let index = 1; index < 100; index += 1) {
+    const participantId = participantIds[index % participantIds.length];
+    const fieldType = fieldTypes[index % fieldTypes.length];
+    const created = await domain.addField({ documentVersionId: value.documentVersionId, participantId,
+      fieldType, pageIndex: index % 25, rect: { x: .35, y: .45, width: fieldType === "date" || fieldType === "initials" ? .18 : .3, height: .07 },
+      pageGeometryReference: geometries[index % 25], label: `Synthetic ${fieldType} ${index}`, required: true,
+      tabOrder: index + 1, validationLimits: { maxLength: 120 }, actorAdminId: adminId,
+      idempotencyKey: randomUUID() });
+    fields.push({ fieldId: created.fieldId, participantId, fieldType });
+  }
+  const readiness = await evaluateSignatureSendReadiness({ database, documentId: value.documentId,
+    locale: "es-PR", publicSigningEnabled: true, eventKeysConfigured: true,
+    retentionPolicyConfigured: true, privacyDisclosureConfigured: true, now });
+  assert.equal(readiness.eligible, true);
+  await domain.prepareDocumentForSend({ documentId: value.documentId, actorAdminId: adminId,
+    idempotencyKey: randomUUID(), locale: "es-PR", publicSigningEnabled: true,
+    privacyDisclosure: syntheticPrivacyDisclosure });
+  for (const participantId of participantIds) {
+    const intent = await delivery.createIntent({ participantId, documentVersionId: value.documentVersionId,
+      locale: "es-PR", actorAdminId: adminId, idempotencyKey: randomUUID() });
+    await delivery.deliverIntent(intent.intentId);
+    const token = sentMessages.at(-1).html.match(/\/firmar\/([A-Za-z0-9_-]{43})/)[1];
+    const session = await domain.redeemSigningToken({ plaintextToken: token, idempotencyKey: randomUUID() });
+    const context = await domain.getSessionContext({ sessionId: session.sessionId, sessionSecret: session.sessionSecret });
+    await domain.acceptSignerConsent({ sessionId: session.sessionId, sessionSecret: session.sessionSecret,
+      csrfNonce: session.csrfNonce, consentVersion: context.consentVersion,
+      consentTextSha256: context.consentTextSha256, locale: context.consentLocale,
+      idempotencyKey: randomUUID() });
+    for (const field of fields.filter((candidate) => candidate.participantId === participantId)) {
+      const capture = field.fieldType === "date" ? { method: "date", value: "2032-05-01" }
+        : field.fieldType === "text" ? { method: "text", value: "Synthetic browser-equivalent value" }
+          : { method: "typed", value: field.fieldType === "initials" ? "SP" : "Synthetic Participant" };
+      await domain.submitSignerField({ sessionId: session.sessionId, sessionSecret: session.sessionSecret,
+        csrfNonce: session.csrfNonce, fieldId: field.fieldId, value: capture, idempotencyKey: randomUUID() });
+    }
+    const completed = await domain.completeSignerParticipant({ sessionId: session.sessionId,
+      sessionSecret: session.sessionSecret, csrfNonce: session.csrfNonce, idempotencyKey: randomUUID() });
+    assert.equal(completed.allParticipantsCompleted, participantId === participantIds.at(-1));
+  }
+  const objects = new Map([[value.sourceR2Key, maximumSourceBytes]]);
+  const storage = { async getSource() { return maximumSourceBytes; },
+    async putFinal(input) { objects.set(input.key, input.bytes); return "created"; },
+    async putCertificate(input) { objects.set(input.key, input.bytes); return "created"; } };
+  const result = await finalizeCompletedSignatureDocument(value.documentId, { database, domain, storage });
+  assert.equal(result.existing, false);
+  const state = (await db.query(`SELECT d.status, v.finalized_at,
+      (SELECT count(*)::int FROM signature_field_values fv JOIN signature_fields f ON f.id=fv.signature_field_id WHERE f.document_version_id=v.id) field_values,
+      (SELECT count(*)::int FROM signature_events e WHERE e.document_id=d.id AND e.event_type='finalization_completed') finalization_events
+    FROM signature_documents d JOIN signature_document_versions v ON v.id=d.active_version_id WHERE d.id=$1`, [value.documentId])).rows[0];
+  assert.equal(state.status, "completed"); assert.ok(state.finalized_at);
+  assert.equal(state.field_values, 100); assert.equal(state.finalization_events, 1);
+  assert.equal((await domain.verifyEventChain(value.documentId)).valid, true);
 });
 
 test("expiration and security boundaries are explicit", async () => {

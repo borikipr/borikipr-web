@@ -1,12 +1,12 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import Image from "next/image";
 import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
 import { createSignerRepository } from "@/lib/signatures/signer/repository";
 import { requireSignerRequestContext } from "@/lib/signatures/signer/request";
 import { SIGNER_CSRF_COOKIE_NAME } from "@/lib/signatures/signer/cookie";
 import { sha256SignatureValue } from "@/lib/signatures/domain/crypto";
 import SignerFieldForm from "./SignerFieldForm";
+import SignerDocumentViewer from "./SignerDocumentViewer";
 
 export const dynamic = "force-dynamic";
 
@@ -55,14 +55,7 @@ export default async function SignerSessionPage() {
           </div>
         ) : (
           <>
-            <div className="mt-6 space-y-6">
-              {Array.from({ length: view.page_count }, (_, pageIndex) => (
-                <article key={pageIndex} className="relative overflow-auto rounded-xl border bg-white p-2">
-                  {/* PDF.js-rendered immutable source page; overlays are participant-filtered server-side. */}
-                  <Image unoptimized width={1200} height={1600} src={`/firmar/sesion/pages/${pageIndex}`} alt={`Página ${pageIndex + 1} del documento`} className="h-auto max-w-full" />
-                </article>
-              ))}
-            </div>
+            <SignerDocumentViewer pageCount={view.page_count} />
             <ol className="mt-6 space-y-4">
               {view.fields.map((field) => (
                 <li key={field.id}><SignerFieldForm field={field} csrf={csrf} /></li>
