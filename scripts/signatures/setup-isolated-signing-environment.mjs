@@ -6,6 +6,7 @@ import { PGlite } from "@electric-sql/pglite";
 
 const root = path.dirname(fileURLToPath(new URL("../../package.json", import.meta.url)));
 const approvedRoot = path.resolve(root, "tmp", "signatures", "isolated-pglite");
+const approvedStorageRoot = path.resolve(root, "tmp", "signatures", "isolated-r2");
 const databasePath = path.resolve(process.env.SIGNING_ISOLATED_DATABASE_DIR || approvedRoot);
 
 if (
@@ -18,7 +19,10 @@ if (
 const password = process.env.E2E_SIGNING_ADMIN_PASSWORD;
 if (!password || password.length < 16) throw new Error("signature_isolated_admin_password_missing");
 
-if (process.argv.includes("--reset")) await rm(databasePath, { recursive: true, force: true });
+if (process.argv.includes("--reset")) {
+  await rm(databasePath, { recursive: true, force: true });
+  await rm(approvedStorageRoot, { recursive: true, force: true });
+}
 await mkdir(path.dirname(databasePath), { recursive: true });
 const db = new PGlite(databasePath);
 await db.waitReady;
@@ -63,10 +67,19 @@ if (!existing.rows[0]?.relation) {
     "0023_extend_signature_signer_evidence.sql",
     "0024_add_signature_delivery_governance.sql",
     "0025_bind_signature_privacy_disclosure.sql",
+    "0026_preserve_signature_privacy_disclosure_text.sql",
   ];
   for (const name of names) {
     await db.exec(await readFile(path.join(root, "db", "migrations", name), "utf8"));
   }
+}
+
+const privacyTextColumns = await db.query(`SELECT count(*)::integer AS count
+  FROM information_schema.columns
+ WHERE table_schema='public' AND table_name='signature_documents'
+   AND column_name IN ('privacy_disclosure_es_pr_text','privacy_disclosure_en_us_text')`);
+if (privacyTextColumns.rows[0]?.count === 0) {
+  await db.exec(await readFile(path.join(root, "db", "migrations", "0026_preserve_signature_privacy_disclosure_text.sql"), "utf8"));
 }
 
 const passwordHash = await bcrypt.hash(password, 12);

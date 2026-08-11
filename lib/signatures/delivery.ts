@@ -28,10 +28,11 @@ export function createResendSignatureTransport(): SignatureMailTransport {
     async send(input) {
       const apiKey = process.env.RESEND_API_KEY?.trim();
       const from = process.env.CONTACT_FROM_EMAIL?.trim();
-      if (!apiKey || !from) throw new Error("signature_email_not_configured");
+      const replyTo = process.env.SIGNATURE_REPLY_TO_EMAIL?.trim();
+      if (!apiKey || !from || !replyTo) throw new Error("signature_email_not_configured");
       const result = await new Resend(apiKey).emails.send({
         from: `Erickson Real Estate <${from}>`, to: [input.recipient],
-        subject: input.subject, html: input.html,
+        replyTo, subject: input.subject, html: input.html,
       }, { idempotencyKey: input.idempotencyKey });
       if (result.error) throw result.error;
       return { reference: result.data?.id ?? null };

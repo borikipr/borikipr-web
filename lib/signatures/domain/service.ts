@@ -832,6 +832,8 @@ export function createSignatureDomainServices({
       effectiveFrom: string;
       esPRSha256: string;
       enUSSha256: string;
+      esPRText: string;
+      enUSText: string;
     }>;
   }) {
     return database.begin(async (transaction) => {
@@ -851,6 +853,10 @@ export function createSignatureDomainServices({
         !/^[a-z0-9][a-z0-9._-]{0,99}$/.test(input.privacyDisclosure.version) ||
         !/^[0-9a-f]{64}$/.test(input.privacyDisclosure.esPRSha256) ||
         !/^[0-9a-f]{64}$/.test(input.privacyDisclosure.enUSSha256) ||
+        input.privacyDisclosure.esPRText.length < 20 || input.privacyDisclosure.esPRText.length > 10_000 ||
+        input.privacyDisclosure.enUSText.length < 20 || input.privacyDisclosure.enUSText.length > 10_000 ||
+        sha256SignatureValue(input.privacyDisclosure.esPRText) !== input.privacyDisclosure.esPRSha256 ||
+        sha256SignatureValue(input.privacyDisclosure.enUSText) !== input.privacyDisclosure.enUSSha256 ||
         !input.privacyDisclosure.approvalReference.trim() ||
         Number.isNaN(Date.parse(input.privacyDisclosure.effectiveFrom)) ||
         new Date(input.privacyDisclosure.effectiveFrom).getTime() > clock().getTime()
@@ -972,6 +978,8 @@ export function createSignatureDomainServices({
                 privacy_disclosure_en_us_sha256 = $9,
                 privacy_disclosure_effective_from = $10::timestamptz,
                 privacy_disclosure_approval_reference = $11,
+                privacy_disclosure_es_pr_text = $12,
+                privacy_disclosure_en_us_text = $13,
                 status = 'sent', sent_at = $3::timestamptz
           WHERE id = $1::uuid AND row_version = $4`,
         [
@@ -986,6 +994,8 @@ export function createSignatureDomainServices({
           input.privacyDisclosure.enUSSha256,
           input.privacyDisclosure.effectiveFrom,
           input.privacyDisclosure.approvalReference,
+          input.privacyDisclosure.esPRText,
+          input.privacyDisclosure.enUSText,
         ]
       );
       await appendEventInTransaction(transaction, {

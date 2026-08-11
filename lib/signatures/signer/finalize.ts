@@ -69,6 +69,7 @@ export async function finalizeCompletedSignatureDocument(
     consent_version: string; privacy_disclosure_version: string;
     privacy_disclosure_es_pr_sha256: string; privacy_disclosure_en_us_sha256: string;
     privacy_disclosure_effective_from: string | Date; privacy_disclosure_approval_reference: string;
+    privacy_disclosure_es_pr_text: string; privacy_disclosure_en_us_text: string;
   }>(
     `SELECT d.id::text AS document_id, d.title, d.status, v.id::text AS version_id,
             v.version_number, v.source_r2_key, v.filename_snapshot, v.byte_count::integer,
@@ -77,7 +78,8 @@ export async function finalizeCompletedSignatureDocument(
             cv.version_identifier AS consent_version,
             d.privacy_disclosure_version, d.privacy_disclosure_es_pr_sha256,
             d.privacy_disclosure_en_us_sha256, d.privacy_disclosure_effective_from,
-            d.privacy_disclosure_approval_reference
+            d.privacy_disclosure_approval_reference, d.privacy_disclosure_es_pr_text,
+            d.privacy_disclosure_en_us_text
        FROM public.signature_documents d JOIN public.signature_document_versions v ON v.id=d.active_version_id
        JOIN public.signature_consent_versions cv ON cv.id=d.consent_version_id
       WHERE d.id=$1::uuid`, [documentId]
@@ -85,6 +87,10 @@ export async function finalizeCompletedSignatureDocument(
   const document = rows[0];
   if (!document) throw new Error("signature_document_not_found");
   if (document.finalized_at) return { completed: true as const, finalSha256: document.final_pdf_sha256, existing: true as const };
+  if (sha256SignatureValue(document.privacy_disclosure_es_pr_text) !== document.privacy_disclosure_es_pr_sha256
+    || sha256SignatureValue(document.privacy_disclosure_en_us_text) !== document.privacy_disclosure_en_us_sha256) {
+    throw new Error("signature_privacy_disclosure_hash_mismatch");
+  }
   const participants = await runtime.database.unsafe<{
     id: string; name_snapshot: string; role: string; completed_at: string | Date | null; status: string;
   }>(`SELECT id::text, name_snapshot, role, completed_at, status FROM public.signature_participants WHERE document_version_id=$1::uuid ORDER BY id`, [document.version_id]);
@@ -166,6 +172,10 @@ export async function finalizeCompletedSignatureDocument(
       enUsSha256: document.privacy_disclosure_en_us_sha256,
       effectiveFrom: new Date(document.privacy_disclosure_effective_from).toISOString(),
       approvalReference: document.privacy_disclosure_approval_reference,
+      locales: {
+        "es-PR": { text: document.privacy_disclosure_es_pr_text, sha256: document.privacy_disclosure_es_pr_sha256 },
+        "en-US": { text: document.privacy_disclosure_en_us_text, sha256: document.privacy_disclosure_en_us_sha256 },
+      },
     },
     completedAt,
     eventChainVerified: true,

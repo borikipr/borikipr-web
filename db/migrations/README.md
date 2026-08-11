@@ -135,3 +135,8 @@ attempt count, and timestamps—never source text, translated text, entity IDs,
 job IDs, credentials, or customer data. It also changes the default for new
 translation jobs to two automatic attempts. Its rollback refuses to discard
 any usage accounting and restores the previous job default only when safe.
+
+Migration `0026` adds immutable bilingual privacy-disclosure text snapshots to
+each signature request when it leaves draft state. Historical signer views and
+detached evidence resolve the exact approved text from the request rather than
+a mutable active environment value. Its rollback refuses to discard snapshots.

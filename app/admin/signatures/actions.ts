@@ -212,6 +212,8 @@ export async function prepareSignatureSendAction(
         effectiveFrom: privacy.disclosure.effectiveFrom,
         esPRSha256: privacy.disclosure.locales["es-PR"].sha256,
         enUSSha256: privacy.disclosure.locales["en-US"].sha256,
+        esPRText: privacy.disclosure.locales["es-PR"].text,
+        enUSText: privacy.disclosure.locales["en-US"].text,
       },
     });
     const detail = await createSignatureAdminRepository(runtime.database).detail(documentId);

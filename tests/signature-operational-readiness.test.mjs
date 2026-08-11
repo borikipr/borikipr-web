@@ -13,11 +13,13 @@ import { evaluateSignatureRetention, parseSignatureRetentionPolicy } from "../li
 import { parseSignaturePrivacyDisclosure } from "../lib/signatures/privacy-disclosure.ts";
 
 const root = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
+const deliverySource = await readFile(path.join(root, "lib/signatures/delivery.ts"), "utf8");
 const migrations = await Promise.all([
   "0022_create_signature_foundation.sql",
   "0023_extend_signature_signer_evidence.sql",
   "0024_add_signature_delivery_governance.sql",
   "0025_bind_signature_privacy_disclosure.sql",
+  "0026_preserve_signature_privacy_disclosure_text.sql",
 ].map((name) => readFile(path.join(root, "db/migrations", name), "utf8")));
 const db = new PGlite();
 const executor = (source) => ({ async unsafe(query, parameters = []) { return (await source.query(query, parameters)).rows; } });
@@ -92,6 +94,12 @@ test("privacy disclosure requires both approved-language slots and hashes exact 
   assert.equal(disclosure.locales["en-US"].sha256.length, 64);
   assert.notEqual(disclosure.locales["es-PR"].sha256, disclosure.locales["en-US"].sha256);
   assert.equal(Object.isFrozen(disclosure.locales), true);
+});
+
+test("production signing mail requires an explicit Reply-To without logging it", () => {
+  assert.match(deliverySource, /SIGNATURE_REPLY_TO_EMAIL/);
+  assert.match(deliverySource, /replyTo, subject/);
+  assert.doesNotMatch(deliverySource, /console\.(?:log|info|warn|error)/);
 });
 
 test("governance readiness reports every fail-closed launch requirement", async () => {

@@ -10,12 +10,14 @@ import { getSignatureSecurityConfig } from "../lib/signatures/config.ts";
 import { createSignatureDraftApplicationService, SignatureDraftValidationError } from "../lib/signatures/draft-application.ts";
 import { createSignatureDomainServices } from "../lib/signatures/domain/service.ts";
 import { hashSignatureFieldDefinition } from "../lib/signatures/field-definition.ts";
+import { sha256SignatureValue } from "../lib/signatures/domain/crypto.ts";
 
 const root = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const migrationSql = await readFile(path.join(root, "db/migrations/0022_create_signature_foundation.sql"), "utf8");
 const signerMigrationSql = await readFile(path.join(root, "db/migrations/0023_extend_signature_signer_evidence.sql"), "utf8");
 const deliveryMigrationSql = await readFile(path.join(root, "db/migrations/0024_add_signature_delivery_governance.sql"), "utf8");
 const privacyBindingMigrationSql = await readFile(path.join(root, "db/migrations/0025_bind_signature_privacy_disclosure.sql"), "utf8");
+const privacyHistoryMigrationSql = await readFile(path.join(root, "db/migrations/0026_preserve_signature_privacy_disclosure_text.sql"), "utf8");
 const compatibleBytes = new Uint8Array(await readFile(path.join(root, "tests/fixtures/signatures/representative/HOJA DE OFERTA - con logo.pdf")));
 const EVENT_KEY = Buffer.alloc(32, 7).toString("base64url");
 const OLD_KEY = Buffer.alloc(32, 3).toString("base64url");
@@ -37,7 +39,9 @@ function fakeStorage() {
 }
 
 const db = new PGlite();
-const syntheticPrivacyDisclosure = { version: "synthetic-privacy-v1", approvalReference: "SYNTHETIC-ONLY", effectiveFrom: "2025-01-01T00:00:00.000Z", esPRSha256: "c".repeat(64), enUSSha256: "d".repeat(64) };
+const esPRText = "Aviso sintético de privacidad para pruebas aisladas solamente.";
+const enUSText = "Synthetic privacy notice for isolated technical testing only.";
+const syntheticPrivacyDisclosure = { version: "synthetic-privacy-v1", approvalReference: "SYNTHETIC-ONLY", effectiveFrom: "2025-01-01T00:00:00.000Z", esPRText, enUSText, esPRSha256: sha256SignatureValue(esPRText), enUSSha256: sha256SignatureValue(enUSText) };
 let adminId;
 let database;
 let domain;
@@ -54,6 +58,7 @@ before(async () => {
   await db.exec(signerMigrationSql);
   await db.exec(deliveryMigrationSql);
   await db.exec(privacyBindingMigrationSql);
+  await db.exec(privacyHistoryMigrationSql);
   database = pgliteDatabase(db);
 });
 

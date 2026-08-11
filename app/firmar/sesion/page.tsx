@@ -5,7 +5,7 @@ import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
 import { createSignerRepository } from "@/lib/signatures/signer/repository";
 import { requireSignerRequestContext } from "@/lib/signatures/signer/request";
 import { SIGNER_CSRF_COOKIE_NAME } from "@/lib/signatures/signer/cookie";
-import { inspectSignaturePrivacyDisclosure } from "@/lib/signatures/privacy-disclosure";
+import { sha256SignatureValue } from "@/lib/signatures/domain/crypto";
 import SignerFieldForm from "./SignerFieldForm";
 
 export const dynamic = "force-dynamic";
@@ -21,16 +21,12 @@ export default async function SignerSessionPage() {
       signer.context.participantId
     );
     if (!view || !view.consent_text || !view.consent_text_sha256 || !view.consent_locale) notFound();
-    const privacy = inspectSignaturePrivacyDisclosure();
-    if (!privacy.configured || !privacy.disclosure) notFound();
-    const privacyText = privacy.disclosure.locales[view.consent_locale];
+    const privacyText = view.consent_locale === "es-PR"
+      ? view.privacy_disclosure_es_pr_text
+      : view.privacy_disclosure_en_us_text;
+    if (!privacyText) notFound();
     if (
-      view.privacy_disclosure_version !== privacy.disclosure.version ||
-      view.privacy_disclosure_approval_reference !== privacy.disclosure.approvalReference ||
-      new Date(view.privacy_disclosure_effective_from ?? 0).toISOString() !== privacy.disclosure.effectiveFrom ||
-      view.privacy_disclosure_es_pr_sha256 !== privacy.disclosure.locales["es-PR"].sha256 ||
-      view.privacy_disclosure_en_us_sha256 !== privacy.disclosure.locales["en-US"].sha256 ||
-      privacyText.sha256 !== (view.consent_locale === "es-PR"
+      sha256SignatureValue(privacyText) !== (view.consent_locale === "es-PR"
         ? view.privacy_disclosure_es_pr_sha256
         : view.privacy_disclosure_en_us_sha256)
     ) notFound();
@@ -46,8 +42,8 @@ export default async function SignerSessionPage() {
           <div className="mt-6 space-y-4">
           <section className="rounded-xl border border-slate-300 bg-white p-5" aria-labelledby="signing-privacy-heading">
             <h2 id="signing-privacy-heading" className="font-semibold">Aviso de privacidad para firma</h2>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{privacyText.text}</p>
-            <p className="mt-2 text-xs text-slate-600">Versión: {privacy.disclosure.version}</p>
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{privacyText}</p>
+            <p className="mt-2 text-xs text-slate-600">Versión: {view.privacy_disclosure_version}</p>
           </section>
           <form action="/api/signatures/session/consent" method="post" className="rounded-xl border-2 border-amber-300 bg-amber-50 p-5">
             <h2 className="font-semibold">Consentimiento electrónico</h2>
