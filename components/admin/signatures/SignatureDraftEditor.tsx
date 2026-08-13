@@ -10,6 +10,8 @@ import {
   voidSignatureDocumentAction,
   removeSignatureFieldAction,
   updateSignatureFieldAction,
+  deleteSignatureDraftAction,
+  archiveSignatureDraftAction,
   type SignatureAdminActionState,
 } from "@/app/admin/signatures/actions";
 import type { SignatureDraftDetail } from "@/lib/signatures/admin-repository";
@@ -149,7 +151,7 @@ const READINESS_LABELS: Record<string, string> = {
   expiration_invalid: "La fecha de expiración falta o no es válida.",
   event_keys_unavailable: "La configuración de evidencia no está disponible.",
   public_signing_disabled: "La firma pública permanece desactivada.",
-  counsel_approval_missing: "Este tipo de documento todavía no está autorizado para firma electrónica.",
+  document_classification_approval_missing: "Este tipo de documento todavía no ha sido aprobado para firma electrónica.",
   approved_consent_missing: "Falta una versión de consentimiento aprobada.",
   participant_count_invalid: "La cantidad de participantes no es válida.",
   participant_email_invalid: "Hay un correo de participante inválido.",
@@ -168,6 +170,8 @@ export default function SignatureDraftEditor({ detail, readiness }: { detail: Si
   const [resendState, resendAction, resendPending] = useActionState(resendSignatureInvitationAction, INITIAL);
   const [expireState, expireAction, expirePending] = useActionState(expireSignatureDocumentAction, INITIAL);
   const [voidState, voidAction, voidPending] = useActionState(voidSignatureDocumentAction, INITIAL);
+  const [deleteState, deleteAction, deletePending] = useActionState(deleteSignatureDraftAction, INITIAL);
+  const [archiveState, archiveAction, archivePending] = useActionState(archiveSignatureDraftAction, INITIAL);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   function createField(fieldType: FieldType, rect: Rect) {
@@ -256,14 +260,42 @@ export default function SignatureDraftEditor({ detail, readiness }: { detail: Si
         </section>
 
         <section className="surface-card p-5">
-          <h2 className="text-lg font-semibold">Preparación de envío</h2>
-          <p className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{readiness.eligible ? "La solicitud cumple las validaciones de preparación." : "El envío permanece bloqueado."}</p>
-          {!readiness.eligible && <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-[#555]">{readiness.reasons.map((reason) => <li key={reason}>{READINESS_LABELS[reason] ?? reason}</li>)}</ul>}
-          <dl className="mt-3 grid gap-2 text-xs"><div><dt className="font-semibold">Consentimiento</dt><dd>{readiness.consentVersion ?? "No aprobado"}</dd></div><div><dt className="font-semibold">Aprobación legal</dt><dd>{readiness.approvalReference ? "Activa" : "Pendiente"}</dd></div></dl>
+          <h2 className="text-lg font-semibold">Preparación y activación</h2>
+          <p className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{readiness.eligible ? "La solicitud cumple todos los controles para preparar invitaciones." : "Puedes continuar preparando el borrador; el envío permanece bloqueado hasta completar los controles."}</p>
+          {!readiness.eligible && <div className="mt-4 space-y-4">
+            {([
+              ["Preparación del documento", ["document_not_found","document_not_draft","active_version_missing","source_pdf_incompatible","version_already_locked","expiration_invalid","participant_count_invalid","participant_email_invalid","field_count_invalid","required_participant_field_missing","field_definition_hash_stale"]],
+              ["Gobernanza", ["document_classification_approval_missing","approved_consent_missing","retention_policy_missing","privacy_disclosure_missing","event_keys_unavailable"]],
+              ["Activación", ["public_signing_disabled"]],
+            ] as const).map(([heading,codes]) => {
+              const matching=readiness.reasons.filter((reason)=>codes.includes(reason as never));
+              return matching.length ? <div key={heading}><h3 className="text-sm font-semibold">{heading}</h3><ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-[#555]">{matching.map((reason)=><li key={reason}>{READINESS_LABELS[reason] ?? "Hay una validación pendiente que requiere revisión del operador."}</li>)}</ul></div> : null;
+            })}
+          </div>}
+          <dl className="mt-3 grid gap-2 text-xs"><div><dt className="font-semibold">Consentimiento</dt><dd>{readiness.consentVersion ?? "No aprobado"}</dd></div><div><dt className="font-semibold">Clasificación del documento</dt><dd>{readiness.approvalReference ? "Aprobada para firma electrónica" : "Pendiente"}</dd></div></dl>
           <form action={sendAction} className="mt-4"><input name="documentId" type="hidden" value={detail.id} /><input name="documentType" type="hidden" value={detail.documentType} /><button className="btn-primary w-full disabled:opacity-60" disabled={sendPending || !readiness.eligible} type="submit">{readiness.eligible ? "Preparar invitaciones" : "Envío bloqueado"}</button></form>
           <Feedback state={sendState} />
           {!["draft","completed","voided","expired"].includes(detail.status) && <div className="mt-4 grid gap-2"><form action={expireAction} onSubmit={(event) => { if (!window.confirm("Esta acción expira el acceso de firma y no se puede revertir. ¿Continuar?")) event.preventDefault(); }}><input name="documentId" type="hidden" value={detail.id} /><button className="btn-secondary w-full" disabled={expirePending} type="submit">Marcar expirada si corresponde</button></form><form action={voidAction} className="grid gap-2" onSubmit={(event) => { if (!window.confirm("Anular revoca enlaces y sesiones. La solicitud no volverá al flujo de firma. ¿Continuar?")) event.preventDefault(); }}><input name="documentId" type="hidden" value={detail.id} /><label className="text-sm font-semibold">Razón de anulación<textarea className="mt-1 min-h-20 w-full rounded-lg border border-red-200 p-2 font-normal" maxLength={500} name="reason" required /></label><button className="w-full rounded-lg border border-red-300 px-3 py-2 font-semibold text-red-800" disabled={voidPending} type="submit">Anular solicitud</button></form><Feedback state={expireState} /><Feedback state={voidState} /><Feedback state={resendState} /></div>}
         </section>
+
+        {detail.status === "draft" && <section className="surface-card border border-red-200 p-5">
+          <h2 className="text-lg font-semibold">Cerrar borrador</h2>
+          <p className="mt-2 text-sm text-slate-600">Eliminar solo está permitido para un borrador inerte sin participantes, accesos, entregas, firmas, artefactos finales ni retención legal. La elegibilidad se valida nuevamente en el servidor.</p>
+          <form action={deleteAction} className="mt-4 grid gap-3">
+            <input name="documentId" type="hidden" value={detail.id} />
+            <label className="text-sm font-semibold">Razón<input className="mt-1 w-full rounded-lg border px-3 py-2 font-normal" name="reason" maxLength={500} required /></label>
+            <label className="text-sm font-semibold">Escribe <code>ELIMINAR BORRADOR</code><input className="mt-1 w-full rounded-lg border px-3 py-2 font-normal" name="confirmationPhrase" required /></label>
+            <p className="text-xs text-red-800">Se retirará el PDF fuente privado. El registro de auditoría de la eliminación permanecerá inmutable.</p>
+            <button className="rounded-lg border border-red-300 px-3 py-2 font-semibold text-red-800" disabled={deletePending} type="submit">Eliminar borrador inerte</button>
+            <Feedback state={deleteState} />
+          </form>
+          <form action={archiveAction} className="mt-5 grid gap-3 border-t pt-4">
+            <input name="documentId" type="hidden" value={detail.id} />
+            <label className="text-sm font-semibold">Razón para archivar<input className="mt-1 w-full rounded-lg border px-3 py-2 font-normal" name="reason" maxLength={500} required /></label>
+            <button className="btn-secondary" disabled={archivePending} type="submit">Archivar y preservar evidencia</button>
+            <Feedback state={archiveState} />
+          </form>
+        </section>}
       </aside>
     </div>
   );

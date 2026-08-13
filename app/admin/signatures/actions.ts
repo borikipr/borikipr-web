@@ -7,7 +7,7 @@ import {
   createSignatureAdminRepository,
   type SignatureDraftDetail,
 } from "@/lib/signatures/admin-repository";
-import { createSignatureDeliveryRuntime, createSignatureDomainRuntime } from "@/lib/signatures/runtime";
+import { createSignatureDeliveryRuntime, createSignatureDomainRuntime, createSignatureRuntime } from "@/lib/signatures/runtime";
 import {
   isInternalCanarySigningEnabled,
   isPublicSigningEnabled,
@@ -19,6 +19,8 @@ import { getSignatureSecurityConfig } from "@/lib/signatures/config";
 import { inspectSignatureRetentionPolicy } from "@/lib/signatures/retention-policy";
 import { inspectSignaturePrivacyDisclosure } from "@/lib/signatures/privacy-disclosure";
 import { loadActivePrivacyDisclosure, loadActiveRetentionPolicy } from "@/lib/signatures/governance-config";
+import { parseSignatureParticipantDraft, SignatureParticipantAdminValidationError } from "@/lib/signatures/admin-participant";
+import { createSignatureDraftLifecycleService } from "@/lib/signatures/draft-lifecycle";
 
 export type SignatureAdminActionState = Readonly<{
   ok: boolean;
@@ -26,6 +28,24 @@ export type SignatureAdminActionState = Readonly<{
 }>;
 
 const INITIAL_ERROR = "No se pudo guardar el cambio.";
+const SEND_BLOCKER_MESSAGES: Record<string,string> = {
+  document_not_draft: "El documento ya no está en borrador.",
+  active_version_missing: "Falta la versión activa del documento.",
+  source_pdf_incompatible: "El PDF fuente no pasó la validación.",
+  version_already_locked: "La versión ya fue bloqueada para envío.",
+  expiration_invalid: "Selecciona una fecha de expiración válida.",
+  event_keys_unavailable: "La configuración de evidencia no está disponible.",
+  public_signing_disabled: "La activación de firma permanece deshabilitada.",
+  document_classification_approval_missing: "Este tipo de documento todavía no ha sido aprobado para firma electrónica.",
+  approved_consent_missing: "Falta una versión de consentimiento aprobada.",
+  retention_policy_missing: "Falta configurar y activar la política de retención.",
+  privacy_disclosure_missing: "Falta una divulgación de privacidad aprobada.",
+  participant_count_invalid: "Añade al menos un participante, sin exceder el máximo permitido.",
+  participant_email_invalid: "Revisa los correos de los participantes.",
+  field_count_invalid: "Añade los campos requeridos al documento.",
+  required_participant_field_missing: "Cada participante necesita al menos un campo requerido.",
+  field_definition_hash_stale: "La definición de campos cambió y debe volver a validarse.",
+};
 
 function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -60,22 +80,32 @@ export async function addSignatureParticipantAction(
   const current = await context(documentId);
   if (!current) return { ok: false, message: "Borrador no disponible." };
   try {
+    const participant = parseSignatureParticipantDraft({ name: value(formData,"name"), email: value(formData,"email"),
+      role: value(formData,"role"), routingOrder: value(formData,"routingOrder") });
+    const counts = await current.runtime.database.unsafe<{ total:number; duplicate:number }>(
+      `SELECT count(*)::int total, count(*) FILTER (WHERE normalized_email=$2)::int duplicate
+         FROM signature_participants WHERE document_version_id=$1::uuid`,
+      [current.detail.version.id, participant.email]);
+    if ((counts[0]?.total ?? 0) >= 8) return { ok:false, message:"Se alcanzó el máximo de 8 participantes." };
+    if ((counts[0]?.duplicate ?? 0) > 0) return { ok:false, message:"Este correo ya pertenece a otro participante." };
     await current.runtime.domain.addParticipant({
       documentVersionId: current.detail.version.id,
       canonicalLeadId: value(formData, "canonicalLeadId") || null,
-      nameSnapshot: value(formData, "name"),
-      emailSnapshot: value(formData, "email"),
-      role: value(formData, "role"),
-      routingOrder: value(formData, "routingOrder")
-        ? numberValue(formData, "routingOrder")
-        : null,
+      nameSnapshot: participant.name,
+      emailSnapshot: participant.email,
+      role: participant.role,
+      routingOrder: participant.routingOrder,
       actorAdminId: current.session.id,
       idempotencyKey: randomUUID(),
     });
     refresh(documentId);
     return { ok: true, message: "Participante añadido." };
-  } catch {
-    return { ok: false, message: "No se pudo añadir el participante. Verifica límites y correo duplicado." };
+  } catch (error) {
+    if (error instanceof SignatureParticipantAdminValidationError) return { ok:false, message:error.userMessage };
+    const code = error instanceof Error ? error.message : "";
+    if (/unique|duplicate/i.test(code)) return { ok:false, message:"Este correo ya pertenece a otro participante." };
+    if (/limit exceeded/i.test(code)) return { ok:false, message:"Se alcanzó el máximo de 8 participantes." };
+    return { ok: false, message: "No se pudo guardar el participante. Intenta nuevamente." };
   }
 }
 
@@ -219,7 +249,7 @@ export async function prepareSignatureSendAction(
     if (!readiness.eligible) {
       return {
         ok: false,
-        message: `El envío permanece bloqueado: ${readiness.reasons.join(", ")}`,
+        message: `El envío permanece bloqueado: ${readiness.reasons.map((reason) => SEND_BLOCKER_MESSAGES[reason] ?? "Hay un control pendiente que requiere revisión.").join(" ")}`,
       };
     }
     if (!privacy.configured || !privacy.disclosure) {
@@ -322,4 +352,46 @@ export async function voidSignatureDocumentAction(
     refresh(documentId);
     return { ok: true, message: "Solicitud anulada." };
   } catch { return { ok: false, message: "No se puede anular en el estado actual." }; }
+}
+
+export async function deleteSignatureDraftAction(
+  _state: SignatureAdminActionState,
+  formData: FormData
+): Promise<SignatureAdminActionState> {
+  const session = await getAdminSession();
+  if (!session) return { ok:false, message:"Sesión expirada." };
+  const documentId = value(formData,"documentId");
+  try {
+    const runtime = createSignatureRuntime();
+    await createSignatureDraftLifecycleService(runtime.database,runtime.storage).deleteInertDraft({
+      documentId,actorAdminId:session.id,reason:value(formData,"reason"),
+      confirmationPhrase:value(formData,"confirmationPhrase"),idempotencyKey:randomUUID(),
+    });
+    refresh(documentId);
+    return { ok:true, message:"Borrador eliminado de la vista operativa y PDF fuente privado removido; la evidencia de auditoría se conservó." };
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "";
+    if (code.includes("confirmation")) return { ok:false, message:"Escribe ELIMINAR BORRADOR para confirmar." };
+    if (code.includes("blocked")) return { ok:false, message:"Este borrador contiene actividad o evidencia y no puede eliminarse. Usa Archivar." };
+    return { ok:false, message:"No se pudo eliminar el borrador de forma segura. No se modificó su estado." };
+  }
+}
+
+export async function archiveSignatureDraftAction(
+  _state: SignatureAdminActionState,
+  formData: FormData
+): Promise<SignatureAdminActionState> {
+  const session = await getAdminSession();
+  if (!session) return { ok:false, message:"Sesión expirada." };
+  const documentId = value(formData,"documentId");
+  try {
+    const runtime = createSignatureRuntime();
+    await createSignatureDraftLifecycleService(runtime.database,runtime.storage).archiveDraft({
+      documentId,actorAdminId:session.id,reason:value(formData,"reason"),idempotencyKey:randomUUID(),
+    });
+    refresh(documentId);
+    return { ok:true, message:"Borrador archivado. El PDF privado y la evidencia permanecen preservados." };
+  } catch {
+    return { ok:false, message:"No se pudo archivar el borrador en su estado actual." };
+  }
 }

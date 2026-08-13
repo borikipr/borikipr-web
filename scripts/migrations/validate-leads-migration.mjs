@@ -1968,6 +1968,12 @@ const signatureGovernanceWorkflowHardeningRollbackSql = await readMigration(
 );
 const signatureLegalHoldsMigrationSql = await readMigration("0031_add_signature_legal_holds.sql");
 const signatureLegalHoldsRollbackSql = await readMigration("0031_add_signature_legal_holds.rollback.sql");
+const signatureBusinessGovernanceMigrationSql = await readMigration(
+  "0032_correct_signature_business_governance.sql"
+);
+const signatureBusinessGovernanceRollbackSql = await readMigration(
+  "0032_correct_signature_business_governance.rollback.sql"
+);
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -2148,4 +2154,59 @@ try {
   console.log("Verified governance, consent, delivery, immutable evidence, and empty rollback.");
 } finally {
   await signatureFoundationDb.close();
+}
+
+const signatureBusinessGovernanceDb = new PGlite();
+try {
+  await signatureBusinessGovernanceDb.exec(`
+    CREATE TABLE public.admin_users (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      username text NOT NULL UNIQUE
+    );
+    CREATE TABLE public.leads (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid()
+    );
+    CREATE TABLE public.lead_groups (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid()
+    );
+  `);
+  for (const migration of [
+    signatureFoundationMigrationSql,
+    signatureSignerMigrationSql,
+    signatureDeliveryMigrationSql,
+    signaturePrivacyBindingMigrationSql,
+    signaturePrivacyHistoryMigrationSql,
+    signatureLaunchGovernanceMigrationSql,
+    signatureLaunchGovernanceHardeningMigrationSql,
+    signatureGovernanceWorkflowMigrationSql,
+    signatureGovernanceWorkflowHardeningMigrationSql,
+    signatureLegalHoldsMigrationSql,
+    signatureBusinessGovernanceMigrationSql,
+  ]) {
+    await signatureBusinessGovernanceDb.exec(migration);
+  }
+  const businessGovernanceCatalog = await signatureBusinessGovernanceDb.query(`SELECT
+    column_default LIKE '%internal_business%' AS internal_business_default,
+    EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public'
+      AND table_name='signature_document_type_approvals' AND column_name='phase2m_legacy') AS legacy_compatibility,
+    EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public'
+      AND table_name='signature_documents' AND column_name='archived_at') AS draft_archive,
+    EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public'
+      AND table_name='signature_document_versions' AND column_name='source_deleted_at') AS source_tombstone
+    FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='signature_document_type_approvals'
+      AND column_name='approval_mode'`);
+  assert.deepEqual(businessGovernanceCatalog.rows, [{
+    internal_business_default: true,
+    legacy_compatibility: true,
+    draft_archive: true,
+    source_tombstone: true,
+  }]);
+  await assert.rejects(
+    signatureBusinessGovernanceDb.exec(signatureBusinessGovernanceRollbackSql),
+    /0032 schema rollback is intentionally blocked/
+  );
+  console.log("Validated business-governance correction migration 0032 and rollback guard.");
+} finally {
+  await signatureBusinessGovernanceDb.close();
 }

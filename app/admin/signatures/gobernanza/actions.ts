@@ -7,11 +7,21 @@ import { createSignatureDomainRuntime } from "@/lib/signatures/runtime";
 import { createSignatureGovernanceWorkflow } from "@/lib/signatures/governance-workflow";
 import { parseSignatureRetentionPolicy } from "@/lib/signatures/retention-policy";
 import { createSignatureLegalHoldService, type SignatureEvidenceClass } from "@/lib/signatures/legal-holds";
+import { SIGNATURE_APPROVAL_MODES, type SignatureApprovalMode } from "@/lib/signatures/document-classification";
 
 export type GovernanceActionState = Readonly<{ ok: boolean; message: string }>;
 
 function value(data: FormData, name: string) { return String(data.get(name) ?? "").trim(); }
 function checked(data: FormData, name: string) { return data.getAll(name).map(String).includes("true"); }
+function approvalMode(data: FormData, allowOutOfScope: true): SignatureApprovalMode;
+function approvalMode(data: FormData, allowOutOfScope?: false): Exclude<SignatureApprovalMode,"out_of_scope">;
+function approvalMode(data: FormData, allowOutOfScope = false): SignatureApprovalMode {
+  const mode = value(data, "approvalMode") as SignatureApprovalMode;
+  if (!SIGNATURE_APPROVAL_MODES.includes(mode) || (!allowOutOfScope && mode === "out_of_scope")) {
+    throw new Error("signature_governance_approval_mode_invalid");
+  }
+  return mode;
+}
 function date(data: FormData, name: string) {
   const result = new Date(value(data, name));
   if (!Number.isFinite(result.getTime())) throw new Error("signature_governance_date_invalid");
@@ -34,7 +44,16 @@ async function run(operation: () => Promise<unknown>, success: string): Promise<
   try { await operation(); refresh(); return { ok: true, message: success }; }
   catch (error) {
     const code = error instanceof Error ? error.message : "signature_governance_rejected";
-    return { ok: false, message: `Cambio rechazado de forma segura (${code}).` };
+    const messages: Record<string,string> = {
+      signature_governance_confirmation_required: "Confirma la inmutabilidad y escribe la frase indicada.",
+      signature_governance_approval_source_incomplete: "Indica el rol y la fuente de la aprobación.",
+      signature_governance_external_approval_incomplete: "Completa el revisor y la evidencia de la revisión externa.",
+      signature_governance_approval_mode_invalid: "Selecciona un modo de aprobación válido.",
+      signature_governance_locale_invalid: "Selecciona un idioma permitido.",
+      signature_governance_date_invalid: "Escribe una fecha válida.",
+      signature_governance_number_invalid: "Revisa las duraciones de la política.",
+    };
+    return { ok: false, message: messages[code] ?? "El cambio fue rechazado de forma segura. Revisa el estado y los datos." };
   }
 }
 
@@ -47,17 +66,18 @@ export async function createClassificationAction(_: GovernanceActionState, data:
   }, "Borrador de clasificación creado.");
 }
 export async function submitClassificationAction(_: GovernanceActionState, data: FormData) {
-  return run(async () => { const { session, workflow } = await context(); await workflow.submitClassification({ id: value(data,"id"), actorAdminId: session.id, idempotencyKey: randomUUID() }); }, "Clasificación enviada a revisión externa.");
+  return run(async () => { const { session, workflow } = await context(); await workflow.submitClassification({ id: value(data,"id"), actorAdminId: session.id, idempotencyKey: randomUUID() }); }, "Clasificación enviada a revisión interna o externa.");
 }
 export async function approveClassificationAction(_: GovernanceActionState, data: FormData) {
   return run(async () => {
     const { session, workflow } = await context();
-    await workflow.approveClassification({ id: value(data,"id"), counselName: value(data,"externalReviewerName"),
-      counselLawFirm: value(data,"counselLawFirm"), approvalReference: value(data,"approvalReference"),
-      sourceReference: value(data,"externalReviewerReference"), approvalDate: value(data,"approvalDate"),
+    await workflow.approveClassification({ id: value(data,"id"), approvalMode: approvalMode(data, true),
+      approverRole: value(data,"approverRole"), externalReviewerName: value(data,"externalReviewerName"),
+      externalReviewerOrganization: value(data,"externalReviewerOrganization"), externalReviewerRole: value(data,"externalReviewerRole"),
+      approvalReference: value(data,"approvalReference"), externalReviewerReference: value(data,"externalReviewerReference"), approvalDate: value(data,"approvalDate"),
       effectiveFrom: date(data,"effectiveFrom"), notes: value(data,"notes"), actorAdminId: session.id,
       confirmationPhrase: value(data,"confirmationPhrase"), immutableAcknowledged: checked(data,"immutableAcknowledged"), idempotencyKey: randomUUID() });
-  }, "Aprobación externa registrada como versión inmutable.");
+  }, "Decisión de clasificación registrada como versión inmutable.");
 }
 export async function createConsentAction(_: GovernanceActionState, data: FormData) {
   return run(async () => { const { session, workflow } = await context(); const locale=value(data,"locale");
@@ -69,7 +89,7 @@ export async function submitConsentAction(_: GovernanceActionState, data: FormDa
   return run(async () => { const {session,workflow}=await context(); await workflow.submitConsent({id:value(data,"id"),actorAdminId:session.id,idempotencyKey:randomUUID()}); }, "Consentimiento enviado a revisión.");
 }
 export async function approveConsentAction(_: GovernanceActionState, data: FormData) {
-  return run(async () => { const {session,workflow}=await context(); await workflow.approveConsent({id:value(data,"id"),approvalReference:value(data,"approvalReference"),externalReviewerName:value(data,"externalReviewerName"),externalReviewerReference:value(data,"externalReviewerReference"),effectiveFrom:date(data,"effectiveFrom"),actorAdminId:session.id,confirmationPhrase:value(data,"confirmationPhrase"),immutableAcknowledged:checked(data,"immutableAcknowledged"),idempotencyKey:randomUUID()}); }, "Consentimiento aprobado registrado de forma inmutable.");
+  return run(async () => { const {session,workflow}=await context(); await workflow.approveConsent({id:value(data,"id"),approvalMode:approvalMode(data),approverRole:value(data,"approverRole"),approvalReference:value(data,"approvalReference"),externalReviewerName:value(data,"externalReviewerName"),externalReviewerReference:value(data,"externalReviewerReference"),effectiveFrom:date(data,"effectiveFrom"),actorAdminId:session.id,confirmationPhrase:value(data,"confirmationPhrase"),immutableAcknowledged:checked(data,"immutableAcknowledged"),idempotencyKey:randomUUID()}); }, "Consentimiento aprobado registrado de forma inmutable.");
 }
 export async function createPrivacyAction(_: GovernanceActionState, data: FormData) {
   return run(async () => { const {session,workflow}=await context(); await workflow.createPrivacyDraft({versionIdentifier:value(data,"versionIdentifier"),esPRText:value(data,"esPRText"),enUSText:value(data,"enUSText"),actorAdminId:session.id,idempotencyKey:randomUUID()}); }, "Borrador bilingüe de privacidad creado.");
@@ -78,7 +98,7 @@ export async function submitPrivacyAction(_: GovernanceActionState, data: FormDa
   return run(async () => { const {session,workflow}=await context(); await workflow.submitPrivacy({id:value(data,"id"),actorAdminId:session.id,idempotencyKey:randomUUID()}); }, "Divulgación enviada a revisión.");
 }
 export async function approvePrivacyAction(_: GovernanceActionState, data: FormData) {
-  return run(async () => { const {session,workflow}=await context(); await workflow.approvePrivacy({id:value(data,"id"),approvalReference:value(data,"approvalReference"),externalReviewerName:value(data,"externalReviewerName"),externalReviewerReference:value(data,"externalReviewerReference"),effectiveFrom:date(data,"effectiveFrom"),actorAdminId:session.id,confirmationPhrase:value(data,"confirmationPhrase"),immutableAcknowledged:checked(data,"immutableAcknowledged"),idempotencyKey:randomUUID()}); }, "Divulgación aprobada registrada de forma inmutable.");
+  return run(async () => { const {session,workflow}=await context(); await workflow.approvePrivacy({id:value(data,"id"),approvalMode:approvalMode(data),approverRole:value(data,"approverRole"),approvalReference:value(data,"approvalReference"),externalReviewerName:value(data,"externalReviewerName"),externalReviewerReference:value(data,"externalReviewerReference"),effectiveFrom:date(data,"effectiveFrom"),actorAdminId:session.id,confirmationPhrase:value(data,"confirmationPhrase"),immutableAcknowledged:checked(data,"immutableAcknowledged"),idempotencyKey:randomUUID()}); }, "Divulgación aprobada registrada de forma inmutable.");
 }
 export async function createRetentionAction(_: GovernanceActionState, data: FormData) {
   return run(async () => {
@@ -99,7 +119,7 @@ export async function submitRetentionAction(_: GovernanceActionState, data: Form
   return run(async () => { const {session,workflow}=await context(); await workflow.submitRetention({id:value(data,"id"),actorAdminId:session.id,idempotencyKey:randomUUID()}); }, "Política enviada a revisión.");
 }
 export async function approveRetentionAction(_: GovernanceActionState, data: FormData) {
-  return run(async () => { const {session,workflow}=await context(); await workflow.approveRetention({id:value(data,"id"),approvalReference:value(data,"approvalReference"),externalReviewerName:value(data,"externalReviewerName"),externalReviewerReference:value(data,"externalReviewerReference"),actorAdminId:session.id,confirmationPhrase:value(data,"confirmationPhrase"),immutableAcknowledged:checked(data,"immutableAcknowledged"),idempotencyKey:randomUUID()}); }, "Política aprobada; todavía no activa.");
+  return run(async () => { const {session,workflow}=await context(); await workflow.approveRetention({id:value(data,"id"),approvalMode:approvalMode(data),approverRole:value(data,"approverRole"),approvalReference:value(data,"approvalReference"),externalReviewerName:value(data,"externalReviewerName"),externalReviewerReference:value(data,"externalReviewerReference"),actorAdminId:session.id,confirmationPhrase:value(data,"confirmationPhrase"),immutableAcknowledged:checked(data,"immutableAcknowledged"),idempotencyKey:randomUUID()}); }, "Política aprobada; todavía no activa.");
 }
 export async function activateRetentionAction(_: GovernanceActionState, data: FormData) {
   return run(async () => { const {session,workflow}=await context(); await workflow.activateRetention({id:value(data,"id"),actorAdminId:session.id,confirmationPhrase:value(data,"confirmationPhrase"),immutableAcknowledged:checked(data,"immutableAcknowledged"),idempotencyKey:randomUUID()}); }, "Política activada explícitamente.");

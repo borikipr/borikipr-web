@@ -868,13 +868,13 @@ export function createSignatureDomainServices({
       }>(
         `SELECT id::text, approval_reference
            FROM public.signature_document_type_approvals
-          WHERE document_type=$1 AND status='approved' AND revoked_at IS NULL
+          WHERE document_type=$1 AND status='approved' AND approval_mode IN ('internal_business','external_review') AND revoked_at IS NULL
             AND effective_from <= $2::timestamptz
           ORDER BY effective_from DESC LIMIT 1 FOR UPDATE`,
         [document.document_type, iso(clock())]
       );
       if (!approvalRows[0]) {
-        throw new Error("signature_document_type_not_counsel_approved");
+        throw new Error("signature_document_type_not_approved");
       }
       const locale = input.locale ?? "es-PR";
       const consentRows = await transaction.unsafe<{

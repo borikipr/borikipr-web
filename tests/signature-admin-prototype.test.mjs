@@ -18,6 +18,7 @@ const signerMigrationSql = await readFile(path.join(root, "db/migrations/0023_ex
 const deliveryMigrationSql = await readFile(path.join(root, "db/migrations/0024_add_signature_delivery_governance.sql"), "utf8");
 const privacyBindingMigrationSql = await readFile(path.join(root, "db/migrations/0025_bind_signature_privacy_disclosure.sql"), "utf8");
 const privacyHistoryMigrationSql = await readFile(path.join(root, "db/migrations/0026_preserve_signature_privacy_disclosure_text.sql"), "utf8");
+const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
 const compatibleBytes = new Uint8Array(await readFile(path.join(root, "tests/fixtures/signatures/representative/HOJA DE OFERTA - con logo.pdf")));
 const EVENT_KEY = Buffer.alloc(32, 7).toString("base64url");
 const OLD_KEY = Buffer.alloc(32, 3).toString("base64url");
@@ -59,6 +60,7 @@ before(async () => {
   await db.exec(deliveryMigrationSql);
   await db.exec(privacyBindingMigrationSql);
   await db.exec(privacyHistoryMigrationSql);
+  for (const migration of phase2GovernanceMigrations) await db.exec(migration);
   database = pgliteDatabase(db);
 });
 
@@ -93,7 +95,7 @@ test("Phase 2C creates a compatible private draft and deterministic whole-layout
   assert.equal(detail.currentFieldDefinitionSha256.length, 64);
   assert.equal(detail.currentFieldDefinitionSha256, hashSignatureFieldDefinition({ documentVersionId: detail.version.id, fields: [...detail.fields].reverse() }));
 
-  await assert.rejects(domain.prepareDocumentForSend({ documentId: created.documentId, actorAdminId: adminId, idempotencyKey: randomUUID(), locale: "es", publicSigningEnabled: true, privacyDisclosure: syntheticPrivacyDisclosure }), /signature_document_type_not_counsel_approved/);
+  await assert.rejects(domain.prepareDocumentForSend({ documentId: created.documentId, actorAdminId: adminId, idempotencyKey: randomUUID(), locale: "es", publicSigningEnabled: true, privacyDisclosure: syntheticPrivacyDisclosure }), /signature_document_type_not_approved/);
   const counts = await db.query(`SELECT (SELECT count(*) FROM public.signature_signing_tokens)::integer AS tokens, (SELECT count(*) FROM public.signature_documents WHERE status <> 'draft')::integer AS non_drafts`);
   assert.deepEqual(counts.rows[0], { tokens: 0, non_drafts: 0 });
 });
@@ -151,7 +153,7 @@ test("Admin prototype remains private and the later signer surface is independen
   assert.match(uploadRoute, /checkRateLimit/);
   assert.match(sourceRoute, /private, no-store/);
   assert.match(sourceRoute, /noindex, nofollow/);
-  assert.match(editor, /Este tipo de documento todavía no está autorizado para firma electrónica/);
+  assert.match(editor, /Este tipo de documento todavía no ha sido aprobado para firma electrónica/);
   assert.doesNotMatch(uploadRoute + actions + editor, /Resend|sendEmail|issueSigningToken/);
   assert.doesNotMatch(storage, /publicUrl|presign|R2_PUBLIC_BASE_URL/);
   assert.match(repository, /GROUP BY d\.id, v\.id, v\.page_count/);

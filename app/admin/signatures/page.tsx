@@ -33,7 +33,7 @@ export default async function SignatureDocumentsPage({
         breadcrumbs={[{ href: "/admin", label: "Admin" }, { label: "Firmas" }]}
         eyebrow="Admin · Firmas"
         title="Solicitudes de firma"
-        description="Prototipo interno para preparar borradores. El envío permanece bloqueado hasta aprobación legal."
+        description="Área interna para preparar borradores del flujo de corretaje. Preparar no equivale a enviar; el envío conserva controles separados de gobernanza y activación."
         actions={<div className="flex flex-wrap gap-2"><Link className="btn-secondary" href="/admin/signatures/gobernanza">Gobernanza</Link><Link className="btn-primary" href="/admin/signatures/nuevo">Nuevo borrador</Link></div>}
       />
 

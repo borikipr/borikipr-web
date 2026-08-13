@@ -12,7 +12,7 @@ import { getSignatureRetentionPreview } from "../lib/signatures/governance-workf
 import { createSignatureGovernanceWorkflow } from "../lib/signatures/governance-workflow.ts";
 
 const root=path.dirname(fileURLToPath(new URL("../package.json",import.meta.url)));
-const migrationNames=["0022_create_signature_foundation.sql","0023_extend_signature_signer_evidence.sql","0024_add_signature_delivery_governance.sql","0025_bind_signature_privacy_disclosure.sql","0026_preserve_signature_privacy_disclosure_text.sql","0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql"];
+const migrationNames=["0022_create_signature_foundation.sql","0023_extend_signature_signer_evidence.sql","0024_add_signature_delivery_governance.sql","0025_bind_signature_privacy_disclosure.sql","0026_preserve_signature_privacy_disclosure_text.sql","0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql"];
 const migrations=await Promise.all(migrationNames.map(n=>readFile(path.join(root,"db/migrations",n),"utf8")));
 const adminActions=await readFile(path.join(root,"app/admin/signatures/gobernanza/actions.ts"),"utf8");
 const signatureAdminActions=await readFile(path.join(root,"app/admin/signatures/actions.ts"),"utf8");

@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 import { degrees, PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import {
   SIGNATURE_DOCUMENT_TYPES,
-  isSignatureDocumentTypeApproved,
 } from "../lib/signatures/document-classification.ts";
 import {
   normalizedDisplayPointToPdf,
@@ -118,17 +117,14 @@ function finalizationInput(sourceBytes, inspection, fields) {
   };
 }
 
-test("document classifications remain counsel-gated and production-disabled", () => {
-  assert.equal(SIGNATURE_DOCUMENT_TYPES.some(isSignatureDocumentTypeApproved), false);
+test("document catalog distinguishes ordinary brokerage scope from external formalities", () => {
   assert.ok(
     SIGNATURE_DOCUMENT_TYPES.some(
-      (item) => item.classification === "LEGAL_REVIEW_REQUIRED" && item.id === "deed"
+      (item) => item.scope === "formality_caution" && item.id === "deed" && item.defaultApprovalMode === "out_of_scope"
     )
   );
   assert.ok(
-    SIGNATURE_DOCUMENT_TYPES.every(
-      (item) => item.approvalState !== "approved_by_counsel"
-    )
+    SIGNATURE_DOCUMENT_TYPES.some((item) => item.id === "transaction_acknowledgment" && item.scope === "ordinary_brokerage" && item.defaultApprovalMode === "internal_business")
   );
 });
 

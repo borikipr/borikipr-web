@@ -12,8 +12,8 @@ export async function getSignatureGovernanceReadiness(
   now = new Date()
 ) {
   const [approvals, consents, durablePrivacy, durableRetention, launchAuthorizations] = await Promise.all([
-    database.unsafe<{ document_type: string; status: string; approval_reference: string | null; effective_from: Date | null; revoked_at: Date | null }>(
-      `SELECT document_type, status, approval_reference, effective_from, revoked_at
+    database.unsafe<{ document_type: string; status: string; approval_mode: string; approval_reference: string | null; effective_from: Date | null; revoked_at: Date | null }>(
+      `SELECT document_type, status, approval_mode, approval_reference, effective_from, revoked_at
          FROM public.signature_document_type_approvals ORDER BY document_type, created_at DESC`
     ),
     database.unsafe<{ version_identifier: string; locale: "es-PR" | "en-US"; status: string; consent_text_sha256: string; effective_from: Date | null; approval_reference: string | null }>(
@@ -26,7 +26,7 @@ export async function getSignatureGovernanceReadiness(
       `SELECT environment,authorization_type,status,authorized_at,expires_at FROM public.signature_launch_authorizations ORDER BY authorized_at DESC`
     ),
   ]);
-  const activeApprovals = approvals.filter((row) => row.status === "approved" && !row.revoked_at && row.effective_from && new Date(row.effective_from) <= now);
+  const activeApprovals = approvals.filter((row) => row.status === "approved" && ["internal_business","external_review"].includes(row.approval_mode) && !row.revoked_at && row.effective_from && new Date(row.effective_from) <= now);
   const approvedLocales = new Set(consents.filter((row) => row.status === "approved" && row.effective_from && new Date(row.effective_from) <= now).map((row) => row.locale));
   const environmentRetention = inspectSignatureRetentionPolicy(environment);
   const environmentPrivacy = inspectSignaturePrivacyDisclosure(environment, now);
@@ -47,7 +47,7 @@ export async function getSignatureGovernanceReadiness(
   } catch { evidenceKeysConfigured = false; }
   const publicSigningEnabled = isPublicSigningEnabled(environment);
   const blockers = [
-    ...(activeApprovals.length ? [] : ["counsel_approval_missing"]),
+    ...(activeApprovals.length ? [] : ["document_classification_approval_missing"]),
     ...(approvedLocales.has("es-PR") ? [] : ["approved_consent_es_pr_missing"]),
     ...(approvedLocales.has("en-US") ? [] : ["approved_consent_en_us_missing"]),
     ...(retention.configured ? [] : ["retention_policy_missing"]),

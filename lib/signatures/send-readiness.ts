@@ -60,13 +60,13 @@ export async function evaluateSignatureSendReadiness(input: {
   if (row) {
     const approvals = await input.database.unsafe<{ approval_reference: string }>(
       `SELECT approval_reference FROM public.signature_document_type_approvals
-        WHERE document_type=$1 AND status='approved' AND revoked_at IS NULL
+        WHERE document_type=$1 AND status='approved' AND approval_mode IN ('internal_business','external_review') AND revoked_at IS NULL
           AND effective_from <= $2::timestamptz
         ORDER BY effective_from DESC LIMIT 1`,
       [row.document_type, now.toISOString()]
     );
     approvalReference = approvals[0]?.approval_reference ?? null;
-    if (!approvalReference) reasons.push("counsel_approval_missing");
+    if (!approvalReference) reasons.push("document_classification_approval_missing");
     const consents = await input.database.unsafe<{ version_identifier: string; consent_text_sha256: string }>(
       `SELECT version_identifier, consent_text_sha256 FROM public.signature_consent_versions
         WHERE locale=$1 AND status='approved' AND effective_from <= $2::timestamptz

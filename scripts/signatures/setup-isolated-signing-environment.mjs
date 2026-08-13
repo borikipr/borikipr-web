@@ -73,6 +73,7 @@ if (!existing.rows[0]?.relation) {
     "0029_add_signature_governance_workflows.sql",
     "0030_harden_signature_governance_workflow_immutability.sql",
     "0031_add_signature_legal_holds.sql",
+    "0032_correct_signature_business_governance.sql",
   ];
   for (const name of names) {
     await db.exec(await readFile(path.join(root, "db", "migrations", name), "utf8"));
@@ -112,6 +113,11 @@ const legalHoldsTable = await db.query(`SELECT to_regclass('public.signature_leg
 if (!legalHoldsTable.rows[0]?.relation) {
   await db.exec(await readFile(path.join(root,"db","migrations","0031_add_signature_legal_holds.sql"),"utf8"));
 }
+const businessApprovalColumn = await db.query(`SELECT count(*)::integer AS count FROM information_schema.columns
+  WHERE table_schema='public' AND table_name='signature_document_type_approvals' AND column_name='approval_mode'`);
+if (businessApprovalColumn.rows[0]?.count === 0) {
+  await db.exec(await readFile(path.join(root,"db","migrations","0032_correct_signature_business_governance.sql"),"utf8"));
+}
 
 const passwordHash = await bcrypt.hash(password, 12);
 await db.query(
@@ -133,16 +139,17 @@ await db.query(
      document_type, status, approval_reference, approval_date, reviewed_by,
      source_reference, notes, effective_from, version_number, display_name,
      description, permitted_signing_use, created_by_admin_id, entered_by_admin_id,
-     counsel_name, counsel_law_firm, submitted_at, approved_at
+     submitted_at, approved_at, approval_mode, approved_by_admin_id, approver_role,
+     approval_snapshot_sha256
    ) SELECT 'ordinary_brokerage_agreement','approved','TEST-NON-PRODUCTION',
             current_date,'Synthetic Test Harness','TEST-NON-PRODUCTION',
             'Synthetic isolated drill only',now(),1,'Synthetic isolated classification',
             'TEST / NON-PRODUCTION','Synthetic isolated signing only',$1::uuid,$1::uuid,
-            'Synthetic External Reviewer','Synthetic Test Firm',now(),now()
+            now(),now(),'internal_business',$1::uuid,'Synthetic test operator',$2
      WHERE NOT EXISTS (
        SELECT 1 FROM public.signature_document_type_approvals
         WHERE document_type='ordinary_brokerage_agreement' AND status='approved'
-  )`, [admin.id]
+  )`, [admin.id, Buffer.from(await crypto.subtle.digest("SHA-256",new TextEncoder().encode("TEST-NON-PRODUCTION:ordinary_brokerage_agreement:v1"))).toString("hex")]
 );
 
 for (const [locale, identifier, text] of [
@@ -155,9 +162,9 @@ for (const [locale, identifier, text] of [
     `INSERT INTO public.signature_consent_versions (
        version_identifier, locale, consent_text, consent_text_sha256, status,
        effective_from, approval_reference, created_by_admin_id,submitted_at,approved_at,
-       approved_by_admin_id,external_reviewer_name,external_reviewer_reference
+       approved_by_admin_id,approval_mode,approver_role
      ) VALUES ($1,$2,$3,$4,'approved',now(),'TEST-NON-PRODUCTION',$5::uuid,now(),now(),
-       $5::uuid,'Synthetic External Reviewer','TEST-NON-PRODUCTION')
+       $5::uuid,'internal_business','Synthetic test operator')
      ON CONFLICT (version_identifier, locale) DO NOTHING`,
     [identifier, locale, text, hash, admin.id]
   );

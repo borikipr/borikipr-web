@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { PDFDocument } from "pdf-lib";
 import { createSignatureDomainServices } from "../lib/signatures/domain/service.ts";
-import { createSignatureGovernanceService } from "../lib/signatures/governance.ts";
 import { createSignatureDeliveryService } from "../lib/signatures/delivery.ts";
 import { evaluateSignatureSendReadiness } from "../lib/signatures/send-readiness.ts";
 import { sha256SignatureValue } from "../lib/signatures/domain/crypto.ts";
@@ -23,6 +22,7 @@ const [foundationSql, signerSql, deliverySql, privacyBindingSql, privacyHistoryS
   readFile(path.join(root, "db/migrations/0026_preserve_signature_privacy_disclosure_text.sql"), "utf8"),
   readFile(path.join(root, "tests/fixtures/signatures/rejections/valid-ordinary.pdf")),
 ]);
+const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
 function adapter(db) { const executor = (source) => ({ async unsafe(query, parameters = []) { return (await source.query(query, parameters)).rows; } }); return { ...executor(db), begin: (callback) => db.transaction((tx) => callback(executor(tx))) }; }
 const db = new PGlite();
 const esPRText = "Aviso sintético de privacidad para pruebas aisladas solamente.";
@@ -30,7 +30,7 @@ const enUSText = "Synthetic privacy notice for isolated technical testing only."
 const syntheticPrivacyDisclosure = { version: "synthetic-privacy-v1", approvalReference: "SYNTHETIC-ONLY", effectiveFrom: "2031-01-01T00:00:00.000Z", esPRText, enUSText, esPRSha256: sha256SignatureValue(esPRText), enUSSha256: sha256SignatureValue(enUSText) };
 const now = new Date("2032-05-01T12:00:00.000Z");
 const geometry = { pageIndex: 0, mediaBox: { x: 0, y: 0, width: 612, height: 792 }, cropBox: { x: 0, y: 0, width: 612, height: 792 }, rotation: 0, userUnit: 1 };
-let adminId, database, domain, governance, delivery, sentMessages;
+let adminId, database, domain, delivery, sentMessages;
 
 before(async () => {
   await db.exec(`CREATE TABLE public.admin_users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), username text NOT NULL UNIQUE);
@@ -39,6 +39,7 @@ before(async () => {
     INSERT INTO public.admin_users(username) VALUES ('synthetic-phase2e-admin');`);
   adminId = (await db.query(`SELECT id::text FROM public.admin_users LIMIT 1`)).rows[0].id;
   await db.exec(foundationSql); await db.exec(signerSql); await db.exec(deliverySql); await db.exec(privacyBindingSql); await db.exec(privacyHistorySql);
+  for (const migration of phase2GovernanceMigrations) await db.exec(migration);
 });
 beforeEach(async () => {
   await db.exec(`TRUNCATE public.signature_events, public.signature_field_values, public.signature_sessions,
@@ -48,7 +49,6 @@ beforeEach(async () => {
   database = adapter(db);
   domain = createSignatureDomainServices({ database, eventHmacKey: "phase2e-event-key-at-least-thirty-two-bytes",
     eventHmacKeyVersion: 1, networkEvidenceHmacKey: "phase2e-network-key-at-least-thirty-two-bytes", clock: () => new Date(now) });
-  governance = createSignatureGovernanceService(database, () => new Date(now));
   sentMessages = [];
   delivery = createSignatureDeliveryService({ database, domain,
     mail: { async send(message) { sentMessages.push(structuredClone(message)); return { reference: `synthetic-${sentMessages.length}` }; } },
@@ -57,8 +57,8 @@ beforeEach(async () => {
 after(() => db.close());
 
 async function fixture({ approval = true, consent = true, pdfBytes = sourceBytes, geometries = [geometry] } = {}) {
-  if (approval) { const record = await governance.createPendingApproval({ documentType: "ordinary_brokerage_agreement" }); await governance.recordCounselDecision({ approvalId: record.approvalId, status: "approved", approvalReference: "SYNTHETIC-ONLY", approvalDate: "2032-04-30", reviewedBy: "Synthetic Reviewer", sourceReference: "synthetic-fixture", effectiveFrom: new Date("2032-05-01T00:00:00Z") }); }
-  if (consent) { const record = await governance.createConsentDraft({ versionIdentifier: "phase2e-synthetic-v1", locale: "es-PR", consentText: "CONSENTIMIENTO SINTÉTICO NO APROBADO PARA PRODUCCIÓN. Prueba técnica aislada.", createdByAdminId: adminId }); await governance.approveConsent({ consentVersionId: record.consentVersionId, approvalReference: "SYNTHETIC-ONLY", effectiveFrom: new Date("2032-05-01T00:00:00Z") }); }
+  if (approval) await db.query(`INSERT INTO signature_document_type_approvals(document_type,status,approval_mode,approval_reference,approval_date,reviewed_by,source_reference,effective_from,legacy_imported) VALUES ('ordinary_brokerage_agreement','approved','internal_business','SYNTHETIC-ONLY','2032-04-30','Synthetic operator','synthetic-fixture','2032-05-01',true)`);
+  if (consent) await db.query(`INSERT INTO signature_consent_versions(version_identifier,locale,consent_text,consent_text_sha256,status,effective_from,approval_reference,created_by_admin_id,legacy_imported,approval_mode) VALUES ('phase2e-synthetic-v1','es-PR','CONSENTIMIENTO SINTÉTICO NO APROBADO PARA PRODUCCIÓN. Prueba técnica aislada.',$1,'approved','2032-05-01','SYNTHETIC-ONLY',$2,true,'internal_business')`,[sha256SignatureValue("CONSENTIMIENTO SINTÉTICO NO APROBADO PARA PRODUCCIÓN. Prueba técnica aislada."),adminId]);
   const documentId = randomUUID();
   const draft = await domain.createDraftWithVersion({ documentId, title: "Synthetic Phase 2E request", documentType: "ordinary_brokerage_agreement", createdByAdminId: adminId, expiresAt: new Date("2032-05-03T12:00:00Z"), filename: "synthetic.pdf", byteCount: pdfBytes.byteLength, pageCount: geometries.length, sourceSha256: sha256SignatureValue(pdfBytes), pageGeometryManifest: geometries, documentCreatedIdempotencyKey: randomUUID(), versionCreatedIdempotencyKey: randomUUID() });
   const participant = await domain.addParticipant({ documentVersionId: draft.documentVersionId, nameSnapshot: "Synthetic Participant", emailSnapshot: "synthetic@example.test", role: "buyer", routingOrder: 1, actorAdminId: adminId, idempotencyKey: randomUUID() });
@@ -72,8 +72,8 @@ async function prepared(options) {
   return { value, readiness };
 }
 
-test("legal and consent gates fail closed", async () => {
-  const noApproval = await prepared({ approval: false }); assert.ok(noApproval.readiness.reasons.includes("counsel_approval_missing"));
+test("classification and consent gates fail closed", async () => {
+  const noApproval = await prepared({ approval: false }); assert.ok(noApproval.readiness.reasons.includes("document_classification_approval_missing"));
   await db.exec(`TRUNCATE public.signature_events, public.signature_fields, public.signature_participants, public.signature_document_versions, public.signature_documents, public.signature_consent_versions CASCADE`);
   const noConsent = await prepared({ consent: false }); assert.ok(noConsent.readiness.reasons.includes("approved_consent_missing"));
   const disabled = await evaluateSignatureSendReadiness({ database, documentId: noConsent.value.documentId, locale: "es-PR", publicSigningEnabled: false, eventKeysConfigured: true, retentionPolicyConfigured: true, privacyDisclosureConfigured: true, now });

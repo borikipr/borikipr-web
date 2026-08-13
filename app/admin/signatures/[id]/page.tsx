@@ -6,7 +6,7 @@ import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShe
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import { sql } from "@/lib/db";
 import { createSignatureAdminRepository } from "@/lib/signatures/admin-repository";
-import { getSignatureDocumentTypeDefinition, isSignatureDocumentTypeApproved } from "@/lib/signatures/document-classification";
+import { getSignatureDocumentTypeDefinition } from "@/lib/signatures/document-classification";
 import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/database";
 import { evaluateSignatureSendReadiness } from "@/lib/signatures/send-readiness";
 import { isInternalCanarySigningEnabled, isPublicSigningEnabled } from "@/lib/signatures/public-config";
@@ -24,7 +24,6 @@ export default async function SignatureDraftPage({ params }: { params: Promise<{
   const detail = await repository.detail(id);
   if (!detail) notFound();
   const definition = getSignatureDocumentTypeDefinition(detail.documentType);
-  const approved = definition ? isSignatureDocumentTypeApproved(definition) : false;
   let keysConfigured = false;
   try { getSignatureSecurityConfig(); keysConfigured = true; } catch { keysConfigured = false; }
   const [durableRetention,durablePrivacy,participantAuthorizations] = await Promise.all([
@@ -46,11 +45,11 @@ export default async function SignatureDraftPage({ params }: { params: Promise<{
 
   return (
     <AdminPageShell>
-      <AdminPageHeader breadcrumbs={[{ href: "/admin", label: "Admin" }, { href: "/admin/signatures", label: "Firmas" }, { label: detail.title }]} eyebrow="Firmas · Ensamblaje" title={detail.title} description="Vista privada del PDF fuente y su definición de campos. El documento original no se modifica durante la preparación." actions={<Link className="btn-secondary" href={`/admin/signatures/${detail.id}/source`} target="_blank">Abrir PDF privado</Link>} />
+      <AdminPageHeader breadcrumbs={[{ href: "/admin", label: "Admin" }, { href: "/admin/signatures", label: "Firmas" }, { label: detail.title }]} eyebrow="Firmas · Ensamblaje" title={detail.title} description="Vista privada del PDF fuente y su definición de campos. El documento original no se modifica durante la preparación." actions={detail.status === "archived" ? undefined : <Link className="btn-secondary" href={`/admin/signatures/${detail.id}/source`} target="_blank">Abrir PDF privado</Link>} />
 
       <section className="surface-card grid gap-4 p-5 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div><p className="font-semibold text-[#555]">Compatibilidad</p><p className="mt-1 text-green-700">PDF validado</p></div>
-        <div><p className="font-semibold text-[#555]">Clasificación legal</p><p className={`mt-1 ${approved ? "text-green-700" : "text-amber-800"}`}>{definition?.classification ?? "Desconocida"} · {approved ? "Aprobado" : "Pendiente"}</p></div>
+        <div><p className="font-semibold text-[#555]">Clasificación del documento</p><p className="mt-1 text-amber-800">{definition?.label ?? "Desconocida"} · {detail.documentTypeApprovalReference ? "Aprobado para firma electrónica" : "Pendiente"}</p></div>
         <div><p className="font-semibold text-[#555]">Documento</p><p className="mt-1">{detail.version.pageCount} páginas · {(detail.version.byteCount / 1024).toFixed(1)} KB</p></div>
         <div><p className="font-semibold text-[#555]">Estado</p><p className="mt-1">{detail.status}</p></div>
         <div className="min-w-0 sm:col-span-2"><p className="font-semibold text-[#555]">SHA-256 fuente</p><code className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap" title={detail.version.sourceSha256}>{detail.version.sourceSha256}</code></div>
@@ -70,7 +69,8 @@ export default async function SignatureDraftPage({ params }: { params: Promise<{
           <IsolatedDeliveryControl />
         )}
 
-      <SignatureDraftEditor detail={detail} readiness={readiness} />
+      {definition?.scope !== "ordinary_brokerage" && <section className="surface-card border-l-4 border-amber-500 p-5 text-sm text-amber-900">{definition?.guidance}</section>}
+      {detail.status === "archived" ? <section className="surface-card p-5"><h2 className="text-lg font-semibold">Borrador archivado</h2><p className="mt-2 text-sm text-slate-600">Está fuera de la vista operativa. La evidencia histórica se conserva y no puede volver al flujo de envío.</p></section> : <SignatureDraftEditor detail={detail} readiness={readiness} />}
     </AdminPageShell>
   );
 }

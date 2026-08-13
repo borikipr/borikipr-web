@@ -24,6 +24,7 @@ const [foundationSql, signerSql, deliverySql, privacyBindingSql, privacyHistoryS
   readFile(path.join(root, "db/migrations/0026_preserve_signature_privacy_disclosure_text.sql"), "utf8"),
   readFile(path.join(root, "tests/fixtures/signatures/rejections/valid-ordinary.pdf")),
 ]);
+const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
 
 function pgliteDatabase(db) {
   const executor = (source) => ({ async unsafe(query, parameters = []) { return (await source.query(query, parameters)).rows; } });
@@ -42,6 +43,7 @@ before(async () => {
     INSERT INTO public.admin_users(username) VALUES ('synthetic-phase2d-admin');`);
   adminId = (await db.query(`SELECT id::text FROM public.admin_users LIMIT 1`)).rows[0].id;
   await db.exec(foundationSql); await db.exec(signerSql); await db.exec(deliverySql); await db.exec(privacyBindingSql); await db.exec(privacyHistorySql);
+  for (const migration of phase2GovernanceMigrations) await db.exec(migration);
 });
 
 beforeEach(async () => {
@@ -100,12 +102,12 @@ async function syntheticRequest({ participants = 1 } = {}) {
     required: row.required, tabOrder: row.tab_order, validationLimits: row.validation_limits })) });
   await db.query(`UPDATE public.signature_document_versions SET field_definition_sha256=$2, locked_at=$3 WHERE id=$1::uuid`, [draft.documentVersionId, fieldHash, clockState.now]);
   const approval = (await db.query(`INSERT INTO public.signature_document_type_approvals
-    (document_type,status,approval_reference,approval_date,reviewed_by,source_reference,effective_from)
-    VALUES ('ordinary_brokerage_agreement','approved','synthetic-test-only','2031-01-01','synthetic-reviewer','synthetic-only',$1)
+    (document_type,status,approval_reference,approval_date,reviewed_by,source_reference,effective_from,legacy_imported,approval_mode)
+    VALUES ('ordinary_brokerage_agreement','approved','synthetic-test-only','2031-01-01','synthetic-reviewer','synthetic-only',$1,true,'internal_business')
     RETURNING id::text`, [new Date("2031-01-01T00:00:00Z")])).rows[0];
   const consent = (await db.query(`INSERT INTO public.signature_consent_versions
-    (version_identifier,locale,consent_text,consent_text_sha256,status,effective_from,approval_reference,created_by_admin_id)
-    VALUES ('phase2d-synthetic-v1','es-PR',$1,$2,'approved',$3,'synthetic-test-only',$4::uuid) RETURNING id::text`,
+    (version_identifier,locale,consent_text,consent_text_sha256,status,effective_from,approval_reference,created_by_admin_id,legacy_imported,approval_mode)
+    VALUES ('phase2d-synthetic-v1','es-PR',$1,$2,'approved',$3,'synthetic-test-only',$4::uuid,true,'internal_business') RETURNING id::text`,
     [syntheticConsentText, syntheticConsentSha, new Date("2031-01-01T00:00:00Z"), adminId])).rows[0];
   await db.query(`UPDATE public.signature_documents SET document_type_approval_reference='synthetic-test-only',
     document_type_approval_id=$2::uuid, consent_version_id=$3::uuid,

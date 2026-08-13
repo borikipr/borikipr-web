@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import type { SignatureDatabase, SignatureQueryExecutor } from "./domain/types";
-import { sha256SignatureValue } from "./domain/crypto";
 import type { SignatureRetentionPolicy } from "./retention-policy";
+import { createSignatureGovernanceWorkflow } from "./governance-workflow";
+import { GOVERNANCE_APPROVAL_PHRASE } from "./governance-constants";
 
 function snapshot(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
@@ -50,42 +51,27 @@ export async function loadActiveRetentionPolicy(database: SignatureQueryExecutor
 }
 
 export function createSignatureGovernanceConfigurationService(database: SignatureDatabase, clock = () => new Date()) {
+  const workflow = createSignatureGovernanceWorkflow(database, clock);
   return {
     async createPrivacyDraft(input: { versionIdentifier: string; esPRText: string; enUSText: string; actorAdminId: string }) {
-      const es = input.esPRText.normalize("NFC").trim();
-      const en = input.enUSText.normalize("NFC").trim();
-      const rows = await database.unsafe<{ id: string }>(`INSERT INTO public.signature_privacy_disclosure_versions
-        (version_identifier,es_pr_text,en_us_text,es_pr_sha256,en_us_sha256,created_by_admin_id)
-        VALUES ($1,$2,$3,$4,$5,$6::uuid) RETURNING id::text`,
-        [input.versionIdentifier, es, en, sha256SignatureValue(es), sha256SignatureValue(en), input.actorAdminId]);
-      await event(database, { entityType: "privacy_disclosure", entityId: rows[0].id, action: "created", actorAdminId: input.actorAdminId, value: { versionIdentifier: input.versionIdentifier, es: sha256SignatureValue(es), en: sha256SignatureValue(en) } });
-      return rows[0].id;
+      const created = await workflow.createPrivacyDraft(input);
+      return created.id;
     },
-    async approvePrivacy(input: { id: string; approvalReference: string; effectiveFrom: Date; actorAdminId: string }) {
-      return database.begin(async (tx) => {
-        const now = clock().toISOString();
-        const rows = await tx.unsafe<{ id: string; es_pr_sha256: string; en_us_sha256: string }>(`UPDATE public.signature_privacy_disclosure_versions SET status='approved',approval_reference=$2,effective_from=$3::timestamptz,approved_at=$4::timestamptz,approved_by_admin_id=$5::uuid,updated_at=$4::timestamptz WHERE id=$1::uuid AND status='draft' RETURNING id::text,es_pr_sha256,en_us_sha256`, [input.id, input.approvalReference, input.effectiveFrom.toISOString(), now, input.actorAdminId]);
-        if (!rows[0]) throw new Error("signature_privacy_approval_rejected");
-        await event(tx, { entityType: "privacy_disclosure", entityId: input.id, action: "approved", actorAdminId: input.actorAdminId, value: rows[0] });
-        return rows[0];
-      });
+    async approvePrivacy(input: { id: string; approvalReference: string; approverRole: string; effectiveFrom: Date; actorAdminId: string }) {
+      await workflow.submitPrivacy({ id: input.id, actorAdminId: input.actorAdminId });
+      return workflow.approvePrivacy({ ...input, approvalMode: "internal_business",
+        confirmationPhrase: GOVERNANCE_APPROVAL_PHRASE, immutableAcknowledged: true });
     },
-    async createRetentionDraft(input: { versionIdentifier: string; approvalReference: string; privacyReference: string; policy: SignatureRetentionPolicy; actorAdminId: string }) {
-      const p = input.policy;
-      const rows = await database.unsafe<{ id: string }>(`INSERT INTO public.signature_retention_policy_versions
-        (version_identifier,approval_reference,privacy_reference,source_pdf_days,completed_pdf_days,certificate_days,evidence_manifest_days,token_days,session_hours,network_evidence_days,failed_cancelled_draft_days,audit_event_days,completed_cleanup_enabled,created_by_admin_id)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::uuid) RETURNING id::text`, [input.versionIdentifier,input.approvalReference,input.privacyReference,p.sourcePdfDays,p.completedPdfDays,p.certificateDays,p.evidenceManifestDays,p.tokenDays,p.sessionHours,p.networkEvidenceDays,p.failedCancelledDraftDays,p.auditEventDays,p.completedCleanupEnabled,input.actorAdminId]);
-      await event(database, { entityType: "retention_policy", entityId: rows[0].id, action: "created", actorAdminId: input.actorAdminId, value: p });
-      return rows[0].id;
+    async createRetentionDraft(input: { versionIdentifier: string; privacyReference: string; policy: SignatureRetentionPolicy; actorAdminId: string }) {
+      const created = await workflow.createRetentionDraft(input);
+      return created.id;
     },
-    async activateRetention(input: { id: string; actorAdminId: string }) {
-      return database.begin(async (tx) => {
-        const now = clock().toISOString();
-        const rows = await tx.unsafe<{ id: string }>(`UPDATE public.signature_retention_policy_versions SET status='active',activated_at=$2::timestamptz,activated_by_admin_id=$3::uuid,updated_at=$2::timestamptz WHERE id=$1::uuid AND status='draft' AND approval_reference IS NOT NULL AND privacy_reference IS NOT NULL RETURNING id::text`, [input.id, now, input.actorAdminId]);
-        if (!rows[0]) throw new Error("signature_retention_activation_rejected");
-        await event(tx, { entityType: "retention_policy", entityId: input.id, action: "activated", actorAdminId: input.actorAdminId, value: rows[0] });
-        return rows[0];
-      });
+    async activateRetention(input: { id: string; approvalReference: string; approverRole: string; actorAdminId: string }) {
+      await workflow.submitRetention({ id: input.id, actorAdminId: input.actorAdminId });
+      await workflow.approveRetention({ ...input, approvalMode: "internal_business",
+        confirmationPhrase: GOVERNANCE_APPROVAL_PHRASE, immutableAcknowledged: true });
+      return workflow.activateRetention({ id: input.id, actorAdminId: input.actorAdminId,
+        confirmationPhrase: GOVERNANCE_APPROVAL_PHRASE, immutableAcknowledged: true });
     },
     async authorize(input: { environment: "isolated"|"preview"|"production"; authorizationType: "internal_canary"|"production_public_launch"; readinessSnapshotSha256: string; notes?: string; expiresAt?: Date; actorAdminId: string; explicitConfirmation: boolean }) {
       if (!input.explicitConfirmation) throw new Error("signature_launch_confirmation_required");

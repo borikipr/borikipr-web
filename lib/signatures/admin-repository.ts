@@ -103,6 +103,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
                              WHERE sp.document_version_id=v.id
                                AND (sp.name_snapshot ILIKE '%' || $1 || '%'
                                     OR sp.normalized_email ILIKE '%' || $1 || '%')))
+            AND d.status <> 'archived'
             AND ($2 = 'all' OR d.status=$2)
             AND ($3 = 'all' OR d.document_type=$3)
           GROUP BY d.id, v.id, v.page_count
@@ -143,7 +144,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
                 v.page_geometry_manifest, v.field_definition_sha256, v.locked_at
            FROM public.signature_documents d
            JOIN public.signature_document_versions v ON v.id=d.active_version_id
-          WHERE d.id=$1::uuid`,
+          WHERE d.id=$1::uuid AND v.source_deleted_at IS NULL`,
         [documentId]
       );
       if (!documents[0]) return null;
@@ -272,7 +273,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         `SELECT v.source_r2_key, v.filename_snapshot, v.byte_count, v.source_sha256
            FROM public.signature_documents d
            JOIN public.signature_document_versions v ON v.id=d.active_version_id
-          WHERE d.id=$1::uuid`,
+          WHERE d.id=$1::uuid AND v.source_deleted_at IS NULL`,
         [documentId]
       );
       return rows[0]

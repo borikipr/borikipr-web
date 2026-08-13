@@ -41,6 +41,7 @@ const signerMigrationSql = await readFile(path.join(root, "db/migrations/0023_ex
 const deliveryMigrationSql = await readFile(path.join(root, "db/migrations/0024_add_signature_delivery_governance.sql"), "utf8");
 const privacyBindingMigrationSql = await readFile(path.join(root, "db/migrations/0025_bind_signature_privacy_disclosure.sql"), "utf8");
 const privacyHistoryMigrationSql = await readFile(path.join(root, "db/migrations/0026_preserve_signature_privacy_disclosure_text.sql"), "utf8");
+const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
 const SOURCE_HASH = "a".repeat(64);
 const FINAL_HASH = "b".repeat(64);
 const CERTIFICATE_HASH = "c".repeat(64);
@@ -101,6 +102,7 @@ before(async () => {
   await db.exec(deliveryMigrationSql);
   await db.exec(privacyBindingMigrationSql);
   await db.exec(privacyHistoryMigrationSql);
+  for (const migration of phase2GovernanceMigrations) await db.exec(migration);
 });
 
 beforeEach(async () => {
@@ -220,13 +222,13 @@ async function sentFixture() {
     [fixture.documentVersionId, fieldDefinitionHash, FIXED_NOW.toISOString()]
   );
   const approval = (await db.query(`INSERT INTO public.signature_document_type_approvals
-    (document_type,status,approval_reference,approval_date,reviewed_by,source_reference,effective_from)
+    (document_type,status,approval_reference,approval_date,reviewed_by,source_reference,effective_from,legacy_imported,approval_mode)
     VALUES ('ordinary_brokerage_agreement','approved','synthetic-test-fixture','2030-01-01',
-      'synthetic-reviewer','synthetic-source',$1) RETURNING id::text`, [new Date("2030-01-01T00:00:00Z")])).rows[0];
+      'synthetic-reviewer','synthetic-source',$1,true,'internal_business') RETURNING id::text`, [new Date("2030-01-01T00:00:00Z")])).rows[0];
   const consentText = "Synthetic consent text for isolated Phase 2B schema tests only.";
   const consent = (await db.query(`INSERT INTO public.signature_consent_versions
-    (version_identifier,locale,consent_text,consent_text_sha256,status,effective_from,approval_reference,created_by_admin_id)
-    VALUES ('phase2b-synthetic-v1','es-PR',$1,$2,'approved',$3,'synthetic-test-fixture',$4::uuid)
+    (version_identifier,locale,consent_text,consent_text_sha256,status,effective_from,approval_reference,created_by_admin_id,legacy_imported,approval_mode)
+    VALUES ('phase2b-synthetic-v1','es-PR',$1,$2,'approved',$3,'synthetic-test-fixture',$4::uuid,true,'internal_business')
     RETURNING id::text`, [consentText, sha256SignatureValue(consentText), new Date("2030-01-01T00:00:00Z"), adminId])).rows[0];
   await db.query(
     `UPDATE public.signature_documents
@@ -267,7 +269,12 @@ test("latest isolated signing schema preserves the foundation tables", async () 
       "signature_events",
       "signature_field_values",
       "signature_fields",
+      "signature_governance_events",
+      "signature_launch_authorizations",
+      "signature_legal_holds",
       "signature_participants",
+      "signature_privacy_disclosure_versions",
+      "signature_retention_policy_versions",
       "signature_sessions",
       "signature_signing_tokens",
     ]
@@ -297,7 +304,7 @@ test("valid draft creation preserves the counsel gate", async () => {
       publicSigningEnabled: true,
       privacyDisclosure: syntheticPrivacyDisclosure,
     }),
-    /signature_document_type_not_counsel_approved/
+    /signature_document_type_not_approved/
   );
 });
 

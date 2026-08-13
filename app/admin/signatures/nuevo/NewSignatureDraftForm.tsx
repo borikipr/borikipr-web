@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 type Option = Readonly<{ id: string; label: string }>;
-type DocumentType = Readonly<{ id: string; label: string; classification: string; approvalState: string }>;
+type DocumentType = Readonly<{ id: string; label: string; scope: string }>;
 
 export default function NewSignatureDraftForm({
   documentTypes,
@@ -48,7 +48,7 @@ export default function NewSignatureDraftForm({
     <form className="surface-card space-y-6 p-6 md:p-8" onSubmit={submit}>
       <div className="grid gap-5 md:grid-cols-2">
         <label><span className="text-sm font-semibold">Título interno</span><input className="mt-2 w-full rounded-xl border border-[#d9d9d9] px-4 py-3" maxLength={200} name="title" required /></label>
-        <label><span className="text-sm font-semibold">Tipo de documento</span><select className="mt-2 w-full rounded-xl border border-[#d9d9d9] px-4 py-3" name="documentType" required defaultValue=""><option disabled value="">Selecciona</option>{documentTypes.map((type) => <option key={type.id} value={type.id}>{type.label} · {type.approvalState === "pending_counsel_review" ? "revisión legal pendiente" : type.classification}</option>)}</select></label>
+        <label><span className="text-sm font-semibold">Tipo de documento</span><select className="mt-2 w-full rounded-xl border border-[#d9d9d9] px-4 py-3" name="documentType" required defaultValue=""><option disabled value="">Selecciona</option>{documentTypes.map((type) => <option key={type.id} value={type.id}>{type.label} · {type.scope === "ordinary_brokerage" ? "flujo ordinario de corretaje" : "confirmar alcance/formalidades"}</option>)}</select></label>
         <label><span className="text-sm font-semibold">Lead 360 (opcional)</span><select className="mt-2 w-full rounded-xl border border-[#d9d9d9] px-4 py-3" name="canonicalLeadId" defaultValue=""><option value="">Sin enlace</option>{leads.map((lead) => <option key={lead.id} value={lead.id}>{lead.label}</option>)}</select></label>
         <label><span className="text-sm font-semibold">Caso compartido (opcional)</span><select className="mt-2 w-full rounded-xl border border-[#d9d9d9] px-4 py-3" name="leadGroupId" defaultValue=""><option value="">Sin enlace</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.label}</option>)}</select></label>
         <label><span className="text-sm font-semibold">Fecha de expiración</span><input className="mt-2 w-full rounded-xl border border-[#d9d9d9] px-4 py-3" min={new Date().toISOString().slice(0, 10)} name="expiresOn" required type="date" /></label>

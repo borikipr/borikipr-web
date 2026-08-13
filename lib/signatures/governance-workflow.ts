@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { SignatureDatabase, SignatureQueryExecutor } from "./domain/types";
 import { sha256SignatureValue } from "./domain/crypto";
-import { getSignatureDocumentTypeDefinition } from "./document-classification";
+import { getSignatureDocumentTypeDefinition, type SignatureApprovalMode } from "./document-classification";
 import { canonicalJson } from "./prototype/hash";
 import type { SignatureRetentionPolicy } from "./retention-policy";
 import { GOVERNANCE_APPROVAL_PHRASE } from "./governance-constants";
@@ -31,8 +31,10 @@ async function audit(database: SignatureQueryExecutor, input: AuditInput) {
 }
 
 function requireApproval(input: {
-  externalReviewerName: string;
-  externalReviewerReference: string;
+  approvalMode: Exclude<SignatureApprovalMode, "out_of_scope">;
+  approverRole: string;
+  externalReviewerName?: string;
+  externalReviewerReference?: string;
   approvalReference: string;
   confirmationPhrase: string;
   immutableAcknowledged: boolean;
@@ -40,7 +42,11 @@ function requireApproval(input: {
   if (!input.immutableAcknowledged || input.confirmationPhrase.normalize("NFC").trim() !== GOVERNANCE_APPROVAL_PHRASE) {
     throw new Error("signature_governance_confirmation_required");
   }
-  if (![input.externalReviewerName, input.externalReviewerReference, input.approvalReference].every((value) => value.trim().length > 0)) {
+  if (!input.approvalReference.trim() || !input.approverRole.trim()) {
+    throw new Error("signature_governance_approval_source_incomplete");
+  }
+  if (input.approvalMode === "external_review" &&
+      ![input.externalReviewerName, input.externalReviewerReference].every((value) => value?.trim().length)) {
     throw new Error("signature_governance_external_approval_incomplete");
   }
 }
@@ -69,7 +75,7 @@ export function createSignatureGovernanceWorkflow(database: SignatureDatabase, c
             input.permittedSigningUse.trim(), input.actorAdminId]);
         await audit(tx, { entityType: "document_classification", entityId: rows[0].id, action: "created",
           actorAdminId: input.actorAdminId, previousState: null, newState: "draft",
-          snapshot: { documentType: input.documentType, version: rows[0].version_number, classification: definition.classification },
+          snapshot: { documentType: input.documentType, version: rows[0].version_number, scope: definition.scope },
           idempotencyKey: input.idempotencyKey });
         return rows[0];
       });
@@ -87,28 +93,55 @@ export function createSignatureGovernanceWorkflow(database: SignatureDatabase, c
       });
     },
     async approveClassification(input: {
-      id: string; counselName: string; counselLawFirm: string; approvalReference: string;
-      sourceReference: string; approvalDate: string; effectiveFrom: Date; notes?: string;
+      id: string; approvalMode: SignatureApprovalMode; approvalReference: string; approverRole: string;
+      externalReviewerName?: string; externalReviewerOrganization?: string; externalReviewerRole?: string;
+      externalReviewerReference?: string; approvalDate: string; effectiveFrom: Date; notes?: string;
       actorAdminId: string; confirmationPhrase: string; immutableAcknowledged: boolean; idempotencyKey?: string;
     }) {
-      requireApproval({ externalReviewerName: input.counselName, externalReviewerReference: input.sourceReference,
-        approvalReference: input.approvalReference, confirmationPhrase: input.confirmationPhrase,
-        immutableAcknowledged: input.immutableAcknowledged });
+      if (input.approvalMode !== "out_of_scope") {
+        requireApproval({ approvalMode: input.approvalMode, approverRole: input.approverRole,
+          externalReviewerName: input.externalReviewerName, externalReviewerReference: input.externalReviewerReference,
+          approvalReference: input.approvalReference, confirmationPhrase: input.confirmationPhrase,
+          immutableAcknowledged: input.immutableAcknowledged });
+      } else if (!input.immutableAcknowledged || input.confirmationPhrase.normalize("NFC").trim() !== GOVERNANCE_APPROVAL_PHRASE || !input.approvalReference.trim() || !input.approverRole.trim()) {
+        throw new Error("signature_governance_confirmation_required");
+      }
       return database.begin(async (tx) => {
         const now = clock().toISOString();
+        const pending = await tx.unsafe<{ document_type:string;version_number:number;display_name:string;description:string;permitted_signing_use:string }>(
+          `SELECT document_type,version_number,display_name,description,permitted_signing_use
+             FROM public.signature_document_type_approvals WHERE id=$1::uuid AND status='pending' FOR UPDATE`, [input.id]);
+        if (!pending[0]) throw new Error("signature_classification_approval_rejected");
+        const snapshot = { ...pending[0], approvalMode: input.approvalMode,
+          approvalReference: input.approvalReference.trim(), approverRole: input.approverRole.trim(),
+          externalReviewerName: input.externalReviewerName?.trim() || null,
+          externalReviewerOrganization: input.externalReviewerOrganization?.trim() || null,
+          externalReviewerRole: input.externalReviewerRole?.trim() || null,
+          externalReviewerReference: input.externalReviewerReference?.trim() || null,
+          approvalDate: input.approvalDate, effectiveFrom: input.effectiveFrom.toISOString() };
+        const snapshotSha256 = sha256SignatureValue(canonicalJson(snapshot));
+        const targetStatus = input.approvalMode === "out_of_scope" ? "restricted" : "approved";
         const rows = await tx.unsafe<{ id: string; document_type: string; version_number: number }>(
-          `UPDATE public.signature_document_type_approvals SET status='approved',approval_reference=$2,
-             approval_date=$3::date,reviewed_by=$4,source_reference=$5,effective_from=$6::timestamptz,
-             notes=$7,entered_by_admin_id=$8::uuid,counsel_name=$4,counsel_law_firm=$9,
-             approved_at=$10::timestamptz,updated_at=$10::timestamptz
+          `UPDATE public.signature_document_type_approvals SET status=$2,approval_mode=$3,approval_reference=$4,
+             approval_date=$5::date,reviewed_by=$6,source_reference=$7,effective_from=$8::timestamptz,
+             notes=$9,entered_by_admin_id=$10::uuid,approved_by_admin_id=$10::uuid,approver_role=$11,
+             counsel_name=$12,counsel_law_firm=$13,external_reviewer_role=$14,
+             approval_snapshot_sha256=$15,approved_at=$16::timestamptz,updated_at=$16::timestamptz
            WHERE id=$1::uuid AND status='pending' RETURNING id::text,document_type,version_number`,
-          [input.id,input.approvalReference.trim(),input.approvalDate,input.counselName.trim(),
-            input.sourceReference.trim(),input.effectiveFrom.toISOString(),input.notes?.trim() || null,
-            input.actorAdminId,input.counselLawFirm.trim(),now]);
+          [input.id,targetStatus,input.approvalMode,input.approvalReference.trim(),input.approvalDate,
+            input.approvalMode === "external_review" ? input.externalReviewerName?.trim() : "Erickson Real Estate",
+            input.approvalMode === "external_review" ? input.externalReviewerReference?.trim() : input.approvalReference.trim(),
+            input.effectiveFrom.toISOString(),input.notes?.trim() || null,input.actorAdminId,input.approverRole.trim(),
+            input.approvalMode === "external_review" ? input.externalReviewerName?.trim() : null,
+            input.approvalMode === "external_review" ? input.externalReviewerOrganization?.trim() : null,
+            input.approvalMode === "external_review" ? input.externalReviewerRole?.trim() || null : null,
+            snapshotSha256,now]);
         if (!rows[0]) throw new Error("signature_classification_approval_rejected");
-        await audit(tx, { entityType: "document_classification", entityId: input.id, action: "approved",
-          actorAdminId: input.actorAdminId, previousState: "pending", newState: "approved",
-          externalApprovalReference: input.approvalReference, snapshot: rows[0], idempotencyKey: input.idempotencyKey });
+        await audit(tx, { entityType: "document_classification", entityId: input.id,
+          action: input.approvalMode === "out_of_scope" ? "restricted" : "approved",
+          actorAdminId: input.actorAdminId, previousState: "pending", newState: targetStatus,
+          externalApprovalReference: input.approvalMode === "external_review" ? input.approvalReference : null,
+          snapshot: { ...rows[0], approvalMode: input.approvalMode, snapshotSha256 }, idempotencyKey: input.idempotencyKey });
         return rows[0];
       });
     },
@@ -139,22 +172,24 @@ export function createSignatureGovernanceWorkflow(database: SignatureDatabase, c
       });
     },
     async approveConsent(input: {
-      id: string; approvalReference: string; externalReviewerName: string; externalReviewerReference: string;
+      id: string; approvalMode: Exclude<SignatureApprovalMode,"out_of_scope">; approvalReference: string; approverRole: string;
+      externalReviewerName?: string; externalReviewerReference?: string;
       effectiveFrom: Date; actorAdminId: string; confirmationPhrase: string; immutableAcknowledged: boolean; idempotencyKey?: string;
     }) {
       requireApproval({ ...input });
       return database.begin(async (tx) => {
         const now = clock().toISOString();
         const rows = await tx.unsafe<{ id: string; locale: string; consent_text_sha256: string }>(
-          `UPDATE public.signature_consent_versions SET status='approved',approval_reference=$2,
-             effective_from=$3::timestamptz,approved_at=$4::timestamptz,approved_by_admin_id=$5::uuid,
-             external_reviewer_name=$6,external_reviewer_reference=$7,updated_at=$4::timestamptz
+          `UPDATE public.signature_consent_versions SET status='approved',approval_mode=$2,approval_reference=$3,
+             effective_from=$4::timestamptz,approved_at=$5::timestamptz,approved_by_admin_id=$6::uuid,
+             approver_role=$7,external_reviewer_name=$8,external_reviewer_reference=$9,updated_at=$5::timestamptz
            WHERE id=$1::uuid AND status='pending_review' RETURNING id::text,locale,consent_text_sha256`,
-          [input.id,input.approvalReference.trim(),input.effectiveFrom.toISOString(),now,input.actorAdminId,
-            input.externalReviewerName.trim(),input.externalReviewerReference.trim()]);
+          [input.id,input.approvalMode,input.approvalReference.trim(),input.effectiveFrom.toISOString(),now,input.actorAdminId,
+            input.approverRole.trim(),input.approvalMode === "external_review" ? input.externalReviewerName?.trim() : null,
+            input.approvalMode === "external_review" ? input.externalReviewerReference?.trim() : null]);
         if (!rows[0]) throw new Error("signature_consent_approval_rejected");
         await audit(tx, { entityType: "consent_version", entityId: input.id, action: "approved", actorAdminId: input.actorAdminId,
-          previousState: "pending_review", newState: "approved", externalApprovalReference: input.approvalReference,
+          previousState: "pending_review", newState: "approved", externalApprovalReference: input.approvalMode === "external_review" ? input.approvalReference : null,
           snapshot: rows[0], idempotencyKey: input.idempotencyKey });
         return rows[0];
       });
@@ -187,22 +222,24 @@ export function createSignatureGovernanceWorkflow(database: SignatureDatabase, c
       });
     },
     async approvePrivacy(input: {
-      id: string; approvalReference: string; externalReviewerName: string; externalReviewerReference: string;
+      id: string; approvalMode: Exclude<SignatureApprovalMode,"out_of_scope">; approvalReference: string; approverRole: string;
+      externalReviewerName?: string; externalReviewerReference?: string;
       effectiveFrom: Date; actorAdminId: string; confirmationPhrase: string; immutableAcknowledged: boolean; idempotencyKey?: string;
     }) {
       requireApproval({ ...input });
       return database.begin(async (tx) => {
         const now = clock().toISOString();
         const rows = await tx.unsafe<{ id: string; es_pr_sha256: string; en_us_sha256: string }>(
-          `UPDATE public.signature_privacy_disclosure_versions SET status='approved',approval_reference=$2,
-             effective_from=$3::timestamptz,approved_at=$4::timestamptz,approved_by_admin_id=$5::uuid,
-             external_reviewer_name=$6,external_reviewer_reference=$7,updated_at=$4::timestamptz
+          `UPDATE public.signature_privacy_disclosure_versions SET status='approved',approval_mode=$2,approval_reference=$3,
+             effective_from=$4::timestamptz,approved_at=$5::timestamptz,approved_by_admin_id=$6::uuid,
+             approver_role=$7,external_reviewer_name=$8,external_reviewer_reference=$9,updated_at=$5::timestamptz
            WHERE id=$1::uuid AND status='pending_review' RETURNING id::text,es_pr_sha256,en_us_sha256`,
-          [input.id,input.approvalReference.trim(),input.effectiveFrom.toISOString(),now,input.actorAdminId,
-            input.externalReviewerName.trim(),input.externalReviewerReference.trim()]);
+          [input.id,input.approvalMode,input.approvalReference.trim(),input.effectiveFrom.toISOString(),now,input.actorAdminId,
+            input.approverRole.trim(),input.approvalMode === "external_review" ? input.externalReviewerName?.trim() : null,
+            input.approvalMode === "external_review" ? input.externalReviewerReference?.trim() : null]);
         if (!rows[0]) throw new Error("signature_privacy_approval_rejected");
         await audit(tx, { entityType: "privacy_disclosure", entityId: input.id, action: "approved", actorAdminId: input.actorAdminId,
-          previousState: "pending_review", newState: "approved", externalApprovalReference: input.approvalReference,
+          previousState: "pending_review", newState: "approved", externalApprovalReference: input.approvalMode === "external_review" ? input.approvalReference : null,
           snapshot: rows[0], idempotencyKey: input.idempotencyKey });
         return rows[0];
       });
@@ -237,22 +274,25 @@ export function createSignatureGovernanceWorkflow(database: SignatureDatabase, c
       });
     },
     async approveRetention(input: {
-      id: string; approvalReference: string; externalReviewerName: string; externalReviewerReference: string;
+      id: string; approvalMode: Exclude<SignatureApprovalMode,"out_of_scope">; approvalReference: string; approverRole: string;
+      externalReviewerName?: string; externalReviewerReference?: string;
       actorAdminId: string; confirmationPhrase: string; immutableAcknowledged: boolean; idempotencyKey?: string;
     }) {
       requireApproval({ ...input });
       return database.begin(async (tx) => {
         const now = clock().toISOString();
         const rows = await tx.unsafe<{ id: string; policy_sha256: string }>(
-          `UPDATE public.signature_retention_policy_versions SET status='approved',approval_reference=$2,
-             approved_at=$3::timestamptz,approved_by_admin_id=$4::uuid,external_reviewer_name=$5,
-             external_reviewer_reference=$6,updated_at=$3::timestamptz
+          `UPDATE public.signature_retention_policy_versions SET status='approved',approval_mode=$2,approval_reference=$3,
+             approved_at=$4::timestamptz,approved_by_admin_id=$5::uuid,approver_role=$6,external_reviewer_name=$7,
+             external_reviewer_reference=$8,updated_at=$4::timestamptz
            WHERE id=$1::uuid AND status='pending_review' AND policy_sha256 ~ '^[0-9a-f]{64}$'
            RETURNING id::text,policy_sha256`,
-          [input.id,input.approvalReference.trim(),now,input.actorAdminId,input.externalReviewerName.trim(),input.externalReviewerReference.trim()]);
+          [input.id,input.approvalMode,input.approvalReference.trim(),now,input.actorAdminId,input.approverRole.trim(),
+            input.approvalMode === "external_review" ? input.externalReviewerName?.trim() : null,
+            input.approvalMode === "external_review" ? input.externalReviewerReference?.trim() : null]);
         if (!rows[0]) throw new Error("signature_retention_approval_rejected");
         await audit(tx, { entityType: "retention_policy", entityId: input.id, action: "approved", actorAdminId: input.actorAdminId,
-          previousState: "pending_review", newState: "approved", externalApprovalReference: input.approvalReference,
+          previousState: "pending_review", newState: "approved", externalApprovalReference: input.approvalMode === "external_review" ? input.approvalReference : null,
           snapshot: rows[0], idempotencyKey: input.idempotencyKey });
         return rows[0];
       });
