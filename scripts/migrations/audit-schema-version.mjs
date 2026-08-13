@@ -185,6 +185,14 @@ if (!process.env.DATABASE_URL) {
             AND EXISTS (SELECT 1 FROM information_schema.columns
               WHERE table_schema='public' AND table_name='signature_launch_authorizations'
               AND column_name='authorized_locales') AS v0033
+          ,EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='signature_documents'
+              AND column_name='operationally_hidden_at')
+            AND EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='signature_participants'
+              AND column_name='removed_at')
+            AND EXISTS (SELECT 1 FROM pg_trigger
+              WHERE tgname='signature_documents_operational_hide_immutable_trigger') AS v0034
       )
       SELECT * FROM facts
     `;

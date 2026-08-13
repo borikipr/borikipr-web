@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 type Option = Readonly<{ id: string; label: string }>;
 type DocumentType = Readonly<{ id: string; label: string; scope: string }>;
@@ -17,7 +17,10 @@ export default function NewSignatureDraftForm({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const [message, setMessage] = useState("");
+
+  useEffect(() => setHydrated(true), []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -55,7 +58,7 @@ export default function NewSignatureDraftForm({
       </div>
       <label className="block"><span className="text-sm font-semibold">PDF fuente</span><input accept="application/pdf,.pdf" className="mt-2 block w-full rounded-xl border border-dashed border-[#a8a8a8] p-4" name="sourcePdf" required type="file" /><span className="mt-2 block text-xs text-[#666]">Máximo 3 MB y 25 páginas. Se rechazará contenido cifrado, XFA, adjuntos, acciones, JavaScript o firmas digitales existentes.</span></label>
       {message && <p aria-live="polite" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{message}</p>}
-      <button className="btn-primary" disabled={busy} type="submit">{busy ? "Validando PDF…" : "Validar y crear borrador"}</button>
+      <button className="btn-primary" disabled={busy || !hydrated} type="submit">{!hydrated ? "Preparando…" : busy ? "Validando PDF…" : "Guardar y continuar"}</button>
     </form>
   );
 }

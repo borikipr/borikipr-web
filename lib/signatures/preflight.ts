@@ -106,7 +106,7 @@ export async function evaluateSignaturePreflight(input: {
   if (!document?.expires_at || new Date(document.expires_at).getTime()<=now.getTime()) items.push(item("expiration_invalid","preparation","blocked","La expiración no es válida.","Selecciona una fecha futura."));
 
   const participants = document?.version_id ? await input.database.unsafe<{id:string;normalized_email:string}>(
-    `SELECT id::text,normalized_email FROM signature_participants WHERE document_version_id=$1::uuid ORDER BY normalized_email,id`,[document.version_id]) : [];
+    `SELECT id::text,normalized_email FROM signature_participants WHERE document_version_id=$1::uuid AND removed_at IS NULL ORDER BY normalized_email,id`,[document.version_id]) : [];
   const participantIds = participants.map((row)=>row.id).sort();
   const participantEmails = normalizedUnique(participants.map((row)=>row.normalized_email));
   if (participants.length<1 || participants.length>8 || participantEmails.length!==participants.length) {

@@ -85,7 +85,7 @@ export async function addSignatureParticipantAction(
       role: value(formData,"role"), routingOrder: value(formData,"routingOrder") });
     const counts = await current.runtime.database.unsafe<{ total:number; duplicate:number }>(
       `SELECT count(*)::int total, count(*) FILTER (WHERE normalized_email=$2)::int duplicate
-         FROM signature_participants WHERE document_version_id=$1::uuid`,
+         FROM signature_participants WHERE document_version_id=$1::uuid AND removed_at IS NULL`,
       [current.detail.version.id, participant.email]);
     if ((counts[0]?.total ?? 0) >= 8) return { ok:false, message:"Se alcanzó el máximo de 8 participantes." };
     if ((counts[0]?.duplicate ?? 0) > 0) return { ok:false, message:"Este correo ya pertenece a otro participante." };
@@ -107,6 +107,58 @@ export async function addSignatureParticipantAction(
     if (/unique|duplicate/i.test(code)) return { ok:false, message:"Este correo ya pertenece a otro participante." };
     if (/limit exceeded/i.test(code)) return { ok:false, message:"Se alcanzó el máximo de 8 participantes." };
     return { ok: false, message: "No se pudo guardar el participante. Intenta nuevamente." };
+  }
+}
+
+export async function updateSignatureParticipantAction(
+  _state: SignatureAdminActionState,
+  formData: FormData
+): Promise<SignatureAdminActionState> {
+  const documentId=value(formData,"documentId");
+  const current=await context(documentId);
+  if(!current) return {ok:false,message:"Borrador no disponible."};
+  const participant=current.detail.participants.find((item)=>item.id===value(formData,"participantId"));
+  if(!participant) return {ok:false,message:"Destinatario no encontrado."};
+  try {
+    const parsed=parseSignatureParticipantDraft({name:value(formData,"name"),email:value(formData,"email"),role:value(formData,"role"),routingOrder:value(formData,"routingOrder")});
+    await current.runtime.domain.updateParticipant({participantId:participant.id,nameSnapshot:parsed.name,emailSnapshot:parsed.email,
+      role:parsed.role,routingOrder:parsed.routingOrder,actorAdminId:current.session.id,idempotencyKey:randomUUID()});
+    refresh(documentId);
+    return {ok:true,message:"Destinatario actualizado."};
+  } catch(error) {
+    if(error instanceof SignatureParticipantAdminValidationError) return {ok:false,message:error.userMessage};
+    if(error instanceof Error && /unique|duplicate/i.test(error.message)) return {ok:false,message:"Este correo ya pertenece a otro destinatario."};
+    return {ok:false,message:"No pudimos actualizar el destinatario. Intenta nuevamente."};
+  }
+}
+
+export async function removeSignatureParticipantAction(
+  _state: SignatureAdminActionState,
+  formData: FormData
+): Promise<SignatureAdminActionState> {
+  const documentId=value(formData,"documentId");
+  const current=await context(documentId);
+  if(!current) return {ok:false,message:"Borrador no disponible."};
+  const participantId=value(formData,"participantId");
+  const reason=value(formData,"reason") || "Eliminado durante la preparación";
+  try {
+    await current.runtime.database.begin(async(tx)=>{
+      const [row]=await tx.unsafe<{id:string}>(`UPDATE signature_participants p SET removed_at=now(),removed_by_admin_id=$3::uuid,removal_reason=$4
+        FROM signature_document_versions v,signature_documents d
+        WHERE p.id=$1::uuid AND p.document_version_id=$2::uuid AND v.id=p.document_version_id AND d.active_version_id=v.id
+          AND d.id=$5::uuid AND d.status='draft' AND v.locked_at IS NULL AND p.removed_at IS NULL
+          AND NOT EXISTS(SELECT 1 FROM signature_fields f WHERE f.participant_id=p.id)
+        RETURNING p.id::text`,[participantId,current.detail.version.id,current.session.id,reason,documentId]);
+      if(!row) throw new Error("signature_participant_remove_blocked");
+      const snapshot=createHash("sha256").update(JSON.stringify({documentId,participantId,reason})).digest("hex");
+      await tx.unsafe(`INSERT INTO signature_governance_events(entity_type,entity_id,action,actor_admin_id,snapshot_sha256,previous_state,new_state,idempotency_key)
+        VALUES('signing_request',$1::uuid,'recipient_removed',$2::uuid,$3,'active_recipient','removed_recipient',$4::uuid)`,
+        [documentId,current.session.id,snapshot,randomUUID()]);
+    });
+    refresh(documentId);
+    return {ok:true,message:"Destinatario eliminado del borrador. El historial permanece preservado."};
+  } catch {
+    return {ok:false,message:"No se puede eliminar: primero quita los campos asignados a este destinatario."};
   }
 }
 
@@ -399,5 +451,44 @@ export async function archiveSignatureDraftAction(
     return { ok:true, message:"Borrador archivado. El PDF privado y la evidencia permanecen preservados." };
   } catch {
     return { ok:false, message:"No se pudo archivar el borrador en su estado actual." };
+  }
+}
+
+export async function removeSignatureRequestAction(
+  _state: SignatureAdminActionState,
+  formData: FormData
+): Promise<SignatureAdminActionState> {
+  const session=await getAdminSession();
+  if(!session) return {ok:false,message:"Sesión expirada."};
+  const documentId=value(formData,"documentId");
+  const reason=value(formData,"reason");
+  if(!reason) return {ok:false,message:"Escribe una razón para continuar."};
+  try {
+    const runtime=createSignatureRuntime();
+    const lifecycle=createSignatureDraftLifecycleService(runtime.database,runtime.storage);
+    const detail=await createSignatureAdminRepository(runtime.database).detail(documentId);
+    if(!detail) return {ok:false,message:"Solicitud no encontrada."};
+    if(detail.status==="archived" || detail.operationallyHiddenAt) return {ok:true,message:"La solicitud ya está fuera de la lista activa."};
+    const eligibility=await lifecycle.inspectDeletion(documentId);
+    if(eligibility.eligible) {
+      await lifecycle.deleteInertDraft({documentId,actorAdminId:session.id,reason,
+        confirmationPhrase:value(formData,"confirmationPhrase"),idempotencyKey:randomUUID()});
+      refresh(documentId);
+      return {ok:true,message:"Borrador eliminado de la lista y PDF fuente privado removido. La auditoría se conservó."};
+    }
+    if(detail.status==="draft") {
+      await lifecycle.archiveDraft({documentId,actorAdminId:session.id,reason,idempotencyKey:randomUUID()});
+      refresh(documentId);
+      return {ok:true,message:"La solicitud se quitó de la lista activa. Borikí conservó la evidencia necesaria."};
+    }
+    if(["sent","viewed","partially_signed"].includes(detail.status)) {
+      await createSignatureDomainRuntime().domain.voidSignatureDocument({documentId,actorAdminId:session.id,reason,idempotencyKey:randomUUID()});
+    }
+    await lifecycle.hideFromOperationalWorkflow({documentId,actorAdminId:session.id,reason,idempotencyKey:randomUUID()});
+    refresh(documentId);
+    return {ok:true,message:"La solicitud se quitó de la lista activa. La evidencia protegida permanece disponible en Archivados."};
+  } catch(error) {
+    if(error instanceof Error && error.message.includes("confirmation")) return {ok:false,message:"Escribe ELIMINAR BORRADOR para eliminar un borrador completamente inerte."};
+    return {ok:false,message:"No pudimos quitar la solicitud de forma segura. No se destruyó evidencia."};
   }
 }

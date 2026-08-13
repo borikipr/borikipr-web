@@ -77,6 +77,7 @@ if (!existing.rows[0]?.relation) {
     "0031_add_signature_legal_holds.sql",
     "0032_correct_signature_business_governance.sql",
     "0033_harden_signature_preflight_authorization.sql",
+    "0034_add_signature_operational_hiding.sql",
   ];
   for (const name of names) {
     await db.exec(await readFile(path.join(root, "db", "migrations", name), "utf8"));
@@ -129,6 +130,11 @@ if (businessApprovalColumn.rows[0]?.count === 0) {
 const phase2oTable = await db.query(`SELECT to_regclass('public.signature_readiness_snapshots')::text AS relation`);
 if (!phase2oTable.rows[0]?.relation) {
   await db.exec(await readFile(path.join(root,"db","migrations","0033_harden_signature_preflight_authorization.sql"),"utf8"));
+}
+const operationalHideColumn = await db.query(`SELECT count(*)::integer AS count FROM information_schema.columns
+  WHERE table_schema='public' AND table_name='signature_documents' AND column_name='operationally_hidden_at'`);
+if (operationalHideColumn.rows[0]?.count === 0) {
+  await db.exec(await readFile(path.join(root,"db","migrations","0034_add_signature_operational_hiding.sql"),"utf8"));
 }
 
 const passwordHash = await bcrypt.hash(password, 12);

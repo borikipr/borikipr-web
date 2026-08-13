@@ -112,5 +112,24 @@ export function createSignatureDraftLifecycleService(database: SignatureDatabase
         return { status:"archived" as const, sourceDeleted:false as const };
       });
     },
+
+    async hideFromOperationalWorkflow(input: { documentId:string; actorAdminId:string; reason:string; idempotencyKey?:string }) {
+      const reason = input.reason.normalize("NFC").trim();
+      if (!reason || reason.length > 500) throw new Error("signature_request_hide_reason_invalid");
+      return database.begin(async (tx) => {
+        const now = clock().toISOString();
+        const rows = await tx.unsafe<{id:string;status:string}>(`UPDATE signature_documents
+          SET operationally_hidden_at=$2::timestamptz,operationally_hidden_by_admin_id=$3::uuid,
+              operationally_hidden_reason=$4
+          WHERE id=$1::uuid AND status<>'archived' AND operationally_hidden_at IS NULL
+          RETURNING id::text,status`, [input.documentId,now,input.actorAdminId,reason]);
+        if (!rows[0]) throw new Error("signature_request_hide_rejected");
+        await tx.unsafe(`INSERT INTO signature_governance_events(entity_type,entity_id,action,actor_admin_id,
+          snapshot_sha256,previous_state,new_state,idempotency_key)
+          VALUES ('signing_request',$1::uuid,'workflow_hidden',$2::uuid,$3,$4,$4,$5::uuid)`,
+          [input.documentId,input.actorAdminId,sha256SignatureValue(canonicalJson({documentId:input.documentId,status:rows[0].status,hiddenAt:now,reason})),rows[0].status,input.idempotencyKey ?? randomUUID()]);
+        return { status:rows[0].status, hidden:true as const };
+      });
+    },
   };
 }

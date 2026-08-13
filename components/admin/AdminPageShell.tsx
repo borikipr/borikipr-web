@@ -27,6 +27,7 @@ export function AdminBreadcrumbs({ items }: { items: BreadcrumbItem[] }) {
               {item.href && !isLast ? (
                 <Link
                   href={item.href}
+                  prefetch={false}
                   className="font-medium text-[#11518b] transition hover:text-[#0d406d]"
                 >
                   {item.label}

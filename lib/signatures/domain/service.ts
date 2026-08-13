@@ -924,7 +924,7 @@ export function createSignatureDomainServices({
                    WHERE f.participant_id=p.id AND f.required
                 )) AS without_required_fields
            FROM public.signature_participants p
-          WHERE document_version_id = $1::uuid`,
+          WHERE document_version_id = $1::uuid AND removed_at IS NULL`,
         [document.active_version_id]
       );
       if (!versions[0] || fieldRows.length === 0 || Number(participantCount[0].count) === 0) {

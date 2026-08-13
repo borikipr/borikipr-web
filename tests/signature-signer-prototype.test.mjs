@@ -24,7 +24,7 @@ const [foundationSql, signerSql, deliverySql, privacyBindingSql, privacyHistoryS
   readFile(path.join(root, "db/migrations/0026_preserve_signature_privacy_disclosure_text.sql"), "utf8"),
   readFile(path.join(root, "tests/fixtures/signatures/rejections/valid-ordinary.pdf")),
 ]);
-const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
+const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql","0034_add_signature_operational_hiding.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
 
 function pgliteDatabase(db) {
   const executor = (source) => ({ async unsafe(query, parameters = []) { return (await source.query(query, parameters)).rows; } });

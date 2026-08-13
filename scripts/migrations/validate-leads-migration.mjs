@@ -1980,6 +1980,12 @@ const signaturePreflightHardeningMigrationSql = await readMigration(
 const signaturePreflightHardeningRollbackSql = await readMigration(
   "0033_harden_signature_preflight_authorization.rollback.sql"
 );
+const signatureOperationalUxMigrationSql = await readMigration(
+  "0034_add_signature_operational_hiding.sql"
+);
+const signatureOperationalUxRollbackSql = await readMigration(
+  "0034_add_signature_operational_hiding.rollback.sql"
+);
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -2239,3 +2245,25 @@ try {
   await signaturePreflightHardeningDb.exec(signaturePreflightHardeningRollbackSql);
   console.log("Validated pre-flight and scoped-authorization hardening migration 0033 and guarded rollback.");
 } finally { await signaturePreflightHardeningDb.close(); }
+
+const signatureOperationalUxDb = new PGlite();
+try {
+  await signatureOperationalUxDb.exec(`
+    CREATE TABLE public.admin_users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),username text NOT NULL UNIQUE);
+    CREATE TABLE public.leads (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
+    CREATE TABLE public.lead_groups (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
+  `);
+  for (const migration of [signatureFoundationMigrationSql,signatureSignerMigrationSql,signatureDeliveryMigrationSql,
+    signaturePrivacyBindingMigrationSql,signaturePrivacyHistoryMigrationSql,signatureLaunchGovernanceMigrationSql,
+    signatureLaunchGovernanceHardeningMigrationSql,signatureGovernanceWorkflowMigrationSql,signatureGovernanceWorkflowHardeningMigrationSql,
+    signatureLegalHoldsMigrationSql,signatureBusinessGovernanceMigrationSql,signaturePreflightHardeningMigrationSql,signatureOperationalUxMigrationSql]) {
+    await signatureOperationalUxDb.exec(migration);
+  }
+  const catalog=await signatureOperationalUxDb.query(`SELECT
+    EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='signature_documents' AND column_name='operationally_hidden_at') document_hiding,
+    EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='signature_participants' AND column_name='removed_at') recipient_removal,
+    EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='signature_documents_operational_hide_immutable_trigger') hide_immutable`);
+  assert.deepEqual(catalog.rows,[{document_hiding:true,recipient_removal:true,hide_immutable:true}]);
+  await signatureOperationalUxDb.exec(signatureOperationalUxRollbackSql);
+  console.log("Validated operational signing UX migration 0034 and guarded rollback.");
+} finally { await signatureOperationalUxDb.close(); }

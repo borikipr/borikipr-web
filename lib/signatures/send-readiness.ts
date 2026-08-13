@@ -81,7 +81,7 @@ export async function evaluateSignatureSendReadiness(input: {
   if (row?.version_id) {
     const participants = await input.database.unsafe<{ id: string; normalized_email: string }>(
       `SELECT id::text, normalized_email FROM public.signature_participants
-        WHERE document_version_id=$1::uuid ORDER BY id`,
+        WHERE document_version_id=$1::uuid AND removed_at IS NULL ORDER BY id`,
       [row.version_id]
     );
     if (participants.length < 1 || participants.length > 8) reasons.push("participant_count_invalid");

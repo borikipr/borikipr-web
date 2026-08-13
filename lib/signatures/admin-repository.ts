@@ -23,6 +23,7 @@ export type SignatureDraftDetail = Readonly<{
   leadGroupId: string | null;
   expiresAt: string | Date | null;
   createdAt: string | Date;
+  operationallyHiddenAt: string | Date | null;
   version: Readonly<{
     id: string;
     number: number;
@@ -30,6 +31,7 @@ export type SignatureDraftDetail = Readonly<{
     byteCount: number;
     pageCount: number;
     sourceSha256: string;
+    sourceDeleted: boolean;
     pageGeometry: readonly PdfPageGeometry[];
     persistedFieldDefinitionSha256: string | null;
     locked: boolean;
@@ -65,6 +67,7 @@ export type SignatureDraftDetail = Readonly<{
     validationLimits: Record<string, number>;
   }>[];
   currentFieldDefinitionSha256: string;
+  events: readonly Readonly<{ id: string; eventType: string; actorClass: string; createdAt: string | Date }>[];
 }>;
 
 export function createSignatureAdminRepository(database: SignatureQueryExecutor) {
@@ -73,10 +76,12 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
       search?: string;
       status?: string;
       documentType?: string;
+      view?: string;
     }) {
       const search = input.search?.trim() || "";
       const status = input.status?.trim() || "all";
       const documentType = input.documentType?.trim() || "all";
+      const view = input.view?.trim() || "active";
       return database.unsafe<{
         id: string;
         title: string;
@@ -88,9 +93,11 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         completed_participant_count: number | bigint;
         last_delivery_status: string | null;
         page_count: number;
+        expires_at: string | Date | null;
+        operationally_hidden_at: string | Date | null;
       }>(
         `SELECT d.id::text, d.title, d.document_type, d.status,
-                d.created_at, d.updated_at, v.page_count,
+                d.created_at, d.updated_at, d.expires_at, d.operationally_hidden_at, v.page_count,
                 count(p.id)::integer AS participant_count,
                 count(p.id) FILTER (WHERE p.status='completed')::integer AS completed_participant_count,
                 (SELECT di.status FROM public.signature_delivery_intents di
@@ -103,13 +110,16 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
                              WHERE sp.document_version_id=v.id
                                AND (sp.name_snapshot ILIKE '%' || $1 || '%'
                                     OR sp.normalized_email ILIKE '%' || $1 || '%')))
-            AND d.status <> 'archived'
+            AND ($4 = 'all'
+              OR ($4 = 'active' AND d.status NOT IN ('completed','archived') AND d.operationally_hidden_at IS NULL)
+              OR ($4 = 'completed' AND d.status='completed')
+              OR ($4 = 'archived' AND (d.status='archived' OR d.operationally_hidden_at IS NOT NULL)))
             AND ($2 = 'all' OR d.status=$2)
             AND ($3 = 'all' OR d.document_type=$3)
           GROUP BY d.id, v.id, v.page_count
           ORDER BY d.updated_at DESC
           LIMIT 100`,
-        [search, status, documentType]
+        [search, status, documentType, view]
       );
     },
 
@@ -125,6 +135,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         lead_group_id: string | null;
         expires_at: string | Date | null;
         created_at: string | Date;
+        operationally_hidden_at: string | Date | null;
         version_id: string;
         version_number: number;
         filename_snapshot: string;
@@ -134,17 +145,18 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         page_geometry_manifest: unknown;
         field_definition_sha256: string | null;
         locked_at: string | Date | null;
+        source_deleted_at: string | Date | null;
       }>(
         `SELECT d.id::text, d.title, d.document_type,
                 d.document_type_approval_reference, d.status,
                 d.canonical_lead_id::text, d.lead_group_id::text,
-                d.expires_at, d.created_at,
+                d.expires_at, d.created_at, d.operationally_hidden_at,
                 v.id::text AS version_id, v.version_number, v.filename_snapshot,
                 v.byte_count, v.page_count, v.source_sha256,
-                v.page_geometry_manifest, v.field_definition_sha256, v.locked_at
+                v.page_geometry_manifest, v.field_definition_sha256, v.locked_at, v.source_deleted_at
            FROM public.signature_documents d
            JOIN public.signature_document_versions v ON v.id=d.active_version_id
-          WHERE d.id=$1::uuid AND v.source_deleted_at IS NULL`,
+          WHERE d.id=$1::uuid`,
         [documentId]
       );
       if (!documents[0]) return null;
@@ -174,7 +186,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
                FROM public.signature_delivery_intents di
               WHERE di.participant_id=p.id ORDER BY di.created_at DESC LIMIT 1
            ) last_delivery ON true
-          WHERE p.document_version_id=$1::uuid
+          WHERE p.document_version_id=$1::uuid AND p.removed_at IS NULL
           ORDER BY p.routing_order NULLS LAST, p.created_at, p.id`,
         [documents[0].version_id]
       );
@@ -218,6 +230,10 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         validationLimits: json<Record<string, number>>(field.validation_limits),
       }));
       const document = documents[0];
+      const events = await database.unsafe<{ id:string; event_type:string; actor_class:string; created_at:string | Date }>(
+        `SELECT id::text,event_type,actor_class,server_timestamp AS created_at FROM public.signature_events
+          WHERE document_id=$1::uuid ORDER BY sequence_number DESC LIMIT 50`, [documentId]
+      );
       return {
         id: document.id,
         title: document.title,
@@ -228,6 +244,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         leadGroupId: document.lead_group_id,
         expiresAt: document.expires_at,
         createdAt: document.created_at,
+        operationallyHiddenAt: document.operationally_hidden_at,
         version: {
           id: document.version_id,
           number: document.version_number,
@@ -235,6 +252,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
           byteCount: Number(document.byte_count),
           pageCount: document.page_count,
           sourceSha256: document.source_sha256,
+          sourceDeleted: Boolean(document.source_deleted_at),
           pageGeometry: json<readonly PdfPageGeometry[]>(document.page_geometry_manifest),
           persistedFieldDefinitionSha256: document.field_definition_sha256,
           locked: Boolean(document.locked_at),
@@ -259,6 +277,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
           documentVersionId: document.version_id,
           fields: normalizedFields,
         }),
+        events: events.map((event) => ({ id:event.id, eventType:event.event_type, actorClass:event.actor_class, createdAt:event.created_at })),
       } satisfies SignatureDraftDetail;
     },
 
