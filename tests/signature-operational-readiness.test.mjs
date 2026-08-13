@@ -141,7 +141,7 @@ test("governance readiness reports every fail-closed launch requirement", async 
   assert.deepEqual(new Set(blocked.blockers), new Set([
     "document_classification_approval_missing", "approved_consent_es_pr_missing",
     "approved_consent_en_us_missing", "retention_policy_missing",
-    "privacy_disclosure_missing",
+    "approved_privacy_es_pr_missing", "approved_privacy_en_us_missing",
   ]));
   assert.equal(blocked.evidenceKeysConfigured, true);
 });

@@ -15,8 +15,9 @@ const BLOCKERS: Record<string, string> = {
   document_classification_approval_missing: "No existe una clasificación de documento aprobada para firma electrónica.",
   approved_consent_es_pr_missing: "Falta consentimiento aprobado en español (es-PR).",
   approved_consent_en_us_missing: "Falta consentimiento aprobado en inglés (en-US).",
+  approved_privacy_es_pr_missing: "Falta divulgación de privacidad aprobada para español (es-PR).",
+  approved_privacy_en_us_missing: "Falta divulgación de privacidad aprobada para inglés (en-US).",
   retention_policy_missing: "Falta una política aprobada de retención y privacidad.",
-  privacy_disclosure_missing: "Falta una divulgación de privacidad de firma, versionada y aprobada, en es-PR y en-US.",
   event_keys_unavailable: "La configuración histórica de claves de evidencia no está completa.",
   public_signing_disabled: "La firma pública permanece desactivada.",
 };
@@ -79,7 +80,7 @@ export default async function SignatureGovernancePage() {
   const launchChecks: ReadonlyArray<Readonly<{ label: string; state: ReadinessState; owner: string; evidence: string }>> = [
     { label: "Clasificaciones aprobadas para firma electrónica", state: readiness.activeApprovalCount > 0 ? "PASS" as const : "BLOCKED" as const, owner: "Erickson Real Estate / operador autorizado", evidence: readiness.activeApprovalCount > 0 ? `${readiness.activeApprovalCount} aprobación(es) vigente(s).` : "No existen aprobaciones vigentes. Los documentos ordinarios pueden seguir la aprobación interna; las formalidades externas se evalúan por documento." },
     ...readiness.consentSlots.map((slot) => ({ label: `Consentimiento ${slot.locale}`, state: slot.approved ? "PASS" as const : "BLOCKED" as const, owner: "Erickson Real Estate / revisión externa opcional", evidence: slot.approved ? "Versión aprobada y vigente." : "Falta texto exacto, referencia, fecha efectiva y aprobación humana." })),
-    { label: "Divulgación de privacidad", state: readiness.privacyDisclosure.configured ? "PASS" as const : "BLOCKED" as const, owner: "Legal / privacidad / operador", evidence: readiness.privacyDisclosure.configured ? "Ambos idiomas configurados con hashes." : "Falta texto versionado y aprobado en es-PR y en-US." },
+    ...readiness.privacySlots.map((slot) => ({ label: `Privacidad ${slot.locale}`, state: slot.approved ? "PASS" as const : "BLOCKED" as const, owner: "Privacidad / operador autorizado", evidence: slot.approved ? "Texto aprobado, vigente y ligado a un snapshot bilingüe inmutable." : "Falta una versión aprobada y vigente que incluya este locale." })),
     { label: "Política de retención", state: readiness.retention.configured ? "PASS" as const : "BLOCKED" as const, owner: "Legal / negocio / operador", evidence: readiness.retention.configured ? "Configuración validada; evidencia completada protegida según política." : "La ausencia mantiene toda limpieza desactivada y bloquea lanzamiento." },
     { label: "Bandera de firma pública desactivada", state: readiness.publicSigningEnabled ? "WARNING" as const : "PASS" as const, owner: "Propietario / lanzamiento", evidence: readiness.publicSigningEnabled ? "Habilitada; revisar autorización inmediatamente." : "Desactivada. READY no equivale a ENABLED." },
     ...OPERATIONAL_CHECKS,
@@ -87,12 +88,20 @@ export default async function SignatureGovernancePage() {
   return <AdminPageShell>
     <AdminPageHeader breadcrumbs={[{ href: "/admin", label: "Admin" }, { href: "/admin/signatures", label: "Firmas" }, { label: "Gobernanza" }]} eyebrow="Firmas · Preparación operativa" title="Gobernanza y preparación de lanzamiento" description="Vista agregada y privada. Ningún estado en esta pantalla habilita por sí solo la firma pública." actions={<Link className="btn-secondary" href="/admin/signatures">Volver a solicitudes</Link>} />
 
-    <section className={`surface-card border-l-4 p-5 ${readiness.launchReady ? "border-green-600" : "border-amber-500"}`}>
-      <h2 className="text-lg font-semibold">Estado general: {readiness.launchReady ? "preparado" : "bloqueado"}</h2>
-      <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{readiness.blockers.map((blocker) => <li key={blocker}>{BLOCKERS[blocker] ?? "Hay un control pendiente que requiere revisión del operador."}</li>)}</ul>
-    </section>
+    <div className="grid min-w-0 gap-4 md:grid-cols-2">
+      <section className={`surface-card min-w-0 border-l-4 p-5 ${readiness.spanishCanaryReady ? "border-green-600" : "border-amber-500"}`}>
+        <h2 className="text-lg font-semibold">Canary sólo en español: {readiness.spanishCanaryReady ? "preparado" : "bloqueado"}</h2>
+        <p className="mt-2 text-sm text-slate-600">Evalúa es-PR únicamente. No exige consentimiento en-US si el canary no incluye inglés.</p>
+        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{readiness.spanishCanaryBlockers.map((blocker) => <li key={blocker}>{BLOCKERS[blocker] ?? "Hay un control pendiente que requiere revisión del operador."}</li>)}</ul>
+      </section>
+      <section className={`surface-card min-w-0 border-l-4 p-5 ${readiness.bilingualCanaryReady ? "border-green-600" : "border-amber-500"}`}>
+        <h2 className="text-lg font-semibold">Canary bilingüe: {readiness.bilingualCanaryReady ? "preparado" : "bloqueado"}</h2>
+        <p className="mt-2 text-sm text-slate-600">Exige gobernanza vigente tanto para es-PR como para en-US.</p>
+        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{readiness.bilingualCanaryBlockers.map((blocker) => <li key={blocker}>{BLOCKERS[blocker] ?? "Hay un control pendiente que requiere revisión del operador."}</li>)}</ul>
+      </section>
+    </div>
 
-    <div className="grid gap-6 xl:grid-cols-2">
+    <div className="grid min-w-0 gap-6 xl:grid-cols-2">
       <section className="surface-card overflow-hidden"><h2 className="p-5 text-lg font-semibold">Clasificaciones de documentos</h2><div className="overflow-x-auto"><table className="w-full min-w-[640px] text-sm"><thead className="bg-slate-950 text-left text-white"><tr><th className="p-3">Tipo</th><th className="p-3">Estado</th><th className="p-3">Modo</th><th className="p-3">Vigencia</th></tr></thead><tbody>{readiness.approvals.map((row, index) => <tr className="border-b" key={`${row.document_type}-${index}`}><td className="p-3">{row.document_type}</td><td className="p-3">{row.status}</td><td className="p-3">{row.approval_mode === "internal_business" ? "Aprobación interna" : row.approval_mode === "external_review" ? "Revisión externa" : "Fuera de alcance"}</td><td className="p-3">{row.effective_from ? new Date(row.effective_from).toLocaleDateString("es-PR") : "No vigente"}</td></tr>)}{readiness.approvals.length === 0 && <tr><td className="p-5 text-[#555]" colSpan={4}>No hay decisiones de clasificación registradas.</td></tr>}</tbody></table></div></section>
       <section className="surface-card overflow-hidden"><h2 className="p-5 text-lg font-semibold">Consentimientos</h2><div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm"><thead className="bg-slate-950 text-left text-white"><tr><th className="p-3">Locale</th><th className="p-3">Versión</th><th className="p-3">Estado</th><th className="p-3">SHA-256</th></tr></thead><tbody>{readiness.consents.map((row) => <tr className="border-b" key={`${row.locale}-${row.version_identifier}`}><td className="p-3">{row.locale}</td><td className="p-3">{row.version_identifier}</td><td className="p-3">{row.status}</td><td className="max-w-40 truncate p-3 font-mono text-xs" title={row.consent_text_sha256}>{row.consent_text_sha256}</td></tr>)}{readiness.consentSlots.map((slot) => !readiness.consents.some((row) => row.locale === slot.locale) && <tr className="border-b" key={slot.locale}><td className="p-3">{slot.locale}</td><td className="p-3">Sin versión</td><td className="p-3">pendiente</td><td className="p-3">—</td></tr>)}</tbody></table></div></section>
     </div>

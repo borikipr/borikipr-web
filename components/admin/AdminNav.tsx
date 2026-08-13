@@ -42,7 +42,7 @@ export default function AdminNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-wrap gap-3" aria-label="Navegación admin">
+    <nav className="flex w-full min-w-0 max-w-full flex-wrap gap-2 lg:w-auto lg:justify-center" aria-label="Navegación admin">
       {navItems.map((item) => {
         const active = item.match(pathname);
 
@@ -51,7 +51,7 @@ export default function AdminNav() {
             key={item.href}
             href={item.href}
             aria-current={active ? "page" : undefined}
-            className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+            className={`max-w-full rounded-full border px-3 py-2 text-sm font-medium transition sm:px-4 ${
               active
                 ? "border-[#d4af37] bg-[#d4af37] text-[#0d1b2a]"
                 : "border-white/10 bg-white/5 text-white/85 hover:border-[#d4af37] hover:text-[#d4af37]"

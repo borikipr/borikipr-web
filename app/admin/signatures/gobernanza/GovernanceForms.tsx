@@ -15,7 +15,7 @@ import {
 const initial: GovernanceActionState = { ok: false, message: "" };
 
 function Submit({ children }: { children: React.ReactNode }) {
-  return <button className="btn-primary" type="submit">{children}</button>;
+  return <button className="btn-primary justify-center text-center" type="submit">{children}</button>;
 }
 
 function Result({ state }: { state: GovernanceActionState }) {
@@ -46,7 +46,7 @@ function ApprovalFields({ allowOutOfScope = false, includeOrganization = false }
       <label>Referencia de evidencia externa<input name="externalReviewerReference" required /></label>
     </>}
     <label>Fecha efectiva<input name="effectiveFrom" type="datetime-local" required /></label>
-    <label className="flex items-start gap-2"><input name="immutableAcknowledged" type="checkbox" value="true" required />Confirmo que la fuente indicada respalda esta decisión y que la versión aprobada no podrá editarse.</label>
+    <label className="flex items-start gap-2"><input name="immutableAcknowledged" type="checkbox" value="true" required /><span>Confirmo que la fuente indicada respalda esta decisión y que la versión aprobada no podrá editarse.</span></label>
     <label>Escriba <code>{GOVERNANCE_APPROVAL_PHRASE}</code><input name="confirmationPhrase" required /></label>
   </>;
 }
@@ -79,38 +79,57 @@ export function GovernanceForms({ drafts }: { drafts: Drafts }) {
   const [holdRelease, holdReleaseAction] = useActionState(releaseLegalHoldAction, initial);
   const select = (name: string, items: Option[]) => <select name={name} required><option value="">Seleccione</option>{items.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>;
 
-  return <section className="space-y-6" aria-labelledby="governance-management">
+  const workflowGrid = "mt-4 grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-3";
+  const formClass = "grid min-w-0 max-w-full content-start gap-3 rounded-2xl border border-slate-200 p-4";
+
+  return <section className="signature-governance min-w-0 max-w-full space-y-6" aria-labelledby="governance-management">
     <h2 id="governance-management" className="text-xl font-semibold">Gestión autenticada de versiones</h2>
     <p className="text-sm text-slate-600">La aprobación interna es la ruta normal para documentos ordinarios del corretaje. La revisión externa es opcional, salvo que el alcance específico exija otra formalidad. Guardar no equivale a aprobar.</p>
 
-    <details className="surface-card p-5"><summary className="font-semibold">Clasificaciones de documentos</summary><div className="mt-4 grid gap-5 lg:grid-cols-3">
-      <form action={classificationCreateAction} className="grid gap-3"><h3>Crear borrador</h3><label>Tipo<select name="documentType" required>{SIGNATURE_DOCUMENT_TYPES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><label>Nombre visible<input name="displayName" required /></label><label>Descripción<textarea name="description" required /></label><label>Uso permitido y condiciones<textarea name="permittedSigningUse" required /></label><Submit>Crear borrador</Submit><Result state={classificationCreate} /></form>
-      <form action={classificationSubmitAction} className="grid gap-3"><h3>Enviar a revisión</h3>{select("id", drafts.classifications.filter((item) => item.status === "draft"))}<Submit>Enviar a revisión</Submit><Result state={classificationSubmit} /></form>
-      <form action={classificationApproveAction} className="grid gap-3"><h3>Registrar decisión</h3>{select("id", drafts.classifications.filter((item) => item.status === "pending"))}<ApprovalFields allowOutOfScope includeOrganization /><label>Fecha de decisión<input name="approvalDate" type="date" required /></label><label>Notas internas opcionales<textarea name="notes" /></label><Submit>Registrar versión inmutable</Submit><Result state={classificationApprove} /></form>
+    <details className="surface-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5"><summary className="font-semibold">Clasificaciones de documentos</summary><div className={workflowGrid}>
+      <form action={classificationCreateAction} className={formClass}><h3>1. Crear borrador</h3><label>Tipo<select name="documentType" required>{SIGNATURE_DOCUMENT_TYPES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><label>Nombre visible<input name="displayName" required /></label><label>Descripción<textarea name="description" required /></label><label>Uso permitido y condiciones<textarea name="permittedSigningUse" required /></label><Submit>Crear borrador</Submit><Result state={classificationCreate} /></form>
+      <form action={classificationSubmitAction} className={formClass}><h3>2. Enviar a revisión</h3>{select("id", drafts.classifications.filter((item) => item.status === "draft"))}<Submit>Enviar a revisión</Submit><Result state={classificationSubmit} /></form>
+      <form action={classificationApproveAction} className={formClass}><h3>3. Registrar decisión</h3>{select("id", drafts.classifications.filter((item) => item.status === "pending"))}<ApprovalFields allowOutOfScope includeOrganization /><label>Fecha de decisión<input name="approvalDate" type="date" required /></label><label>Notas internas opcionales<textarea name="notes" /></label><Submit>Registrar versión inmutable</Submit><Result state={classificationApprove} /></form>
     </div></details>
 
-    <details className="surface-card p-5"><summary className="font-semibold">Consentimientos es-PR / en-US</summary><div className="mt-4 grid gap-5 lg:grid-cols-3">
-      <form action={consentCreateAction} className="grid gap-3"><h3>Crear borrador</h3><label>Versión<input name="versionIdentifier" required pattern="[a-z0-9][a-z0-9._-]{0,99}" /></label><label>Idioma<select name="locale"><option>es-PR</option><option>en-US</option></select></label><label>Texto exacto<textarea name="text" minLength={20} required /></label><Submit>Crear borrador</Submit><Result state={consentCreate} /></form>
-      <form action={consentSubmitAction} className="grid gap-3"><h3>Enviar a revisión</h3>{select("id", drafts.consents.filter((item) => item.status === "draft"))}<Submit>Enviar</Submit><Result state={consentSubmit} /></form>
-      <form action={consentApproveAction} className="grid gap-3"><h3>Registrar aprobación</h3>{select("id", drafts.consents.filter((item) => item.status === "pending_review"))}<ApprovalFields /><Submit>Registrar versión inmutable</Submit><Result state={consentApprove} /></form>
+    <details className="surface-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5"><summary className="font-semibold">Consentimientos es-PR / en-US</summary><p className="mt-3 text-sm text-slate-600">Cree una versión por idioma. Un canary sólo en español exige es-PR; en-US se exige únicamente cuando participe una persona en inglés.</p><div className={workflowGrid}>
+      <form action={consentCreateAction} className={formClass}><h3>1. Crear borrador</h3><label>Versión<input name="versionIdentifier" required pattern="[a-z0-9][a-z0-9._-]{0,99}" /></label><label>Idioma<select name="locale"><option>es-PR</option><option>en-US</option></select></label><label>Texto exacto<textarea name="text" minLength={20} required /></label><Submit>Crear borrador</Submit><Result state={consentCreate} /></form>
+      <form action={consentSubmitAction} className={formClass}><h3>2. Enviar a revisión</h3>{select("id", drafts.consents.filter((item) => item.status === "draft"))}<Submit>Enviar</Submit><Result state={consentSubmit} /></form>
+      <form action={consentApproveAction} className={formClass}><h3>3. Registrar aprobación</h3>{select("id", drafts.consents.filter((item) => item.status === "pending_review"))}<ApprovalFields /><Submit>Registrar versión inmutable</Submit><Result state={consentApprove} /></form>
     </div></details>
 
-    <details className="surface-card p-5"><summary className="font-semibold">Divulgación de privacidad bilingüe</summary><div className="mt-4 grid gap-5 lg:grid-cols-3">
-      <form action={privacyCreateAction} className="grid gap-3"><h3>Crear borrador</h3><label>Versión<input name="versionIdentifier" required pattern="[a-z0-9][a-z0-9._-]{0,99}" /></label><label>Texto es-PR<textarea name="esPRText" minLength={20} required /></label><label>Texto en-US<textarea name="enUSText" minLength={20} required /></label><Submit>Crear borrador</Submit><Result state={privacyCreate} /></form>
-      <form action={privacySubmitAction} className="grid gap-3"><h3>Enviar a revisión</h3>{select("id", drafts.privacy.filter((item) => item.status === "draft"))}<Submit>Enviar</Submit><Result state={privacySubmit} /></form>
-      <form action={privacyApproveAction} className="grid gap-3"><h3>Registrar aprobación</h3>{select("id", drafts.privacy.filter((item) => item.status === "pending_review"))}<ApprovalFields /><Submit>Registrar versión inmutable</Submit><Result state={privacyApprove} /></form>
+    <details className="surface-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5"><summary className="font-semibold">Divulgación de privacidad bilingüe</summary><p className="mt-3 text-sm text-slate-600">El registro conserva ambos textos, hashes, referencia y fecha efectiva como un snapshot inmutable. Cada firmante ve el texto de su idioma y la evidencia queda ligada a esta versión exacta.</p><div className={workflowGrid}>
+      <form action={privacyCreateAction} className={formClass}><h3>1. Crear borrador</h3><label>Versión<input name="versionIdentifier" required pattern="[a-z0-9][a-z0-9._-]{0,99}" /></label><label>Texto es-PR<textarea name="esPRText" minLength={20} required /></label><label>Texto en-US<textarea name="enUSText" minLength={20} required /></label><Submit>Crear borrador</Submit><Result state={privacyCreate} /></form>
+      <form action={privacySubmitAction} className={formClass}><h3>2. Enviar a revisión</h3>{select("id", drafts.privacy.filter((item) => item.status === "draft"))}<Submit>Enviar</Submit><Result state={privacySubmit} /></form>
+      <form action={privacyApproveAction} className={formClass}><h3>3. Registrar aprobación</h3>{select("id", drafts.privacy.filter((item) => item.status === "pending_review"))}<ApprovalFields /><Submit>Registrar versión inmutable</Submit><Result state={privacyApprove} /></form>
     </div></details>
 
-    <details className="surface-card p-5"><summary className="font-semibold">Política de retención</summary><div className="mt-4 grid gap-5 lg:grid-cols-4">
-      <form action={retentionCreateAction} className="grid gap-3"><h3>Crear borrador</h3><label>Versión<input name="versionIdentifier" required /></label><label>Referencia de decisión pendiente<input name="approvalReference" required /></label><label>Referencia de privacidad<input name="privacyReference" required /></label>{["sourcePdfDays","completedPdfDays","certificateDays","evidenceManifestDays","tokenDays","sessionHours","networkEvidenceDays","failedCancelledDraftDays","auditEventDays"].map((name) => <label key={name}>{name}<input name={name} type="number" min="1" /></label>)}<label><input name="completedCleanupEnabled" type="checkbox" value="true" /> Permitir limpieza de evidencia completada</label><Submit>Crear sin activar</Submit><Result state={retentionCreate} /></form>
-      <form action={retentionSubmitAction} className="grid gap-3"><h3>Enviar a revisión</h3>{select("id", drafts.retention.filter((item) => item.status === "draft"))}<Submit>Enviar</Submit><Result state={retentionSubmit} /></form>
-      <form action={retentionApproveAction} className="grid gap-3"><h3>Registrar aprobación</h3>{select("id", drafts.retention.filter((item) => item.status === "pending_review"))}<ApprovalFields /><Submit>Aprobar sin activar</Submit><Result state={retentionApprove} /></form>
-      <form action={retentionActivateAction} className="grid gap-3"><h3>Activar por separado</h3>{select("id", drafts.retention.filter((item) => item.status === "approved"))}<label><input name="immutableAcknowledged" type="checkbox" value="true" required /> Confirmo activación separada.</label><label>Escriba <code>{GOVERNANCE_APPROVAL_PHRASE}</code><input name="confirmationPhrase" required /></label><Submit>Activar explícitamente</Submit><Result state={retentionActivate} /></form>
+    <details className="surface-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5"><summary className="font-semibold">Política de retención</summary><p className="mt-3 text-sm text-slate-600">Defina valores revisados por el negocio, apruebe la versión y actívela en un paso separado. Sin política activa no se elimina evidencia; una retención legal siempre prevalece.</p><div className="mt-4 grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-4">
+      <form action={retentionCreateAction} className={formClass}><h3>1. Crear borrador</h3><label>Versión<input name="versionIdentifier" required /></label><label>Referencia de decisión pendiente<input name="approvalReference" required /></label><label>Referencia de privacidad<input name="privacyReference" required /></label>{[
+        ["sourcePdfDays","Documento fuente (días)","PDF original cargado antes de la firma."],
+        ["completedPdfDays","PDF final (días)","Documento completado y firmado."],
+        ["certificateDays","Certificado (días)","Certificado de evidencia generado al completar."],
+        ["evidenceManifestDays","Manifest/evidencia (días)","Registro estructurado de integridad y evidencia."],
+        ["tokenDays","Tokens/digests (días)","Evidencia no plaintext de credenciales de acceso."],
+        ["sessionHours","Sesiones (horas)","Registros temporales de sesión del firmante."],
+        ["networkEvidenceDays","Network digests (días)","Metadatos de red protegidos mediante digest."],
+        ["failedCancelledDraftDays","Borradores abandonados (días)","Solicitudes no completadas, fallidas o canceladas."],
+        ["auditEventDays","Eventos de auditoría (días)","Historial inmutable de firma y gobernanza."],
+      ].map(([name,label,help]) => <label key={name}>{label}<span className="mt-1 block text-xs font-normal text-slate-500">{help}</span><input name={name} type="number" min="1" /></label>)}<label className="flex items-start gap-2"><input name="completedCleanupEnabled" type="checkbox" value="true" /> <span>Permitir limpieza de evidencia completada sólo según esta política</span></label><Submit>Crear sin activar</Submit><Result state={retentionCreate} /></form>
+      <form action={retentionSubmitAction} className={formClass}><h3>2. Enviar a revisión</h3>{select("id", drafts.retention.filter((item) => item.status === "draft"))}<Submit>Enviar</Submit><Result state={retentionSubmit} /></form>
+      <form action={retentionApproveAction} className={formClass}><h3>3. Registrar aprobación</h3>{select("id", drafts.retention.filter((item) => item.status === "pending_review"))}<ApprovalFields /><Submit>Aprobar sin activar</Submit><Result state={retentionApprove} /></form>
+      <form action={retentionActivateAction} className={formClass}><h3>4. Activar por separado</h3>{select("id", drafts.retention.filter((item) => item.status === "approved"))}<label className="flex items-start gap-2"><input name="immutableAcknowledged" type="checkbox" value="true" required /> <span>Confirmo activación separada.</span></label><label>Escriba <code>{GOVERNANCE_APPROVAL_PHRASE}</code><input name="confirmationPhrase" required /></label><Submit>Activar explícitamente</Submit><Result state={retentionActivate} /></form>
     </div></details>
 
-    <details className="surface-card p-5"><summary className="font-semibold">Retenciones legales persistentes</summary><p className="mt-3 text-sm text-slate-600">Una retención activa bloquea toda limpieza del documento. Liberarla requiere una acción separada y conserva el historial.</p><div className="mt-4 grid gap-5 lg:grid-cols-2">
-      <form action={holdPlaceAction} className="grid gap-3"><h3>Colocar retención</h3>{select("documentId", drafts.documents)}<label>Razón o referencia<input name="reasonReference" required /></label><label>Referencia legal externa opcional<input name="externalLegalReference" /></label><Submit>Colocar retención</Submit><Result state={holdPlace} /></form>
-      <form action={holdReleaseAction} className="grid gap-3"><h3>Liberar retención</h3>{select("id", drafts.legalHolds)}<label>Referencia de liberación<input name="releaseReference" required /></label><label><input name="immutableAcknowledged" type="checkbox" value="true" required /> Confirmo que la liberación es explícita, auditable y no borra el historial.</label><label>Escriba <code>LIBERAR RETENCION LEGAL</code><input name="confirmationPhrase" required /></label><Submit>Liberar explícitamente</Submit><Result state={holdRelease} /></form>
+    <details className="surface-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5"><summary className="font-semibold">Retenciones legales persistentes</summary><p className="mt-3 text-sm text-slate-600">Una retención activa bloquea toda limpieza del documento. Liberarla requiere una acción separada y conserva el historial.</p><div className="mt-4 grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
+      <form action={holdPlaceAction} className={formClass}><h3>Colocar retención</h3>{select("documentId", drafts.documents)}<label>Razón o referencia<input name="reasonReference" required /></label><label>Referencia legal externa opcional<input name="externalLegalReference" /></label><Submit>Colocar retención</Submit><Result state={holdPlace} /></form>
+      <form action={holdReleaseAction} className={formClass}><h3>Liberar retención</h3>{select("id", drafts.legalHolds)}<label>Referencia de liberación<input name="releaseReference" required /></label><label className="flex items-start gap-2"><input name="immutableAcknowledged" type="checkbox" value="true" required /> <span>Confirmo que la liberación es explícita, auditable y no borra el historial.</span></label><label>Escriba <code>LIBERAR RETENCION LEGAL</code><input name="confirmationPhrase" required /></label><Submit>Liberar explícitamente</Submit><Result state={holdRelease} /></form>
+    </div></details>
+
+    <details className="surface-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5"><summary className="font-semibold">Autorización futura de canary interno</summary><div className="mt-4 space-y-3 text-sm text-slate-700">
+      <p>Esta pantalla no activa firmas. La autorización se registra únicamente cuando la clasificación, el locale, privacidad, retención y decisiones de recuperación estén completos.</p>
+      <ul className="list-disc space-y-1 pl-5"><li>Tipo: canary interno de producción.</li><li>Alcance: participantes sintéticos exactos y clasificaciones exactas.</li><li>Evidencia: hash de readiness, expiración, actor y confirmación explícita.</li><li>Activación: la bandera de servidor se administra por separado y permanece desactivada.</li></ul>
+      <p className="rounded-lg bg-amber-50 p-3 text-amber-900"><strong>Canary interno: Desactivado.</strong> READY no equivale a ENABLED.</p>
     </div></details>
   </section>;
 }

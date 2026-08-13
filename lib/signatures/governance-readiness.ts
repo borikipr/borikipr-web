@@ -6,6 +6,27 @@ import { inspectSignatureEventKeyCoverage } from "./key-rotation";
 import { inspectSignaturePrivacyDisclosure } from "./privacy-disclosure";
 import { loadActivePrivacyDisclosure, loadActiveRetentionPolicy } from "./governance-config";
 
+export type SignatureGovernanceLocale = "es-PR" | "en-US";
+
+export function signatureGovernanceBlockersForLocales(input: {
+  requiredLocales: readonly SignatureGovernanceLocale[];
+  activeApprovalCount: number;
+  approvedConsentLocales: ReadonlySet<SignatureGovernanceLocale>;
+  approvedPrivacyLocales: ReadonlySet<SignatureGovernanceLocale>;
+  retentionConfigured: boolean;
+  evidenceKeysConfigured: boolean;
+}) {
+  return Object.freeze([
+    ...(input.activeApprovalCount ? [] : ["document_classification_approval_missing"]),
+    ...input.requiredLocales.flatMap((locale) => input.approvedConsentLocales.has(locale)
+      ? [] : [locale === "es-PR" ? "approved_consent_es_pr_missing" : "approved_consent_en_us_missing"]),
+    ...input.requiredLocales.flatMap((locale) => input.approvedPrivacyLocales.has(locale)
+      ? [] : [locale === "es-PR" ? "approved_privacy_es_pr_missing" : "approved_privacy_en_us_missing"]),
+    ...(input.retentionConfigured ? [] : ["retention_policy_missing"]),
+    ...(input.evidenceKeysConfigured ? [] : ["event_keys_unavailable"]),
+  ]);
+}
+
 export async function getSignatureGovernanceReadiness(
   database: SignatureQueryExecutor,
   environment: Readonly<Record<string, string | undefined>> = process.env,
@@ -27,7 +48,7 @@ export async function getSignatureGovernanceReadiness(
     ),
   ]);
   const activeApprovals = approvals.filter((row) => row.status === "approved" && ["internal_business","external_review"].includes(row.approval_mode) && !row.revoked_at && row.effective_from && new Date(row.effective_from) <= now);
-  const approvedLocales = new Set(consents.filter((row) => row.status === "approved" && row.effective_from && new Date(row.effective_from) <= now).map((row) => row.locale));
+  const approvedLocales = new Set<SignatureGovernanceLocale>(consents.filter((row) => row.status === "approved" && row.effective_from && new Date(row.effective_from) <= now).map((row) => row.locale));
   const environmentRetention = inspectSignatureRetentionPolicy(environment);
   const environmentPrivacy = inspectSignaturePrivacyDisclosure(environment, now);
   const retention = durableRetention ? { configured: true as const, policy: durableRetention, policySha256: null, reasons: [] as readonly string[], source: "database" as const }
@@ -46,15 +67,19 @@ export async function getSignatureGovernanceReadiness(
     evidenceKeysConfigured = keyCoverage.safe;
   } catch { evidenceKeysConfigured = false; }
   const publicSigningEnabled = isPublicSigningEnabled(environment);
-  const blockers = [
-    ...(activeApprovals.length ? [] : ["document_classification_approval_missing"]),
-    ...(approvedLocales.has("es-PR") ? [] : ["approved_consent_es_pr_missing"]),
-    ...(approvedLocales.has("en-US") ? [] : ["approved_consent_en_us_missing"]),
-    ...(retention.configured ? [] : ["retention_policy_missing"]),
-    ...(privacyDisclosure.configured ? [] : ["privacy_disclosure_missing"]),
-    ...(evidenceKeysConfigured ? [] : ["event_keys_unavailable"]),
-  ];
+  const approvedPrivacyLocales = new Set<SignatureGovernanceLocale>(privacyDisclosure.configured
+    ? ["es-PR", "en-US"] : []);
+  const scope = (requiredLocales: readonly SignatureGovernanceLocale[]) => signatureGovernanceBlockersForLocales({
+    requiredLocales, activeApprovalCount: activeApprovals.length, approvedConsentLocales: approvedLocales,
+    approvedPrivacyLocales, retentionConfigured: retention.configured, evidenceKeysConfigured,
+  });
+  const spanishCanaryBlockers = scope(["es-PR"]);
+  const bilingualCanaryBlockers = scope(["es-PR", "en-US"]);
+  const blockers = bilingualCanaryBlockers;
   return { approvals, consents, consentSlots: (["es-PR", "en-US"] as const).map((locale) => ({ locale, approved: approvedLocales.has(locale) })),
+    privacySlots: (["es-PR", "en-US"] as const).map((locale) => ({ locale, approved: approvedPrivacyLocales.has(locale) })),
     retention, privacyDisclosure, evidenceKeysConfigured, keyCoverage, publicSigningEnabled, activeApprovalCount: activeApprovals.length,
-    launchAuthorizations, launchReady: blockers.length === 0, blockers: Object.freeze(blockers) };
+    launchAuthorizations, spanishCanaryReady: spanishCanaryBlockers.length === 0, spanishCanaryBlockers,
+    bilingualCanaryReady: bilingualCanaryBlockers.length === 0, bilingualCanaryBlockers,
+    launchReady: blockers.length === 0, blockers };
 }

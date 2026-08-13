@@ -83,8 +83,58 @@ textarea {
 }
 
 .surface-card {
-  @apply rounded-[2rem] border border-[#e8e8e8] bg-white shadow-sm;
+  @apply min-w-0 max-w-full rounded-[2rem] border border-[#e8e8e8] bg-white shadow-sm;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+}
+
+/* Authenticated signing governance is intentionally dense. Keep every
+   control inside its card on narrow Admin viewports without changing the
+   desktop information architecture. */
+.signature-governance {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.signature-governance .overflow-x-auto {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  overscroll-behavior-inline: contain;
+}
+
+.signature-governance details,
+.signature-governance form,
+.signature-governance label,
+.signature-governance summary {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.signature-governance input:not([type="checkbox"]):not([type="radio"]),
+.signature-governance textarea,
+.signature-governance select,
+.signature-governance button {
+  box-sizing: border-box;
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+.signature-governance input[type="checkbox"],
+.signature-governance input[type="radio"] {
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+}
+
+@media (min-width: 640px) {
+  .signature-governance button {
+    width: auto;
+  }
 }
 
 .surface-muted {
