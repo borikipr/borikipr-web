@@ -15,6 +15,7 @@ import { getSignatureSecurityConfig } from "@/lib/signatures/config";
 import { inspectSignatureRetentionPolicy } from "@/lib/signatures/retention-policy";
 import { inspectSignaturePrivacyDisclosure } from "@/lib/signatures/privacy-disclosure";
 import { loadActivePrivacyDisclosure, loadActiveRetentionPolicy } from "@/lib/signatures/governance-config";
+import { evaluateSignaturePreflight } from "@/lib/signatures/preflight";
 
 export default async function SignatureDraftPage({ params }: { params: Promise<{ id: string }> }) {
   if (!(await getAdminSessionUser())) redirect("/admin/login");
@@ -26,16 +27,20 @@ export default async function SignatureDraftPage({ params }: { params: Promise<{
   const definition = getSignatureDocumentTypeDefinition(detail.documentType);
   let keysConfigured = false;
   try { getSignatureSecurityConfig(); keysConfigured = true; } catch { keysConfigured = false; }
-  const [durableRetention,durablePrivacy,participantAuthorizations] = await Promise.all([
+  const [{preflight_expiration:preflightExpiration}]=await sql<{preflight_expiration:Date}[]>`SELECT now()+interval '1 hour' preflight_expiration`;
+  const [durableRetention,durablePrivacy,participantAuthorizations,preflight] = await Promise.all([
     loadActiveRetentionPolicy(database),
     loadActivePrivacyDisclosure(database),
     Promise.all(detail.participants.map((participant) => isSignerAccessAuthorized(database, {
       participantId: participant.id,
       documentVersionId: detail.version.id,
     }))),
+    evaluateSignaturePreflight({database,documentId:id,locales:["es-PR"],participantEmails:detail.participants.map((participant)=>participant.email),
+      documentTypes:[detail.documentType],environment:"production",authorizationType:"internal_canary",authorizationExpiresAt:preflightExpiration}),
   ]);
-  const signingAccessEnabled = isPublicSigningEnabled() || isInternalCanarySigningEnabled() ||
-    (detail.participants.length > 0 && participantAuthorizations.every(Boolean));
+  const scopedAccessEnabled=detail.participants.length > 0 && participantAuthorizations.every(Boolean);
+  const signingAccessEnabled = isInternalCanarySigningEnabled() || scopedAccessEnabled;
+  const activationMode=isPublicSigningEnabled()&&scopedAccessEnabled?"public":isInternalCanarySigningEnabled()||scopedAccessEnabled?"internal_canary":"disabled";
   const readiness = await evaluateSignatureSendReadiness({
     database, documentId: id, locale: "es-PR",
     publicSigningEnabled: signingAccessEnabled, eventKeysConfigured: keysConfigured,
@@ -70,7 +75,7 @@ export default async function SignatureDraftPage({ params }: { params: Promise<{
         )}
 
       {definition?.scope !== "ordinary_brokerage" && <section className="surface-card border-l-4 border-amber-500 p-5 text-sm text-amber-900">{definition?.guidance}</section>}
-      {detail.status === "archived" ? <section className="surface-card p-5"><h2 className="text-lg font-semibold">Borrador archivado</h2><p className="mt-2 text-sm text-slate-600">Está fuera de la vista operativa. La evidencia histórica se conserva y no puede volver al flujo de envío.</p></section> : <SignatureDraftEditor detail={detail} readiness={readiness} />}
+      {detail.status === "archived" ? <section className="surface-card p-5"><h2 className="text-lg font-semibold">Borrador archivado</h2><p className="mt-2 text-sm text-slate-600">Está fuera de la vista operativa. La evidencia histórica se conserva y no puede volver al flujo de envío.</p></section> : <SignatureDraftEditor detail={detail} readiness={readiness} preflight={preflight} activationMode={activationMode} />}
     </AdminPageShell>
   );
 }

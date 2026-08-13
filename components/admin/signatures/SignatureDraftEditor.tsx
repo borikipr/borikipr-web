@@ -16,6 +16,7 @@ import {
 } from "@/app/admin/signatures/actions";
 import type { SignatureDraftDetail } from "@/lib/signatures/admin-repository";
 import type { SignatureSendReadiness } from "@/lib/signatures/send-readiness";
+import type { SignaturePreflightResult } from "@/lib/signatures/preflight";
 
 const INITIAL: SignatureAdminActionState = { ok: false, message: "" };
 const COLORS = ["#11518b", "#8a5a00", "#6b3fa0", "#16704a", "#a33a3a", "#226e78", "#704214", "#565b66"];
@@ -160,7 +161,7 @@ const READINESS_LABELS: Record<string, string> = {
   field_definition_hash_stale: "La definición de campos cambió y debe recalcularse.",
 };
 
-export default function SignatureDraftEditor({ detail, readiness }: { detail: SignatureDraftDetail; readiness: SignatureSendReadiness }) {
+export default function SignatureDraftEditor({ detail, readiness, preflight, activationMode }: { detail: SignatureDraftDetail; readiness: SignatureSendReadiness; preflight: SignaturePreflightResult; activationMode:"public"|"internal_canary"|"disabled" }) {
   const [pageIndex, setPageIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [participantId, setParticipantId] = useState(detail.participants[0]?.id ?? "");
@@ -237,6 +238,17 @@ export default function SignatureDraftEditor({ detail, readiness }: { detail: Si
       </section>
 
       <aside className="min-w-0 space-y-6">
+        <section className="surface-card p-5" data-testid="signature-preflight">
+          <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">Pre-flight server-side</h2><span className={`rounded-full px-3 py-1 text-xs font-bold ${preflight.overallStatus==="pass"?"bg-green-100 text-green-800":"bg-red-100 text-red-800"}`}>{preflight.overallStatus==="pass"?"LISTO":"BLOQUEADO"}</span></div>
+          <p className="mt-2 text-sm text-slate-600">Estado: <strong>{preflight.state.replaceAll("_"," ").toUpperCase()}</strong>. Este resultado no autoriza ni activa firmas.</p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">{(["preparation","governance","recovery","security","authorization"] as const).map((category)=>{
+            const entries=preflight.items.filter((entry)=>entry.category===category); if(!entries.length) return null;
+            const labels={preparation:"Preparación",governance:"Gobernanza",recovery:"Recuperación",security:"Seguridad",authorization:"Autorización"};
+            return <div className="min-w-0 rounded-xl border p-3" key={category}><h3 className="font-semibold">{labels[category]}</h3><ul className="mt-2 space-y-2 text-sm">{entries.map((entry)=><li className={entry.status==="blocked"?"text-red-800":"text-amber-800"} key={entry.code}><strong>{entry.status==="blocked"?"Rojo":"Amarillo"}:</strong> {entry.message}{entry.remediation&&<span className="block text-xs text-slate-600">Dónde corregir: {entry.remediation}</span>}</li>)}</ul></div>;
+          })}</div>
+          <p className="mt-3 break-all font-mono text-[11px] text-slate-500">Readiness SHA-256: {preflight.readinessHash}</p>
+        </section>
+
         <section className="surface-card p-5">
           <h2 className="text-lg font-semibold">Participantes ({detail.participants.length}/8)</h2>
           <ul className="mt-4 space-y-3">{detail.participants.map((participant, index) => <li className="rounded-xl border p-3" key={participant.id} style={{ borderLeftColor: COLORS[index % COLORS.length], borderLeftWidth: 5 }}><p className="font-semibold">{participant.name}</p><p className="break-all text-sm text-[#555]">{participant.email}</p><p className="mt-1 text-xs uppercase tracking-wide text-[#666]">{participant.role} · {participant.status}</p><p className="mt-1 text-xs text-[#666]">Última entrega: {participant.lastDeliveryStatus ?? "sin entrega"}</p>{participant.completedAt && <p className="mt-1 text-xs text-green-700">Completado: {new Date(participant.completedAt).toLocaleString("es-PR")}</p>}{["invited","viewed","consented"].includes(participant.status) && <form action={resendAction} className="mt-2"><input name="documentId" type="hidden" value={detail.id} /><input name="participantId" type="hidden" value={participant.id} /><button className="text-xs font-semibold text-[#11518b]" disabled={resendPending} type="submit">Reenviar invitación</button></form>}</li>)}</ul>
@@ -273,7 +285,7 @@ export default function SignatureDraftEditor({ detail, readiness }: { detail: Si
             })}
           </div>}
           <dl className="mt-3 grid gap-2 text-xs"><div><dt className="font-semibold">Consentimiento</dt><dd>{readiness.consentVersion ?? "No aprobado"}</dd></div><div><dt className="font-semibold">Clasificación del documento</dt><dd>{readiness.approvalReference ? "Aprobada para firma electrónica" : "Pendiente"}</dd></div></dl>
-          <form action={sendAction} className="mt-4"><input name="documentId" type="hidden" value={detail.id} /><input name="documentType" type="hidden" value={detail.documentType} /><button className="btn-primary w-full disabled:opacity-60" disabled={sendPending || !readiness.eligible} type="submit">{readiness.eligible ? "Preparar invitaciones" : "Envío bloqueado"}</button></form>
+          <form action={sendAction} className="mt-4 grid gap-3 rounded-xl border p-3"><input name="documentId" type="hidden" value={detail.id} /><input name="documentType" type="hidden" value={detail.documentType} /><p className="text-sm font-bold">Modo: {activationMode==="public"?"FIRMA PÚBLICA — clientes externos":activationMode==="internal_canary"?"CANARY INTERNO — prueba controlada, NO disponible para clientes":"DESACTIVADO"}</p><p className="text-xs text-slate-600">Documento: {detail.title} · Clasificación: {detail.documentType} · Participantes: {detail.participants.length} · Locale: es-PR · Expira: {detail.expiresAt?new Date(detail.expiresAt).toLocaleString("es-PR"):"sin fecha"}</p><label className="flex items-start gap-2 text-sm"><input name="sendAcknowledged" type="checkbox" value="true" required /><span>Revisé documento, versión, participantes, correo, locale, expiración y gobernanza. El servidor volverá a validar todo antes de crear cada invitación.</span></label><label className="text-sm font-semibold">Escribe <code>{activationMode==="public"?"CONFIRMAR ENVIO PUBLICO":"CONFIRMAR ENVIO CANARY INTERNO"}</code><input className="mt-1 w-full rounded-lg border px-3 py-2 font-normal" name="sendConfirmationPhrase" required /></label><button className="btn-primary w-full disabled:opacity-60" disabled={sendPending || !readiness.eligible || activationMode==="disabled"} type="submit">{readiness.eligible&&activationMode!=="disabled" ? `Preparar invitaciones — ${activationMode==="public"?"FIRMA PÚBLICA":"CANARY INTERNO"}` : "Envío bloqueado"}</button></form>
           <Feedback state={sendState} />
           {!["draft","completed","voided","expired"].includes(detail.status) && <div className="mt-4 grid gap-2"><form action={expireAction} onSubmit={(event) => { if (!window.confirm("Esta acción expira el acceso de firma y no se puede revertir. ¿Continuar?")) event.preventDefault(); }}><input name="documentId" type="hidden" value={detail.id} /><button className="btn-secondary w-full" disabled={expirePending} type="submit">Marcar expirada si corresponde</button></form><form action={voidAction} className="grid gap-2" onSubmit={(event) => { if (!window.confirm("Anular revoca enlaces y sesiones. La solicitud no volverá al flujo de firma. ¿Continuar?")) event.preventDefault(); }}><input name="documentId" type="hidden" value={detail.id} /><label className="text-sm font-semibold">Razón de anulación<textarea className="mt-1 min-h-20 w-full rounded-lg border border-red-200 p-2 font-normal" maxLength={500} name="reason" required /></label><button className="w-full rounded-lg border border-red-300 px-3 py-2 font-semibold text-red-800" disabled={voidPending} type="submit">Anular solicitud</button></form><Feedback state={expireState} /><Feedback state={voidState} /><Feedback state={resendState} /></div>}
         </section>

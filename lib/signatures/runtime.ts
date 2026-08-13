@@ -6,6 +6,7 @@ import { createSignatureDraftApplicationService } from "./draft-application";
 import { createResendSignatureTransport, createSignatureDeliveryService } from "./delivery";
 import { createIsolatedSignatureMailTransport } from "./isolated-test-sink";
 import { getSignatureSecurityConfig } from "./config";
+import { isSignerAccessAuthorized } from "./canary-gate";
 
 export function createSignatureDomainRuntime() {
   const database = createPostgresSignatureDatabase(sql);
@@ -45,6 +46,7 @@ export function createSignatureDeliveryRuntime() {
         : createResendSignatureTransport(),
       publicBaseUrl: process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://borikipr.com",
       tokenKeyVersion: security.currentVersion,
+      authorizeInvitation: (binding) => isSignerAccessAuthorized(runtime.database,binding),
     }),
   };
 }

@@ -1974,6 +1974,12 @@ const signatureBusinessGovernanceMigrationSql = await readMigration(
 const signatureBusinessGovernanceRollbackSql = await readMigration(
   "0032_correct_signature_business_governance.rollback.sql"
 );
+const signaturePreflightHardeningMigrationSql = await readMigration(
+  "0033_harden_signature_preflight_authorization.sql"
+);
+const signaturePreflightHardeningRollbackSql = await readMigration(
+  "0033_harden_signature_preflight_authorization.rollback.sql"
+);
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -2210,3 +2216,26 @@ try {
 } finally {
   await signatureBusinessGovernanceDb.close();
 }
+
+const signaturePreflightHardeningDb = new PGlite();
+try {
+  await signaturePreflightHardeningDb.exec(`
+    CREATE TABLE public.admin_users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),username text NOT NULL UNIQUE);
+    CREATE TABLE public.leads (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
+    CREATE TABLE public.lead_groups (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
+  `);
+  for (const migration of [signatureFoundationMigrationSql,signatureSignerMigrationSql,signatureDeliveryMigrationSql,
+    signaturePrivacyBindingMigrationSql,signaturePrivacyHistoryMigrationSql,signatureLaunchGovernanceMigrationSql,
+    signatureLaunchGovernanceHardeningMigrationSql,signatureGovernanceWorkflowMigrationSql,signatureGovernanceWorkflowHardeningMigrationSql,
+    signatureLegalHoldsMigrationSql,signatureBusinessGovernanceMigrationSql,signaturePreflightHardeningMigrationSql]) {
+    await signaturePreflightHardeningDb.exec(migration);
+  }
+  const catalog=await signaturePreflightHardeningDb.query(`SELECT
+    to_regclass('public.signature_risk_acceptances')::text risk_acceptances,
+    to_regclass('public.signature_readiness_snapshots')::text readiness_snapshots,
+    EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='signature_launch_authorizations' AND column_name='authorized_locales') locale_scope,
+    EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='signature_readiness_snapshots_immutable_trigger') snapshot_immutable`);
+  assert.deepEqual(catalog.rows,[{risk_acceptances:'signature_risk_acceptances',readiness_snapshots:'signature_readiness_snapshots',locale_scope:true,snapshot_immutable:true}]);
+  await signaturePreflightHardeningDb.exec(signaturePreflightHardeningRollbackSql);
+  console.log("Validated pre-flight and scoped-authorization hardening migration 0033 and guarded rollback.");
+} finally { await signaturePreflightHardeningDb.close(); }

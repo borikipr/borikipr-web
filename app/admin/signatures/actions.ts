@@ -50,6 +50,7 @@ const SEND_BLOCKER_MESSAGES: Record<string,string> = {
 function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
 }
+function checked(formData:FormData,key:string){return formData.getAll(key).map(String).includes("true");}
 
 function numberValue(formData: FormData, key: string) {
   const parsed = Number(value(formData, key));
@@ -241,7 +242,7 @@ export async function prepareSignatureSendAction(
       database: runtime.database,
       documentId,
       locale: "es-PR",
-      publicSigningEnabled: publicEnabled || isolatedEnabled || scopedProductionCanaryEnabled,
+      publicSigningEnabled: isolatedEnabled || scopedProductionCanaryEnabled,
       eventKeysConfigured: Boolean(getSignatureSecurityConfig()),
       retentionPolicyConfigured: Boolean(durableRetention) || inspectSignatureRetentionPolicy().configured,
       privacyDisclosureConfigured: privacy.configured,
@@ -251,6 +252,11 @@ export async function prepareSignatureSendAction(
         ok: false,
         message: `El envío permanece bloqueado: ${readiness.reasons.map((reason) => SEND_BLOCKER_MESSAGES[reason] ?? "Hay un control pendiente que requiere revisión.").join(" ")}`,
       };
+    }
+    const sendMode=publicEnabled&&scopedProductionCanaryEnabled?"public":scopedProductionCanaryEnabled||isolatedEnabled?"internal_canary":"disabled";
+    const expectedPhrase=sendMode==="public"?"CONFIRMAR ENVIO PUBLICO":"CONFIRMAR ENVIO CANARY INTERNO";
+    if(sendMode==="disabled" || !checked(formData,"sendAcknowledged") || value(formData,"sendConfirmationPhrase")!==expectedPhrase) {
+      return {ok:false,message:`El envío requiere confirmación explícita del modo ${sendMode==="public"?"FIRMA PÚBLICA":"CANARY INTERNO"}.`};
     }
     if (!privacy.configured || !privacy.disclosure) {
       return { ok: false, message: "Falta la divulgación de privacidad aprobada." };
@@ -283,7 +289,7 @@ export async function prepareSignatureSendAction(
       });
     }
     refresh(documentId);
-    return { ok: true, message: "Preparación completada; invitaciones en cola." };
+    return { ok: true, message: `${sendMode==="public"?"FIRMA PÚBLICA":"CANARY INTERNO"}: preparación completada; invitaciones en cola con revalidación server-side.` };
   } catch {
     return { ok: false, message: INITIAL_ERROR };
   }

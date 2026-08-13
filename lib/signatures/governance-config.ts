@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { SignatureDatabase, SignatureQueryExecutor } from "./domain/types";
 import type { SignatureRetentionPolicy } from "./retention-policy";
 import { createSignatureGovernanceWorkflow } from "./governance-workflow";
-import { GOVERNANCE_APPROVAL_PHRASE } from "./governance-constants";
+import { GOVERNANCE_APPROVAL_PHRASE, RETENTION_ACTIVATION_PHRASE } from "./governance-constants";
 
 function snapshot(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
@@ -71,10 +71,11 @@ export function createSignatureGovernanceConfigurationService(database: Signatur
       await workflow.approveRetention({ ...input, approvalMode: "internal_business",
         confirmationPhrase: GOVERNANCE_APPROVAL_PHRASE, immutableAcknowledged: true });
       return workflow.activateRetention({ id: input.id, actorAdminId: input.actorAdminId,
-        confirmationPhrase: GOVERNANCE_APPROVAL_PHRASE, immutableAcknowledged: true });
+        confirmationPhrase: RETENTION_ACTIVATION_PHRASE, immutableAcknowledged: true });
     },
     async authorize(input: { environment: "isolated"|"preview"|"production"; authorizationType: "internal_canary"|"production_public_launch"; readinessSnapshotSha256: string; notes?: string; expiresAt?: Date; actorAdminId: string; explicitConfirmation: boolean }) {
       if (!input.explicitConfirmation) throw new Error("signature_launch_confirmation_required");
+      if (input.environment === "production") throw new Error("signature_launch_use_canonical_preflight");
       return database.begin(async (tx) => {
         const rows = await tx.unsafe<{ id: string }>(`INSERT INTO public.signature_launch_authorizations (environment,authorization_type,readiness_snapshot_sha256,notes,explicit_confirmation,authorized_by_admin_id,expires_at) VALUES ($1,$2,$3,$4,true,$5::uuid,$6::timestamptz) RETURNING id::text`, [input.environment,input.authorizationType,input.readinessSnapshotSha256,input.notes ?? null,input.actorAdminId,input.expiresAt?.toISOString() ?? null]);
         await event(tx, { entityType: "launch_authorization", entityId: rows[0].id, action: "authorized", actorAdminId: input.actorAdminId, value: { environment: input.environment, type: input.authorizationType, readiness: input.readinessSnapshotSha256 } });

@@ -8,6 +8,8 @@ import { createSignatureGovernanceWorkflow } from "@/lib/signatures/governance-w
 import { parseSignatureRetentionPolicy } from "@/lib/signatures/retention-policy";
 import { createSignatureLegalHoldService, type SignatureEvidenceClass } from "@/lib/signatures/legal-holds";
 import { SIGNATURE_APPROVAL_MODES, type SignatureApprovalMode } from "@/lib/signatures/document-classification";
+import { createSignatureRiskAcceptanceService, SIGNATURE_RECOVERY_RISKS, type SignatureRecoveryRisk } from "@/lib/signatures/risk-acceptance";
+import type { SignaturePreflightLocale } from "@/lib/signatures/preflight";
 
 export type GovernanceActionState = Readonly<{ ok: boolean; message: string }>;
 
@@ -52,7 +54,20 @@ async function run(operation: () => Promise<unknown>, success: string): Promise<
       signature_governance_locale_invalid: "Selecciona un idioma permitido.",
       signature_governance_date_invalid: "Escribe una fecha válida.",
       signature_governance_number_invalid: "Revisa las duraciones de la política.",
+      signature_high_formality_internal_approval_blocked: "Esta categoría no puede aprobarse por la vía interna ordinaria. Selecciona revisión externa o fuera de alcance.",
+      signature_consent_hash_mismatch: "El texto del consentimiento cambió o su hash no coincide. Crea una nueva versión íntegra.",
+      signature_privacy_hash_mismatch: "El texto de privacidad cambió o su hash no coincide. Crea una nueva versión íntegra.",
+      signature_retention_hash_mismatch: "La política no coincide con su hash. Crea una nueva versión.",
+      signature_risk_confirmation_required: "Confirma el alcance y escribe la frase exacta de aceptación de riesgo.",
+      signature_risk_scope_invalid: "La decisión de riesgo necesita descripción, evidencia y expiración válida de hasta 90 días.",
+      signature_production_canary_confirmation_required: "Marca la confirmación y escribe AUTORIZAR CANARY INTERNO.",
+      signature_production_canary_scope_invalid: "El alcance del canary no es válido.",
     };
+    if(code.startsWith("signature_preflight_blocked:")) {
+      const blockers=code.slice(code.indexOf(":")+1).split(",");
+      const guidance:Record<string,string>={classification_missing:"falta una clasificación aprobada; ve a Clasificaciones",privacy_missing:"falta privacidad aprobada; ve a Divulgación de privacidad",retention_missing:"falta una política activa; ve a Política de retención",neon_restore_unproven:"falta prueba o aceptación vigente del riesgo Neon",r2_independent_recovery_unproven:"falta prueba o aceptación vigente del riesgo R2",participant_scope_mismatch:"los correos no coinciden exactamente con el documento",locale_scope_invalid:"el locale no es válido",authorization_expiration_invalid:"la expiración debe ser futura y de hasta 24 horas"};
+      return {ok:false,message:`No puedes autorizar este canary: ${blockers.map((blocker)=>guidance[blocker]??"hay un control obligatorio pendiente").join("; ")}.`};
+    }
     return { ok: false, message: messages[code] ?? "El cambio fue rechazado de forma segura. Revisa el estado y los datos." };
   }
 }
@@ -133,4 +148,28 @@ export async function releaseLegalHoldAction(_:GovernanceActionState,data:FormDa
   return run(async()=>{if(!checked(data,"immutableAcknowledged")||value(data,"confirmationPhrase")!=="LIBERAR RETENCION LEGAL") throw new Error("signature_legal_hold_release_confirmation_required");const {session}=await context();const runtime=createSignatureDomainRuntime();
     await createSignatureLegalHoldService(runtime.database).release({id:value(data,"id"),releaseReference:value(data,"releaseReference"),actorAdminId:session.id,idempotencyKey:randomUUID()});
   },"Liberación explícita registrada; el historial permanece inmutable.");
+}
+
+export async function acceptRecoveryRiskAction(_:GovernanceActionState,data:FormData) {
+  return run(async()=>{const {session}=await context();const risk=value(data,"riskCode") as SignatureRecoveryRisk;
+    if(!SIGNATURE_RECOVERY_RISKS.includes(risk)) throw new Error("signature_risk_scope_invalid");
+    await createSignatureRiskAcceptanceService(createSignatureDomainRuntime().database).acceptForInternalCanary({
+      riskCode:risk,residualRisk:value(data,"residualRisk"),evidenceReference:value(data,"evidenceReference"),
+      expiresAt:date(data,"expiresAt"),actorAdminId:session.id,confirmationPhrase:value(data,"confirmationPhrase"),
+      explicitConfirmation:checked(data,"explicitConfirmation"),idempotencyKey:randomUUID()});
+  },"Aceptación de riesgo registrada únicamente para canary interno; no aplica al lanzamiento público.");
+}
+
+export async function authorizeInternalCanaryAction(_:GovernanceActionState,data:FormData) {
+  return run(async()=>{const {session,workflow}=await context();const locale=value(data,"locale") as SignaturePreflightLocale;
+    if(locale!=="es-PR"&&locale!=="en-US") throw new Error("signature_governance_locale_invalid");
+    const emails=value(data,"participantEmails").split(",").map((email)=>email.trim()).filter(Boolean);
+    await workflow.authorizeProductionCanary({documentId:value(data,"documentId"),participantEmails:emails,
+      documentTypes:[value(data,"documentType")],locales:[locale],expiresAt:date(data,"expiresAt"),notes:value(data,"notes"),
+      actorAdminId:session.id,explicitConfirmation:checked(data,"explicitConfirmation"),confirmationPhrase:value(data,"confirmationPhrase"),idempotencyKey:randomUUID()});
+  },"Canary interno autorizado con alcance exacto; continúa desactivado hasta la acción separada de despliegue.");
+}
+
+export async function revokeInternalCanaryAction(_:GovernanceActionState,data:FormData) {
+  return run(async()=>{const {session,workflow}=await context();await workflow.revokeProductionCanary({id:value(data,"id"),actorAdminId:session.id,explicitConfirmation:checked(data,"explicitConfirmation"),idempotencyKey:randomUUID()});},"Autorización revocada. La evidencia permanece inmutable.");
 }

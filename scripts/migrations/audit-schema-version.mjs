@@ -178,8 +178,13 @@ if (!process.env.DATABASE_URL) {
             WHERE table_schema='public' AND table_name='signature_documents'
               AND column_name='archived_at')
             AND EXISTS (SELECT 1 FROM information_schema.columns
-            WHERE table_schema='public' AND table_name='signature_document_versions'
+              WHERE table_schema='public' AND table_name='signature_document_versions'
               AND column_name='source_deleted_at') AS v0032
+          ,to_regclass('public.signature_risk_acceptances') IS NOT NULL
+            AND to_regclass('public.signature_readiness_snapshots') IS NOT NULL
+            AND EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='signature_launch_authorizations'
+              AND column_name='authorized_locales') AS v0033
       )
       SELECT * FROM facts
     `;

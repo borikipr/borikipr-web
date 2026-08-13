@@ -5,12 +5,12 @@ import test, { after, before, beforeEach } from "node:test";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { createSignatureGovernanceWorkflow, getSignatureRetentionPreview } from "../lib/signatures/governance-workflow.ts";
-import { GOVERNANCE_APPROVAL_PHRASE } from "../lib/signatures/governance-constants.ts";
+import { GOVERNANCE_APPROVAL_PHRASE, RETENTION_ACTIVATION_PHRASE } from "../lib/signatures/governance-constants.ts";
 import { parseSignatureRetentionPolicy } from "../lib/signatures/retention-policy.ts";
 
 const root=path.dirname(fileURLToPath(new URL("../package.json",import.meta.url)));
 const actionSource=await readFile(path.join(root,"app/admin/signatures/gobernanza/actions.ts"),"utf8");
-const migrations=await Promise.all(["0022_create_signature_foundation.sql","0023_extend_signature_signer_evidence.sql","0024_add_signature_delivery_governance.sql","0025_bind_signature_privacy_disclosure.sql","0026_preserve_signature_privacy_disclosure_text.sql","0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql"].map(name=>readFile(path.join(root,"db/migrations",name),"utf8")));
+const migrations=await Promise.all(["0022_create_signature_foundation.sql","0023_extend_signature_signer_evidence.sql","0024_add_signature_delivery_governance.sql","0025_bind_signature_privacy_disclosure.sql","0026_preserve_signature_privacy_disclosure_text.sql","0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql"].map(name=>readFile(path.join(root,"db/migrations",name),"utf8")));
 const db=new PGlite();
 const executor=(source)=>({async unsafe(query,parameters=[]){return (await source.query(query,parameters)).rows;}});
 const database={...executor(db),begin:(callback)=>db.transaction(tx=>callback(executor(tx)))};
@@ -57,7 +57,7 @@ test("retention approval and activation are separate and preview never deletes",
   await workflow.submitRetention({id:retention.id,actorAdminId:adminId});
   await workflow.approveRetention({id:retention.id,approvalMode:"internal_business",approverRole:"Authorized operator",approvalReference:"TEST",actorAdminId:adminId,confirmationPhrase:GOVERNANCE_APPROVAL_PHRASE,immutableAcknowledged:true});
   assert.equal((await db.query(`SELECT status FROM signature_retention_policy_versions WHERE id=$1`,[retention.id])).rows[0].status,"approved");
-  await workflow.activateRetention({id:retention.id,actorAdminId:adminId,confirmationPhrase:GOVERNANCE_APPROVAL_PHRASE,immutableAcknowledged:true});
+  await workflow.activateRetention({id:retention.id,actorAdminId:adminId,confirmationPhrase:RETENTION_ACTIVATION_PHRASE,immutableAcknowledged:true});
   await assert.rejects(db.query(`UPDATE signature_retention_policy_versions SET token_days=1 WHERE id=$1`,[retention.id]),/immutable/);
   const preview=await getSignatureRetentionPreview(database,new Date("2032-05-01"));
   assert.equal(preview.destructiveActionPerformed,false);assert.equal(preview.completed,0);
@@ -74,14 +74,11 @@ test("governance mutations are server-authenticated and reject replayed or stale
   await workflow.submitConsent({id:consent.id,actorAdminId:adminId});
   const approval={id:consent.id,approvalMode:"internal_business",approverRole:"Authorized operator",approvalReference:"TEST",effectiveFrom:new Date("2032-05-01"),actorAdminId:adminId,confirmationPhrase:GOVERNANCE_APPROVAL_PHRASE,immutableAcknowledged:true};
   await workflow.approveConsent(approval);
-  await assert.rejects(workflow.approveConsent(approval),/approval_rejected/);
+  await assert.rejects(workflow.approveConsent(approval),/approval_rejected|hash_mismatch/);
 });
 
-test("production canary authorization is scoped, expiring, and never enables public signing",async()=>{
+test("legacy caller-supplied readiness cannot create a production canary authorization",async()=>{
   const workflow=createSignatureGovernanceWorkflow(database,()=>new Date("2032-05-01T00:00:00Z"));
-  await assert.rejects(workflow.authorizeProductionCanary({readinessSnapshotSha256:"a".repeat(64),participantScope:[],documentTypes:["ordinary_brokerage_agreement"],expiresAt:new Date("2032-05-02"),actorAdminId:adminId,explicitConfirmation:true}),/scope_required/);
-  const authorization=await workflow.authorizeProductionCanary({readinessSnapshotSha256:"a".repeat(64),participantScope:["synthetic-internal-1"],documentTypes:["ordinary_brokerage_agreement"],expiresAt:new Date("2032-05-02"),actorAdminId:adminId,explicitConfirmation:true});
-  const row=(await db.query(`SELECT environment,authorization_type,authorized_participant_scope,authorized_document_types FROM signature_launch_authorizations WHERE id=$1`,[authorization.id])).rows[0];
-  assert.deepEqual(row,{environment:"production",authorization_type:"internal_canary",authorized_participant_scope:["synthetic-internal-1"],authorized_document_types:["ordinary_brokerage_agreement"]});
-  await assert.rejects(db.query(`UPDATE signature_launch_authorizations SET authorized_document_types=ARRAY['lease'] WHERE id=$1`,[authorization.id]),/immutable/);
+  await assert.rejects(workflow.authorizeProductionCanary({readinessSnapshotSha256:"a".repeat(64),participantScope:["synthetic-internal-1"],documentTypes:["ordinary_brokerage_agreement"],expiresAt:new Date("2032-05-02"),actorAdminId:adminId,explicitConfirmation:true}),/confirmation_required/);
+  assert.equal((await db.query(`SELECT count(*)::integer count FROM signature_launch_authorizations`)).rows[0].count,0);
 });

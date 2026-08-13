@@ -12,7 +12,7 @@ const databasePath = path.resolve(process.env.SIGNING_ISOLATED_DATABASE_DIR || a
 if (
   process.env.SIGNING_ISOLATED_ENVIRONMENT !== "true" ||
   process.env.NODE_ENV === "production" ||
-  (databasePath !== approvedRoot && !databasePath.startsWith(`${approvedRoot}${path.sep}`))
+  (databasePath !== approvedRoot && !databasePath.startsWith(`${approvedRoot}${path.sep}`) && !databasePath.startsWith(`${approvedRoot}-`))
 ) {
   throw new Error("signature_isolated_database_forbidden");
 }
@@ -50,6 +50,8 @@ if (!existing.rows[0]?.relation) {
     CREATE TABLE public.leads (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       name text NOT NULL,
+      email_normalized text NULL,
+      status text NOT NULL DEFAULT 'new',
       merged_into_lead_id uuid NULL,
       last_activity_at timestamptz NOT NULL DEFAULT now()
     );
@@ -74,11 +76,17 @@ if (!existing.rows[0]?.relation) {
     "0030_harden_signature_governance_workflow_immutability.sql",
     "0031_add_signature_legal_holds.sql",
     "0032_correct_signature_business_governance.sql",
+    "0033_harden_signature_preflight_authorization.sql",
   ];
   for (const name of names) {
     await db.exec(await readFile(path.join(root, "db", "migrations", name), "utf8"));
   }
 }
+
+await db.exec(`
+  ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS email_normalized text NULL;
+  ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'new';
+`);
 
 const privacyTextColumns = await db.query(`SELECT count(*)::integer AS count
   FROM information_schema.columns
@@ -117,6 +125,10 @@ const businessApprovalColumn = await db.query(`SELECT count(*)::integer AS count
   WHERE table_schema='public' AND table_name='signature_document_type_approvals' AND column_name='approval_mode'`);
 if (businessApprovalColumn.rows[0]?.count === 0) {
   await db.exec(await readFile(path.join(root,"db","migrations","0032_correct_signature_business_governance.sql"),"utf8"));
+}
+const phase2oTable = await db.query(`SELECT to_regclass('public.signature_readiness_snapshots')::text AS relation`);
+if (!phase2oTable.rows[0]?.relation) {
+  await db.exec(await readFile(path.join(root,"db","migrations","0033_harden_signature_preflight_authorization.sql"),"utf8"));
 }
 
 const passwordHash = await bcrypt.hash(password, 12);

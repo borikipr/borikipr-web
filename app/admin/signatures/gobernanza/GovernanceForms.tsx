@@ -1,14 +1,16 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { GOVERNANCE_APPROVAL_PHRASE } from "@/lib/signatures/governance-constants";
+import { GOVERNANCE_APPROVAL_PHRASE, RETENTION_ACTIVATION_PHRASE } from "@/lib/signatures/governance-constants";
+import { INTERNAL_CANARY_CONFIRMATION_PHRASE, RISK_ACCEPTANCE_CONFIRMATION_PHRASE } from "@/lib/signatures/preflight-constants";
 import { SIGNATURE_DOCUMENT_TYPES, type SignatureApprovalMode } from "@/lib/signatures/document-classification";
 import {
   activateRetentionAction, approveClassificationAction, approveConsentAction,
   approvePrivacyAction, approveRetentionAction, createClassificationAction,
   createConsentAction, createPrivacyAction, createRetentionAction,
   placeLegalHoldAction, releaseLegalHoldAction, submitClassificationAction,
-  submitConsentAction, submitPrivacyAction, submitRetentionAction,
+  submitConsentAction, submitPrivacyAction, submitRetentionAction, acceptRecoveryRiskAction,
+  authorizeInternalCanaryAction, revokeInternalCanaryAction,
   type GovernanceActionState,
 } from "./actions";
 
@@ -51,14 +53,16 @@ function ApprovalFields({ allowOutOfScope = false, includeOrganization = false }
   </>;
 }
 
-type Option = { id: string; label: string; status?: string };
+type Option = { id: string; label: string; status?: string; reviewText?:string; reviewHash?:string };
+type CanaryDocumentOption = Option & { documentType:string; participantEmails:readonly string[] };
 type Drafts = {
   classifications: Option[];
   consents: Option[];
   privacy: Option[];
   retention: (Option & { status: string })[];
-  documents: Option[];
+  documents: CanaryDocumentOption[];
   legalHolds: Option[];
+  launchAuthorizations: Option[];
 };
 
 export function GovernanceForms({ drafts }: { drafts: Drafts }) {
@@ -77,6 +81,9 @@ export function GovernanceForms({ drafts }: { drafts: Drafts }) {
   const [retentionActivate, retentionActivateAction] = useActionState(activateRetentionAction, initial);
   const [holdPlace, holdPlaceAction] = useActionState(placeLegalHoldAction, initial);
   const [holdRelease, holdReleaseAction] = useActionState(releaseLegalHoldAction, initial);
+  const [riskAcceptance, riskAcceptanceAction] = useActionState(acceptRecoveryRiskAction, initial);
+  const [canaryAuthorization, canaryAuthorizationAction] = useActionState(authorizeInternalCanaryAction, initial);
+  const [canaryRevocation, canaryRevocationAction] = useActionState(revokeInternalCanaryAction, initial);
   const select = (name: string, items: Option[]) => <select name={name} required><option value="">Seleccione</option>{items.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>;
 
   const workflowGrid = "mt-4 grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-3";
@@ -89,20 +96,24 @@ export function GovernanceForms({ drafts }: { drafts: Drafts }) {
     <details className="surface-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5"><summary className="font-semibold">Clasificaciones de documentos</summary><div className={workflowGrid}>
       <form action={classificationCreateAction} className={formClass}><h3>1. Crear borrador</h3><label>Tipo<select name="documentType" required>{SIGNATURE_DOCUMENT_TYPES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><label>Nombre visible<input name="displayName" required /></label><label>Descripción<textarea name="description" required /></label><label>Uso permitido y condiciones<textarea name="permittedSigningUse" required /></label><Submit>Crear borrador</Submit><Result state={classificationCreate} /></form>
       <form action={classificationSubmitAction} className={formClass}><h3>2. Enviar a revisión</h3>{select("id", drafts.classifications.filter((item) => item.status === "draft"))}<Submit>Enviar a revisión</Submit><Result state={classificationSubmit} /></form>
-      <form action={classificationApproveAction} className={formClass}><h3>3. Registrar decisión</h3>{select("id", drafts.classifications.filter((item) => item.status === "pending"))}<ApprovalFields allowOutOfScope includeOrganization /><label>Fecha de decisión<input name="approvalDate" type="date" required /></label><label>Notas internas opcionales<textarea name="notes" /></label><Submit>Registrar versión inmutable</Submit><Result state={classificationApprove} /></form>
+      <form action={classificationApproveAction} className={formClass}><h3>3. Registrar decisión</h3>{select("id", drafts.classifications.filter((item) => item.status === "pending"))}<p className="rounded-lg bg-amber-50 p-3 text-sm">Revisa nombre, clasificación, uso permitido, exclusiones, versión y hash antes de aprobar. La aprobación interna autoriza uso operacional en Erickson Real Estate; no constituye asesoría legal, notarización ni autorización para documentos de cierre.</p><ApprovalFields allowOutOfScope includeOrganization /><label>Fecha de decisión<input name="approvalDate" type="date" required /></label><label>Notas internas opcionales<textarea name="notes" /></label><Submit>Registrar versión inmutable</Submit><Result state={classificationApprove} /></form>
     </div></details>
 
     <details className="surface-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5"><summary className="font-semibold">Consentimientos es-PR / en-US</summary><p className="mt-3 text-sm text-slate-600">Cree una versión por idioma. Un canary sólo en español exige es-PR; en-US se exige únicamente cuando participe una persona en inglés.</p><div className={workflowGrid}>
       <form action={consentCreateAction} className={formClass}><h3>1. Crear borrador</h3><label>Versión<input name="versionIdentifier" required pattern="[a-z0-9][a-z0-9._-]{0,99}" /></label><label>Idioma<select name="locale"><option>es-PR</option><option>en-US</option></select></label><label>Texto exacto<textarea name="text" minLength={20} required /></label><Submit>Crear borrador</Submit><Result state={consentCreate} /></form>
       <form action={consentSubmitAction} className={formClass}><h3>2. Enviar a revisión</h3>{select("id", drafts.consents.filter((item) => item.status === "draft"))}<Submit>Enviar</Submit><Result state={consentSubmit} /></form>
-      <form action={consentApproveAction} className={formClass}><h3>3. Registrar aprobación</h3>{select("id", drafts.consents.filter((item) => item.status === "pending_review"))}<ApprovalFields /><Submit>Registrar versión inmutable</Submit><Result state={consentApprove} /></form>
+      <form action={consentApproveAction} className={formClass}><h3>3. Registrar aprobación</h3>{select("id", drafts.consents.filter((item) => item.status === "pending_review"))}<p className="text-sm text-slate-600">Revisa abajo el texto exacto, locale, versión y hash. El servidor vuelve a calcular el hash antes de aprobar.</p><ApprovalFields /><Submit>Registrar versión inmutable</Submit><Result state={consentApprove} /></form>
     </div></details>
+
+    {drafts.consents.filter((item)=>item.status==="pending_review").map((item)=><details className="surface-card p-4" key={`consent-review-${item.id}`}><summary className="font-semibold">Revisión exacta: {item.label}</summary><p className="mt-3 whitespace-pre-wrap text-sm">{item.reviewText}</p><p className="mt-3 break-all font-mono text-xs">SHA-256: {item.reviewHash}</p></details>)}
 
     <details className="surface-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5"><summary className="font-semibold">Divulgación de privacidad bilingüe</summary><p className="mt-3 text-sm text-slate-600">El registro conserva ambos textos, hashes, referencia y fecha efectiva como un snapshot inmutable. Cada firmante ve el texto de su idioma y la evidencia queda ligada a esta versión exacta.</p><div className={workflowGrid}>
       <form action={privacyCreateAction} className={formClass}><h3>1. Crear borrador</h3><label>Versión<input name="versionIdentifier" required pattern="[a-z0-9][a-z0-9._-]{0,99}" /></label><label>Texto es-PR<textarea name="esPRText" minLength={20} required /></label><label>Texto en-US<textarea name="enUSText" minLength={20} required /></label><Submit>Crear borrador</Submit><Result state={privacyCreate} /></form>
       <form action={privacySubmitAction} className={formClass}><h3>2. Enviar a revisión</h3>{select("id", drafts.privacy.filter((item) => item.status === "draft"))}<Submit>Enviar</Submit><Result state={privacySubmit} /></form>
-      <form action={privacyApproveAction} className={formClass}><h3>3. Registrar aprobación</h3>{select("id", drafts.privacy.filter((item) => item.status === "pending_review"))}<ApprovalFields /><Submit>Registrar versión inmutable</Submit><Result state={privacyApprove} /></form>
+      <form action={privacyApproveAction} className={formClass}><h3>3. Registrar aprobación</h3>{select("id", drafts.privacy.filter((item) => item.status === "pending_review"))}<p className="text-sm text-slate-600">Revisa el texto bilingüe exacto y ambos hashes. El snapshot aprobado será inmutable y quedará ligado a la evidencia.</p><ApprovalFields /><Submit>Registrar versión inmutable</Submit><Result state={privacyApprove} /></form>
     </div></details>
+
+    {drafts.privacy.filter((item)=>item.status==="pending_review").map((item)=><details className="surface-card p-4" key={`privacy-review-${item.id}`}><summary className="font-semibold">Revisión exacta: {item.label}</summary><p className="mt-3 whitespace-pre-wrap text-sm">{item.reviewText}</p><p className="mt-3 break-all font-mono text-xs">Hashes: {item.reviewHash}</p></details>)}
 
     <details className="surface-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5"><summary className="font-semibold">Política de retención</summary><p className="mt-3 text-sm text-slate-600">Defina valores revisados por el negocio, apruebe la versión y actívela en un paso separado. Sin política activa no se elimina evidencia; una retención legal siempre prevalece.</p><div className="mt-4 grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-4">
       <form action={retentionCreateAction} className={formClass}><h3>1. Crear borrador</h3><label>Versión<input name="versionIdentifier" required /></label><label>Referencia de decisión pendiente<input name="approvalReference" required /></label><label>Referencia de privacidad<input name="privacyReference" required /></label>{[
@@ -118,8 +129,12 @@ export function GovernanceForms({ drafts }: { drafts: Drafts }) {
       ].map(([name,label,help]) => <label key={name}>{label}<span className="mt-1 block text-xs font-normal text-slate-500">{help}</span><input name={name} type="number" min="1" /></label>)}<label className="flex items-start gap-2"><input name="completedCleanupEnabled" type="checkbox" value="true" /> <span>Permitir limpieza de evidencia completada sólo según esta política</span></label><Submit>Crear sin activar</Submit><Result state={retentionCreate} /></form>
       <form action={retentionSubmitAction} className={formClass}><h3>2. Enviar a revisión</h3>{select("id", drafts.retention.filter((item) => item.status === "draft"))}<Submit>Enviar</Submit><Result state={retentionSubmit} /></form>
       <form action={retentionApproveAction} className={formClass}><h3>3. Registrar aprobación</h3>{select("id", drafts.retention.filter((item) => item.status === "pending_review"))}<ApprovalFields /><Submit>Aprobar sin activar</Submit><Result state={retentionApprove} /></form>
-      <form action={retentionActivateAction} className={formClass}><h3>4. Activar por separado</h3>{select("id", drafts.retention.filter((item) => item.status === "approved"))}<label className="flex items-start gap-2"><input name="immutableAcknowledged" type="checkbox" value="true" required /> <span>Confirmo activación separada.</span></label><label>Escriba <code>{GOVERNANCE_APPROVAL_PHRASE}</code><input name="confirmationPhrase" required /></label><Submit>Activar explícitamente</Submit><Result state={retentionActivate} /></form>
+      <form action={retentionActivateAction} className={formClass}><h3>4. Activar por separado</h3>{select("id", drafts.retention.filter((item) => item.status === "approved"))}<p className="rounded-lg bg-amber-50 p-3 text-sm">La activación ejecuta preview, valida hash y retenciones legales. No ejecuta limpieza.</p><label className="flex items-start gap-2"><input name="immutableAcknowledged" type="checkbox" value="true" required /> <span>Confirmo que revisé la política exacta y su preview.</span></label><label>Escriba <code>{RETENTION_ACTIVATION_PHRASE}</code><input name="confirmationPhrase" required /></label><Submit>Activar explícitamente</Submit><Result state={retentionActivate} /></form>
     </div></details>
+
+    <details className="surface-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5"><summary className="font-semibold">Decisiones de recuperación — aceptación acotada</summary><p className="mt-3 text-sm text-slate-600">Una aceptación sólo puede cubrir un canary interno, expira y nunca cuenta como prueba para lanzamiento público.</p><form action={riskAcceptanceAction} className={`${formClass} mt-4`}><label>Riesgo<select name="riskCode" required><option value="neon_restore_unproven">Neon recovery: NO PROBADO</option><option value="r2_independent_recovery_unproven">R2 independiente: NO PROBADO</option></select></label><label>Riesgo residual exacto<textarea name="residualRisk" minLength={20} required /></label><label>Evidencia o referencia<input name="evidenceReference" required /></label><label>Expira / revisar antes de<input name="expiresAt" type="datetime-local" required /></label><label className="flex items-start gap-2"><input name="explicitConfirmation" type="checkbox" value="true" required /><span>Acepto este riesgo solamente para un canary interno y por el plazo indicado.</span></label><label>Escriba <code>{RISK_ACCEPTANCE_CONFIRMATION_PHRASE}</code><input name="confirmationPhrase" required /></label><Submit>Registrar decisión inmutable</Submit><Result state={riskAcceptance} /></form></details>
+
+    <details className="surface-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5"><summary className="font-semibold">Autorización — CANARY INTERNO</summary><p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm font-semibold">Prueba interna controlada — NO disponible para clientes. Autorizar no activa el flag.</p><form action={canaryAuthorizationAction} className={`${formClass} mt-4`}><label>Documento preparado<select name="documentId" required><option value="">Seleccione</option>{drafts.documents.map((item)=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label><label>Clasificación exacta<select name="documentType" required>{SIGNATURE_DOCUMENT_TYPES.map((item)=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label><label>Locale exacto<select name="locale" required><option value="es-PR">es-PR</option><option value="en-US">en-US</option></select></label><label>Correos exactos separados por coma<textarea name="participantEmails" placeholder="persona-interna@example.test" required /></label><p className="text-xs text-slate-600">No se permiten comodines, dominios completos ni alcance implícito. El servidor compara exactamente contra el documento.</p><label>Expiración (máximo 24 horas)<input name="expiresAt" type="datetime-local" required /></label><label>Notas opcionales<textarea name="notes" /></label><label className="flex items-start gap-2"><input name="explicitConfirmation" type="checkbox" value="true" required /><span>Confirmo el documento, participantes, locale, expiración y readiness hash. READY no equivale a ENABLED.</span></label><label>Escriba <code>{INTERNAL_CANARY_CONFIRMATION_PHRASE}</code><input name="confirmationPhrase" required /></label><Submit>Autorizar canary interno</Submit><Result state={canaryAuthorization} /></form>{drafts.launchAuthorizations.length>0&&<form action={canaryRevocationAction} className={`${formClass} mt-4`}><h3>Revocar autorización</h3>{select("id",drafts.launchAuthorizations)}<label className="flex items-start gap-2"><input name="explicitConfirmation" type="checkbox" value="true" required /><span>Confirmo la revocación; la evidencia histórica permanecerá.</span></label><Submit>Revocar autorización</Submit><Result state={canaryRevocation} /></form>}<p className="mt-4 text-sm"><strong>Canary interno: Desactivado.</strong> La activación es una acción separada de configuración del despliegue.</p></details>
 
     <details className="surface-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5"><summary className="font-semibold">Retenciones legales persistentes</summary><p className="mt-3 text-sm text-slate-600">Una retención activa bloquea toda limpieza del documento. Liberarla requiere una acción separada y conserva el historial.</p><div className="mt-4 grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
       <form action={holdPlaceAction} className={formClass}><h3>Colocar retención</h3>{select("documentId", drafts.documents)}<label>Razón o referencia<input name="reasonReference" required /></label><label>Referencia legal externa opcional<input name="externalLegalReference" /></label><Submit>Colocar retención</Submit><Result state={holdPlace} /></form>

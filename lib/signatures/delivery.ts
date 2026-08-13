@@ -46,6 +46,7 @@ export function createSignatureDeliveryService(input: {
   mail: SignatureMailTransport;
   publicBaseUrl: string;
   tokenKeyVersion: number;
+  authorizeInvitation?: (input:{participantId:string;documentVersionId:string})=>Promise<boolean>;
   now?: () => Date;
 }) {
   const clock = input.now ?? (() => new Date());
@@ -71,6 +72,10 @@ export function createSignatureDeliveryService(input: {
     participantId: string; documentVersionId: string; locale: SignatureDeliveryLocale;
     actorAdminId: string; idempotencyKey: string; kind?: "invitation" | "completed_document";
   }) {
+    if ((data.kind ?? "invitation") === "invitation" && input.authorizeInvitation &&
+        !await input.authorizeInvitation({participantId:data.participantId,documentVersionId:data.documentVersionId})) {
+      throw new Error("signature_delivery_authorization_changed");
+    }
     const result = await input.database.begin(async (tx) => {
       const rows = await tx.unsafe<{
         document_id: string; source_sha256: string; normalized_email: string;
@@ -142,6 +147,14 @@ export function createSignatureDeliveryService(input: {
       return rows[0];
     });
     if (!claimed) return { status: "not_claimed" as const };
+
+    if (claimed.delivery_kind === "invitation" && input.authorizeInvitation &&
+        !await input.authorizeInvitation({participantId:claimed.participant_id,documentVersionId:claimed.document_version_id})) {
+      await input.database.unsafe(`UPDATE public.signature_delivery_intents SET status='failed',last_error_code='authorization_changed',
+        locked_at=NULL,locked_by=NULL,updated_at=$2::timestamptz WHERE id=$1::uuid AND locked_by=$3::uuid`,
+        [intentId,clock().toISOString(),workerId]);
+      return { status:"failed" as const,retryable:false };
+    }
 
     const requestedExpiry = new Date(claimed.expires_at);
     const completionExpiry = new Date(clock().getTime() + 24 * 60 * 60_000);

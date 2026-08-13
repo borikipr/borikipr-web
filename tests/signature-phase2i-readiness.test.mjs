@@ -12,7 +12,7 @@ import { getSignatureRetentionPreview } from "../lib/signatures/governance-workf
 import { createSignatureGovernanceWorkflow } from "../lib/signatures/governance-workflow.ts";
 
 const root=path.dirname(fileURLToPath(new URL("../package.json",import.meta.url)));
-const migrationNames=["0022_create_signature_foundation.sql","0023_extend_signature_signer_evidence.sql","0024_add_signature_delivery_governance.sql","0025_bind_signature_privacy_disclosure.sql","0026_preserve_signature_privacy_disclosure_text.sql","0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql"];
+const migrationNames=["0022_create_signature_foundation.sql","0023_extend_signature_signer_evidence.sql","0024_add_signature_delivery_governance.sql","0025_bind_signature_privacy_disclosure.sql","0026_preserve_signature_privacy_disclosure_text.sql","0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql"];
 const migrations=await Promise.all(migrationNames.map(n=>readFile(path.join(root,"db/migrations",n),"utf8")));
 const adminActions=await readFile(path.join(root,"app/admin/signatures/gobernanza/actions.ts"),"utf8");
 const signatureAdminActions=await readFile(path.join(root,"app/admin/signatures/actions.ts"),"utf8");
@@ -55,11 +55,11 @@ test("production internal canary requires flag, matching readiness, participant,
  const hash="b".repeat(64);const base={NODE_ENV:"production",SIGNING_PUBLIC_ENABLED:"false",SIGNING_INTERNAL_CANARY_ENABLED:"true",SIGNING_INTERNAL_CANARY_READINESS_SHA256:hash};
  assert.equal(await isSignerAccessAuthorized(database,{participantId,documentVersionId:versionId},{}),false);
  assert.equal(await isSignerAccessAuthorized(database,{participantId,documentVersionId:versionId},base,new Date("2032-05-01")),false);
- await db.query(`INSERT INTO signature_launch_authorizations(environment,authorization_type,readiness_snapshot_sha256,explicit_confirmation,authorized_by_admin_id,expires_at,authorized_participant_scope,authorized_document_types) VALUES('production','internal_canary',$1,true,$2,'2032-05-02',$3::jsonb,$4::text[])`,[hash,adminId,JSON.stringify([participantId]),["ordinary_brokerage_agreement"]]);
+ await db.query(`INSERT INTO signature_launch_authorizations(environment,authorization_type,readiness_snapshot_sha256,explicit_confirmation,authorized_by_admin_id,expires_at,authorized_participant_scope,authorized_document_types,phase2o_legacy) VALUES('production','internal_canary',$1,true,$2,'2032-05-02',$3::jsonb,$4::text[],true)`,[hash,adminId,JSON.stringify([participantId]),["ordinary_brokerage_agreement"]]);
  assert.equal(await isSignerAccessAuthorized(database,{participantId,documentVersionId:versionId},{...base,SIGNING_INTERNAL_CANARY_READINESS_SHA256:"c".repeat(64)},new Date("2032-05-01")),false);
  assert.equal(await isSignerAccessAuthorized(database,{participantId:randomUUID(),documentVersionId:versionId},base,new Date("2032-05-01")),false);
  assert.equal(await isSignerAccessAuthorized(database,{participantId,documentVersionId:versionId},base,new Date("2032-05-03")),false);
- assert.equal(await isSignerAccessAuthorized(database,{participantId,documentVersionId:versionId},base,new Date("2032-05-01")),true);
+ assert.equal(await isSignerAccessAuthorized(database,{participantId,documentVersionId:versionId},base,new Date("2032-05-01")),false);
  assert.equal(await isSignerAccessAuthorized(database,{participantId,documentVersionId:versionId},{...base,SIGNING_INTERNAL_CANARY_ENABLED:"false"},new Date("2032-05-01")),false);
 });
 
@@ -68,12 +68,12 @@ test("public launch authorization cannot substitute for internal canary authoriz
  assert.equal(await isSignerAccessAuthorized(database,{participantId,documentVersionId:versionId},{NODE_ENV:"production",SIGNING_PUBLIC_ENABLED:"false",SIGNING_INTERNAL_CANARY_ENABLED:"true",SIGNING_INTERNAL_CANARY_READINESS_SHA256:hash},new Date("2032-05-01")),false);
 });
 
-test("emergency revocation immediately disables an authorized production canary",async()=>{
+test("emergency revocation disables even a legacy production canary record",async()=>{
  const hash="e".repeat(64);const now=new Date("2032-05-01T00:00:00Z");
  const workflow=createSignatureGovernanceWorkflow(database,()=>now);
- const authorization=await workflow.authorizeProductionCanary({readinessSnapshotSha256:hash,participantScope:[participantId],documentTypes:["ordinary_brokerage_agreement"],expiresAt:new Date("2032-05-02"),actorAdminId:adminId,explicitConfirmation:true});
+ const authorization=(await db.query(`INSERT INTO signature_launch_authorizations(environment,authorization_type,readiness_snapshot_sha256,explicit_confirmation,authorized_by_admin_id,expires_at,authorized_participant_scope,authorized_document_types,phase2o_legacy) VALUES('production','internal_canary',$1,true,$2,'2032-05-02',$3::jsonb,$4::text[],true) RETURNING id::text`,[hash,adminId,JSON.stringify([participantId]),["ordinary_brokerage_agreement"]])).rows[0];
  const environment={NODE_ENV:"production",SIGNING_PUBLIC_ENABLED:"false",SIGNING_INTERNAL_CANARY_ENABLED:"true",SIGNING_INTERNAL_CANARY_READINESS_SHA256:hash};
- assert.equal(await isSignerAccessAuthorized(database,{participantId,documentVersionId:versionId},environment,now),true);
+ assert.equal(await isSignerAccessAuthorized(database,{participantId,documentVersionId:versionId},environment,now),false);
  await assert.rejects(workflow.revokeProductionCanary({id:authorization.id,actorAdminId:adminId,explicitConfirmation:false}),/confirmation_required/);
  await workflow.revokeProductionCanary({id:authorization.id,actorAdminId:adminId,explicitConfirmation:true,idempotencyKey:"33333333-3333-4333-8333-333333333333"});
  assert.equal(await isSignerAccessAuthorized(database,{participantId,documentVersionId:versionId},environment,now),false);

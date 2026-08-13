@@ -22,6 +22,7 @@ test.describe("signing governance responsive Admin", () => {
 
   test.beforeEach(async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop-chromium" && testInfo.title.includes("draft preparation"), "Operational mutation proof runs once on desktop.");
+    test.skip(testInfo.project.name !== "desktop-chromium" && testInfo.title.includes("desktop workflow"), "Desktop layout proof runs only in the desktop project.");
     await page.goto("/admin/login");
     await page.getByLabel("Usuario").fill(process.env.E2E_ADMIN_USERNAME || "synthetic-signing-admin");
     await page.getByLabel("Contraseña").fill(process.env.E2E_SIGNING_ADMIN_PASSWORD || "");
@@ -29,6 +30,8 @@ test.describe("signing governance responsive Admin", () => {
       page.waitForURL((url) => url.pathname === "/admin", { timeout: 60_000 }),
       page.getByRole("button", { name: "Entrar" }).click(),
     ]);
+    await page.waitForLoadState("domcontentloaded");
+    await page.waitForTimeout(250);
     await page.goto("/admin/signatures/gobernanza", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: /Gobernanza y preparación/ })).toBeVisible();
   });
@@ -39,6 +42,8 @@ test.describe("signing governance responsive Admin", () => {
       const details = page.locator(".signature-governance details");
       for (let index = 0; index < await details.count(); index += 1) await details.nth(index).evaluate((element) => { (element as HTMLDetailsElement).open = true; });
       await expect(page.getByText("Aprobación interna de Erickson Real Estate").first()).toBeVisible();
+      await expect(page.locator(".signature-governance").getByText(/aceptaci.n acotada/)).toBeVisible();
+      await expect(page.locator(".signature-governance").getByText(/CANARY INTERNO/).first()).toBeVisible();
       const overflow = await page.evaluate(() => {
         window.scrollTo({ left: document.documentElement.scrollWidth, top: 0 });
         const pageScroll = window.scrollX;
@@ -62,8 +67,12 @@ test.describe("signing governance responsive Admin", () => {
     page.on("pageerror", (error) => errors.push(error.message));
     const classification = page.getByText("Clasificaciones de documentos", { exact: true }).last();
     await classification.click();
+    await page.getByText("Autorización — CANARY INTERNO", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "1. Crear borrador" }).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "3. Registrar decisión" }).first()).toBeVisible();
+    await expect(page.getByText(/Prueba interna controlada/)).toBeVisible();
+    await expect(page.getByText(/Canary interno: Desactivado/).first()).toBeVisible();
+    await expect(page.getByText(/FIRMA P.BLICA/).first()).toBeVisible();
     expect(errors).toEqual([]);
   });
 
@@ -80,7 +89,8 @@ test.describe("signing governance responsive Admin", () => {
       page.getByRole("button", { name: /Validar y crear borrador/ }).click(),
     ]);
     const created = await createdResponse.json() as { documentId: string };
-    await page.goto(`/admin/signatures/${created.documentId}`, { waitUntil: "domcontentloaded" });
+    await page.waitForURL((url) => url.pathname === `/admin/signatures/${created.documentId}`, { timeout: 60_000 });
+    await page.waitForLoadState("domcontentloaded");
 
     const participants = page.getByRole("heading", { name: /Participantes/ }).locator("..");
     await participants.getByLabel("Nombre").fill("Participante Sintético");

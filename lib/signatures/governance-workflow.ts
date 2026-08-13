@@ -4,10 +4,11 @@ import { sha256SignatureValue } from "./domain/crypto";
 import { getSignatureDocumentTypeDefinition, type SignatureApprovalMode } from "./document-classification";
 import { canonicalJson } from "./prototype/hash";
 import type { SignatureRetentionPolicy } from "./retention-policy";
-import { GOVERNANCE_APPROVAL_PHRASE } from "./governance-constants";
+import { GOVERNANCE_APPROVAL_PHRASE, RETENTION_ACTIVATION_PHRASE } from "./governance-constants";
+import { evaluateSignaturePreflight, INTERNAL_CANARY_CONFIRMATION_PHRASE, persistSignatureReadinessSnapshot, type SignaturePreflightLocale } from "./preflight";
 
 type AuditInput = Readonly<{
-  entityType: "document_classification" | "consent_version" | "privacy_disclosure" | "retention_policy" | "launch_authorization" | "legal_hold";
+  entityType: "document_classification" | "consent_version" | "privacy_disclosure" | "retention_policy" | "launch_authorization" | "legal_hold" | "readiness_snapshot";
   entityId: string;
   action: "created" | "submitted" | "approved" | "activated" | "retired" | "restricted" | "authorized" | "revoked";
   actorAdminId: string;
@@ -112,6 +113,8 @@ export function createSignatureGovernanceWorkflow(database: SignatureDatabase, c
           `SELECT document_type,version_number,display_name,description,permitted_signing_use
              FROM public.signature_document_type_approvals WHERE id=$1::uuid AND status='pending' FOR UPDATE`, [input.id]);
         if (!pending[0]) throw new Error("signature_classification_approval_rejected");
+        const definition=getSignatureDocumentTypeDefinition(pending[0].document_type);
+        if(definition?.scope!=="ordinary_brokerage" && input.approvalMode==="internal_business") throw new Error("signature_high_formality_internal_approval_blocked");
         const snapshot = { ...pending[0], approvalMode: input.approvalMode,
           approvalReference: input.approvalReference.trim(), approverRole: input.approverRole.trim(),
           externalReviewerName: input.externalReviewerName?.trim() || null,
@@ -178,6 +181,8 @@ export function createSignatureGovernanceWorkflow(database: SignatureDatabase, c
     }) {
       requireApproval({ ...input });
       return database.begin(async (tx) => {
+        const [pending]=await tx.unsafe<{consent_text:string;consent_text_sha256:string}>(`SELECT consent_text,consent_text_sha256 FROM signature_consent_versions WHERE id=$1::uuid AND status='pending_review' FOR UPDATE`,[input.id]);
+        if(!pending || sha256SignatureValue(pending.consent_text.normalize("NFC").trim())!==pending.consent_text_sha256) throw new Error("signature_consent_hash_mismatch");
         const now = clock().toISOString();
         const rows = await tx.unsafe<{ id: string; locale: string; consent_text_sha256: string }>(
           `UPDATE public.signature_consent_versions SET status='approved',approval_mode=$2,approval_reference=$3,
@@ -228,6 +233,8 @@ export function createSignatureGovernanceWorkflow(database: SignatureDatabase, c
     }) {
       requireApproval({ ...input });
       return database.begin(async (tx) => {
+        const [pending]=await tx.unsafe<{es_pr_text:string;en_us_text:string;es_pr_sha256:string;en_us_sha256:string}>(`SELECT es_pr_text,en_us_text,es_pr_sha256,en_us_sha256 FROM signature_privacy_disclosure_versions WHERE id=$1::uuid AND status='pending_review' FOR UPDATE`,[input.id]);
+        if(!pending || sha256SignatureValue(pending.es_pr_text.normalize("NFC").trim())!==pending.es_pr_sha256 || sha256SignatureValue(pending.en_us_text.normalize("NFC").trim())!==pending.en_us_sha256) throw new Error("signature_privacy_hash_mismatch");
         const now = clock().toISOString();
         const rows = await tx.unsafe<{ id: string; es_pr_sha256: string; en_us_sha256: string }>(
           `UPDATE public.signature_privacy_disclosure_versions SET status='approved',approval_mode=$2,approval_reference=$3,
@@ -281,15 +288,18 @@ export function createSignatureGovernanceWorkflow(database: SignatureDatabase, c
       requireApproval({ ...input });
       return database.begin(async (tx) => {
         const now = clock().toISOString();
+        const [pending]=await tx.unsafe<{version_identifier:string;privacy_reference:string;source_pdf_days:number;completed_pdf_days:number|null;certificate_days:number|null;evidence_manifest_days:number|null;token_days:number;session_hours:number;network_evidence_days:number;failed_cancelled_draft_days:number;audit_event_days:number|null;completed_cleanup_enabled:boolean}>(`SELECT version_identifier,privacy_reference,source_pdf_days,completed_pdf_days,certificate_days,evidence_manifest_days,token_days,session_hours,network_evidence_days,failed_cancelled_draft_days,audit_event_days,completed_cleanup_enabled FROM signature_retention_policy_versions WHERE id=$1::uuid AND status='pending_review' FOR UPDATE`,[input.id]);
+        if(!pending) throw new Error("signature_retention_approval_rejected");
+        const approvedHash=hashRetentionPolicy({version:pending.version_identifier,approvalReference:input.approvalReference.trim(),privacyReference:pending.privacy_reference,sourcePdfDays:pending.source_pdf_days,completedPdfDays:pending.completed_pdf_days,certificateDays:pending.certificate_days,evidenceManifestDays:pending.evidence_manifest_days,tokenDays:pending.token_days,sessionHours:pending.session_hours,networkEvidenceDays:pending.network_evidence_days,failedCancelledDraftDays:pending.failed_cancelled_draft_days,auditEventDays:pending.audit_event_days,completedCleanupEnabled:pending.completed_cleanup_enabled});
         const rows = await tx.unsafe<{ id: string; policy_sha256: string }>(
           `UPDATE public.signature_retention_policy_versions SET status='approved',approval_mode=$2,approval_reference=$3,
              approved_at=$4::timestamptz,approved_by_admin_id=$5::uuid,approver_role=$6,external_reviewer_name=$7,
-             external_reviewer_reference=$8,updated_at=$4::timestamptz
+             external_reviewer_reference=$8,policy_sha256=$9,updated_at=$4::timestamptz
            WHERE id=$1::uuid AND status='pending_review' AND policy_sha256 ~ '^[0-9a-f]{64}$'
            RETURNING id::text,policy_sha256`,
           [input.id,input.approvalMode,input.approvalReference.trim(),now,input.actorAdminId,input.approverRole.trim(),
             input.approvalMode === "external_review" ? input.externalReviewerName?.trim() : null,
-            input.approvalMode === "external_review" ? input.externalReviewerReference?.trim() : null]);
+            input.approvalMode === "external_review" ? input.externalReviewerReference?.trim() : null,approvedHash]);
         if (!rows[0]) throw new Error("signature_retention_approval_rejected");
         await audit(tx, { entityType: "retention_policy", entityId: input.id, action: "approved", actorAdminId: input.actorAdminId,
           previousState: "pending_review", newState: "approved", externalApprovalReference: input.approvalMode === "external_review" ? input.approvalReference : null,
@@ -298,10 +308,15 @@ export function createSignatureGovernanceWorkflow(database: SignatureDatabase, c
       });
     },
     async activateRetention(input: { id: string; actorAdminId: string; confirmationPhrase: string; immutableAcknowledged: boolean; idempotencyKey?: string }) {
-      if (!input.immutableAcknowledged || input.confirmationPhrase.normalize("NFC").trim() !== GOVERNANCE_APPROVAL_PHRASE) {
+      if (!input.immutableAcknowledged || input.confirmationPhrase.normalize("NFC").trim() !== RETENTION_ACTIVATION_PHRASE) {
         throw new Error("signature_governance_confirmation_required");
       }
       return database.begin(async (tx) => {
+        const [policy]=await tx.unsafe<{version_identifier:string;approval_reference:string;privacy_reference:string;source_pdf_days:number;completed_pdf_days:number|null;certificate_days:number|null;evidence_manifest_days:number|null;token_days:number;session_hours:number;network_evidence_days:number;failed_cancelled_draft_days:number;audit_event_days:number|null;completed_cleanup_enabled:boolean;policy_sha256:string}>(`SELECT version_identifier,approval_reference,privacy_reference,source_pdf_days,completed_pdf_days,certificate_days,evidence_manifest_days,token_days,session_hours,network_evidence_days,failed_cancelled_draft_days,audit_event_days,completed_cleanup_enabled,policy_sha256 FROM signature_retention_policy_versions WHERE id=$1::uuid AND status='approved' FOR UPDATE`,[input.id]);
+        if(!policy) throw new Error("signature_retention_activation_rejected");
+        const computed=hashRetentionPolicy({version:policy.version_identifier,approvalReference:policy.approval_reference,privacyReference:policy.privacy_reference,sourcePdfDays:policy.source_pdf_days,completedPdfDays:policy.completed_pdf_days,certificateDays:policy.certificate_days,evidenceManifestDays:policy.evidence_manifest_days,tokenDays:policy.token_days,sessionHours:policy.session_hours,networkEvidenceDays:policy.network_evidence_days,failedCancelledDraftDays:policy.failed_cancelled_draft_days,auditEventDays:policy.audit_event_days,completedCleanupEnabled:policy.completed_cleanup_enabled});
+        if(computed!==policy.policy_sha256) throw new Error("signature_retention_hash_mismatch");
+        await getSignatureRetentionPreview(tx,clock());
         const now = clock().toISOString();
         const rows = await tx.unsafe<{ id: string; policy_sha256: string }>(
           `UPDATE public.signature_retention_policy_versions SET status='active',activated_at=$2::timestamptz,
@@ -313,24 +328,27 @@ export function createSignatureGovernanceWorkflow(database: SignatureDatabase, c
         return rows[0];
       });
     },
-    async authorizeProductionCanary(input: { readinessSnapshotSha256: string; participantScope: readonly string[]; documentTypes: readonly string[]; expiresAt: Date; notes?: string; actorAdminId: string; explicitConfirmation: boolean; idempotencyKey?: string }) {
-      if (!input.explicitConfirmation || input.participantScope.length < 1 || input.participantScope.length > 8 || input.documentTypes.length < 1 || input.expiresAt <= clock()) {
-        throw new Error("signature_production_canary_scope_required");
-      }
-      if (!input.readinessSnapshotSha256.match(/^[0-9a-f]{64}$/) || input.documentTypes.some((value) => !getSignatureDocumentTypeDefinition(value))) {
-        throw new Error("signature_production_canary_scope_invalid");
-      }
-      return database.begin(async (tx) => {
-        const rows=await tx.unsafe<{id:string}>(`INSERT INTO signature_launch_authorizations
-          (environment,authorization_type,readiness_snapshot_sha256,notes,explicit_confirmation,
-           authorized_by_admin_id,expires_at,authorized_participant_scope,authorized_document_types)
-          VALUES ('production','internal_canary',$1,$2,true,$3::uuid,$4::timestamptz,$5::jsonb,$6::text[])
-          RETURNING id::text`,[input.readinessSnapshotSha256,input.notes?.trim()||null,input.actorAdminId,
-            input.expiresAt.toISOString(),JSON.stringify(input.participantScope),[...input.documentTypes]]);
-        await audit(tx,{entityType:"launch_authorization",entityId:rows[0].id,action:"authorized",actorAdminId:input.actorAdminId,
-          previousState:null,newState:"active",snapshot:{environment:"production",type:"internal_canary",readiness:input.readinessSnapshotSha256,
-            participantScopeCount:input.participantScope.length,documentTypes:[...input.documentTypes],expiresAt:input.expiresAt.toISOString()},idempotencyKey:input.idempotencyKey});
-        return rows[0];
+    async authorizeProductionCanary(input: { documentId:string; participantEmails:readonly string[]; documentTypes:readonly string[]; locales:readonly SignaturePreflightLocale[]; expiresAt:Date; notes?:string; actorAdminId:string; explicitConfirmation:boolean; confirmationPhrase:string; environmentVariables?:Readonly<Record<string,string|undefined>>; idempotencyKey?:string }) {
+      if(!input.explicitConfirmation || input.confirmationPhrase?.normalize("NFC").trim()!==INTERNAL_CANARY_CONFIRMATION_PHRASE) throw new Error("signature_production_canary_confirmation_required");
+      if(input.documentTypes.some((value)=>!getSignatureDocumentTypeDefinition(value))) throw new Error("signature_production_canary_scope_invalid");
+      return database.begin(async(tx)=>{
+        const preflight=await evaluateSignaturePreflight({database:tx,documentId:input.documentId,participantEmails:input.participantEmails,
+          documentTypes:input.documentTypes,locales:input.locales,environment:"production",authorizationType:"internal_canary",
+          authorizationExpiresAt:input.expiresAt,environmentVariables:input.environmentVariables,now:clock()});
+        if(preflight.overallStatus!=="pass") throw new Error(`signature_preflight_blocked:${preflight.blockingItems.map((entry)=>entry.code).join(",")}`);
+        const snapshot=await persistSignatureReadinessSnapshot({database:tx,result:preflight,actorAdminId:input.actorAdminId});
+        const [row]=await tx.unsafe<{id:string}>(`INSERT INTO signature_launch_authorizations
+          (environment,authorization_type,readiness_snapshot_sha256,readiness_snapshot_id,notes,explicit_confirmation,
+           authorized_by_admin_id,authorized_at,expires_at,authorized_participant_scope,authorized_participant_emails,authorized_document_types,authorized_locales,phase2o_legacy)
+          VALUES ('production','internal_canary',$1,$2::uuid,$3,true,$4::uuid,$5::timestamptz,$6::timestamptz,$7::jsonb,$8::text[],$9::text[],$10::text[],false)
+          RETURNING id::text`,[preflight.readinessHash,snapshot.id,input.notes?.trim()||null,input.actorAdminId,preflight.evaluatedAt,
+            input.expiresAt.toISOString(),JSON.stringify(preflight.participantIds),[...preflight.participantEmails],[...preflight.documentTypes],[...preflight.locales]]);
+        await audit(tx,{entityType:"readiness_snapshot",entityId:snapshot.id,action:"created",actorAdminId:input.actorAdminId,
+          previousState:null,newState:"pass",snapshot:{readiness:preflight.readinessHash,documentId:input.documentId},idempotencyKey:randomUUID()});
+        await audit(tx,{entityType:"launch_authorization",entityId:row.id,action:"authorized",actorAdminId:input.actorAdminId,
+          previousState:null,newState:"active",snapshot:{environment:"production",type:"internal_canary",readiness:preflight.readinessHash,
+            participantScopeCount:preflight.participantIds.length,documentTypes:[...preflight.documentTypes],locales:[...preflight.locales],expiresAt:input.expiresAt.toISOString()},idempotencyKey:input.idempotencyKey});
+        return {...row,readinessHash:preflight.readinessHash,snapshotId:snapshot.id};
       });
     },
     async revokeProductionCanary(input: { id: string; actorAdminId: string; explicitConfirmation: boolean; idempotencyKey?: string }) {

@@ -6,7 +6,11 @@ import { fileURLToPath } from "node:url";
 
 const root = path.dirname(fileURLToPath(new URL("../../package.json", import.meta.url)));
 const temporaryRoot = path.resolve(root, "tmp", "signatures");
-const databasePath = path.join(temporaryRoot, "isolated-pglite");
+const approvedDatabaseRoot = path.join(temporaryRoot, "isolated-pglite");
+const databasePath = path.resolve(process.env.SIGNING_ISOLATED_DATABASE_DIR || approvedDatabaseRoot);
+if (databasePath !== approvedDatabaseRoot && !databasePath.startsWith(`${approvedDatabaseRoot}${path.sep}`) && !databasePath.startsWith(`${approvedDatabaseRoot}-`)) {
+  throw new Error("signature_isolated_database_forbidden");
+}
 const storagePath = path.join(temporaryRoot, "isolated-r2");
 const runtimeSecretsPath = path.join(temporaryRoot, "isolated-runtime-secrets.json");
 await mkdir(temporaryRoot, { recursive: true });
