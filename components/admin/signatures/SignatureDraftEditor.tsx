@@ -52,7 +52,7 @@ export default function SignatureDraftEditor({detail,readiness,preflight,activat
   const colors=new Map(detail.participants.map((p,i)=>[p.id,COLORS[i%COLORS.length]]));const pageFields=detail.fields.filter((f)=>f.pageIndex===pageIndex);const geometry=detail.version.pageGeometry[pageIndex];const rotated=geometry?.rotation===90||geometry?.rotation===270;const width=rotated?geometry?.cropBox.height:geometry?.cropBox.width,height=rotated?geometry?.cropBox.width:geometry?.cropBox.height;
   const required=detail.fields.filter((field)=>field.required).length,likelyInert=detail.status==="draft"&&detail.participants.length===0&&detail.fields.length===0;
 
-  return <div className="min-w-0 space-y-5"><SignatureStepProgress current={step}/>
+  return <div className="signature-editor min-w-0 space-y-4"><SignatureStepProgress current={step}/>
     <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Cambiar paso">{[2,3,4,5].map((number)=><button key={number} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${step===number?"bg-[#0d1b2a] text-white":"border bg-white"}`} onClick={()=>setStep(number)} type="button">{number===2?"Destinatarios":number===3?"Campos":number===4?"Revisar":"Enviar"}</button>)}</div>
 
     {step===2&&<section className="surface-card p-5 md:p-6"><div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="text-xl font-semibold">2. Destinatarios</h2><p className="mt-1 text-sm text-slate-600">Añade quién debe firmar. El orden es solo de visualización y referencia; no activa una secuencia estricta.</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{detail.participants.length}/8</span></div>

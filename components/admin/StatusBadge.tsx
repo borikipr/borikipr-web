@@ -4,6 +4,7 @@ type Variant =
   | "green"
   | "gray"
   | "red"
+  | "amber"
   | "outline";
 
 type Props = {
@@ -23,6 +24,8 @@ function getClasses(variant: Variant) {
       return "bg-[#4d4d4d] text-white border-[#4d4d4d]";
     case "red":
       return "bg-red-100 text-red-700 border-red-200";
+    case "amber":
+      return "bg-amber-50 text-amber-800 border-amber-200";
     case "outline":
       return "bg-white text-[#4d4d4d] border-[#d9d9d9]";
     default:
@@ -36,7 +39,7 @@ export default function StatusBadge({
 }: Props) {
   return (
     <span
-      className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.15em] ${getClasses(
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${getClasses(
         variant
       )}`}
     >

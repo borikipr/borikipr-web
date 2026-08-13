@@ -56,7 +56,7 @@ export default function CollapsibleAdminSection({
       <button
         type="button"
         onClick={toggleOpen}
-        className="flex w-full items-start justify-between gap-4 px-6 py-5 text-left transition hover:bg-[#fafafa]"
+        className="flex w-full items-start justify-between gap-4 px-5 py-4 text-left transition hover:bg-slate-50 md:px-6"
         aria-controls={contentId}
         aria-expanded={open}
       >
@@ -79,7 +79,7 @@ export default function CollapsibleAdminSection({
       </button>
 
       {open && (
-        <div id={contentId} className="border-t border-[#eeeeee]">
+        <div id={contentId} className="border-t border-slate-200">
           {children}
         </div>
       )}

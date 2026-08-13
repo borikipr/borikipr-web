@@ -19,12 +19,12 @@ function StatCard({
   description: string;
 }) {
   return (
-    <div className="surface-card p-6">
+    <div className="surface-card p-5">
       <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#d4af37]">
         {label}
       </p>
-      <p className="mt-3 text-3xl font-bold text-[#000000]">{value}</p>
-      <p className="mt-2 text-sm text-[#4d4d4d]">{description}</p>
+      <p className="mt-2 text-2xl font-bold text-[#000000]">{value}</p>
+      <p className="mt-1 text-sm text-[#4d4d4d]">{description}</p>
     </div>
   );
 }
@@ -47,7 +47,7 @@ function ActionCard({
   secondaryLabel?: string;
 }) {
   return (
-    <div className="surface-card flex h-full flex-col p-6">
+    <div className="surface-card flex h-full flex-col p-5">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
         {eyebrow}
       </p>
@@ -86,7 +86,7 @@ export default async function AdminPage() {
 
   return (
     <AdminPageShell>
-      <div className="space-y-8">
+      <div className="space-y-5">
         <AdminPageHeader
           breadcrumbs={[{ label: "Admin" }]}
           eyebrow="Dashboard"

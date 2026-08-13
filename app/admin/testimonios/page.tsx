@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import AdminAlert from "@/components/admin/AdminAlert";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
+import { EmptyState } from "@/components/admin/AdminUI";
 import StatusBadge from "@/components/admin/StatusBadge";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import { getAdminTestimonios } from "@/lib/admin/testimonios-queries";
@@ -54,22 +55,11 @@ export default async function AdminTestimoniosPage({
 
         <div className="surface-card overflow-hidden">
           {testimonios.length === 0 ? (
-            <div className="p-10 text-center md:p-16">
-              <h2 className="text-2xl font-semibold text-[#000000]">
-                No hay testimonios creados
-              </h2>
-              <p className="mt-4 text-[#4d4d4d]">
-                Cuando añadas testimonios, aparecerán aquí.
-              </p>
-              <div className="mt-8">
-                <Link href="/admin/testimonios/nuevo" className="btn-primary">
-                  Crear primer testimonio
-                </Link>
-              </div>
-            </div>
+            <EmptyState title="No hay testimonios creados" description="Cuando añadas testimonios, aparecerán aquí." action={<Link href="/admin/testimonios/nuevo" className="btn-primary">Crear primer testimonio</Link>} />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse">
+            <>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="admin-table min-w-full">
                 <thead className="bg-[#0d1b2a] text-left text-sm text-white">
                   <tr>
                     <th className="px-6 py-4 font-semibold">Nombre</th>
@@ -173,6 +163,23 @@ export default async function AdminTestimoniosPage({
                 </tbody>
               </table>
             </div>
+            <div className="divide-y divide-slate-100 md:hidden">
+              {testimonios.map((item) => (
+                <article className="space-y-4 p-4" key={item.id}>
+                  <div className="flex items-start gap-3">
+                    <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
+                      {item.foto_url ? <Image src={item.foto_url} alt="" fill sizes="40px" className="object-cover" /> : <div className="flex h-full items-center justify-center bg-[#11518b] text-xs font-bold text-white">{item.nombre.charAt(0)}</div>}
+                    </div>
+                    <div className="min-w-0 flex-1"><h2 className="font-semibold">{item.nombre}</h2><p className="text-sm text-slate-500">{item.ubicacion || "Sin ubicación"}</p></div>
+                    <StatusBadge variant={item.activo ? "green" : "gray"}>{item.activo ? "Activo" : "Inactivo"}</StatusBadge>
+                  </div>
+                  <p className="line-clamp-3 text-sm text-slate-600">{item.texto}</p>
+                  <div className="flex flex-wrap items-center gap-2"><StatusBadge variant={item.tipo === "comprador" ? "blue" : "gold"}>{item.tipo === "comprador" ? "Comprador" : "Vendedor"}</StatusBadge>{item.destacado && <StatusBadge variant="green">Destacado</StatusBadge>}</div>
+                  <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3"><Link href={`/admin/testimonios/${item.id}/editar`} className="btn-secondary">Editar</Link><TestimonioRowActions id={item.id} activoActual={item.activo} destacadoActual={item.destacado} /></div>
+                </article>
+              ))}
+            </div>
+            </>
           )}
         </div>
       </div>

@@ -125,18 +125,18 @@ function SummaryCard({
   href: string;
 }) {
   return (
-    <Link className="surface-card block p-5 transition hover:-translate-y-0.5 hover:border-[#d4af37]" href={href}>
+    <Link className="surface-card block p-4 transition hover:border-[#d4af37]" href={href}>
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#d4af37]">{FOLLOW_UP_BUCKET_LABELS[bucket]}</p>
-      <p className="mt-3 text-3xl font-bold text-[#000000]">{count}</p>
-      <p className="mt-2 text-sm text-[#4d4d4d]">Registros operacionales</p>
+      <p className="mt-2 text-2xl font-bold text-[#000000]">{count}</p>
+      <p className="mt-1 text-sm text-[#4d4d4d]">Registros operacionales</p>
     </Link>
   );
 }
 
 function LeadCard({ lead }: { lead: LeadFollowUpItem }) {
   return (
-    <article className="rounded-3xl border border-[#e8e8e8] bg-white p-4 md:p-5">
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(220px,0.65fr)_minmax(280px,0.8fr)]">
+    <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(220px,0.65fr)_minmax(280px,0.8fr)]">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="min-w-0 break-words text-lg font-semibold text-[#000000]">{lead.name}</h3>

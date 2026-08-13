@@ -5,6 +5,7 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 
 const enabled = process.env.E2E_SIGNING_ADMIN_QA === "1";
 const fixturePath = path.resolve("tmp/signatures/phase2p-admin-draft.pdf");
+const visualArtifactPath = path.resolve("tmp/admin-ux-artifacts");
 
 async function login(page: Page) {
   await page.goto("/admin/login");
@@ -55,6 +56,7 @@ test.describe("Phase 2P operational signing UX", () => {
       page.drawText(`SYNTHETIC PHASE 2P ADMIN UX - PAGE ${index + 1}`, { x: 54, y: 730, size: 14, font });
     }
     await mkdir(path.dirname(fixturePath), { recursive: true });
+    await mkdir(visualArtifactPath, { recursive: true });
     await writeFile(fixturePath, await pdf.save({ useObjectStreams: false }));
   });
 
@@ -66,6 +68,8 @@ test.describe("Phase 2P operational signing UX", () => {
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto("/admin/signatures");
     await expect(page.getByRole("heading", { name: "Solicitudes de firma" })).toBeVisible();
+    await mkdir(visualArtifactPath, { recursive: true });
+    await page.screenshot({ fullPage: true, path: path.join(visualArtifactPath, "firmas-directory-desktop.png") });
     await page.getByRole("link", { name: "Nuevo documento" }).first().click();
     const documentId = await createDraft(page, "TEST Phase 2P normal preparation");
 
@@ -91,12 +95,14 @@ test.describe("Phase 2P operational signing UX", () => {
     await page.getByRole("combobox", { name: "Página", exact: true }).selectOption("1");
     await expect(page.getByLabel("Página 2 del PDF")).toBeVisible();
     await page.getByRole("button", { name: "Revisar", exact: true }).click();
+    await page.screenshot({ fullPage: true, path: path.join(visualArtifactPath, "firmas-editor-desktop.png") });
     await expect(page.getByText("Falta configuración para enviar este documento.")).toBeVisible();
     await expect(page.getByText(/Readiness SHA-256/)).toBeHidden();
     const governance = page.getByRole("link", { name: "Ir a Gobernanza" });
     await expect(governance).toBeVisible();
     await governance.click();
     await expect(page).toHaveURL(/\/admin\/signatures\/gobernanza/);
+    await page.screenshot({ fullPage: true, path: path.join(visualArtifactPath, "gobernanza-desktop.png") });
     await page.goBack();
     await expect(page).toHaveURL(new RegExp(`/admin/signatures/${documentId}`));
     // The signing-only fixture intentionally omits the unrelated propiedades catalog;
@@ -143,6 +149,7 @@ test.describe("Phase 2P operational signing UX", () => {
       await page.goto("/admin/signatures");
       const closedWidth = await page.locator("main").evaluate((element) => element.getBoundingClientRect().width);
       await testInfo.attach(`admin-drawer-${width}-closed`, { body: await page.screenshot(), contentType: "image/png" });
+      if (width === 390) await page.screenshot({ fullPage: true, path: path.join(visualArtifactPath, "firmas-directory-mobile.png") });
       const menu = page.getByRole("button", { name: "Abrir menú de administración" });
       await menu.click();
       const drawer = page.getByRole("dialog", { name: "Menú de administración" });
@@ -207,5 +214,33 @@ test.describe("Phase 2P operational signing UX", () => {
       expect(overflow.page).toBe(0);
       expect(overflow.controls).toEqual([]);
     }
+  });
+
+  test("professionalized governance remains readable at 360, 390 and 412px", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile-chromium", "Responsive governance journey runs in the mobile project.");
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    for (const width of [360, 390, 412]) {
+      await page.setViewportSize({ width, height: 915 });
+      await page.goto("/admin/signatures/gobernanza", { waitUntil: "domcontentloaded" });
+      await expect(page.getByRole("heading", { name: "Gobernanza", exact: true })).toBeVisible();
+      await expect(page.getByRole("navigation", { name: "Secciones de gobernanza" })).toBeVisible();
+      await expect(page.getByText("Preparación para canary interno", { exact: true })).toBeVisible();
+      await expect(page.getByText("Documentos permitidos", { exact: true }).first()).toBeVisible();
+      const geometry = await page.evaluate(() => ({
+        pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        clippedControls: [...document.querySelectorAll<HTMLElement>("button,input,select,textarea,a")].filter((element) => {
+          const box = element.getBoundingClientRect();
+          return box.left < -1 || box.right > innerWidth + 1;
+        }).map((element) => element.textContent?.trim().slice(0, 50) || element.tagName),
+        rawStatesVisible: document.body.innerText.includes("BLOCKED") || document.body.innerText.includes("PASS"),
+      }));
+      expect(geometry.pageOverflow).toBe(0);
+      expect(geometry.clippedControls).toEqual([]);
+      expect(geometry.rawStatesVisible).toBe(false);
+      await testInfo.attach(`governance-professional-${width}`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      if (width === 390) await page.screenshot({ fullPage: true, path: path.join(visualArtifactPath, "gobernanza-mobile.png") });
+    }
+    expect(pageErrors.filter((message) => !message.includes('relation "propiedades" does not exist'))).toEqual([]);
   });
 });

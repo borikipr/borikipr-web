@@ -57,7 +57,7 @@ test("governance mobile styles contain controls at 360, 390 and 412 pixel layout
   assert.match(forms, /1\. Crear borrador/);
   assert.match(forms, /2\. Enviar a revisión/);
   assert.match(forms, /3\. Registrar decisión/);
-  assert.match(layout, /min-w-0 max-w-\[1600px\]/);
+  assert.match(layout, /min-w-0 max-w-\[1480px\]/);
   assert.match(nav, /flex min-w-0 flex-1 items-center justify-end/);
   assert.match(nav, /w-\[88vw\] max-w-\[380px\]/);
   assert.match(nav, /createPortal[\s\S]*document\.body/);
@@ -69,7 +69,9 @@ test("Admin UX translates readiness and explains retention without legal recomme
     read("app/admin/signatures/gobernanza/page.tsx"), read("app/admin/signatures/actions.ts"),
     read("app/admin/signatures/gobernanza/GovernanceForms.tsx"),
   ]);
-  assert.match(page, /Canary sólo en español/);
+  assert.match(page, /Preparación para canary interno/);
+  assert.match(page, /Alcance bilingüe/);
+  assert.match(page, /READINESS_LABELS[\s\S]*Listo[\s\S]*Bloqueado/);
   assert.match(actions, /Falta configurar y activar la política de retención/);
   assert.doesNotMatch(page, />retention_policy_missing</);
   assert.doesNotMatch(page, />privacy_disclosure_missing</);

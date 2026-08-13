@@ -8,8 +8,8 @@ type BreadcrumbItem = {
 
 export function AdminPageShell({ children }: { children: ReactNode }) {
   return (
-    <main className="px-4 py-8 md:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-[1600px] space-y-6">{children}</div>
+    <main className="px-4 py-5 sm:py-6 md:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1480px] space-y-5">{children}</div>
     </main>
   );
 }
@@ -61,17 +61,17 @@ export function AdminPageHeader({
   title: string;
 }) {
   return (
-    <div className="surface-card p-6 md:p-8">
+    <header className="admin-page-header surface-card px-5 py-5 md:px-6 md:py-6">
       {breadcrumbs && <AdminBreadcrumbs items={breadcrumbs} />}
-      <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div className={`${breadcrumbs ? "mt-3" : ""} flex flex-col gap-4 md:flex-row md:items-end md:justify-between`}>
         <div>
           <p className="eyebrow">{eyebrow}</p>
-          <h1 className="mt-3 text-3xl font-bold text-[#000000]">{title}</h1>
-          <p className="body-base mt-3 max-w-3xl">{description}</p>
+          <h1 className="mt-2 text-2xl font-bold tracking-[-0.02em] text-[#111827] md:text-[1.75rem]">{title}</h1>
+          <p className="body-base mt-2 max-w-3xl text-sm md:text-base">{description}</p>
           {children}
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-3">{actions}</div>}
+        {actions && <div className="admin-page-actions flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
-    </div>
+    </header>
   );
 }

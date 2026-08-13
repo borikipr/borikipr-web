@@ -12,9 +12,10 @@ export default async function NewSignatureDraftPage() {
   if (!(await getAdminSessionUser())) redirect("/admin/login");
   const repository=createSignatureAdminRepository(createPostgresSignatureDatabase(sql));
   const options=await repository.linkageOptions();
+  const minimumExpirationDate = new Date().toISOString().slice(0, 10);
   return <AdminPageShell>
     <AdminPageHeader breadcrumbs={[{href:"/admin",label:"Admin"},{href:"/admin/signatures",label:"Firmas"},{label:"Nuevo documento"}]} eyebrow="Firmas · Nuevo documento" title="1. Sube el documento" description="Elige el PDF y completa los datos básicos. Añadirás destinatarios y campos en los pasos siguientes; nada se enviará todavía." />
     <SignatureStepProgress current={1} />
-    <NewSignatureDraftForm documentTypes={SIGNATURE_DOCUMENT_TYPES} leads={options.leads} groups={options.groups} />
+    <NewSignatureDraftForm documentTypes={SIGNATURE_DOCUMENT_TYPES} leads={options.leads} groups={options.groups} minimumExpirationDate={minimumExpirationDate} />
   </AdminPageShell>;
 }
