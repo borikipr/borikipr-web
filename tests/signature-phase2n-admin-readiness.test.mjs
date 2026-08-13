@@ -59,7 +59,9 @@ test("governance mobile styles contain controls at 360, 390 and 412 pixel layout
   assert.match(forms, /3\. Registrar decisión/);
   assert.match(layout, /min-w-0 max-w-\[1600px\]/);
   assert.match(nav, /flex min-w-0 flex-1 items-center justify-end/);
-  assert.match(nav, /w-\[min\(88vw,340px\)\]/);
+  assert.match(nav, /w-\[88vw\] max-w-\[380px\]/);
+  assert.match(nav, /createPortal[\s\S]*document\.body/);
+  assert.match(nav, /data-admin-drawer-backdrop/);
 });
 
 test("Admin UX translates readiness and explains retention without legal recommendations", async () => {

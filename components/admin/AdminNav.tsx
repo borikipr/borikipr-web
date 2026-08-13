@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 const navItems = [
   { href: "/admin", label: "Dashboard", match: (path: string) => path === "/admin" },
@@ -25,7 +26,7 @@ function NavLinks({ pathname, onNavigate, mobile = false }: { pathname: string; 
         href={item.href}
         prefetch={false}
         aria-current={active ? "page" : undefined}
-        onClick={onNavigate}
+        onClick={() => { if (onNavigate) window.setTimeout(onNavigate, 0); }}
         className={`${mobile ? "flex min-h-12 w-full items-center rounded-xl px-4 py-3" : "rounded-full border px-3 py-2 text-sm sm:px-4"} font-medium transition ${
           active
             ? "border-[#d4af37] bg-[#d4af37] text-[#0d1b2a]"
@@ -87,23 +88,25 @@ export default function AdminNav({ displayName }: { displayName: string }) {
         <NavLinks pathname={pathname} />
       </nav>
 
-      {open && (
-        <div className="fixed inset-0 z-[100] lg:hidden">
-          <button aria-label="Cerrar menú" className="absolute inset-0 bg-black/55" onClick={() => setOpen(false)} type="button" />
+      {open && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[100] lg:hidden" data-admin-drawer-overlay>
+          <button aria-label="Cerrar menú" className="fixed inset-0 bg-black/55 animate-[admin-backdrop-in_180ms_ease-out]" data-admin-drawer-backdrop onClick={() => setOpen(false)} type="button" />
           <aside
             id="admin-mobile-drawer"
             aria-label="Menú de administración"
             aria-modal="true"
-            className="absolute inset-y-0 left-0 flex w-[min(88vw,340px)] flex-col overflow-y-auto bg-[#0d1b2a] p-5 shadow-2xl"
+            className="fixed inset-y-0 left-0 flex h-dvh w-[88vw] max-w-[380px] flex-col overflow-hidden bg-[#0d1b2a] shadow-2xl animate-[admin-drawer-in_220ms_ease-out]"
+            data-admin-mobile-drawer
             role="dialog"
           >
-            <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-white/10 p-5">
               <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#d4af37]">Borikí Admin</p><p className="mt-1 truncate text-sm text-white/75">{displayName}</p></div>
               <button ref={closeRef} aria-label="Cerrar menú de administración" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-[#d4af37]" onClick={() => setOpen(false)} type="button"><X aria-hidden size={22} /></button>
             </div>
-            <nav aria-label="Navegación admin móvil" className="mt-5 grid gap-2"><NavLinks pathname={pathname} mobile onNavigate={() => setOpen(false)} /></nav>
+            <nav aria-label="Navegación admin móvil" className="grid min-h-0 flex-1 gap-2 overflow-y-auto overscroll-contain p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"><NavLinks pathname={pathname} mobile onNavigate={() => setOpen(false)} /></nav>
           </aside>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

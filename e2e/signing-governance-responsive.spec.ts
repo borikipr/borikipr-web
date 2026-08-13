@@ -141,20 +141,62 @@ test.describe("Phase 2P operational signing UX", () => {
     for (const width of [360, 390, 412]) {
       await page.setViewportSize({ width, height: 915 });
       await page.goto("/admin/signatures");
+      const closedWidth = await page.locator("main").evaluate((element) => element.getBoundingClientRect().width);
+      await testInfo.attach(`admin-drawer-${width}-closed`, { body: await page.screenshot(), contentType: "image/png" });
       const menu = page.getByRole("button", { name: "Abrir menú de administración" });
       await menu.click();
       const drawer = page.getByRole("dialog", { name: "Menú de administración" });
       await expect(drawer).toBeVisible();
+      await page.waitForTimeout(300);
       await expect(drawer.getByRole("link", { name: "Firmas" })).toHaveAttribute("aria-current", "page");
+      const openGeometry = await page.evaluate(() => {
+        const panel = document.querySelector<HTMLElement>("[data-admin-mobile-drawer]");
+        const overlay = document.querySelector<HTMLElement>("[data-admin-drawer-overlay]");
+        const backdrop = document.querySelector<HTMLElement>("[data-admin-drawer-backdrop]");
+        const main = document.querySelector<HTMLElement>("main");
+        if (!panel || !overlay || !backdrop || !main) throw new Error("drawer elements missing");
+        const panelBox = panel.getBoundingClientRect();
+        const backdropBox = backdrop.getBoundingClientRect();
+        return {
+          portalParent: overlay.parentElement === document.body,
+          panelPosition: getComputedStyle(panel).position,
+          backdropPosition: getComputedStyle(backdrop).position,
+          panelBox: { left: panelBox.left, top: panelBox.top, right: panelBox.right, bottom: panelBox.bottom, width: panelBox.width, height: panelBox.height },
+          backdropBox: { left: backdropBox.left, top: backdropBox.top, right: backdropBox.right, bottom: backdropBox.bottom },
+          mainWidth: main.getBoundingClientRect().width,
+          bodyOverflow: document.body.style.overflow,
+          pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        };
+      });
+      expect(openGeometry.portalParent).toBe(true);
+      expect(openGeometry.panelPosition).toBe("fixed");
+      expect(openGeometry.backdropPosition).toBe("fixed");
+      expect(openGeometry.panelBox.left).toBe(0);
+      expect(openGeometry.panelBox.top).toBe(0);
+      expect(openGeometry.panelBox.bottom).toBe(915);
+      expect(openGeometry.panelBox.width).toBeLessThan(width);
+      expect(openGeometry.panelBox.width).toBeGreaterThanOrEqual(width * .8);
+      expect(openGeometry.backdropBox).toEqual({ left: 0, top: 0, right: width, bottom: 915 });
+      expect(openGeometry.mainWidth).toBe(closedWidth);
+      expect(openGeometry.bodyOverflow).toBe("hidden");
+      expect(openGeometry.pageOverflow).toBe(0);
+      await testInfo.attach(`admin-drawer-${width}-open`, { body: await page.screenshot(), contentType: "image/png" });
       await page.keyboard.press("Escape");
       await expect(drawer).toBeHidden();
       await menu.click();
       await expect(drawer.getByRole("link", { name: "Dashboard" })).toBeVisible();
       await drawer.getByRole("link", { name: "Mi perfil" }).click();
       await expect(page).toHaveURL(/\/admin\/profile$/);
+      await expect(drawer).toBeHidden();
       await page.getByRole("button", { name: "Abrir menú de administración" }).click();
       await page.getByRole("dialog").getByRole("link", { name: "Firmas" }).click();
       await expect(page).toHaveURL(/\/admin\/signatures$/);
+      await page.getByRole("button", { name: "Abrir menú de administración" }).click();
+      await page.getByRole("button", { name: "Cerrar menú de administración" }).click();
+      await expect(drawer).toBeHidden();
+      await page.getByRole("button", { name: "Abrir menú de administración" }).click();
+      await page.locator("[data-admin-drawer-backdrop]").click({ position: { x: width - 2, y: 450 } });
+      await expect(drawer).toBeHidden();
       const overflow = await page.evaluate(() => ({
         page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         controls: [...document.querySelectorAll("button,input,select,textarea,a")].filter((element) => {

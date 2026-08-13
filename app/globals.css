@@ -265,3 +265,13 @@ textarea {
 .heading-section.heading-section-blue {
   color: #11518b;
 }
+
+@keyframes admin-drawer-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes admin-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
