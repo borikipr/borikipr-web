@@ -18,9 +18,17 @@ test.describe("private signing invitation handoff", () => {
       });
     });
 
-    await page.goto(`/firmar/invitacion#${syntheticToken}`);
+    const response = await page.goto(`/firmar/invitacion#${syntheticToken}`);
+    const contentSecurityPolicy = response?.headers()["content-security-policy"] ?? "";
+    expect(contentSecurityPolicy).toMatch(/script-src 'self' 'nonce-[^']+' 'strict-dynamic'/);
+    const scriptPolicy = contentSecurityPolicy
+      .split(";")
+      .find((directive) => directive.trim().startsWith("script-src"));
+    expect(scriptPolicy).not.toContain("'unsafe-inline'");
     await expect(page).toHaveURL(/\/firmar\/invitacion$/);
-    await page.getByRole("button", { name: "Continuar de forma segura" }).click();
+    const continueButton = page.getByRole("button", { name: "Continuar de forma segura" });
+    await expect(continueButton).toBeEnabled();
+    await continueButton.click();
     await expect(page.getByRole("heading", { name: "Documento listo para completar" })).toBeVisible();
     expect(exchanged).toBe(true);
   });
