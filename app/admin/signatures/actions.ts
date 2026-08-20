@@ -2,12 +2,13 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { getAdminSession } from "@/lib/admin/auth";
 import {
   createSignatureAdminRepository,
   type SignatureDraftDetail,
 } from "@/lib/signatures/admin-repository";
-import { createSignatureDeliveryRuntime, createSignatureDomainRuntime, createSignatureRuntime } from "@/lib/signatures/runtime";
+import { createSignatureDeliveryRuntime, createSignatureDomainRuntime, createSignatureDraftRuntime, createSignatureRuntime } from "@/lib/signatures/runtime";
 import {
   isInternalCanarySigningEnabled,
   isPublicSigningEnabled,
@@ -21,6 +22,7 @@ import { inspectSignaturePrivacyDisclosure } from "@/lib/signatures/privacy-disc
 import { loadActivePrivacyDisclosure, loadActiveRetentionPolicy } from "@/lib/signatures/governance-config";
 import { parseSignatureParticipantDraft, SignatureParticipantAdminValidationError } from "@/lib/signatures/admin-participant";
 import { createSignatureDraftLifecycleService } from "@/lib/signatures/draft-lifecycle";
+import { buildTemplateBlueprint,templateSnapshotSha256 } from "@/lib/signatures/productization";
 
 export type SignatureAdminActionState = Readonly<{
   ok: boolean;
@@ -119,6 +121,7 @@ export async function updateSignatureParticipantAction(
   if(!current) return {ok:false,message:"Borrador no disponible."};
   const participant=current.detail.participants.find((item)=>item.id===value(formData,"participantId"));
   if(!participant) return {ok:false,message:"Destinatario no encontrado."};
+  if(participant.isBrokerFinalSigner) return {ok:false,message:"La corredora configurada firma al final y no puede editarse desde este borrador."};
   try {
     const parsed=parseSignatureParticipantDraft({name:value(formData,"name"),email:value(formData,"email"),role:value(formData,"role"),routingOrder:value(formData,"routingOrder")});
     await current.runtime.domain.updateParticipant({participantId:participant.id,nameSnapshot:parsed.name,emailSnapshot:parsed.email,
@@ -140,6 +143,8 @@ export async function removeSignatureParticipantAction(
   const current=await context(documentId);
   if(!current) return {ok:false,message:"Borrador no disponible."};
   const participantId=value(formData,"participantId");
+  const participant=current.detail.participants.find((item)=>item.id===participantId);
+  if(participant?.isBrokerFinalSigner) return {ok:false,message:"La corredora configurada no puede eliminarse de un documento que requiere su firma final."};
   const reason=value(formData,"reason") || "Eliminado durante la preparación";
   try {
     await current.runtime.database.begin(async(tx)=>{
@@ -164,7 +169,7 @@ export async function removeSignatureParticipantAction(
 
 function fieldInput(formData: FormData, detail: SignatureDraftDetail) {
   const fieldType = value(formData, "fieldType");
-  if (!(["signature", "initials", "date", "text"] as const).includes(fieldType as never)) {
+  if (!(["signature", "initials", "date", "date_signed", "text"] as const).includes(fieldType as never)) {
     throw new Error("signature_field_type_invalid");
   }
   const pageIndex = numberValue(formData, "pageIndex");
@@ -175,7 +180,7 @@ function fieldInput(formData: FormData, detail: SignatureDraftDetail) {
     : undefined;
   return {
     participantId: value(formData, "participantId"),
-    fieldType: fieldType as "signature" | "initials" | "date" | "text",
+    fieldType: fieldType as "signature" | "initials" | "date" | "date_signed" | "text",
     pageIndex,
     rect: {
       x: numberValue(formData, "x"),
@@ -331,15 +336,7 @@ export async function prepareSignatureSendAction(
     });
     const detail = await createSignatureAdminRepository(runtime.database).detail(documentId);
     if (!detail) throw new Error("signature_document_not_found");
-    for (const participant of detail.participants) {
-      await runtime.delivery.createIntent({
-        participantId: participant.id,
-        documentVersionId: detail.version.id,
-        locale: "es-PR",
-        actorAdminId: session.id,
-        idempotencyKey: randomUUID(),
-      });
-    }
+    await runtime.delivery.releaseNextRoutingGroup({ documentVersionId:detail.version.id,locale:"es-PR" });
     refresh(documentId);
     return { ok: true, message: `${sendMode==="public"?"FIRMA PÚBLICA":"CANARY INTERNO"}: preparación completada; invitaciones en cola con revalidación server-side.` };
   } catch {
@@ -491,4 +488,71 @@ export async function removeSignatureRequestAction(
     if(error instanceof Error && error.message.includes("confirmation")) return {ok:false,message:"Escribe ELIMINAR BORRADOR para eliminar un borrador completamente inerte."};
     return {ok:false,message:"No pudimos quitar la solicitud de forma segura. No se destruyó evidencia."};
   }
+}
+
+export async function saveSignatureTemplateAction(
+  _state:SignatureAdminActionState,formData:FormData
+):Promise<SignatureAdminActionState>{
+  const session=await getAdminSession();if(!session)return{ok:false,message:"Sesión expirada."};
+  const documentId=value(formData,"documentId");
+  try{
+    const runtime=createSignatureRuntime();const detail=await createSignatureAdminRepository(runtime.database).detail(documentId);
+    if(!detail||detail.version.sourceDeleted||!detail.participants.length||!detail.fields.length)throw new Error("template_source_invalid");
+    const name=value(formData,"name").trim();if(!name||name.length>200)throw new Error("template_name_invalid");
+    const blueprint=buildTemplateBlueprint(detail);const snapshot={name,documentType:detail.documentType,sourceDocumentVersionId:detail.version.id,
+      locale:"es-PR",routingMode:detail.routingMode,requiresBrokerSignature:detail.requiresBrokerSignature,...blueprint};
+    const [created]=await runtime.database.unsafe<{id:string}>(`INSERT INTO signature_templates(name,description,document_type,source_document_version_id,
+      locale,routing_mode,requires_broker_signature,role_blueprint,field_blueprint,snapshot_sha256,created_by_admin_id)
+      VALUES($1,$2,$3,$4::uuid,'es-PR',$5,$6,$7::text::jsonb,$8::text::jsonb,$9,$10::uuid) RETURNING id::text`,
+      [name,value(formData,"description")||null,detail.documentType,detail.version.id,detail.routingMode,detail.requiresBrokerSignature,
+        JSON.stringify(blueprint.roles),JSON.stringify(blueprint.fields),templateSnapshotSha256(snapshot),session.id]);
+    await runtime.database.unsafe(`INSERT INTO signature_governance_events(entity_type,entity_id,action,actor_admin_id,snapshot_sha256,previous_state,new_state,idempotency_key)
+      VALUES('signature_template',$1::uuid,'created',$2::uuid,$3,NULL,'active',$4::uuid)`,[created.id,session.id,templateSnapshotSha256(snapshot),randomUUID()]);
+    revalidatePath("/admin/signatures/plantillas");return{ok:true,message:"Plantilla guardada sin firmas, valores ni accesos anteriores."};
+  }catch{return{ok:false,message:"No se pudo guardar la plantilla. Revisa que el borrador tenga roles y campos."};}
+}
+
+function puertoRicoExpiry(value:string){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))throw new Error("expiration_invalid");const date=new Date(`${value}T23:59:59-04:00`);if(date.getTime()<=Date.now())throw new Error("expiration_invalid");return date;}
+
+async function cloneSignatureRequest(formData:FormData,mode:"duplicate"|"correct"){
+  const session=await getAdminSession();if(!session)throw new Error("unauthorized");
+  const sourceId=value(formData,"documentId");const runtime=createSignatureRuntime();const repository=createSignatureAdminRepository(runtime.database);
+  const detail=await repository.detail(sourceId);const descriptor=await repository.sourceDescriptor(sourceId);
+  if(!detail||!descriptor||detail.version.sourceDeleted)throw new Error("signature_source_unavailable");
+  if(mode==="correct"&&!['sent','viewed','partially_signed'].includes(detail.status))throw new Error("signature_correction_not_available");
+  const bytes=await runtime.storage.getSource({key:descriptor.key,byteCount:descriptor.byteCount,sourceSha256:descriptor.sourceSha256});
+  const draftRuntime=createSignatureDraftRuntime();
+  const created=await draftRuntime.drafts.createDraft({title:value(formData,"title"),documentType:detail.documentType,
+    createdByAdminId:session.id,canonicalLeadId:detail.canonicalLeadId,leadGroupId:detail.leadGroupId,
+    expiresAt:puertoRicoExpiry(value(formData,"expiresOn")),filename:descriptor.filename,mimeType:"application/pdf",bytes,
+    routingMode:detail.routingMode,requiresBrokerSignature:detail.requiresBrokerSignature});
+  if(mode==="correct")await runtime.database.unsafe(`UPDATE signature_documents SET corrects_document_id=$2::uuid WHERE id=$1::uuid AND status='draft'`,[created.documentId,sourceId]);
+  const ids=new Map<string,string>();
+  for(const participant of detail.participants.filter((item)=>!item.isBrokerFinalSigner)){
+    const added=await runtime.domain.addParticipant({documentVersionId:created.documentVersionId,nameSnapshot:participant.name,
+      emailSnapshot:participant.email,role:participant.role,routingOrder:participant.routingOrder,actorAdminId:session.id,idempotencyKey:randomUUID()});
+    ids.set(participant.id,added.participantId);
+  }
+  const cloned=await repository.detail(created.documentId);const oldBroker=detail.participants.find((item)=>item.isBrokerFinalSigner);
+  const newBroker=cloned?.participants.find((item)=>item.isBrokerFinalSigner);if(oldBroker&&newBroker)ids.set(oldBroker.id,newBroker.id);
+  for(const field of detail.fields){const participantId=ids.get(field.participantId);if(!participantId)throw new Error("signature_clone_participant_missing");
+    await runtime.domain.addField({documentVersionId:created.documentVersionId,participantId,fieldType:field.fieldType,pageIndex:field.pageIndex,
+      rect:{x:field.normalizedX,y:field.normalizedY,width:field.normalizedWidth,height:field.normalizedHeight},
+      pageGeometryReference:field.pageGeometryReference,label:field.label,required:field.required,tabOrder:field.tabOrder,
+      validationLimits:field.validationLimits,actorAdminId:session.id,idempotencyKey:randomUUID()});}
+  const cloneSnapshot=createHash("sha256").update(JSON.stringify({sourceDocumentId:sourceId,targetDocumentId:created.documentId,mode})).digest("hex");
+  await runtime.database.unsafe(`INSERT INTO signature_governance_events(entity_type,entity_id,action,actor_admin_id,snapshot_sha256,previous_state,new_state,idempotency_key)
+    VALUES('signing_request',$1::uuid,$2,$3::uuid,$4,$5,'draft',$6::uuid)`,
+    [created.documentId,mode==="correct"?"corrected":"duplicated",session.id,cloneSnapshot,sourceId,randomUUID()]);
+  redirect(`/admin/signatures/${created.documentId}`);
+}
+
+export async function duplicateSignatureRequestAction(_state:SignatureAdminActionState,formData:FormData):Promise<SignatureAdminActionState>{
+  try{await cloneSignatureRequest(formData,"duplicate");return{ok:true,message:"Copia creada."};}
+  catch(error){if((error as {digest?:string})?.digest)throw error;return{ok:false,message:"No se pudo duplicar la solicitud."};}
+}
+
+export async function correctSignatureRequestAction(_state:SignatureAdminActionState,formData:FormData):Promise<SignatureAdminActionState>{
+  try{await cloneSignatureRequest(formData,"correct");return{ok:true,message:"Corrección preparada."};}
+  catch(error){if((error as {digest?:string})?.digest)throw error;return{ok:false,message:"Solo las solicitudes activas pueden prepararse para corrección."};}
 }

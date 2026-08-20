@@ -2,7 +2,7 @@ import { canonicalSignatureJson, sha256SignatureValue } from "./domain/crypto";
 
 export type SignatureLayoutField = Readonly<{
   participantId: string;
-  fieldType: "signature" | "initials" | "date" | "text";
+  fieldType: "signature" | "initials" | "date" | "date_signed" | "text";
   pageIndex: number;
   normalizedX: number;
   normalizedY: number;

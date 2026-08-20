@@ -140,3 +140,9 @@ Migration `0026` adds immutable bilingual privacy-disclosure text snapshots to
 each signature request when it leaves draft state. Historical signer views and
 detached evidence resolve the exact approved text from the request rather than
 a mutable active environment value. Its rollback refuses to discard snapshots.
+
+Migration `0035` productizes Borikí Sign without weakening its evidence model.
+It adds parallel/sequential routing, an explicitly configured final-broker role,
+reusable identity-free template blueprints, correction lineage, and a distinct
+system-derived `date_signed` field. The rollback is intentionally blocked so a
+reviewed forward migration is required once any of these durable records exist.

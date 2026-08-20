@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import SignatureDraftEditor from "@/components/admin/signatures/SignatureDraftEditor";
+import SignatureDocumentActions from "@/components/admin/signatures/SignatureDocumentActions";
 import IsolatedDeliveryControl from "@/components/admin/signatures/IsolatedDeliveryControl";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
 import { getAdminSessionUser } from "@/lib/admin/auth";
@@ -31,8 +32,8 @@ export default async function SignatureDraftPage({params}:{params:Promise<{id:st
     evaluateSignaturePreflight({database,documentId:id,locales:["es-PR"],participantEmails:detail.participants.map((p)=>p.email),documentTypes:[detail.documentType],environment:"production",authorizationType:"internal_canary",authorizationExpiresAt:preflightExpiration}),
   ]);
   const scoped=detail.participants.length>0&&participantAuthorizations.every(Boolean);
-  const activationMode=isPublicSigningEnabled()&&scoped?"public":isInternalCanarySigningEnabled()||scoped?"internal_canary":"disabled";
-  const readiness=await evaluateSignatureSendReadiness({database,documentId:id,locale:"es-PR",publicSigningEnabled:isInternalCanarySigningEnabled()||scoped,eventKeysConfigured:keysConfigured,retentionPolicyConfigured:Boolean(durableRetention)||inspectSignatureRetentionPolicy().configured,privacyDisclosureConfigured:Boolean(durablePrivacy)||inspectSignaturePrivacyDisclosure().configured});
+  const activationMode=isPublicSigningEnabled()&&scoped?"public":isInternalCanarySigningEnabled()&&scoped?"internal_canary":"disabled";
+  const readiness=await evaluateSignatureSendReadiness({database,documentId:id,locale:"es-PR",publicSigningEnabled:activationMode!=="disabled",eventKeysConfigured:keysConfigured,retentionPolicyConfigured:Boolean(durableRetention)||inspectSignatureRetentionPolicy().configured,privacyDisclosureConfigured:Boolean(durablePrivacy)||inspectSignaturePrivacyDisclosure().configured});
 
   return <AdminPageShell>
     <AdminPageHeader breadcrumbs={[{href:"/admin",label:"Admin"},{href:"/admin/signatures",label:"Firmas"},{label:detail.title}]} eyebrow="Firmas · Documento" title={detail.title} description="Prepara destinatarios y campos, revisa todo y envía únicamente cuando los controles estén completos." actions={!detail.version.sourceDeleted&&detail.status!=="archived"?<Link className="btn-secondary" href={`/admin/signatures/${detail.id}/source`} target="_blank">Abrir PDF</Link>:undefined} />
@@ -49,6 +50,7 @@ export default async function SignatureDraftPage({params}:{params:Promise<{id:st
     {definition?.scope!=="ordinary_brokerage"&&<section className="surface-card border-l-4 border-amber-500 p-5 text-sm text-amber-900">{definition?.guidance}</section>}
 
     {detail.status==="archived"||detail.operationallyHiddenAt?<section className="surface-card p-5"><h2 className="text-lg font-semibold">Fuera de solicitudes activas</h2><p className="mt-2 text-sm text-slate-600">Borikí conserva automáticamente la evidencia que deba mantenerse. Este registro continúa disponible como historial.</p></section>:<SignatureDraftEditor detail={detail} readiness={readiness} preflight={preflight} activationMode={activationMode} />}
+    <SignatureDocumentActions documentId={detail.id} title={detail.title} status={detail.status}/>
 
     <section className="surface-card overflow-hidden"><header className="admin-section-header"><div><h2 className="text-lg font-semibold">Actividad</h2><p className="mt-1 text-sm text-slate-600">Historial inmutable de la solicitud.</p></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{detail.events.length} eventos</span></header><ol className="divide-y divide-slate-100 px-5">{detail.events.map((event)=><li className="grid gap-1 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" key={event.id}><p className="text-sm font-medium">{signatureEventLabel(event.eventType)}</p><time className="text-xs text-slate-500" dateTime={new Date(event.createdAt).toISOString()}>{new Date(event.createdAt).toLocaleString("es-PR")}</time></li>)}</ol>{!detail.events.length&&<p className="p-5 text-sm text-slate-500">No hay actividad registrada.</p>}</section>
 

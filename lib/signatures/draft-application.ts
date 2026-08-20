@@ -7,6 +7,7 @@ import {
   PdfCompatibilityError,
 } from "./prototype/inspect";
 import type { SignatureSourceStorage } from "./storage";
+import type { SignatureDatabase } from "./domain/types";
 import {
   MAX_SIGNATURE_SOURCE_BYTES,
   sanitizeSignatureFilename,
@@ -36,9 +37,11 @@ function optionalUuid(value: string | null | undefined) {
 
 export function createSignatureDraftApplicationService({
   domain,
+  database,
   storage,
 }: {
   domain: ReturnType<typeof createSignatureDomainServices>;
+  database: SignatureDatabase;
   storage: SignatureSourceStorage;
 }) {
   return {
@@ -52,6 +55,8 @@ export function createSignatureDraftApplicationService({
       filename: string;
       mimeType: string;
       bytes: Uint8Array;
+      routingMode?: "parallel" | "sequential" | "grouped";
+      requiresBrokerSignature?: boolean;
     }) {
       const title = input.title.trim();
       if (title.length < 1 || title.length > 200) {
@@ -59,6 +64,15 @@ export function createSignatureDraftApplicationService({
       }
       if (!getSignatureDocumentTypeDefinition(input.documentType)) {
         throw new SignatureDraftValidationError("signature_document_type_unknown");
+      }
+      const brokerSettings = input.requiresBrokerSignature
+        ? (await database.unsafe<{ broker_name_snapshot:string;broker_email_snapshot:string }>(
+            `SELECT broker_name_snapshot,broker_email_snapshot FROM signature_signing_settings
+              WHERE singleton=true AND broker_admin_user_id IS NOT NULL`
+          ))[0]
+        : null;
+      if (input.requiresBrokerSignature && !brokerSettings) {
+        throw new SignatureDraftValidationError("signature_broker_not_configured");
       }
       const filename = sanitizeSignatureFilename(input.filename);
       let report;
@@ -100,6 +114,8 @@ export function createSignatureDraftApplicationService({
           canonicalLeadId: optionalUuid(input.canonicalLeadId),
           leadGroupId: optionalUuid(input.leadGroupId),
           expiresAt: input.expiresAt ?? null,
+          routingMode: input.routingMode ?? "parallel",
+          requiresBrokerSignature: input.requiresBrokerSignature ?? false,
           filename,
           byteCount: report.byteSize,
           pageCount: report.pageCount,
@@ -108,6 +124,13 @@ export function createSignatureDraftApplicationService({
           documentCreatedIdempotencyKey: randomUUID(),
           versionCreatedIdempotencyKey: randomUUID(),
         });
+        if (input.requiresBrokerSignature) {
+          await domain.addParticipant({
+            documentVersionId:created.documentVersionId,nameSnapshot:brokerSettings!.broker_name_snapshot,
+            emailSnapshot:brokerSettings!.broker_email_snapshot,role:"Corredora",routingOrder:8,
+            isBrokerFinalSigner:true,actorAdminId:input.createdByAdminId,idempotencyKey:randomUUID(),
+          });
+        }
         return {
           documentId: created.documentId,
           documentVersionId: created.documentVersionId,

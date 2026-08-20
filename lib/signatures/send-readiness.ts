@@ -29,12 +29,15 @@ export async function evaluateSignatureSendReadiness(input: {
     expires_at: string | Date | null; version_id: string | null; mime_type: string | null;
     byte_count: number | null; page_count: number | null; locked_at: string | Date | null;
     field_definition_sha256: string | null;
+    requires_broker_signature:boolean;corrects_document_id:string|null;corrected_status:string|null;
   }>(
     `SELECT d.id::text, d.document_type, d.status, d.active_version_id::text, d.expires_at,
             v.id::text AS version_id, v.mime_type, v.byte_count::integer, v.page_count,
-            v.locked_at, v.field_definition_sha256
+            v.locked_at, v.field_definition_sha256,d.requires_broker_signature,d.corrects_document_id::text,
+            corrected.status AS corrected_status
        FROM public.signature_documents d
        LEFT JOIN public.signature_document_versions v ON v.id=d.active_version_id
+       LEFT JOIN public.signature_documents corrected ON corrected.id=d.corrects_document_id
       WHERE d.id=$1::uuid`,
     [input.documentId]
   );
@@ -79,8 +82,8 @@ export async function evaluateSignatureSendReadiness(input: {
   }
 
   if (row?.version_id) {
-    const participants = await input.database.unsafe<{ id: string; normalized_email: string }>(
-      `SELECT id::text, normalized_email FROM public.signature_participants
+    const participants = await input.database.unsafe<{ id: string; normalized_email: string;routing_order:number|null;is_broker_final_signer:boolean }>(
+      `SELECT id::text, normalized_email,routing_order,is_broker_final_signer FROM public.signature_participants
         WHERE document_version_id=$1::uuid AND removed_at IS NULL ORDER BY id`,
       [row.version_id]
     );
@@ -88,8 +91,11 @@ export async function evaluateSignatureSendReadiness(input: {
     if (participants.some((participant) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(participant.normalized_email))) {
       reasons.push("participant_email_invalid");
     }
+    if(row.requires_broker_signature){const brokers=participants.filter((participant)=>participant.is_broker_final_signer);const parties=participants.filter((participant)=>!participant.is_broker_final_signer);const brokerOrder=brokers[0]?.routing_order??1;
+      if(brokers.length!==1||parties.some((participant)=>(participant.routing_order??1)>=brokerOrder))reasons.push("broker_final_signer_invalid");}
+    if(row.corrects_document_id&&!['voided','expired'].includes(row.corrected_status??""))reasons.push("correction_source_still_active");
     const fields = await input.database.unsafe<{
-      participant_id: string; field_type: "signature" | "initials" | "date" | "text";
+      participant_id: string; field_type: "signature" | "initials" | "date" | "date_signed" | "text";
       page_index: number; normalized_x: string; normalized_y: string;
       normalized_width: string; normalized_height: string; required: boolean;
       tab_order: number; validation_limits: Record<string, number> | string;

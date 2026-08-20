@@ -32,7 +32,7 @@ export function createSignerRepository(database: SignatureQueryExecutor) {
       );
       if (!documents[0]) return null;
       const fields = await database.unsafe<{
-        id: string; field_type: "signature" | "initials" | "date" | "text";
+        id: string; field_type: "signature" | "initials" | "date" | "date_signed" | "text";
         page_index: number; normalized_x: string; normalized_y: string;
         normalized_width: string; normalized_height: string; label: string;
         required: boolean; tab_order: number; validation_limits: unknown; completed: boolean;

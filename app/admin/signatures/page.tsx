@@ -9,7 +9,7 @@ import { signatureStatusLabel, signatureStatusTone, SIGNATURE_STATUS_LABELS } fr
 import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/database";
 import { SIGNATURE_DOCUMENT_TYPES } from "@/lib/signatures/document-classification";
 
-const VIEWS = [{id:"active",label:"Activos"},{id:"completed",label:"Completados"},{id:"archived",label:"Archivados"},{id:"all",label:"Todos"}] as const;
+const VIEWS = [{id:"active",label:"Recientes"},{id:"drafts",label:"Borradores"},{id:"waiting",label:"Esperando firmas"},{id:"completed",label:"Completados"},{id:"cancelled",label:"Cancelados"},{id:"archived",label:"Archivados"},{id:"all",label:"Todos"}] as const;
 
 export default async function SignatureDocumentsPage({ searchParams }: {
   searchParams: Promise<{ search?: string; status?: string; documentType?: string; view?: string }>;
@@ -27,7 +27,7 @@ export default async function SignatureDocumentsPage({ searchParams }: {
         eyebrow="Firmas"
         title="Solicitudes de firma"
         description="Prepara documentos, añade destinatarios, coloca campos y revisa antes de enviar. La configuración avanzada solo aparece cuando hace falta."
-        actions={<div className="flex flex-wrap gap-2"><Link className="btn-secondary" href="/admin/signatures/gobernanza">Gobernanza</Link><Link className="btn-primary" href="/admin/signatures/nuevo">Nuevo documento</Link></div>}
+        actions={<div className="flex flex-wrap gap-2"><Link className="btn-secondary" href="/admin/signatures/plantillas">Plantillas</Link><Link className="btn-secondary" href="/admin/signatures/configuracion">Configuración</Link><Link className="btn-primary" href="/admin/signatures/nuevo">Nuevo documento</Link></div>}
       />
 
       <FilterBar className="md:grid-cols-4">

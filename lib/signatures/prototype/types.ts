@@ -30,7 +30,7 @@ export type PdfPlacement = Readonly<{
   rotation: PdfRotation;
 }>;
 
-export type SignatureFieldType = "signature" | "initials" | "date" | "text";
+export type SignatureFieldType = "signature" | "initials" | "date" | "date_signed" | "text";
 
 export type DrawnStroke = readonly PdfPoint[];
 

@@ -29,7 +29,7 @@ const migrations = await Promise.all([
   "0031_add_signature_legal_holds.sql",
   "0032_correct_signature_business_governance.sql",
   "0033_harden_signature_preflight_authorization.sql",
-  "0034_add_signature_operational_hiding.sql",
+  "0034_add_signature_operational_hiding.sql","0035_productize_boriki_sign.sql",
 ].map((name) => readFile(path.join(root, "db/migrations", name), "utf8")));
 const db = new PGlite();
 const executor = (source) => ({ async unsafe(query, parameters = []) { return (await source.query(query, parameters)).rows; } });
@@ -208,6 +208,7 @@ test("maximum MVP topology supports 8 participants, 100 fields, 25 pages, and re
     networkEvidenceHmacKey: "synthetic-load-network-key-at-least-32bytes" });
   const draft = await domain.createDraftWithVersion({ documentId: randomUUID(),
     title: "Synthetic maximum topology", documentType: "ordinary_brokerage_agreement",
+    routingMode: "sequential",
     createdByAdminId: adminId, filename: "synthetic-25-pages.pdf", byteCount: 2_999_999,
     pageCount: 25, sourceSha256: "b".repeat(64), pageGeometryManifest: geometry,
     documentCreatedIdempotencyKey: randomUUID(), versionCreatedIdempotencyKey: randomUUID() });

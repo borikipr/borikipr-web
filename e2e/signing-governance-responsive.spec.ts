@@ -21,6 +21,7 @@ async function createDraft(page: Page, title: string) {
   await page.goto("/admin/signatures/nuevo", { waitUntil: "domcontentloaded" });
   await page.getByLabel(/T.tulo interno/).fill(title);
   await page.getByLabel(/Tipo de documento/).selectOption("transaction_acknowledgment");
+  await page.getByLabel("Forma de firma").selectOption("grouped");
   await page.getByLabel(/Fecha de expiraci.n/).fill("2026-09-30");
   await page.getByLabel(/PDF fuente/).setInputFiles(fixturePath);
   const [response] = await Promise.all([
@@ -38,7 +39,7 @@ async function addRecipient(page: Page, input: { name: string; email: string; ro
   await form.getByLabel("Nombre").fill(input.name);
   await form.getByLabel("Correo").fill(input.email);
   await form.getByLabel("Rol").fill(input.role);
-  await form.getByLabel(/Orden de visualizaci.n/).fill(input.order);
+  await form.getByLabel(/Grupo de firma/).fill(input.order);
   await form.getByRole("button", { name: "Añadir destinatario" }).click();
   await expect(page.getByText(input.email, { exact: true })).toBeVisible({ timeout: 60_000 });
 }
@@ -98,11 +99,11 @@ test.describe("Phase 2P operational signing UX", () => {
     await page.screenshot({ fullPage: true, path: path.join(visualArtifactPath, "firmas-editor-desktop.png") });
     await expect(page.getByText("Falta configuración para enviar este documento.")).toBeVisible();
     await expect(page.getByText(/Readiness SHA-256/)).toBeHidden();
-    const governance = page.getByRole("link", { name: "Ir a Gobernanza" });
+    const governance = page.getByRole("link", { name: "Abrir Configuración de Firmas" });
     await expect(governance).toBeVisible();
     await governance.click();
-    await expect(page).toHaveURL(/\/admin\/signatures\/gobernanza/);
-    await page.screenshot({ fullPage: true, path: path.join(visualArtifactPath, "gobernanza-desktop.png") });
+    await expect(page).toHaveURL(/\/admin\/signatures\/configuracion/);
+    await page.screenshot({ fullPage: true, path: path.join(visualArtifactPath, "configuracion-desktop.png") });
     await page.goBack();
     await expect(page).toHaveURL(new RegExp(`/admin/signatures/${documentId}`));
     // The signing-only fixture intentionally omits the unrelated propiedades catalog;

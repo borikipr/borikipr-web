@@ -60,8 +60,7 @@ export function normalizeSignerCapture(
     }
     value = validateBoundedText(input.value);
   }
-  const captureMethod =
-    input.method === "typed" ? "typed" : input.method === "date" ? "system_date" : "text_entry";
+  const captureMethod = input.method === "typed" ? "typed" : "text_entry";
   const prototypeValue = Object.freeze({ ...input, value }) as PrototypeFieldValue;
   return {
     captureMethod,

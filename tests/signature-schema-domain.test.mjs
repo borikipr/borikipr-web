@@ -41,7 +41,7 @@ const signerMigrationSql = await readFile(path.join(root, "db/migrations/0023_ex
 const deliveryMigrationSql = await readFile(path.join(root, "db/migrations/0024_add_signature_delivery_governance.sql"), "utf8");
 const privacyBindingMigrationSql = await readFile(path.join(root, "db/migrations/0025_bind_signature_privacy_disclosure.sql"), "utf8");
 const privacyHistoryMigrationSql = await readFile(path.join(root, "db/migrations/0026_preserve_signature_privacy_disclosure_text.sql"), "utf8");
-const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql","0034_add_signature_operational_hiding.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
+const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql","0034_add_signature_operational_hiding.sql","0035_productize_boriki_sign.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
 const SOURCE_HASH = "a".repeat(64);
 const FINAL_HASH = "b".repeat(64);
 const CERTIFICATE_HASH = "c".repeat(64);
@@ -278,7 +278,9 @@ test("latest isolated signing schema preserves the foundation tables", async () 
       "signature_retention_policy_versions",
       "signature_risk_acceptances",
       "signature_sessions",
+      "signature_signing_settings",
       "signature_signing_tokens",
+      "signature_templates",
     ]
   );
   assert.match(migrationSql, /byte_count BETWEEN 1 AND 3000000/);
@@ -318,7 +320,7 @@ test("participant limit is enforced transactionally", async () => {
       nameSnapshot: `Synthetic Signer ${index}`,
       emailSnapshot: `signer-${index}@example.test`,
       role: "buyer",
-      routingOrder: index,
+      routingOrder: 1,
       actorAdminId: adminId,
       idempotencyKey: randomUUID(),
     });

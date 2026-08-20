@@ -90,9 +90,12 @@ export async function evaluateSignaturePreflight(input: {
     id:string; status:string; document_type:string; expires_at:string|Date|null; version_id:string|null;
     mime_type:string|null; byte_count:number|null; page_count:number|null; source_sha256:string|null;
     field_definition_sha256:string|null;
+    requires_broker_signature:boolean;corrects_document_id:string|null;corrected_status:string|null;
   }>(`SELECT d.id::text,d.status,d.document_type,d.expires_at,v.id::text version_id,v.mime_type,
-      v.byte_count::integer,v.page_count,v.source_sha256,v.field_definition_sha256
+      v.byte_count::integer,v.page_count,v.source_sha256,v.field_definition_sha256,d.requires_broker_signature,
+      d.corrects_document_id::text,corrected.status corrected_status
       FROM signature_documents d LEFT JOIN signature_document_versions v ON v.id=d.active_version_id
+      LEFT JOIN signature_documents corrected ON corrected.id=d.corrects_document_id
       WHERE d.id=$1::uuid`,[input.documentId]);
   const document = rows[0];
   const items: SignaturePreflightItem[] = [];
@@ -105,8 +108,8 @@ export async function evaluateSignaturePreflight(input: {
   }
   if (!document?.expires_at || new Date(document.expires_at).getTime()<=now.getTime()) items.push(item("expiration_invalid","preparation","blocked","La expiración no es válida.","Selecciona una fecha futura."));
 
-  const participants = document?.version_id ? await input.database.unsafe<{id:string;normalized_email:string}>(
-    `SELECT id::text,normalized_email FROM signature_participants WHERE document_version_id=$1::uuid AND removed_at IS NULL ORDER BY normalized_email,id`,[document.version_id]) : [];
+  const participants = document?.version_id ? await input.database.unsafe<{id:string;normalized_email:string;routing_order:number|null;is_broker_final_signer:boolean}>(
+    `SELECT id::text,normalized_email,routing_order,is_broker_final_signer FROM signature_participants WHERE document_version_id=$1::uuid AND removed_at IS NULL ORDER BY normalized_email,id`,[document.version_id]) : [];
   const participantIds = participants.map((row)=>row.id).sort();
   const participantEmails = normalizedUnique(participants.map((row)=>row.normalized_email));
   if (participants.length<1 || participants.length>8 || participantEmails.length!==participants.length) {
@@ -115,6 +118,9 @@ export async function evaluateSignaturePreflight(input: {
   if (participantEmails.some((email)=>!/^([^@\s*]+)@([^@\s*]+\.)+[^@\s*]+$/.test(email))) {
     items.push(item("participant_email_invalid","preparation","blocked","Hay un correo inválido o con comodín.","Usa correos exactos; no se permiten dominios o destinatarios comodín."));
   }
+  if(document?.requires_broker_signature){const brokers=participants.filter((participant)=>participant.is_broker_final_signer);const parties=participants.filter((participant)=>!participant.is_broker_final_signer);const brokerOrder=brokers[0]?.routing_order??1;
+    if(brokers.length!==1||parties.some((participant)=>(participant.routing_order??1)>=brokerOrder))items.push(item("broker_final_signer_invalid","preparation","blocked","La corredora final no está configurada después de todos los demás grupos.","Configura a Ivonne en Configuración de Firmas y conserva su ruta final."));}
+  if(document?.corrects_document_id&&!['voided','expired'].includes(document.corrected_status??""))items.push(item("correction_source_still_active","preparation","blocked","La solicitud original de esta corrección sigue activa.","Cancela explícitamente la solicitud original antes de enviar la corrección."));
   if(input.authorizationType==="internal_canary"&&participantEmails.length){
     const [leadMatch]=await input.database.unsafe<{count:number}>(`SELECT count(*)::integer count FROM leads WHERE email_normalized=ANY($1::text[]) AND status<>'merged'`,[participantEmails]);
     if((leadMatch?.count??0)>0) items.push(item("customer_identity_detected","authorization","blocked","Un participante coincide con una identidad de cliente o lead de producción.","Usa identidades internas/sintéticas exactas; el primer canary no admite clientes."));
@@ -126,7 +132,7 @@ export async function evaluateSignaturePreflight(input: {
   if (locales.length!==1 && input.authorizationType==="internal_canary") items.push(item("locale_scope_invalid","authorization","blocked","El primer canary debe usar un solo idioma.","Selecciona exactamente es-PR o en-US."));
   if (locales.length<1 || locales.some((locale)=>locale!=="es-PR" && locale!=="en-US")) items.push(item("locale_scope_invalid","authorization","blocked","El alcance de idioma no es válido.","Selecciona un idioma admitido."));
 
-  const fields=document?.version_id?await input.database.unsafe<{participant_id:string;field_type:"signature"|"initials"|"date"|"text";page_index:number;normalized_x:string;normalized_y:string;normalized_width:string;normalized_height:string;required:boolean;tab_order:number;validation_limits:Record<string,number>|string}>(
+  const fields=document?.version_id?await input.database.unsafe<{participant_id:string;field_type:"signature"|"initials"|"date"|"date_signed"|"text";page_index:number;normalized_x:string;normalized_y:string;normalized_width:string;normalized_height:string;required:boolean;tab_order:number;validation_limits:Record<string,number>|string}>(
     `SELECT participant_id::text,field_type,page_index,normalized_x::text,normalized_y::text,normalized_width::text,normalized_height::text,required,tab_order,validation_limits FROM signature_fields WHERE document_version_id=$1::uuid ORDER BY tab_order,id`,[document.version_id]):[];
   if(fields.length<1||fields.length>100) items.push(item("field_count_invalid","preparation","blocked","El documento debe tener entre 1 y 100 campos.","Añade los campos requeridos."));
   if(participantIds.some((participantId)=>!fields.some((field)=>field.participant_id===participantId&&field.required))) items.push(item("required_field_missing","preparation","blocked","Cada participante necesita al menos un campo requerido propio.","Asigna campos requeridos a cada participante."));

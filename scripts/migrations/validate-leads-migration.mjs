@@ -1986,6 +1986,12 @@ const signatureOperationalUxMigrationSql = await readMigration(
 const signatureOperationalUxRollbackSql = await readMigration(
   "0034_add_signature_operational_hiding.rollback.sql"
 );
+const signatureProductizationMigrationSql = await readMigration(
+  "0035_productize_boriki_sign.sql"
+);
+const signatureProductizationRollbackSql = await readMigration(
+  "0035_productize_boriki_sign.rollback.sql"
+);
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -2267,3 +2273,28 @@ try {
   await signatureOperationalUxDb.exec(signatureOperationalUxRollbackSql);
   console.log("Validated operational signing UX migration 0034 and guarded rollback.");
 } finally { await signatureOperationalUxDb.close(); }
+
+const signatureProductizationDb = new PGlite();
+try {
+  await signatureProductizationDb.exec(`
+    CREATE TABLE public.admin_users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),username text NOT NULL UNIQUE);
+    CREATE TABLE public.leads (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
+    CREATE TABLE public.lead_groups (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
+  `);
+  for (const migration of [signatureFoundationMigrationSql,signatureSignerMigrationSql,signatureDeliveryMigrationSql,
+    signaturePrivacyBindingMigrationSql,signaturePrivacyHistoryMigrationSql,signatureLaunchGovernanceMigrationSql,
+    signatureLaunchGovernanceHardeningMigrationSql,signatureGovernanceWorkflowMigrationSql,signatureGovernanceWorkflowHardeningMigrationSql,
+    signatureLegalHoldsMigrationSql,signatureBusinessGovernanceMigrationSql,signaturePreflightHardeningMigrationSql,
+    signatureOperationalUxMigrationSql,signatureProductizationMigrationSql]) {
+    await signatureProductizationDb.exec(migration);
+  }
+  const catalog=await signatureProductizationDb.query(`SELECT
+    to_regclass('public.signature_templates')::text templates,
+    to_regclass('public.signature_signing_settings')::text settings,
+    EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='signature_documents' AND column_name='routing_mode') routing,
+    EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='signature_participants' AND column_name='is_broker_final_signer') broker_final,
+    EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='signature_participants_broker_final_routing_trigger') broker_route_guard`);
+  assert.deepEqual(catalog.rows,[{templates:'signature_templates',settings:'signature_signing_settings',routing:true,broker_final:true,broker_route_guard:true}]);
+  await assert.rejects(signatureProductizationDb.exec(signatureProductizationRollbackSql),/0035 rollback is intentionally blocked/);
+  console.log("Validated Borikí Sign productization migration 0035 and rollback guard.");
+} finally { await signatureProductizationDb.close(); }

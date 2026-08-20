@@ -22,7 +22,7 @@ const [foundationSql, signerSql, deliverySql, privacyBindingSql, privacyHistoryS
   readFile(path.join(root, "db/migrations/0026_preserve_signature_privacy_disclosure_text.sql"), "utf8"),
   readFile(path.join(root, "tests/fixtures/signatures/rejections/valid-ordinary.pdf")),
 ]);
-const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql","0034_add_signature_operational_hiding.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
+const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql","0034_add_signature_operational_hiding.sql","0035_productize_boriki_sign.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
 function adapter(db) { const executor = (source) => ({ async unsafe(query, parameters = []) { return (await source.query(query, parameters)).rows; } }); return { ...executor(db), begin: (callback) => db.transaction((tx) => callback(executor(tx))) }; }
 const db = new PGlite();
 const esPRText = "Aviso sintético de privacidad para pruebas aisladas solamente.";
@@ -94,6 +94,25 @@ test("token is created only at delivery and never persisted in intent/html", asy
   const token = sentMessages[0].html.match(/\/firmar\/([A-Za-z0-9_-]{43})/)[1];
   const stored = (await db.query(`SELECT to_jsonb(di)::text AS body, t.token_digest FROM public.signature_delivery_intents di JOIN public.signature_signing_tokens t ON t.id=di.token_id WHERE di.id=$1`, [first.intentId])).rows[0];
   assert.match(stored.token_digest, /^[0-9a-f]{64}$/); assert.doesNotMatch(stored.body, new RegExp(token)); assert.doesNotMatch(stored.body, /\/firmar\//);
+});
+
+test("routing releases one group at a time and completion records Fecha de firma automatically",async()=>{
+  const value=await fixture();
+  await database.unsafe(`UPDATE signature_documents SET routing_mode='grouped' WHERE id=$1::uuid`,[value.documentId]);
+  const second=await domain.addParticipant({documentVersionId:value.documentVersionId,nameSnapshot:"Synthetic Seller",emailSnapshot:"seller@example.test",role:"Vendedor",routingOrder:2,actorAdminId:adminId,idempotencyKey:randomUUID()});
+  await db.query(`UPDATE signature_participants SET routing_order=1 WHERE id=$1`,[value.participantId]);
+  await domain.addField({documentVersionId:value.documentVersionId,participantId:value.participantId,fieldType:"date_signed",pageIndex:0,rect:{x:.55,y:.7,width:.2,height:.06},pageGeometryReference:geometry,label:"Fecha de firma",required:true,tabOrder:2,validationLimits:{},actorAdminId:adminId,idempotencyKey:randomUUID()});
+  await domain.addField({documentVersionId:value.documentVersionId,participantId:second.participantId,fieldType:"signature",pageIndex:0,rect:{x:.1,y:.5,width:.35,height:.1},pageGeometryReference:geometry,label:"Firma vendedor",required:true,tabOrder:1,validationLimits:{maxLength:120},actorAdminId:adminId,idempotencyKey:randomUUID()});
+  const readiness=await evaluateSignatureSendReadiness({database,documentId:value.documentId,locale:"es-PR",publicSigningEnabled:true,eventKeysConfigured:true,retentionPolicyConfigured:true,privacyDisclosureConfigured:true,now});assert.equal(readiness.eligible,true);
+  await domain.prepareDocumentForSend({documentId:value.documentId,actorAdminId:adminId,idempotencyKey:randomUUID(),locale:"es-PR",publicSigningEnabled:true,privacyDisclosure:syntheticPrivacyDisclosure});
+  assert.equal((await delivery.releaseNextRoutingGroup({documentVersionId:value.documentVersionId})).released,1);
+  let intents=(await db.query(`SELECT id::text,participant_id::text FROM signature_delivery_intents ORDER BY created_at`)).rows;assert.equal(intents.length,1);assert.equal(intents[0].participant_id,value.participantId);
+  await delivery.deliverIntent(intents[0].id);const token=sentMessages[0].html.match(/\/firmar\/([A-Za-z0-9_-]{43})/)[1];const session=await domain.redeemSigningToken({plaintextToken:token,idempotencyKey:randomUUID()});const context=await domain.getSessionContext({sessionId:session.sessionId,sessionSecret:session.sessionSecret});
+  await domain.acceptSignerConsent({sessionId:session.sessionId,sessionSecret:session.sessionSecret,csrfNonce:session.csrfNonce,consentVersion:context.consentVersion,consentTextSha256:context.consentTextSha256,locale:context.consentLocale,idempotencyKey:randomUUID()});
+  await domain.submitSignerField({sessionId:session.sessionId,sessionSecret:session.sessionSecret,csrfNonce:session.csrfNonce,fieldId:value.fieldId,value:{method:"typed",value:"Synthetic Participant"},idempotencyKey:randomUUID()});
+  assert.equal((await domain.completeSignerParticipant({sessionId:session.sessionId,sessionSecret:session.sessionSecret,csrfNonce:session.csrfNonce,idempotencyKey:randomUUID()})).allParticipantsCompleted,false);
+  const [automatic]=await database.unsafe(`SELECT f.field_type,fv.capture_method,fv.sanitized_typed_value FROM signature_fields f JOIN signature_field_values fv ON fv.signature_field_id=f.id WHERE f.participant_id=$1::uuid AND f.field_type='date_signed'`,[value.participantId]);assert.deepEqual(automatic,{field_type:"date_signed",capture_method:"system_date",sanitized_typed_value:"2032-05-01"});
+  assert.equal((await delivery.releaseNextRoutingGroup({documentVersionId:value.documentVersionId})).released,1);intents=(await db.query(`SELECT participant_id::text FROM signature_delivery_intents ORDER BY created_at`)).rows;assert.equal(intents[1].participant_id,second.participantId);
 });
 
 test("resend supersedes the old link and is race-idempotent", async () => {

@@ -4,7 +4,7 @@ import { useRef, useState, type MouseEvent, type PointerEvent } from "react";
 
 type Field = Readonly<{
   id: string;
-  field_type: "signature" | "initials" | "date" | "text";
+  field_type: "signature" | "initials" | "date" | "date_signed" | "text";
   label: string;
   required: boolean;
   completed: boolean;
@@ -99,6 +99,13 @@ export default function SignerFieldForm({ field, csrf }: { field: Field; csrf: s
 
   if (field.completed) {
     return <div className="rounded-lg border bg-emerald-50 p-4">{field.label}: completado</div>;
+  }
+
+  if (field.field_type === "date_signed") {
+    return <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <p className="font-medium">{field.label}{field.required ? " *" : ""}</p>
+      <p className="mt-1 text-sm text-slate-700">Borikí colocará automáticamente la fecha real cuando completes tu firma.</p>
+    </div>;
   }
 
   return (

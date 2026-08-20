@@ -29,6 +29,7 @@ export const SIGNATURE_FIELD_TYPES = [
   "signature",
   "initials",
   "date",
+  "date_signed",
   "text",
 ] as const;
 

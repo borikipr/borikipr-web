@@ -267,6 +267,48 @@ export function createSignatureDeliveryService(input: {
     return result;
   }
 
+  async function releaseNextRoutingGroup(data: {
+    documentVersionId: string;
+    locale?: SignatureDeliveryLocale;
+  }) {
+    const rows = await input.database.unsafe<{
+      participant_id:string;created_by_admin_id:string;
+    }>(`WITH next_group AS (
+          SELECT min(coalesce(p.routing_order,1)) AS routing_order
+            FROM signature_participants p
+            JOIN signature_document_versions v ON v.id=p.document_version_id
+            JOIN signature_documents d ON d.id=v.document_id
+           WHERE p.document_version_id=$1::uuid AND p.removed_at IS NULL
+             AND p.status NOT IN ('completed','revoked','expired','declined')
+             AND d.status IN ('sent','viewed','partially_signed')
+        )
+        SELECT p.id::text participant_id,d.created_by_admin_id::text
+          FROM signature_participants p
+          JOIN signature_document_versions v ON v.id=p.document_version_id
+          JOIN signature_documents d ON d.id=v.document_id
+          JOIN next_group ng ON coalesce(p.routing_order,1)=ng.routing_order
+         WHERE p.document_version_id=$1::uuid AND p.removed_at IS NULL
+           AND p.status NOT IN ('completed','revoked','expired','declined')
+           AND NOT EXISTS (SELECT 1 FROM signature_delivery_intents di
+             WHERE di.participant_id=p.id AND di.delivery_kind='invitation'
+               AND di.status IN ('pending','processing','sent'))
+         ORDER BY p.created_at,p.id`, [data.documentVersionId]);
+    const intents=[];
+    for (const row of rows) {
+      try {
+        intents.push(await createIntent({
+          participantId:row.participant_id,documentVersionId:data.documentVersionId,
+          locale:data.locale??"es-PR",actorAdminId:row.created_by_admin_id,idempotencyKey:randomUUID(),
+        }));
+      } catch (error) {
+        const active=await input.database.unsafe<{id:string}>(`SELECT id::text FROM signature_delivery_intents
+          WHERE participant_id=$1::uuid AND delivery_kind='invitation' AND status IN ('pending','processing') LIMIT 1`,[row.participant_id]);
+        if(!active[0]) throw error;
+      }
+    }
+    return { released:intents.length,intents };
+  }
+
   async function processPending(limit = 10) {
     const staleBefore = new Date(clock().getTime() - 10 * 60_000).toISOString();
     await input.database.unsafe(
@@ -289,5 +331,5 @@ export function createSignatureDeliveryService(input: {
     return { processed: rows.length, sent, failed };
   }
 
-  return { createIntent, deliverIntent, reissueInvitation, processPending };
+  return { createIntent, deliverIntent, reissueInvitation, releaseNextRoutingGroup, processPending };
 }

@@ -24,7 +24,7 @@ const [foundationSql, signerSql, deliverySql, privacyBindingSql, privacyHistoryS
   readFile(path.join(root, "db/migrations/0026_preserve_signature_privacy_disclosure_text.sql"), "utf8"),
   readFile(path.join(root, "tests/fixtures/signatures/rejections/valid-ordinary.pdf")),
 ]);
-const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql","0034_add_signature_operational_hiding.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
+const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql","0034_add_signature_operational_hiding.sql","0035_productize_boriki_sign.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
 
 function pgliteDatabase(db) {
   const executor = (source) => ({ async unsafe(query, parameters = []) { return (await source.query(query, parameters)).rows; } });
@@ -76,7 +76,7 @@ async function syntheticRequest({ participants = 1 } = {}) {
   const participantRows = [];
   for (let index = 0; index < participants; index += 1) participantRows.push(await services.addParticipant({
     documentVersionId: draft.documentVersionId, nameSnapshot: `Synthetic Participant ${index + 1}`,
-    emailSnapshot: `synthetic-${index + 1}@example.test`, role: index ? "seller" : "buyer", routingOrder: index + 1,
+    emailSnapshot: `synthetic-${index + 1}@example.test`, role: index ? "seller" : "buyer", routingOrder: 1,
     actorAdminId: adminId, idempotencyKey: randomUUID() }));
   const definitions = [["signature", "Firma dibujada", { maxPoints: 2000 }], ["signature", "Firma escrita", { maxLength: 120 }],
     ["initials", "Iniciales", { maxLength: 8 }], ["date", "Fecha", {}], ["text", "Texto", { maxLength: 500 }]];
@@ -292,6 +292,7 @@ test("consent, CSRF, ownership, limits, and immutable submissions are enforced",
   assert.throws(() => normalizeSignerCapture("signature", { method: "typed", value: "x".repeat(121) }));
   assert.throws(() => normalizeSignerCapture("signature", { method: "drawn", strokes: [Array.from({ length: 2001 }, () => ({ x: 0.5, y: 0.5 }))] }));
   assert.throws(() => normalizeSignerCapture("text", { method: "text", value: "<script>alert(1)</script>" }), /markup_rejected/);
+  assert.equal(normalizeSignerCapture("date", {method:"date",value:"2032-05-01"}).captureMethod,"text_entry");
   await services.submitSignerField({ sessionId: session.sessionId, sessionSecret: session.sessionSecret, csrfNonce: session.csrfNonce,
     fieldId: fixture.fields[0].fieldId, value: { method: "drawn", strokes: [[{ x: 0.1, y: 0.2 }, { x: 0.8, y: 0.7 }]] }, idempotencyKey: randomUUID() });
   await assert.rejects(services.submitSignerField({ sessionId: session.sessionId, sessionSecret: session.sessionSecret,

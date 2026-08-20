@@ -71,7 +71,8 @@ export default function NewSignatureDraftForm({
 
       <div className="border-t border-slate-200 pt-6">
       <FormSection title="Configuración" description="La expiración podrá revisarse antes del envío.">
-        <label className="max-w-md"><span className="text-sm font-semibold">Fecha de expiración</span><input className="mt-2 w-full rounded-xl border border-[#d9d9d9] px-4 py-3" min={minimumExpirationDate} name="expiresOn" required type="date" /></label>
+        <div className="grid gap-4 md:grid-cols-2"><label><span className="text-sm font-semibold">Forma de firma</span><select className="mt-2 w-full rounded-xl border border-[#d9d9d9] px-4 py-3" name="routingMode" defaultValue="parallel"><option value="parallel">En paralelo</option><option value="sequential">En orden</option><option value="grouped">Grupos mixtos</option></select></label><label><span className="text-sm font-semibold">Fecha de expiración</span><input className="mt-2 w-full rounded-xl border border-[#d9d9d9] px-4 py-3" min={minimumExpirationDate} name="expiresOn" required type="date" /></label></div>
+        <label className="mt-4 flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><input className="mt-1" name="requiresBrokerSignature" type="checkbox" value="true"/><span><strong>Requiere firma de la corredora</strong><span className="mt-1 block text-sm text-slate-600">Añade automáticamente a Ivonne como última firmante. Si el PDF no tiene un lugar apropiado, tendrás que decidir dónde colocar su firma.</span></span></label>
       </FormSection>
       </div>
       {message && <p aria-live="polite" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{message}</p>}

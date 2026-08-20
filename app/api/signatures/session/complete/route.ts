@@ -18,6 +18,11 @@ export async function POST(request: Request) {
     if (result.allParticipantsCompleted) {
       const { finalizeCompletedSignatureDocument } = await import("@/lib/signatures/signer/finalize");
       await finalizeCompletedSignatureDocument(result.documentId);
+    } else {
+      const { createSignatureDeliveryRuntime } = await import("@/lib/signatures/runtime");
+      await createSignatureDeliveryRuntime().delivery.releaseNextRoutingGroup({
+        documentVersionId:result.documentVersionId,locale:"es-PR",
+      });
     }
     const response = NextResponse.redirect(new URL("/firmar/completado", request.url), 303);
     response.cookies.set(SIGNER_COOKIE_NAME, "", { path: SIGNER_COOKIE_PATH, maxAge: 0 });

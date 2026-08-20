@@ -78,6 +78,7 @@ if (!existing.rows[0]?.relation) {
     "0032_correct_signature_business_governance.sql",
     "0033_harden_signature_preflight_authorization.sql",
     "0034_add_signature_operational_hiding.sql",
+    "0035_productize_boriki_sign.sql",
   ];
   for (const name of names) {
     await db.exec(await readFile(path.join(root, "db", "migrations", name), "utf8"));
@@ -135,6 +136,11 @@ const operationalHideColumn = await db.query(`SELECT count(*)::integer AS count 
   WHERE table_schema='public' AND table_name='signature_documents' AND column_name='operationally_hidden_at'`);
 if (operationalHideColumn.rows[0]?.count === 0) {
   await db.exec(await readFile(path.join(root,"db","migrations","0034_add_signature_operational_hiding.sql"),"utf8"));
+}
+const productizationColumn = await db.query(`SELECT count(*)::integer AS count FROM information_schema.columns
+  WHERE table_schema='public' AND table_name='signature_documents' AND column_name='routing_mode'`);
+if (productizationColumn.rows[0]?.count === 0) {
+  await db.exec(await readFile(path.join(root,"db","migrations","0035_productize_boriki_sign.sql"),"utf8"));
 }
 
 const passwordHash = await bcrypt.hash(password, 12);

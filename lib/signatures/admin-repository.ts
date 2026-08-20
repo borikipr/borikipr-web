@@ -18,6 +18,8 @@ export type SignatureDraftDetail = Readonly<{
   title: string;
   documentType: string;
   documentTypeApprovalReference: string | null;
+  routingMode: "parallel" | "sequential" | "grouped";
+  requiresBrokerSignature: boolean;
   status: string;
   canonicalLeadId: string | null;
   leadGroupId: string | null;
@@ -43,6 +45,7 @@ export type SignatureDraftDetail = Readonly<{
     email: string;
     role: string;
     routingOrder: number | null;
+    isBrokerFinalSigner: boolean;
     status: string;
     invitedAt: string | Date | null;
     viewedAt: string | Date | null;
@@ -54,7 +57,7 @@ export type SignatureDraftDetail = Readonly<{
   fields: readonly Readonly<{
     id: string;
     participantId: string;
-    fieldType: "signature" | "initials" | "date" | "text";
+    fieldType: "signature" | "initials" | "date" | "date_signed" | "text";
     pageIndex: number;
     normalizedX: number;
     normalizedY: number;
@@ -95,8 +98,10 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         page_count: number;
         expires_at: string | Date | null;
         operationally_hidden_at: string | Date | null;
+        routing_mode: "parallel" | "sequential" | "grouped";
+        requires_broker_signature: boolean;
       }>(
-        `SELECT d.id::text, d.title, d.document_type, d.status,
+        `SELECT d.id::text, d.title, d.document_type, d.status, d.routing_mode, d.requires_broker_signature,
                 d.created_at, d.updated_at, d.expires_at, d.operationally_hidden_at, v.page_count,
                 count(p.id)::integer AS participant_count,
                 count(p.id) FILTER (WHERE p.status='completed')::integer AS completed_participant_count,
@@ -112,7 +117,10 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
                                     OR sp.normalized_email ILIKE '%' || $1 || '%')))
             AND ($4 = 'all'
               OR ($4 = 'active' AND d.status NOT IN ('completed','archived') AND d.operationally_hidden_at IS NULL)
+              OR ($4 = 'drafts' AND d.status='draft' AND d.operationally_hidden_at IS NULL)
+              OR ($4 = 'waiting' AND d.status IN ('sent','viewed','partially_signed') AND d.operationally_hidden_at IS NULL)
               OR ($4 = 'completed' AND d.status='completed')
+              OR ($4 = 'cancelled' AND d.status IN ('voided','expired') AND d.operationally_hidden_at IS NULL)
               OR ($4 = 'archived' AND (d.status='archived' OR d.operationally_hidden_at IS NOT NULL)))
             AND ($2 = 'all' OR d.status=$2)
             AND ($3 = 'all' OR d.document_type=$3)
@@ -136,6 +144,8 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         expires_at: string | Date | null;
         created_at: string | Date;
         operationally_hidden_at: string | Date | null;
+        routing_mode: "parallel" | "sequential" | "grouped";
+        requires_broker_signature: boolean;
         version_id: string;
         version_number: number;
         filename_snapshot: string;
@@ -151,6 +161,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
                 d.document_type_approval_reference, d.status,
                 d.canonical_lead_id::text, d.lead_group_id::text,
                 d.expires_at, d.created_at, d.operationally_hidden_at,
+                d.routing_mode, d.requires_broker_signature,
                 v.id::text AS version_id, v.version_number, v.filename_snapshot,
                 v.byte_count, v.page_count, v.source_sha256,
                 v.page_geometry_manifest, v.field_definition_sha256, v.locked_at, v.source_deleted_at
@@ -167,6 +178,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         email_snapshot: string;
         role: string;
         routing_order: number | null;
+        is_broker_final_signer: boolean;
         status: string;
         invited_at: string | Date | null;
         viewed_at: string | Date | null;
@@ -176,7 +188,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         last_delivery_at: string | Date | null;
       }>(
         `SELECT p.id::text, p.canonical_lead_id::text, p.name_snapshot,
-                p.email_snapshot, p.role, p.routing_order, p.status,
+                p.email_snapshot, p.role, p.routing_order, p.is_broker_final_signer, p.status,
                 p.invited_at, p.viewed_at, p.consented_at, p.completed_at,
                 last_delivery.status AS last_delivery_status,
                 last_delivery.delivered_at AS last_delivery_at
@@ -193,7 +205,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
       const fields = await database.unsafe<{
         id: string;
         participant_id: string;
-        field_type: "signature" | "initials" | "date" | "text";
+        field_type: "signature" | "initials" | "date" | "date_signed" | "text";
         page_index: number;
         normalized_x: string | number;
         normalized_y: string | number;
@@ -239,6 +251,8 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         title: document.title,
         documentType: document.document_type,
         documentTypeApprovalReference: document.document_type_approval_reference,
+        routingMode: document.routing_mode,
+        requiresBrokerSignature: document.requires_broker_signature,
         status: document.status,
         canonicalLeadId: document.canonical_lead_id,
         leadGroupId: document.lead_group_id,
@@ -264,6 +278,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
           email: participant.email_snapshot,
           role: participant.role,
           routingOrder: participant.routing_order,
+          isBrokerFinalSigner: participant.is_broker_final_signer,
           status: participant.status,
           invitedAt: participant.invited_at,
           viewedAt: participant.viewed_at,

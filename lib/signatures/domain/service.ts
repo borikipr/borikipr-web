@@ -305,6 +305,8 @@ export function createSignatureDomainServices({
     canonicalLeadId?: string | null;
     leadGroupId?: string | null;
     expiresAt?: Date | null;
+    routingMode?: "parallel" | "sequential" | "grouped";
+    requiresBrokerSignature?: boolean;
   }) {
     if (!getSignatureDocumentTypeDefinition(input.documentType)) {
       throw new Error("signature_document_type_unknown");
@@ -313,8 +315,8 @@ export function createSignatureDomainServices({
       const rows = await transaction.unsafe<{ id: string }>(
         `INSERT INTO public.signature_documents (
            canonical_lead_id, lead_group_id, title, document_type,
-           created_by_admin_id, expires_at
-         ) VALUES ($1::uuid, $2::uuid, $3, $4, $5::uuid, $6::timestamptz)
+           created_by_admin_id, expires_at, routing_mode, requires_broker_signature
+         ) VALUES ($1::uuid, $2::uuid, $3, $4, $5::uuid, $6::timestamptz,$7,$8)
          RETURNING id::text`,
         [
           input.canonicalLeadId ?? null,
@@ -323,6 +325,8 @@ export function createSignatureDomainServices({
           input.documentType,
           input.createdByAdminId,
           input.expiresAt ? iso(input.expiresAt) : null,
+          input.routingMode ?? "parallel",
+          input.requiresBrokerSignature ?? false,
         ]
       );
       return { documentId: rows[0].id, status: "draft" as const };
@@ -337,6 +341,8 @@ export function createSignatureDomainServices({
     canonicalLeadId?: string | null;
     leadGroupId?: string | null;
     expiresAt?: Date | null;
+    routingMode?: "parallel" | "sequential" | "grouped";
+    requiresBrokerSignature?: boolean;
     filename: string;
     byteCount: number;
     pageCount: number;
@@ -357,8 +363,8 @@ export function createSignatureDomainServices({
       await transaction.unsafe(
         `INSERT INTO public.signature_documents (
            id, canonical_lead_id, lead_group_id, title, document_type,
-           created_by_admin_id, expires_at
-         ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::uuid, $7::timestamptz)`,
+           created_by_admin_id, expires_at, routing_mode, requires_broker_signature
+         ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::uuid, $7::timestamptz,$8,$9)`,
         [
           input.documentId,
           input.canonicalLeadId ?? null,
@@ -367,6 +373,8 @@ export function createSignatureDomainServices({
           input.documentType,
           input.createdByAdminId,
           input.expiresAt ? iso(input.expiresAt) : null,
+          input.routingMode ?? "parallel",
+          input.requiresBrokerSignature ?? false,
         ]
       );
       const versions = await transaction.unsafe<{ id: string }>(
@@ -505,6 +513,7 @@ export function createSignatureDomainServices({
     phoneSnapshot?: string | null;
     role: string;
     routingOrder?: number | null;
+    isBrokerFinalSigner?: boolean;
     actorAdminId: string;
     idempotencyKey: string;
   }) {
@@ -523,8 +532,8 @@ export function createSignatureDomainServices({
       const participants = await transaction.unsafe<{ id: string }>(
         `INSERT INTO public.signature_participants (
            document_version_id, canonical_lead_id, name_snapshot,
-           email_snapshot, normalized_email, phone_snapshot, role, routing_order
-         ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)
+           email_snapshot, normalized_email, phone_snapshot, role, routing_order, is_broker_final_signer
+         ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9)
          RETURNING id::text`,
         [
           input.documentVersionId,
@@ -535,6 +544,7 @@ export function createSignatureDomainServices({
           input.phoneSnapshot ?? null,
           input.role,
           input.routingOrder ?? null,
+          input.isBrokerFinalSigner ?? false,
         ]
       );
       await appendEventInTransaction(transaction, {
@@ -1464,7 +1474,18 @@ export function createSignatureDomainServices({
           AND t.superseded_at IS NULL AND t.expires_at>$2::timestamptz
           AND t.purpose='sign_document'
           AND p.status IN ('invited','viewed','consented') AND d.status IN ('sent','viewed','partially_signed')
-          AND d.active_version_id=t.document_version_id`,
+          AND d.active_version_id=t.document_version_id
+          AND NOT EXISTS (
+            SELECT 1 FROM signature_participants earlier
+             WHERE earlier.document_version_id=p.document_version_id AND earlier.removed_at IS NULL
+               AND earlier.status NOT IN ('completed','revoked','expired','declined')
+               AND coalesce(earlier.routing_order,1)<coalesce(p.routing_order,1)
+          )
+          AND (NOT p.is_broker_final_signer OR NOT EXISTS (
+            SELECT 1 FROM signature_participants party
+             WHERE party.document_version_id=p.document_version_id AND party.removed_at IS NULL
+               AND NOT party.is_broker_final_signer AND party.status<>'completed'
+          ))`,
       [sha256SignatureValue(plaintextToken), iso(clock())]
     );
     return rows[0]
@@ -1730,6 +1751,34 @@ export function createSignatureDomainServices({
     const context = await getSessionContext(input);
     return database.begin(async (transaction) => {
       await assertActiveSessionInTransaction(transaction, input, context);
+      const completedAt = clock();
+      const dateParts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Puerto_Rico", year: "numeric", month: "2-digit", day: "2-digit",
+      }).formatToParts(completedAt);
+      const part = (type: Intl.DateTimeFormatPartTypes) => dateParts.find((item) => item.type === type)?.value ?? "";
+      const signedDate = `${part("year")}-${part("month")}-${part("day")}`;
+      const automaticFields = await transaction.unsafe<{ id: string }>(
+        `SELECT f.id::text FROM public.signature_fields f
+          WHERE f.participant_id=$1::uuid AND f.field_type='date_signed'
+            AND NOT EXISTS (SELECT 1 FROM public.signature_field_values fv WHERE fv.signature_field_id=f.id)
+          ORDER BY f.tab_order FOR UPDATE OF f`, [context.participantId]
+      );
+      for (const field of automaticFields) {
+        const valueSha256 = sha256SignatureValue(canonicalSignatureJson({ method:"date", value:signedDate }));
+        await transaction.unsafe(
+          `INSERT INTO public.signature_field_values(signature_field_id,participant_id,capture_method,
+             sanitized_typed_value,sanitized_value_payload,value_artifact_sha256,signer_session_id,submitted_at)
+           VALUES($1::uuid,$2::uuid,'system_date',$3,NULL,$4,$5::uuid,$6::timestamptz)`,
+          [field.id,context.participantId,signedDate,valueSha256,input.sessionId,iso(completedAt)]
+        );
+        await appendEventInTransaction(transaction, {
+          documentId:context.documentId,documentVersionId:context.documentVersionId,
+          participantId:context.participantId,sessionId:input.sessionId,eventType:"field_completed",
+          actorClass:"system",versionHash:context.sourceSha256,
+          controlledMetadata:{field_type:"date_signed",capture_method:"system_date",time_zone:"America/Puerto_Rico"},
+          idempotencyKey:derivedIdempotencyKey(input.idempotencyKey,`date_signed:${field.id}`),
+        });
+      }
       const missing = await transaction.unsafe<{ count: number }>(
         `SELECT count(*)::integer AS count FROM public.signature_fields f
           WHERE f.participant_id=$1::uuid AND f.required
@@ -1740,10 +1789,10 @@ export function createSignatureDomainServices({
       const updated = await transaction.unsafe<{ id: string }>(
         `UPDATE public.signature_participants SET status='completed', completed_at=$2::timestamptz
           WHERE id=$1::uuid AND status='consented' RETURNING id::text`,
-        [context.participantId, iso(clock())]
+        [context.participantId, iso(completedAt)]
       );
       if (!updated[0]) throw new Error("signature_participant_completion_rejected");
-      await transaction.unsafe(`UPDATE public.signature_sessions SET completed_at=$2::timestamptz WHERE id=$1::uuid AND completed_at IS NULL`, [input.sessionId, iso(clock())]);
+      await transaction.unsafe(`UPDATE public.signature_sessions SET completed_at=$2::timestamptz WHERE id=$1::uuid AND completed_at IS NULL`, [input.sessionId, iso(completedAt)]);
       await appendEventInTransaction(transaction, {
         documentId: context.documentId, documentVersionId: context.documentVersionId,
         participantId: context.participantId, sessionId: input.sessionId,
