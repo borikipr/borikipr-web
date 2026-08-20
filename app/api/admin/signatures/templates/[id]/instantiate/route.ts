@@ -8,7 +8,7 @@ import { sameSignerOrigin } from "@/lib/signatures/signer/origin";
 
 export const runtime="nodejs";export const dynamic="force-dynamic";
 
-function expiration(value:string){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))throw new Error("expiration_invalid");const date=new Date(`${value}T23:59:59-04:00`);if(date.getTime()<=Date.now())throw new Error("expiration_invalid");return date;}
+function expiration(value:string){if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value))throw new Error("expiration_invalid");const date=new Date(`${value}:00-04:00`);if(!Number.isFinite(date.getTime())||date.getTime()<=Date.now())throw new Error("expiration_invalid");return date;}
 
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){
   const session=await getAdminSession();if(!session||!sameSignerOrigin(request))return new Response(null,{status:404});
@@ -26,7 +26,7 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
         WHERE id=$1::uuid AND source_deleted_at IS NULL`,[template.sourceDocumentVersionId]);if(!source)throw new Error("template_source_missing");
     const bytes=await runtime.storage.getSource({key:source.source_r2_key,byteCount:source.byte_count,sourceSha256:source.source_sha256});
     const created=await runtime.drafts.createDraft({title:String(form.get("title")??template.name),documentType:template.documentType,
-      createdByAdminId:session.id,expiresAt:expiration(String(form.get("expiresOn")??"")),filename:source.filename_snapshot,
+      createdByAdminId:session.id,expiresAt:expiration(String(form.get("expiresAt")??"")),filename:source.filename_snapshot,
       mimeType:"application/pdf",bytes,routingMode:template.routingMode,requiresBrokerSignature:template.requiresBrokerSignature});
     await runtime.database.unsafe(`UPDATE signature_documents SET source_template_id=$2::uuid WHERE id=$1::uuid AND status='draft'`,[created.documentId,template.id]);
     const roleParticipants=new Map<string,string>();
