@@ -289,7 +289,7 @@ test("expiration and security boundaries are explicit", async () => {
   assert.doesNotMatch(deliverySql, /plaintext_token|signing_url|email_html/);
   assert.doesNotMatch(files[0] + files[1] + files[3] + files[4], /console\.|publicUrl|presign/i);
   assert.match(files[2], /EMAIL QUEUE PROCESSOR ERROR/);
-  assert.match(files[2], /isPublicSigningEnabled/); assert.match(files[3], /privatePdfResponse/); assert.match(files[4], /no-store/); assert.match(files[5], /private, no-store/);
+  assert.match(files[2], /isSignerRuntimeEnabled/); assert.match(files[3], /privatePdfResponse/); assert.match(files[4], /no-store/); assert.match(files[5], /private, no-store/);
   assert.doesNotMatch(files[0] + files[2], /setInterval|automaticReminder/);
   await assert.rejects(Promise.resolve().then(() => getCompletedArtifactDescriptor({ database, documentVersionId: randomUUID(), participantId: randomUUID(), kind: "document" })).then((value) => { assert.equal(value, null); throw new Error("expected-null"); }), /expected-null/);
 });

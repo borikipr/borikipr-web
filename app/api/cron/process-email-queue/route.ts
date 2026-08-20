@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { processPendingEmailQueue } from "@/lib/email-queue";
 import { recordCronHeartbeat } from "@/lib/operational-monitoring";
 import { queueMissingAvailabilityNotificationIntents } from "@/lib/property-availability-recovery";
-import { isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
 import { createSignatureDeliveryRuntime } from "@/lib/signatures/runtime";
 
 export const runtime = "nodejs";
@@ -23,7 +23,7 @@ async function handleEmailQueueRequest(req: Request) {
     const availabilityRecovery =
       await queueMissingAvailabilityNotificationIntents();
     const result = await processPendingEmailQueue();
-    const signatureDeliveries = isPublicSigningEnabled()
+    const signatureDeliveries = isSignerRuntimeEnabled()
       ? await createSignatureDeliveryRuntime().delivery.processPending(10)
       : { processed: 0, sent: 0, failed: 0, disabled: true };
     await recordCronHeartbeat("email_queue", "succeeded").catch(
