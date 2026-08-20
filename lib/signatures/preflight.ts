@@ -233,7 +233,7 @@ export async function persistSignatureReadinessSnapshot(input:{database:Signatur
   if(input.result.overallStatus!=="pass") throw new Error("signature_preflight_blocked");
   const [row]=await input.database.unsafe<{id:string}>(`INSERT INTO signature_readiness_snapshots
     (environment,authorization_type,overall_status,participant_emails,document_types,locales,snapshot,snapshot_sha256,created_by_admin_id)
-    VALUES ($1,$2,'pass',$3::text[],$4::text[],$5::text[],$6::jsonb,$7,$8::uuid) RETURNING id::text`,
+    VALUES ($1,$2,'pass',$3::text[],$4::text[],$5::text[],($6::text)::jsonb,$7,$8::uuid) RETURNING id::text`,
     [input.result.environment,input.result.authorizationType,[...input.result.participantEmails],[...input.result.documentTypes],[...input.result.locales],JSON.stringify(input.result.snapshot),input.result.readinessHash,input.actorAdminId]);
   return row;
 }

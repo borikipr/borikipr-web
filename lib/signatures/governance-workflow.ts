@@ -340,7 +340,7 @@ export function createSignatureGovernanceWorkflow(database: SignatureDatabase, c
         const [row]=await tx.unsafe<{id:string}>(`INSERT INTO signature_launch_authorizations
           (environment,authorization_type,readiness_snapshot_sha256,readiness_snapshot_id,notes,explicit_confirmation,
            authorized_by_admin_id,authorized_at,expires_at,authorized_participant_scope,authorized_participant_emails,authorized_document_types,authorized_locales,phase2o_legacy)
-          VALUES ('production','internal_canary',$1,$2::uuid,$3,true,$4::uuid,$5::timestamptz,$6::timestamptz,$7::jsonb,$8::text[],$9::text[],$10::text[],false)
+          VALUES ('production','internal_canary',$1,$2::uuid,$3,true,$4::uuid,$5::timestamptz,$6::timestamptz,($7::text)::jsonb,$8::text[],$9::text[],$10::text[],false)
           RETURNING id::text`,[preflight.readinessHash,snapshot.id,input.notes?.trim()||null,input.actorAdminId,preflight.evaluatedAt,
             input.expiresAt.toISOString(),JSON.stringify(preflight.participantIds),[...preflight.participantEmails],[...preflight.documentTypes],[...preflight.locales]]);
         await audit(tx,{entityType:"readiness_snapshot",entityId:snapshot.id,action:"created",actorAdminId:input.actorAdminId,
