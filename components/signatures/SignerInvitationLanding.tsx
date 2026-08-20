@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 export default function SignerInvitationLanding() {
-  const tokenInput = useRef<HTMLInputElement>(null);
-  const continueButton = useRef<HTMLButtonElement>(null);
   const fragmentProcessed = useRef(false);
+  const [token, setToken] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (fragmentProcessed.current) return;
@@ -16,9 +17,30 @@ export default function SignerInvitationLanding() {
       window.location.replace("/firmar/enlace-invalido");
       return;
     }
-    if (tokenInput.current) tokenInput.current.value = candidate;
-    if (continueButton.current) continueButton.current.disabled = false;
+    setToken(candidate);
   }, []);
+
+  async function exchangeInvitation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token || submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const response = await fetch(event.currentTarget.action, {
+        method: "POST",
+        body: new FormData(event.currentTarget),
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+      if (response.status !== 204) {
+        throw new Error("signature_exchange_rejected");
+      }
+      window.location.assign("/firmar/sesion");
+    } catch {
+      setError("No se pudo validar este enlace. Verifica que sea la invitación más reciente e intenta nuevamente.");
+      setSubmitting(false);
+    }
+  }
 
   return (
     <section className="mx-auto flex min-h-screen max-w-xl items-center px-5 py-12">
@@ -28,11 +50,12 @@ export default function SignerInvitationLanding() {
         <p className="mt-3 text-sm leading-6 text-slate-700">
           Continúa únicamente si esperabas recibir esta solicitud. El enlace se intercambia por una sesión privada al continuar.
         </p>
-        <form action="/api/signatures/session/exchange" method="post" className="mt-6">
-          <input ref={tokenInput} type="hidden" name="token" />
-          <button ref={continueButton} disabled className="w-full rounded-lg bg-slate-950 px-4 py-3 font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
-            Continuar de forma segura
+        <form action="/api/signatures/session/exchange" method="post" className="mt-6" onSubmit={exchangeInvitation}>
+          <input type="hidden" name="token" value={token} readOnly />
+          <button disabled={!token || submitting} className="w-full rounded-lg bg-slate-950 px-4 py-3 font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
+            {submitting ? "Validando enlace…" : "Continuar de forma segura"}
           </button>
+          {error ? <p role="alert" className="mt-3 text-sm leading-6 text-red-700">{error}</p> : null}
         </form>
       </div>
     </section>

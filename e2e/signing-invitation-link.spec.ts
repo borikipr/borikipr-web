@@ -6,16 +6,21 @@ test.describe("private signing invitation handoff", () => {
   test("fragment bearer is scrubbed and the exact mobile/desktop form reaches the signer UI", async ({ page }) => {
     const syntheticToken = "T".repeat(43);
     let exchanged = false;
-    await page.route("**/api/signatures/session/exchange", async (route) => {
-      const request = route.request();
-      expect(request.method()).toBe("POST");
-      expect(new URLSearchParams(request.postData() ?? "").get("token")).toBe(syntheticToken);
-      exchanged = true;
+    await page.route("**/firmar/sesion", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "text/html",
         body: "<main><h1>Documento listo para completar</h1></main>",
       });
+    });
+    await page.route("**/api/signatures/session/exchange", async (route) => {
+      const request = route.request();
+      expect(request.method()).toBe("POST");
+      expect(request.headers().origin).toBe(new URL(page.url()).origin);
+      expect(request.headers().accept).toContain("application/json");
+      expect(request.postData()).toContain(syntheticToken);
+      exchanged = true;
+      await route.fulfill({ status: 204 });
     });
 
     const response = await page.goto(`/firmar/invitacion#${syntheticToken}`);

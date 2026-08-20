@@ -38,7 +38,9 @@ export async function POST(request: Request) {
       networkAddress: clientIp,
       userAgent: request.headers.get("user-agent"),
     });
-    const response = NextResponse.redirect(new URL("/firmar/sesion", request.url), 303);
+    const response = request.headers.get("accept")?.includes("application/json")
+      ? new NextResponse(null, { status: 204 })
+      : NextResponse.redirect(new URL("/firmar/sesion", request.url), 303);
     // Remove cookies issued by the earlier /firmar-only scope before writing
     // the session cookie shared by signer pages and mutation routes.
     response.cookies.set(SIGNER_COOKIE_NAME, "", { path: "/firmar", maxAge: 0 });
