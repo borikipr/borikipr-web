@@ -30,6 +30,8 @@ export async function POST(request: Request) {
       sessionId: signer.sessionId, sessionSecret: signer.sessionSecret, csrfNonce,
       fieldId: String(form.get("fieldId") ?? ""), value, idempotencyKey: randomUUID(),
     });
-    return NextResponse.redirect(new URL("/firmar/sesion", request.url), 303);
+    return request.headers.get("accept")?.includes("application/json")
+      ? new Response(null, { status: 204 })
+      : NextResponse.redirect(new URL("/firmar/sesion", request.url), 303);
   } catch { return new Response(null, { status: 400 }); }
 }

@@ -7,6 +7,7 @@ import { SIGNER_CSRF_COOKIE_NAME } from "@/lib/signatures/signer/cookie";
 import { sha256SignatureValue } from "@/lib/signatures/domain/crypto";
 import SignerFieldForm from "./SignerFieldForm";
 import SignerDocumentViewer from "./SignerDocumentViewer";
+import SignerActionForm from "./SignerActionForm";
 
 export const dynamic = "force-dynamic";
 
@@ -45,13 +46,18 @@ export default async function SignerSessionPage() {
             <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{privacyText}</p>
             <p className="mt-2 text-xs text-slate-600">Versión: {view.privacy_disclosure_version}</p>
           </section>
-          <form action="/api/signatures/session/consent" method="post" className="rounded-xl border-2 border-amber-300 bg-amber-50 p-5">
+          <SignerActionForm
+            action="/api/signatures/session/consent"
+            destination="/firmar/sesion"
+            errorMessage="No se pudo registrar el consentimiento. Verifica que la sesión siga vigente e intenta nuevamente."
+            className="rounded-xl border-2 border-amber-300 bg-amber-50 p-5"
+          >
             <h2 className="font-semibold">Consentimiento electrónico</h2>
             <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{view.consent_text}</p>
             <p className="mt-2 text-xs text-slate-600">Versión: {signer.context.consentVersion}</p>
             <input type="hidden" name="csrf" value={csrf} />
             <button className="mt-4 rounded-lg bg-slate-950 px-4 py-2 text-white">Acepto expresamente y deseo continuar</button>
-          </form>
+          </SignerActionForm>
           </div>
         ) : (
           <>
@@ -61,10 +67,15 @@ export default async function SignerSessionPage() {
                 <li key={field.id}><SignerFieldForm field={field} csrf={csrf} /></li>
               ))}
             </ol>
-            <form action="/api/signatures/session/complete" method="post" className="mt-6">
+            <SignerActionForm
+              action="/api/signatures/session/complete"
+              destination="/firmar/completado"
+              errorMessage="No se pudo completar la participación. Revisa los campos e intenta nuevamente."
+              className="mt-6"
+            >
               <input type="hidden" name="csrf" value={csrf} />
               <button className="rounded-lg bg-emerald-700 px-5 py-3 font-semibold text-white">Completar mi participación</button>
-            </form>
+            </SignerActionForm>
           </>
         )}
       </section>

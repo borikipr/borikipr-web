@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import SignerActionForm from "./SignerActionForm";
 
 type Field = Readonly<{
   id: string;
@@ -109,7 +110,12 @@ export default function SignerFieldForm({ field, csrf }: { field: Field; csrf: s
   }
 
   return (
-    <form action="/api/signatures/session/field" method="post" className="rounded-lg border bg-white p-4">
+    <SignerActionForm
+      action="/api/signatures/session/field"
+      destination="/firmar/sesion"
+      errorMessage="No se pudo guardar el campo. Verifica que la sesión siga vigente e intenta nuevamente."
+      className="rounded-lg border bg-white p-4"
+    >
       <label className="font-medium">{field.label}{field.required ? " *" : ""}</label>
       <input type="hidden" name="csrf" value={csrf} />
       <input type="hidden" name="fieldId" value={field.id} />
@@ -150,6 +156,6 @@ export default function SignerFieldForm({ field, csrf }: { field: Field; csrf: s
         />
       )}
       <button className="mt-3 rounded bg-blue-700 px-4 py-2 text-white">Guardar campo</button>
-    </form>
+    </SignerActionForm>
   );
 }

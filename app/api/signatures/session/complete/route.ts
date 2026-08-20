@@ -24,7 +24,9 @@ export async function POST(request: Request) {
         documentVersionId:result.documentVersionId,locale:"es-PR",
       });
     }
-    const response = NextResponse.redirect(new URL("/firmar/completado", request.url), 303);
+    const response = request.headers.get("accept")?.includes("application/json")
+      ? new NextResponse(null, { status: 204 })
+      : NextResponse.redirect(new URL("/firmar/completado", request.url), 303);
     response.cookies.set(SIGNER_COOKIE_NAME, "", { path: SIGNER_COOKIE_PATH, maxAge: 0 });
     response.cookies.set(SIGNER_CSRF_COOKIE_NAME, "", { path: SIGNER_COOKIE_PATH, maxAge: 0 });
     return response;

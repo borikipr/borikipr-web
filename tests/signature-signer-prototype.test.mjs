@@ -428,6 +428,15 @@ test("signer routes enforce the server gate, same-origin POSTs, private headers,
   for (const route of [landing, exchange, consent, field, complete]) assert.match(route, /isSignerRuntimeEnabled/);
   assert.match(exchange, /sameSignerExchangeOrigin/);
   for (const route of [consent, field, complete]) assert.match(route, /sameSignerOrigin/);
+  for (const route of [consent, field, complete]) {
+    assert.match(route, /headers\.get\("accept"\)\?\.includes\("application\/json"\)/);
+    assert.match(route, /status: 204/);
+  }
+  const actionForm = await readFile(path.join(root, "app/firmar/sesion/SignerActionForm.tsx"), "utf8");
+  assert.match(actionForm, /event\.preventDefault\(\)/);
+  assert.match(actionForm, /credentials: "same-origin"/);
+  assert.match(actionForm, /headers: \{ Accept: "application\/json" \}/);
+  assert.match(actionForm, /window\.location\.assign\(destination\)/);
   assert.match(exchange, /checkRateLimit/); assert.match(exchange, /httpOnly: true/); assert.match(exchange, /sameSite: "strict"/);
   assert.match(exchange, /secure: !isolatedLocalDevelopment/); assert.match(exchange, /encodeSignerCookie\(session\.sessionId, session\.sessionSecret\)/);
   assert.doesNotMatch(exchange, /cookies\.set\([^\n]*token/i); assert.doesNotMatch(exchange, /export async function GET/);

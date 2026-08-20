@@ -17,6 +17,8 @@ export async function POST(request: Request) {
       consentTextSha256: context.consentTextSha256,
       locale: context.consentLocale, idempotencyKey: randomUUID(),
     });
-    return NextResponse.redirect(new URL("/firmar/sesion", request.url), 303);
+    return request.headers.get("accept")?.includes("application/json")
+      ? new Response(null, { status: 204 })
+      : NextResponse.redirect(new URL("/firmar/sesion", request.url), 303);
   } catch { return new Response(null, { status: 404 }); }
 }
