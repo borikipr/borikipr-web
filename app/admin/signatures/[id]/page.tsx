@@ -11,7 +11,7 @@ import { signatureEventLabel, signatureStatusLabel, signatureStatusTone } from "
 import { getSignatureDocumentTypeDefinition } from "@/lib/signatures/document-classification";
 import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/database";
 import { evaluateSignatureSendReadiness } from "@/lib/signatures/send-readiness";
-import { isInternalCanarySigningEnabled, isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { isInternalCanarySigningEnabled, isProductionInternalCanaryCapabilityEnabled, isPublicSigningEnabled } from "@/lib/signatures/public-config";
 import { isSignerAccessAuthorized } from "@/lib/signatures/canary-gate";
 import { getSignatureSecurityConfig } from "@/lib/signatures/config";
 import { inspectSignatureRetentionPolicy } from "@/lib/signatures/retention-policy";
@@ -32,7 +32,8 @@ export default async function SignatureDraftPage({params}:{params:Promise<{id:st
     evaluateSignaturePreflight({database,documentId:id,locales:["es-PR"],participantEmails:detail.participants.map((p)=>p.email),documentTypes:[detail.documentType],environment:"production",authorizationType:"internal_canary",authorizationExpiresAt:preflightExpiration}),
   ]);
   const scoped=detail.participants.length>0&&participantAuthorizations.every(Boolean);
-  const activationMode=isPublicSigningEnabled()&&scoped?"public":isInternalCanarySigningEnabled()&&scoped?"internal_canary":"disabled";
+  const internalCanaryEnabled=isInternalCanarySigningEnabled()||isProductionInternalCanaryCapabilityEnabled();
+  const activationMode=isPublicSigningEnabled()&&scoped?"public":internalCanaryEnabled&&scoped?"internal_canary":"disabled";
   const readiness=await evaluateSignatureSendReadiness({database,documentId:id,locale:"es-PR",publicSigningEnabled:activationMode!=="disabled",eventKeysConfigured:keysConfigured,retentionPolicyConfigured:Boolean(durableRetention)||inspectSignatureRetentionPolicy().configured,privacyDisclosureConfigured:Boolean(durablePrivacy)||inspectSignaturePrivacyDisclosure().configured});
 
   return <AdminPageShell>
