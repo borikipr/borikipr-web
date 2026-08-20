@@ -201,6 +201,17 @@ if (!process.env.DATABASE_URL) {
             AND EXISTS (SELECT 1 FROM information_schema.columns
               WHERE table_schema='public' AND table_name='signature_participants'
               AND column_name='is_broker_final_signer') AS v0035
+          ,NOT EXISTS (
+              SELECT 1 FROM pg_constraint
+              WHERE conrelid='public.signature_document_type_approvals'::regclass
+                AND conname='signature_type_approvals_time_check'
+                AND pg_get_constraintdef(oid) LIKE '%effective_from%'
+            ) AND NOT EXISTS (
+              SELECT 1 FROM pg_constraint
+              WHERE conrelid='public.signature_consent_versions'::regclass
+                AND conname='signature_consent_versions_time_check'
+                AND pg_get_constraintdef(oid) LIKE '%effective_from%'
+            ) AS v0036
       )
       SELECT * FROM facts
     `;

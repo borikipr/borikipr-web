@@ -127,10 +127,14 @@ async function main(){
     for(const item of [{documentType:"ordinary_offer_or_contract",displayName:"Ofertas y contratos ordinarios de compraventa — flujo pre-cierre"},
       {documentType:"transaction_acknowledgment",displayName:"Formularios informativos, autorizaciones y acuses de transacción"}]){
       const [approved]=await database.unsafe<{id:string}>(`SELECT id::text FROM signature_document_type_approvals WHERE document_type=$1 AND status='approved' AND approval_reference='ERE-SIGN-INITIAL-APPROVAL-2026-08-13'`,[item.documentType]);
-      if(!approved){const draft=await workflow.createClassificationDraft({documentType:item.documentType,displayName:item.displayName,
-        description:"Documento operacional ordinario de corretaje utilizado por Erickson Real Estate antes del cierre.",
-        permittedSigningUse:"Uso en el flujo de corretaje. Excluye escrituras, instrumentos notariales y documentos de cierre que requieran formalidades externas.",actorAdminId:ivonne.id});
-        await workflow.submitClassification({id:draft.id,actorAdminId:ivonne.id});await workflow.approveClassification({id:draft.id,approvalMode:"internal_business",
+      if(!approved){
+        let [candidate]=await database.unsafe<{id:string;status:string}>(`SELECT id::text,status FROM signature_document_type_approvals
+          WHERE document_type=$1 AND display_name=$2 AND status IN ('draft','pending') ORDER BY version_number DESC LIMIT 1`,[item.documentType,item.displayName]);
+        if(!candidate){const created=await workflow.createClassificationDraft({documentType:item.documentType,displayName:item.displayName,
+          description:"Documento operacional ordinario de corretaje utilizado por Erickson Real Estate antes del cierre.",
+          permittedSigningUse:"Uso en el flujo de corretaje. Excluye escrituras, instrumentos notariales y documentos de cierre que requieran formalidades externas.",actorAdminId:ivonne.id});candidate={id:created.id,status:'draft'};}
+        if(candidate.status==='draft')await workflow.submitClassification({id:candidate.id,actorAdminId:ivonne.id});
+        await workflow.approveClassification({id:candidate.id,approvalMode:"internal_business",
           approvalReference:"ERE-SIGN-INITIAL-APPROVAL-2026-08-13",approverRole:"Corredora principal",approvalDate:"2026-08-13",effectiveFrom,
           notes:"Aprobación operacional interna; no constituye asesoría legal ni autorización de instrumentos notariales o de cierre.",actorAdminId:ivonne.id,
           confirmationPhrase:GOVERNANCE_APPROVAL_PHRASE,immutableAcknowledged:true});}

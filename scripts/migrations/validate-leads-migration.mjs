@@ -1992,6 +1992,12 @@ const signatureProductizationMigrationSql = await readMigration(
 const signatureProductizationRollbackSql = await readMigration(
   "0035_productize_boriki_sign.rollback.sql"
 );
+const signatureHistoricalGovernanceDatesMigrationSql = await readMigration(
+  "0036_allow_historical_governance_effective_dates.sql"
+);
+const signatureHistoricalGovernanceDatesRollbackSql = await readMigration(
+  "0036_allow_historical_governance_effective_dates.rollback.sql"
+);
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -2295,6 +2301,14 @@ try {
     EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='signature_participants' AND column_name='is_broker_final_signer') broker_final,
     EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='signature_participants_broker_final_routing_trigger') broker_route_guard`);
   assert.deepEqual(catalog.rows,[{templates:'signature_templates',settings:'signature_signing_settings',routing:true,broker_final:true,broker_route_guard:true}]);
+  await signatureProductizationDb.exec(signatureHistoricalGovernanceDatesMigrationSql);
+  const historicalDates=await signatureProductizationDb.query(`SELECT
+    pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid='signature_document_type_approvals'::regclass AND conname='signature_type_approvals_time_check')) classification_time,
+    pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid='signature_consent_versions'::regclass AND conname='signature_consent_versions_time_check')) consent_time`);
+  assert.equal(historicalDates.rows[0].classification_time.includes('effective_from'),false);
+  assert.equal(historicalDates.rows[0].consent_time.includes('effective_from'),false);
+  assert.match(signatureHistoricalGovernanceDatesRollbackSql,/0036 rollback is intentionally blocked/);
   await assert.rejects(signatureProductizationDb.exec(signatureProductizationRollbackSql),/0035 rollback is intentionally blocked/);
   console.log("Validated Borikí Sign productization migration 0035 and rollback guard.");
+  console.log("Validated historical governance effective dates migration 0036 and rollback guard.");
 } finally { await signatureProductizationDb.close(); }
