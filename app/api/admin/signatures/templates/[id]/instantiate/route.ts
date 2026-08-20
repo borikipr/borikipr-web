@@ -16,9 +16,11 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   try{
     const {id}=await params;const form=await request.formData();const runtime=createSignatureDraftRuntime();
     const product=createSignatureProductRepository(runtime.database);const template=await product.template(id);if(!template)return new Response(null,{status:404});
-    const roleInputs=template.roles.filter((role)=>!role.isBrokerFinalSigner).map((blueprintRole)=>({blueprintRole,participant:parseSignatureParticipantDraft({
-      name:String(form.get(`name:${blueprintRole.key}`)??""),email:String(form.get(`email:${blueprintRole.key}`)??""),role:blueprintRole.role,routingOrder:String(blueprintRole.routingOrder??1),
-    })}));
+    const roleInputs=template.roles.filter((role)=>!role.isBrokerFinalSigner).flatMap((blueprintRole)=>{
+      const name=String(form.get(`name:${blueprintRole.key}`)??"").trim();const email=String(form.get(`email:${blueprintRole.key}`)??"").trim();
+      if(blueprintRole.optional&&!name&&!email)return [];
+      return [{blueprintRole,participant:parseSignatureParticipantDraft({name,email,role:blueprintRole.role,routingOrder:String(blueprintRole.routingOrder??1)})}];
+    });
     const [source]=await runtime.database.unsafe<{source_r2_key:string;filename_snapshot:string;byte_count:number;source_sha256:string}>(
       `SELECT source_r2_key,filename_snapshot,byte_count::integer,source_sha256 FROM signature_document_versions
         WHERE id=$1::uuid AND source_deleted_at IS NULL`,[template.sourceDocumentVersionId]);if(!source)throw new Error("template_source_missing");
@@ -31,10 +33,15 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
     for(const item of roleInputs){const added=await runtime.domain.addParticipant({documentVersionId:created.documentVersionId,
       nameSnapshot:item.participant.name,emailSnapshot:item.participant.email,role:item.participant.role,routingOrder:item.participant.routingOrder,
       actorAdminId:session.id,idempotencyKey:randomUUID()});roleParticipants.set(item.blueprintRole.key,added.participantId);}
-    const detail=await createSignatureAdminRepository(runtime.database).detail(created.documentId);
-    const broker=detail?.participants.find((participant)=>participant.isBrokerFinalSigner);
+    let detail=await createSignatureAdminRepository(runtime.database).detail(created.documentId);
+    let broker=detail?.participants.find((participant)=>participant.isBrokerFinalSigner);
+    if(broker){const finalOrder=Math.max(0,...roleInputs.map((item)=>item.participant.routingOrder??1))+1;
+      if(broker.routingOrder!==finalOrder){await runtime.domain.updateParticipant({participantId:broker.id,nameSnapshot:broker.name,
+        emailSnapshot:broker.email,role:broker.role,routingOrder:finalOrder,actorAdminId:session.id,idempotencyKey:randomUUID()});
+        detail=await createSignatureAdminRepository(runtime.database).detail(created.documentId);broker=detail?.participants.find((participant)=>participant.isBrokerFinalSigner);}}
     for(const role of template.roles)if(role.isBrokerFinalSigner&&broker)roleParticipants.set(role.key,broker.id);
-    for(const field of template.fields){const participantId=roleParticipants.get(field.ownerRoleKey);if(!participantId)throw new Error("template_role_mapping_missing");
+    for(const field of template.fields){const participantId=roleParticipants.get(field.ownerRoleKey);const ownerRole=template.roles.find((role)=>role.key===field.ownerRoleKey);
+      if(!participantId&&ownerRole?.optional)continue;if(!participantId)throw new Error("template_role_mapping_missing");
       await runtime.domain.addField({documentVersionId:created.documentVersionId,participantId,fieldType:field.fieldType,pageIndex:field.pageIndex,
         rect:{x:field.x,y:field.y,width:field.width,height:field.height},pageGeometryReference:field.pageGeometryReference,
         label:field.label,required:field.required,tabOrder:field.tabOrder,validationLimits:field.validationLimits,

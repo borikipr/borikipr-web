@@ -22,7 +22,7 @@ import { inspectSignaturePrivacyDisclosure } from "@/lib/signatures/privacy-disc
 import { loadActivePrivacyDisclosure, loadActiveRetentionPolicy } from "@/lib/signatures/governance-config";
 import { parseSignatureParticipantDraft, SignatureParticipantAdminValidationError } from "@/lib/signatures/admin-participant";
 import { createSignatureDraftLifecycleService } from "@/lib/signatures/draft-lifecycle";
-import { buildTemplateBlueprint,templateSnapshotSha256 } from "@/lib/signatures/productization";
+import { buildTemplateBlueprint,createSignatureProductRepository } from "@/lib/signatures/productization";
 
 export type SignatureAdminActionState = Readonly<{
   ok: boolean;
@@ -499,15 +499,12 @@ export async function saveSignatureTemplateAction(
     const runtime=createSignatureRuntime();const detail=await createSignatureAdminRepository(runtime.database).detail(documentId);
     if(!detail||detail.version.sourceDeleted||!detail.participants.length||!detail.fields.length)throw new Error("template_source_invalid");
     const name=value(formData,"name").trim();if(!name||name.length>200)throw new Error("template_name_invalid");
-    const blueprint=buildTemplateBlueprint(detail);const snapshot={name,documentType:detail.documentType,sourceDocumentVersionId:detail.version.id,
-      locale:"es-PR",routingMode:detail.routingMode,requiresBrokerSignature:detail.requiresBrokerSignature,...blueprint};
-    const [created]=await runtime.database.unsafe<{id:string}>(`INSERT INTO signature_templates(name,description,document_type,source_document_version_id,
-      locale,routing_mode,requires_broker_signature,role_blueprint,field_blueprint,snapshot_sha256,created_by_admin_id)
-      VALUES($1,$2,$3,$4::uuid,'es-PR',$5,$6,$7::text::jsonb,$8::text::jsonb,$9,$10::uuid) RETURNING id::text`,
-      [name,value(formData,"description")||null,detail.documentType,detail.version.id,detail.routingMode,detail.requiresBrokerSignature,
-        JSON.stringify(blueprint.roles),JSON.stringify(blueprint.fields),templateSnapshotSha256(snapshot),session.id]);
-    await runtime.database.unsafe(`INSERT INTO signature_governance_events(entity_type,entity_id,action,actor_admin_id,snapshot_sha256,previous_state,new_state,idempotency_key)
-      VALUES('signature_template',$1::uuid,'created',$2::uuid,$3,NULL,'active',$4::uuid)`,[created.id,session.id,templateSnapshotSha256(snapshot),randomUUID()]);
+    const optionalParticipantIds=new Set(formData.getAll("optionalParticipantId").map(String));
+    if([...optionalParticipantIds].some((id)=>!detail.participants.some((participant)=>participant.id===id&&!participant.isBrokerFinalSigner)))throw new Error("template_optional_role_invalid");
+    const blueprint=buildTemplateBlueprint(detail,{optionalParticipantIds});
+    await createSignatureProductRepository(runtime.database).createTemplate({name,description:value(formData,"description")||null,
+      documentType:detail.documentType,sourceDocumentVersionId:detail.version.id,locale:"es-PR",routingMode:detail.routingMode,
+      requiresBrokerSignature:detail.requiresBrokerSignature,roles:blueprint.roles,fields:blueprint.fields,actorAdminId:session.id});
     revalidatePath("/admin/signatures/plantillas");return{ok:true,message:"Plantilla guardada sin firmas, valores ni accesos anteriores."};
   }catch{return{ok:false,message:"No se pudo guardar la plantilla. Revisa que el borrador tenga roles y campos."};}
 }

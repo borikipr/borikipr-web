@@ -8,16 +8,17 @@ export type SignatureTemplateBlueprint = Readonly<{
   id:string;name:string;description:string|null;documentType:string;locale:"es-PR"|"en-US";
   routingMode:"parallel"|"sequential"|"grouped";requiresBrokerSignature:boolean;
   sourceDocumentVersionId:string;
-  roles:readonly Readonly<{key:string;role:string;routingOrder:number|null;isBrokerFinalSigner:boolean}>[];
+  roles:readonly Readonly<{key:string;role:string;routingOrder:number|null;isBrokerFinalSigner:boolean;optional?:boolean}>[];
   fields:readonly Readonly<{ownerRoleKey:string;fieldType:"signature"|"initials"|"date"|"date_signed"|"text";
     pageIndex:number;x:number;y:number;width:number;height:number;pageGeometryReference:unknown;
     label:string;required:boolean;tabOrder:number;validationLimits:Record<string,number>}>[];
 }>;
 
-export function buildTemplateBlueprint(detail:SignatureDraftDetail) {
+export function buildTemplateBlueprint(detail:SignatureDraftDetail,input?:{optionalParticipantIds?:ReadonlySet<string>}) {
   const roles=detail.participants.map((participant,index)=>({
     key:`role-${index+1}`,role:participant.role,routingOrder:participant.routingOrder,
     isBrokerFinalSigner:participant.isBrokerFinalSigner,
+    optional:participant.isBrokerFinalSigner?false:Boolean(input?.optionalParticipantIds?.has(participant.id)),
   }));
   const participantKeys=new Map(detail.participants.map((participant,index)=>[participant.id,roles[index].key]));
   const fields=detail.fields.map((field)=>({
@@ -66,6 +67,25 @@ export function createSignatureProductRepository(database:SignatureDatabase) {
           VALUES('signing_settings',$1::uuid,'updated',$2::uuid,$3,'previous_configuration','broker_final_configured',$4::uuid)`,
           [admin.id,input.actorAdminId,snapshot,randomUUID()]);
         return {configured:true as const};
+      });
+    },
+    async createTemplate(input:{name:string;description?:string|null;documentType:string;locale:"es-PR"|"en-US";
+      routingMode:"parallel"|"sequential"|"grouped";requiresBrokerSignature:boolean;sourceDocumentVersionId:string;
+      roles:SignatureTemplateBlueprint["roles"];fields:SignatureTemplateBlueprint["fields"];actorAdminId:string}) {
+      const name=input.name.normalize("NFC").trim();const description=input.description?.normalize("NFC").trim()||null;
+      if(!name||name.length>200||description&&description.length>500||!input.roles.length||!input.fields.length)throw new Error("signature_template_invalid");
+      const snapshot={name,description,documentType:input.documentType,sourceDocumentVersionId:input.sourceDocumentVersionId,
+        locale:input.locale,routingMode:input.routingMode,requiresBrokerSignature:input.requiresBrokerSignature,roles:input.roles,fields:input.fields};
+      return database.begin(async(tx)=>{
+        const [created]=await tx.unsafe<{id:string}>(`INSERT INTO signature_templates(name,description,document_type,source_document_version_id,
+          locale,routing_mode,requires_broker_signature,role_blueprint,field_blueprint,snapshot_sha256,created_by_admin_id)
+          VALUES($1,$2,$3,$4::uuid,$5,$6,$7,$8::text::jsonb,$9::text::jsonb,$10,$11::uuid) RETURNING id::text`,
+          [name,description,input.documentType,input.sourceDocumentVersionId,input.locale,input.routingMode,input.requiresBrokerSignature,
+            JSON.stringify(input.roles),JSON.stringify(input.fields),templateSnapshotSha256(snapshot),input.actorAdminId]);
+        await tx.unsafe(`INSERT INTO signature_governance_events(entity_type,entity_id,action,actor_admin_id,snapshot_sha256,previous_state,new_state,idempotency_key)
+          VALUES('signature_template',$1::uuid,'created',$2::uuid,$3,NULL,'active',$4::uuid)`,
+          [created.id,input.actorAdminId,templateSnapshotSha256(snapshot),randomUUID()]);
+        return created;
       });
     },
     async templates(status="active") {
