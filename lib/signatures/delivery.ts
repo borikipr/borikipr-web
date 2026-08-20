@@ -170,7 +170,7 @@ export function createSignatureDeliveryService(input: {
       `UPDATE public.signature_delivery_intents SET token_id=$2::uuid WHERE id=$1::uuid AND locked_by=$3::uuid`,
       [intentId, token.tokenId, workerId]
     );
-    const path = claimed.delivery_kind === "invitation" ? `/firmar/${token.plaintextToken}` : `/firmar/completado/${token.plaintextToken}`;
+    const path = claimed.delivery_kind === "invitation" ? `/firmar/invitacion#${token.plaintextToken}` : `/firmar/completado/${token.plaintextToken}`;
     const url = `${origin}${path}`;
     const message = claimed.delivery_kind === "invitation"
       ? renderSignatureInvitation({ locale: claimed.locale, documentTitle: claimed.title,

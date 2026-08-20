@@ -13,7 +13,7 @@ import { isPublicSigningEnabled } from "../lib/signatures/public-config.ts";
 import { shouldExcludeAnalyticsPath } from "../lib/analytics-routes.ts";
 import { normalizeSignerCapture } from "../lib/signatures/signer/capture.ts";
 import { SIGNER_COOKIE_PATH } from "../lib/signatures/signer/cookie.ts";
-import { isIsolatedLocalSignerRequest, sameSignerOrigin } from "../lib/signatures/signer/origin.ts";
+import { isIsolatedLocalSignerRequest, sameSignerExchangeOrigin, sameSignerOrigin } from "../lib/signatures/signer/origin.ts";
 
 const root = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const [foundationSql, signerSql, deliverySql, privacyBindingSql, privacyHistorySql, sourceBytes] = await Promise.all([
@@ -168,6 +168,29 @@ test("signer origin and cookie scope support API mutations without weakening pro
     else process.env.NODE_ENV = originalNodeEnv;
     if (originalIsolated === undefined) delete process.env.SIGNING_ISOLATED_ENVIRONMENT;
     else process.env.SIGNING_ISOLATED_ENVIRONMENT = originalIsolated;
+  }
+});
+
+test("one-time exchange accepts browser-proven same-origin mobile navigation while session mutations remain strict", () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  try {
+    process.env.NODE_ENV = "production";
+    const exchangeUrl = "https://borikipr.com/api/signatures/session/exchange";
+    const mobileNavigation = new Request(exchangeUrl, { method: "POST", headers: {
+      "sec-fetch-site": "same-origin", "sec-fetch-mode": "navigate", "sec-fetch-dest": "document",
+    }});
+    assert.equal(sameSignerOrigin(mobileNavigation), false);
+    assert.equal(sameSignerExchangeOrigin(mobileNavigation), true);
+    assert.equal(sameSignerExchangeOrigin(new Request(exchangeUrl, { method: "POST", headers: {
+      "sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate", "sec-fetch-dest": "document",
+    }})), false);
+    assert.equal(sameSignerExchangeOrigin(new Request(exchangeUrl, { method: "POST", headers: {
+      "sec-fetch-site": "same-origin", "sec-fetch-mode": "navigate", "sec-fetch-dest": "document",
+      referer: "https://attacker.invalid/form",
+    }})), false);
+  } finally {
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
   }
 });
 
@@ -403,7 +426,8 @@ test("signer routes enforce the server gate, same-origin POSTs, private headers,
     readFile(path.join(root, "lib/signatures/storage.ts"), "utf8"),
   ]);
   for (const route of [landing, exchange, consent, field, complete]) assert.match(route, /isSignerRuntimeEnabled/);
-  for (const route of [exchange, consent, field, complete]) assert.match(route, /sameSignerOrigin/);
+  assert.match(exchange, /sameSignerExchangeOrigin/);
+  for (const route of [consent, field, complete]) assert.match(route, /sameSignerOrigin/);
   assert.match(exchange, /checkRateLimit/); assert.match(exchange, /httpOnly: true/); assert.match(exchange, /sameSite: "strict"/);
   assert.match(exchange, /secure: !isolatedLocalDevelopment/); assert.match(exchange, /encodeSignerCookie\(session\.sessionId, session\.sessionSecret\)/);
   assert.doesNotMatch(exchange, /cookies\.set\([^\n]*token/i); assert.doesNotMatch(exchange, /export async function GET/);

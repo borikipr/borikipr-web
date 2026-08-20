@@ -91,7 +91,7 @@ test("token is created only at delivery and never persisted in intent/html", asy
   assert.equal(first.intentId, duplicate.intentId); assert.equal(duplicate.created, false);
   assert.equal((await db.query(`SELECT token_id FROM public.signature_delivery_intents WHERE id=$1`, [first.intentId])).rows[0].token_id, null);
   assert.deepEqual(await delivery.deliverIntent(first.intentId), { status: "sent" });
-  const token = sentMessages[0].html.match(/\/firmar\/([A-Za-z0-9_-]{43})/)[1];
+  const token = sentMessages[0].html.match(/\/firmar\/invitacion#([A-Za-z0-9_-]{43})/)[1];
   const stored = (await db.query(`SELECT to_jsonb(di)::text AS body, t.token_digest FROM public.signature_delivery_intents di JOIN public.signature_signing_tokens t ON t.id=di.token_id WHERE di.id=$1`, [first.intentId])).rows[0];
   assert.match(stored.token_digest, /^[0-9a-f]{64}$/); assert.doesNotMatch(stored.body, new RegExp(token)); assert.doesNotMatch(stored.body, /\/firmar\//);
 });
@@ -107,7 +107,7 @@ test("routing releases one group at a time and completion records Fecha de firma
   await domain.prepareDocumentForSend({documentId:value.documentId,actorAdminId:adminId,idempotencyKey:randomUUID(),locale:"es-PR",publicSigningEnabled:true,privacyDisclosure:syntheticPrivacyDisclosure});
   assert.equal((await delivery.releaseNextRoutingGroup({documentVersionId:value.documentVersionId})).released,1);
   let intents=(await db.query(`SELECT id::text,participant_id::text FROM signature_delivery_intents ORDER BY created_at`)).rows;assert.equal(intents.length,1);assert.equal(intents[0].participant_id,value.participantId);
-  await delivery.deliverIntent(intents[0].id);const token=sentMessages[0].html.match(/\/firmar\/([A-Za-z0-9_-]{43})/)[1];const session=await domain.redeemSigningToken({plaintextToken:token,idempotencyKey:randomUUID()});const context=await domain.getSessionContext({sessionId:session.sessionId,sessionSecret:session.sessionSecret});
+  await delivery.deliverIntent(intents[0].id);const token=sentMessages[0].html.match(/\/firmar\/invitacion#([A-Za-z0-9_-]{43})/)[1];const session=await domain.redeemSigningToken({plaintextToken:token,idempotencyKey:randomUUID()});const context=await domain.getSessionContext({sessionId:session.sessionId,sessionSecret:session.sessionSecret});
   await domain.acceptSignerConsent({sessionId:session.sessionId,sessionSecret:session.sessionSecret,csrfNonce:session.csrfNonce,consentVersion:context.consentVersion,consentTextSha256:context.consentTextSha256,locale:context.consentLocale,idempotencyKey:randomUUID()});
   await domain.submitSignerField({sessionId:session.sessionId,sessionSecret:session.sessionSecret,csrfNonce:session.csrfNonce,fieldId:value.fieldId,value:{method:"typed",value:"Synthetic Participant"},idempotencyKey:randomUUID()});
   assert.equal((await domain.completeSignerParticipant({sessionId:session.sessionId,sessionSecret:session.sessionSecret,csrfNonce:session.csrfNonce,idempotencyKey:randomUUID()})).allParticipantsCompleted,false);
@@ -118,7 +118,7 @@ test("routing releases one group at a time and completion records Fecha de firma
 test("resend supersedes the old link and is race-idempotent", async () => {
   const { value } = await prepared();
   const first = await delivery.createIntent({ participantId: value.participantId, documentVersionId: value.documentVersionId, locale: "es-PR", actorAdminId: adminId, idempotencyKey: randomUUID() });
-  await delivery.deliverIntent(first.intentId); const old = sentMessages[0].html.match(/\/firmar\/([A-Za-z0-9_-]{43})/)[1]; const key = randomUUID();
+  await delivery.deliverIntent(first.intentId); const old = sentMessages[0].html.match(/\/firmar\/invitacion#([A-Za-z0-9_-]{43})/)[1]; const key = randomUUID();
   const attempts = await Promise.all([0, 1].map(() => delivery.reissueInvitation({ participantId: value.participantId, documentVersionId: value.documentVersionId, locale: "es-PR", actorAdminId: adminId, idempotencyKey: key })));
   assert.equal(attempts[0].intentId, attempts[1].intentId); assert.equal((await domain.inspectSigningToken(old)).eligible, false);
   assert.equal((await db.query(`SELECT count(*)::int AS count FROM public.signature_delivery_intents`)).rows[0].count, 2);
@@ -165,7 +165,7 @@ test("void requires a reason and atomically revokes access without mutating comp
     documentVersionId: value.documentVersionId, locale: "es-PR", actorAdminId: adminId,
     idempotencyKey: randomUUID() });
   await delivery.deliverIntent(first.intentId);
-  const token = sentMessages[0].html.match(/\/firmar\/([A-Za-z0-9_-]{43})/)[1];
+  const token = sentMessages[0].html.match(/\/firmar\/invitacion#([A-Za-z0-9_-]{43})/)[1];
   await domain.redeemSigningToken({ plaintextToken: token, idempotencyKey: randomUUID() });
   await delivery.reissueInvitation({ participantId: value.participantId,
     documentVersionId: value.documentVersionId, locale: "es-PR", actorAdminId: adminId,
@@ -193,7 +193,7 @@ test("void requires a reason and atomically revokes access without mutating comp
 test("synthetic invitation signs, finalizes, and yields participant-bound private completion access", async () => {
   const { value } = await prepared();
   const intent = await delivery.createIntent({ participantId: value.participantId, documentVersionId: value.documentVersionId, locale: "es-PR", actorAdminId: adminId, idempotencyKey: randomUUID() });
-  await delivery.deliverIntent(intent.intentId); const token = sentMessages[0].html.match(/\/firmar\/([A-Za-z0-9_-]{43})/)[1];
+  await delivery.deliverIntent(intent.intentId); const token = sentMessages[0].html.match(/\/firmar\/invitacion#([A-Za-z0-9_-]{43})/)[1];
   const session = await domain.redeemSigningToken({ plaintextToken: token, idempotencyKey: randomUUID() });
   const context = await domain.getSessionContext({ sessionId: session.sessionId, sessionSecret: session.sessionSecret });
   await domain.acceptSignerConsent({ sessionId: session.sessionId, sessionSecret: session.sessionSecret, csrfNonce: session.csrfNonce, consentVersion: context.consentVersion, consentTextSha256: context.consentTextSha256, locale: context.consentLocale, idempotencyKey: randomUUID() });
@@ -251,7 +251,7 @@ test("browser-equivalent 25-page 100-field multi-participant state finalizes aft
     const intent = await delivery.createIntent({ participantId, documentVersionId: value.documentVersionId,
       locale: "es-PR", actorAdminId: adminId, idempotencyKey: randomUUID() });
     await delivery.deliverIntent(intent.intentId);
-    const token = sentMessages.at(-1).html.match(/\/firmar\/([A-Za-z0-9_-]{43})/)[1];
+    const token = sentMessages.at(-1).html.match(/\/firmar\/invitacion#([A-Za-z0-9_-]{43})/)[1];
     const session = await domain.redeemSigningToken({ plaintextToken: token, idempotencyKey: randomUUID() });
     const context = await domain.getSessionContext({ sessionId: session.sessionId, sessionSecret: session.sessionSecret });
     await domain.acceptSignerConsent({ sessionId: session.sessionId, sessionSecret: session.sessionSecret,

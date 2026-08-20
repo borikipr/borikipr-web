@@ -26,3 +26,18 @@ export function sameSignerOrigin(request: Request) {
   }
   try { return new URL(origin).origin === new URL(request.url).origin; } catch { return false; }
 }
+
+// Some mobile in-app browsers omit Origin on a top-level, same-origin form POST.
+// This fallback is intentionally limited to the one-time token exchange. Browser-
+// controlled Fetch Metadata must still prove a same-origin document navigation;
+// all established-session mutations continue to require sameSignerOrigin + CSRF.
+export function sameSignerExchangeOrigin(request: Request) {
+  if (sameSignerOrigin(request)) return true;
+  if (request.headers.get("origin")) return false;
+  if (request.headers.get("sec-fetch-site") !== "same-origin" ||
+      request.headers.get("sec-fetch-mode") !== "navigate" ||
+      request.headers.get("sec-fetch-dest") !== "document") return false;
+  const referer = request.headers.get("referer");
+  if (!referer) return true;
+  try { return new URL(referer).origin === new URL(request.url).origin; } catch { return false; }
+}

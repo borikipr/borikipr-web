@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { createSignatureDomainRuntime } from "../runtime";
 import { parseSignerCookie, SIGNER_COOKIE_NAME } from "./cookie";
 import { assertSignerAccessAuthorized } from "../canary-gate";
-export { isIsolatedLocalSignerRequest, sameSignerOrigin } from "./origin";
+export { isIsolatedLocalSignerRequest, sameSignerExchangeOrigin, sameSignerOrigin } from "./origin";
 
 export async function requireSignerRequestContext(options?: { csrfNonce?: string; touch?: boolean }) {
   const cookieValue = (await cookies()).get(SIGNER_COOKIE_NAME)?.value;

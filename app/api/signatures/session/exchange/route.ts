@@ -12,7 +12,7 @@ import {
 } from "@/lib/signatures/signer/cookie";
 import {
   isIsolatedLocalSignerRequest,
-  sameSignerOrigin,
+  sameSignerExchangeOrigin,
 } from "@/lib/signatures/signer/request";
 
 export const runtime = "nodejs";
@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const isolatedLocalDevelopment = isIsolatedLocalSignerRequest(request);
   if (!isSignerRuntimeEnabled()) return new Response(null, { status: 404 });
-  if (!sameSignerOrigin(request)) return new Response(null, { status: 404 });
+  if (!sameSignerExchangeOrigin(request)) return new Response(null, { status: 404 });
   const form = await request.formData().catch(() => null);
   const token = String(form?.get("token") ?? "");
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return new Response(null, { status: 404 });
