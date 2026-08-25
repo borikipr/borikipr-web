@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { sql } from "@/lib/db";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { PUBLIC_TESTIMONIALS_CACHE_TAG } from "@/lib/queries/testimonios";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import { syncTestimonialTranslationIntent } from "@/lib/i18n/translations/source-intents";
 import { invalidateEnglishPublicTranslationPaths } from "@/lib/i18n/translations/public-revalidation";
@@ -19,6 +20,10 @@ async function revalidateEnglishTestimonial(testimonialId: string) {
       errorClass: error instanceof Error ? error.name : "UnknownError",
     });
   }
+}
+
+function revalidatePublicTestimonials() {
+  revalidateTag(PUBLIC_TESTIMONIALS_CACHE_TAG, "max");
 }
 
 export type CreateTestimonioState = {
@@ -111,6 +116,7 @@ export async function createTestimonioAction(
     });
 
     revalidatePath("/admin/testimonios");
+    revalidatePublicTestimonials();
     revalidatePath("/");
     revalidatePath("/testimonios");
     await revalidateEnglishTestimonial(insertadoId);
@@ -203,6 +209,7 @@ export async function updateTestimonioAction(
     }
 
     revalidatePath("/admin/testimonios");
+    revalidatePublicTestimonials();
     revalidatePath(`/admin/testimonios/${id}/editar`);
     revalidatePath("/");
     revalidatePath("/testimonios");
@@ -232,6 +239,7 @@ export async function updateTestimonioActivoAction(formData: FormData) {
   `;
 
   revalidatePath("/admin/testimonios");
+  revalidatePublicTestimonials();
   revalidatePath("/");
   revalidatePath("/testimonios");
 
@@ -258,6 +266,7 @@ export async function deleteTestimonioAction(formData: FormData) {
   `;
 
   revalidatePath("/admin/testimonios");
+  revalidatePublicTestimonials();
   revalidatePath("/");
   revalidatePath("/testimonios");
 
@@ -280,6 +289,7 @@ export async function toggleTestimonioDestacadoAction(formData: FormData) {
   `;
 
   revalidatePath("/admin/testimonios");
+  revalidatePublicTestimonials();
   revalidatePath("/");
   revalidatePath("/testimonios");
 

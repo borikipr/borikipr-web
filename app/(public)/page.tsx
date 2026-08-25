@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import Header from "@/components/Header";
 import Image from "next/image";
 import Link from "next/link";
@@ -116,6 +117,9 @@ const zonasHome: Array<{ region: RegionSlug; Icon: typeof Building2 }> = [
 ];
 
 export async function renderHomePage(locale: AppLocale) {
+  // Public catalog data belongs to request-time caching, not the deployment
+  // build. This prevents CI/Vercel builds from waking the production database.
+  await connection();
   const dictionary = getDictionary(locale);
   const copy = dictionary.home;
   const listingsHref =

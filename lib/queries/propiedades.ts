@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { unstable_cache } from "next/cache";
 import {
   getMunicipiosForRegion,
   type RegionSlug,
@@ -11,6 +12,9 @@ type EstadoPropiedad =
   | "bajo_contrato"
   | "vendida"
   | "rentada";
+
+export const PUBLIC_PROPERTIES_CACHE_TAG = "public-properties";
+const PUBLIC_CONTENT_REVALIDATE_SECONDS = 3600;
 
 function publicOriginExpression() {
   return sql`
@@ -82,7 +86,7 @@ export type PropiedadHomeDestacada = {
   formulario_showing_activo?: boolean;
 };
 
-export async function getPropiedadesDestacadas(limit = 3) {
+const getCachedPropiedadesDestacadas = unstable_cache(async (limit: number) => {
   const rows = await sql<PropiedadHomeDestacada[]>`
     SELECT
       p.id,
@@ -122,9 +126,13 @@ export async function getPropiedadesDestacadas(limit = 3) {
   `;
 
   return rows;
+}, ["public-properties-featured"], { tags: [PUBLIC_PROPERTIES_CACHE_TAG], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS });
+
+export async function getPropiedadesDestacadas(limit = 3) {
+  return getCachedPropiedadesDestacadas(limit);
 }
 
-export async function getPropiedades() {
+const getCachedPropiedades = unstable_cache(async () => {
   const rows = await sql<PropiedadQueryRow[]>`
     SELECT
       p.id,
@@ -165,9 +173,13 @@ export async function getPropiedades() {
   `;
 
   return rows;
+}, ["public-properties-all"], { tags: [PUBLIC_PROPERTIES_CACHE_TAG], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS });
+
+export async function getPropiedades() {
+  return getCachedPropiedades();
 }
 
-export async function getPropiedadBySlug(slug: string) {
+const getCachedPropiedadBySlug = unstable_cache(async (slug: string) => {
   const rows = await sql<PropiedadQueryRow[]>`
     SELECT
       p.id,
@@ -206,15 +218,19 @@ export async function getPropiedadBySlug(slug: string) {
   `;
 
   return rows[0] ?? null;
+}, ["public-property-by-slug"], { tags: [PUBLIC_PROPERTIES_CACHE_TAG], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS });
+
+export async function getPropiedadBySlug(slug: string) {
+  return getCachedPropiedadBySlug(slug);
 }
 
-export async function getPropiedadesSimilares(
+const getCachedPropiedadesSimilares = unstable_cache(async (
   slug: string,
   municipio: string,
   tipoNegocio: "venta" | "renta",
   tipoPropiedad: string,
   limit = 3
-) {
+) => {
   const rows = await sql<PropiedadQueryRow[]>`
     SELECT
       p.id,
@@ -264,6 +280,16 @@ export async function getPropiedadesSimilares(
   `;
 
   return rows;
+}, ["public-properties-similar"], { tags: [PUBLIC_PROPERTIES_CACHE_TAG], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS });
+
+export async function getPropiedadesSimilares(
+  slug: string,
+  municipio: string,
+  tipoNegocio: "venta" | "renta",
+  tipoPropiedad: string,
+  limit = 3
+) {
+  return getCachedPropiedadesSimilares(slug, municipio, tipoNegocio, tipoPropiedad, limit);
 }
 
 export type PropiedadesPaginadas = {
@@ -293,11 +319,11 @@ function parseNumericFilter(value: string | undefined) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
-export async function getPropiedadesPaginadas(
+const getCachedPropiedadesPaginadas = unstable_cache(async (
   page: number = 1,
   itemsPerPage: number = 12,
   filtros: PropiedadesFiltros = {}
-) {
+) => {
   const offset = (page - 1) * itemsPerPage;
   const q = filtros.q?.trim();
   const qLike = q ? `%${q}%` : null;
@@ -421,4 +447,12 @@ export async function getPropiedadesPaginadas(
     currentPage: page,
     totalItems,
   };
+}, ["public-properties-paginated"], { tags: [PUBLIC_PROPERTIES_CACHE_TAG], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS });
+
+export async function getPropiedadesPaginadas(
+  page: number = 1,
+  itemsPerPage: number = 12,
+  filtros: PropiedadesFiltros = {}
+) {
+  return getCachedPropiedadesPaginadas(page, itemsPerPage, filtros);
 }

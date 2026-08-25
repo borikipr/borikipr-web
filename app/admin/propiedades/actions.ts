@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { sql } from "@/lib/db";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { PUBLIC_PROPERTIES_CACHE_TAG } from "@/lib/queries/propiedades";
 import { municipiosPR } from "@/data/municipios";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import { normalizeSectorForMunicipio } from "@/lib/puerto-rico-sectores";
@@ -28,6 +29,10 @@ async function revalidateEnglishProperty(propertyId: string, propertySlug: strin
       errorClass: error instanceof Error ? error.name : "UnknownError",
     });
   }
+}
+
+function revalidatePublicProperties() {
+  revalidateTag(PUBLIC_PROPERTIES_CACHE_TAG, "max");
 }
 
 export type CreatePropiedadState = {
@@ -351,6 +356,7 @@ export async function createPropiedadAction(
     });
 
     revalidatePath("/admin/propiedades");
+    revalidatePublicProperties();
     revalidatePath("/listados");
     revalidatePath("/");
     await revalidateEnglishProperty(insertadaId, slug);
@@ -694,6 +700,7 @@ export async function updatePropiedadAction(
     });
 
     revalidatePath("/admin/propiedades");
+    revalidatePublicProperties();
     revalidatePath(`/admin/propiedades/${id}/editar`);
     revalidatePath("/listados");
     revalidatePath("/");
@@ -734,6 +741,7 @@ export async function updatePropiedadEstadoAction(formData: FormData) {
   });
 
   revalidatePath("/admin/propiedades");
+  revalidatePublicProperties();
   revalidatePath("/listados");
   revalidatePath("/");
 
@@ -760,6 +768,7 @@ export async function deletePropiedadAction(formData: FormData) {
   `;
   
   revalidatePath("/admin/propiedades");
+  revalidatePublicProperties();
   revalidatePath("/listados");
   revalidatePath("/");
   
@@ -783,6 +792,7 @@ export async function toggleDestacadoAction(formData: FormData) {
   `;
 
   revalidatePath("/admin/propiedades");
+  revalidatePublicProperties();
   revalidatePath("/listados");
   revalidatePath("/");
 

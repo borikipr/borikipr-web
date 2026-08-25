@@ -51,7 +51,7 @@ export function AnalyticsRefreshControls({
   if (!delay) return;
 
   const timer = window.setInterval(() => {
-   refreshNow();
+   if (document.visibilityState === "visible") refreshNow();
   }, delay);
 
   return () => window.clearInterval(timer);

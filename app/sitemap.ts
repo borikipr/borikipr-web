@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { connection } from "next/server";
 import type { PropiedadQueryRow } from "@/lib/queries/propiedades";
 import { isMultilingualEnabled } from "@/lib/i18n/locales";
 import { getLocalizedSeoUrls, isCompleteEnglishPropertyTranslation, STATIC_SEO_COPY } from "@/lib/i18n/seo";
@@ -22,6 +23,9 @@ function alternates(spanishPath: string) {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // Generate from current catalog data on request. The cached public queries
+  // below still limit Neon reads, while builds never contact production Neon.
+  await connection();
   const multilingual = isMultilingualEnabled();
   const staticPages: MetadataRoute.Sitemap = [];
   for (const page of Object.keys(STATIC_SEO_COPY) as Array<keyof typeof STATIC_SEO_COPY>) {

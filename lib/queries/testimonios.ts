@@ -1,4 +1,8 @@
 import { sql } from "@/lib/db";
+import { unstable_cache } from "next/cache";
+
+export const PUBLIC_TESTIMONIALS_CACHE_TAG = "public-testimonials";
+const PUBLIC_CONTENT_REVALIDATE_SECONDS = 3600;
 
 export type TipoTestimonio = "comprador" | "vendedor";
 
@@ -22,7 +26,7 @@ export type TestimoniosPaginados = {
   totalItems: number;
 };
 
-export async function getTestimoniosPublicos() {
+const getCachedTestimoniosPublicos = unstable_cache(async () => {
   const rows = await sql<{
     id: string;
     nombre: string;
@@ -59,12 +63,16 @@ export async function getTestimoniosPublicos() {
     destacado: row.destacado,
     orden: row.orden,
   })) as TestimonioPublico[];
+}, ["public-testimonials-all"], { tags: [PUBLIC_TESTIMONIALS_CACHE_TAG], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS });
+
+export async function getTestimoniosPublicos() {
+  return getCachedTestimoniosPublicos();
 }
 
-export async function getTestimoniosPublicosPaginados(
+const getCachedTestimoniosPublicosPaginados = unstable_cache(async (
   page: number = 1,
   itemsPerPage: number = 8
-) {
+) => {
   const offset = (page - 1) * itemsPerPage;
 
   const rows = await sql<{
@@ -118,4 +126,8 @@ export async function getTestimoniosPublicosPaginados(
     currentPage: page,
     totalItems,
   };
+}, ["public-testimonials-paginated"], { tags: [PUBLIC_TESTIMONIALS_CACHE_TAG], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS });
+
+export async function getTestimoniosPublicosPaginados(page: number = 1, itemsPerPage: number = 8) {
+  return getCachedTestimoniosPublicosPaginados(page, itemsPerPage);
 }

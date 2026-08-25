@@ -21,4 +21,13 @@ export const sql = allowIsolatedDatabase
       process.env.SIGNING_ISOLATED_DATABASE_DIR ??
         (() => { throw new Error("signature_isolated_database_path_missing"); })()
     )
-  : postgres(connectionString, { ssl: disableSsl ? false : "require" });
+  : postgres(connectionString, {
+      ssl: disableSsl ? false : "require",
+      // Vercel functions already connect through Neon's pooled endpoint. A
+      // single short-lived connection per warm instance avoids multiplying
+      // idle pools without changing transaction or freshness semantics.
+      max: 1,
+      idle_timeout: 10,
+      connect_timeout: 10,
+      prepare: false,
+    });
