@@ -15,6 +15,7 @@ test("home exposes the explicit Sur region contract", async ({ page }) => {
   await expect(page).toHaveTitle(/Erickson Real Estate/i);
   const sur = page.getByRole("link", { name: /Sur/i }).first();
   await expect(sur).toHaveAttribute("href", /\/listados\?region=sur/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 });
 
 test("public privacy page loads and passes serious accessibility checks", async ({
@@ -44,7 +45,7 @@ test("admin login is usable, private, and accessible", async ({ page }) => {
 test("mobile public and admin-auth pages have no horizontal overflow", async ({
   page,
 }) => {
-  for (const path of ["/", "/privacidad", "/admin/login"]) {
+  for (const path of ["/privacidad", "/admin/login"]) {
     await page.goto(path, { waitUntil: "domcontentloaded" });
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth
