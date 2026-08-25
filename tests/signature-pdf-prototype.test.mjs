@@ -295,7 +295,7 @@ test("field-definition hash is deterministic and independent of values/order", (
   assert.equal(canonicalJson({ b: 2, a: 1 }), '{"a":1,"b":2}');
 });
 
-test("finalization is deterministic, preserves source bytes, and creates a detached manifest and certificate", async () => {
+test("finalization is deterministic, preserves the source page count, and emits no production-visible prototype chrome", async () => {
   const sourceBytes = await createGeometryPdf();
   const sourceSnapshot = new Uint8Array(sourceBytes);
   const inspection = await inspectPdfCompatibility({
@@ -318,7 +318,8 @@ test("finalization is deterministic, preserves source bytes, and creates a detac
   assert.deepEqual(sourceBytes, sourceSnapshot);
   assert.notEqual(first.manifest.finalPdfSha256, inspection.sourceSha256);
   assert.equal(first.manifest.sourceSha256, inspection.sourceSha256);
-  assert.equal(first.manifest.certificate.appended, true);
+  assert.equal(first.manifest.schemaVersion, "boriki-sign-final-v1");
+  assert.equal(first.manifest.certificate.appended, false);
   assert.equal(first.manifest.fieldCaptures.length, 4);
   assert.deepEqual(
     first.manifest.fieldCaptures.map(({ captureMethod, adoptedValue }) => ({
@@ -338,7 +339,9 @@ test("finalization is deterministic, preserves source bytes, and creates a detac
     )
   );
   const finalizedDocument = await PDFDocument.load(first.finalBytes);
-  assert.equal(finalizedDocument.getPageCount(), inspection.pageCount + 1);
+  assert.equal(finalizedDocument.getPageCount(), inspection.pageCount);
+  assert.equal(finalizedDocument.getTitle(), `${input.sourceTitle} — completado`);
+  assert.equal(finalizedDocument.getAuthor(), "Borikí Sign");
 
   const [sourcePages, finalPages] = await Promise.all([
     renderPdfWithPdfJs(sourceBytes, 1.2),

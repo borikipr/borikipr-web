@@ -58,7 +58,7 @@ const OPERATIONAL_CHECKS: ReadonlyArray<Readonly<{
   { label: "Recuperación de objetos R2", state: "WARNING", owner: "Operador Cloudflare", evidence: "Copia privada controlada y restauración byte por byte probadas con objeto sintético; falta respaldo independiente del mismo bucket/cuenta." },
   { label: "Simulacro habilitado de escritorio", state: "PASS", owner: "QA", evidence: "Flujo Chromium sintético habilitado completado en ambiente aislado." },
   { label: "Simulacro habilitado móvil/touch", state: "PASS", owner: "QA", evidence: "Touch real emulado, dibujo y finalización completados en ambiente aislado." },
-  { label: "PDF máximo (25/8/100)", state: "PASS", owner: "Ingeniería", evidence: "Flujo real de navegador, finalización, PDF/certificado e integridad visual completados; touch genuino validado en Phase 2L." },
+  { label: "PDF máximo (25/8/100)", state: "PASS", owner: "Ingeniería", evidence: "Flujo real de navegador, finalización, PDF/certificado e integridad visual completados; interacción táctil genuina validada." },
   { label: "Retenciones legales persistentes", state: "PASS", owner: "Ingeniería / Admin", evidence: "Persistencia, prioridad sobre retención, liberación explícita e historial inmutable validados." },
   { label: "Puerta interna de canary", state: "PASS", owner: "Ingeniería / lanzamiento", evidence: "Separada de firma pública; exige bandera servidor, hash de readiness y autorización vigente con participante y clasificación exactos." },
   { label: "Flujo de mutación de gobernanza", state: "PASS", owner: "Ingeniería / Admin", evidence: "Borrador, revisión, aprobación interna normal, revisión externa opcional, confirmación fuerte e historial inmutable." },

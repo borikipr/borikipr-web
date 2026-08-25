@@ -1,6 +1,6 @@
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
 import type { SignatureDatabase } from "../domain/types";
 import type { SignatureCompletedStorage } from "../storage";
 import type { createSignatureDomainServices } from "../domain/service";
@@ -14,41 +14,63 @@ function parsed<T>(value: unknown): T {
   return (typeof value === "string" ? JSON.parse(value) : value) as T;
 }
 
-async function createDetachedCertificate(input: {
+function certificateLine(page: PDFPage, font: PDFFont, text: string, y: number, options?: { bold?: PDFFont; size?: number }) {
+  page.drawText(text, { x: 48, y, size: options?.size ?? 9, font: options?.bold ?? font, maxWidth: 516, color: rgb(0.08, 0.14, 0.24) });
+}
+
+export async function createDetachedCertificate(input: {
   title: string; documentId: string; sourceSha256: string; finalSha256: string;
   fieldDefinitionSha256: string; verificationId: string;
-  participants: readonly PrototypeParticipant[]; completedAt: string;
+  senderOperator: string;
+  participants: readonly (PrototypeParticipant & Readonly<{ routingOrder: number; finalSigner: boolean }>)[]; completedAt: string;
   consentVersion: string;
   privacyDisclosureVersion: string;
   privacyDisclosureEsPrSha256: string;
   privacyDisclosureEnUsSha256: string;
 }) {
   const pdf = await PDFDocument.create();
-  pdf.setTitle("BorikiPR - Synthetic completion certificate");
+  pdf.setTitle("Borikí Sign — Certificado de finalización");
+  pdf.setAuthor("Borikí Sign");
+  pdf.setCreator("Borikí Sign");
   pdf.setCreationDate(new Date(input.completedAt));
   pdf.setModificationDate(new Date(input.completedAt));
   const page = pdf.addPage([612, 792]);
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  page.drawText("BORIKIPR — SYNTHETIC COMPLETION CERTIFICATE", { x: 48, y: 735, size: 14, font: bold });
-  const lines = [
-    "Phase 2D prototype — NOT LEGALLY APPROVED",
-    `Document: ${input.title}`,
-    `Document identifier: ${input.documentId}`,
-    `Completed: ${input.completedAt}`,
-    `Consent: ${input.consentVersion}`,
-    `Privacy disclosure: ${input.privacyDisclosureVersion}`,
-    `Privacy es-PR SHA-256: ${input.privacyDisclosureEsPrSha256}`,
-    `Privacy en-US SHA-256: ${input.privacyDisclosureEnUsSha256}`,
-    `Verification: ${input.verificationId}`,
-    `Source SHA-256: ${input.sourceSha256}`,
-    `Final SHA-256: ${input.finalSha256}`,
-    `Field definition SHA-256: ${input.fieldDefinitionSha256}`,
-    "Event chain verified before finalization: yes",
-    ...input.participants.map((participant) => `${participant.displayName} | ${participant.role} | ${participant.completedAt}`),
-  ];
-  let y = 705;
-  for (const line of lines) { page.drawText(line, { x: 48, y, size: 8.5, font, maxWidth: 516 }); y -= 24; }
+  page.drawRectangle({ x: 0, y: 714, width: 612, height: 78, color: rgb(0.035, 0.11, 0.2) });
+  page.drawText("BORIKÍ SIGN", { x: 48, y: 755, size: 10, font: bold, color: rgb(0.84, 0.67, 0.24) });
+  page.drawText("Certificado de finalización", { x: 48, y: 730, size: 18, font: bold, color: rgb(1, 1, 1) });
+  certificateLine(page, font, "Documento", 680, { bold, size: 9 });
+  certificateLine(page, font, input.title, 660, { size: 11 });
+  certificateLine(page, font, `Completado: ${input.completedAt}`, 632);
+  certificateLine(page, font, `Preparado por: ${input.senderOperator}`, 614);
+  certificateLine(page, font, `Identificador de evidencia: ${input.verificationId}`, 596);
+  certificateLine(page, font, "Participantes y orden de firma", 558, { bold, size: 10 });
+  let y = 536;
+  for (const participant of [...input.participants].sort((a, b) => a.routingOrder - b.routingOrder || a.id.localeCompare(b.id))) {
+    certificateLine(page, font, `${participant.routingOrder}. ${participant.displayName} · ${participant.role}${participant.finalSigner && !/firma final/i.test(participant.role) ? " · Firmante final" : ""}`, y);
+    y -= 17;
+    certificateLine(page, font, `Finalizó: ${participant.completedAt}`, y, { size: 8 });
+    y -= 23;
+  }
+  certificateLine(page, font, "Integridad del documento", Math.min(y - 4, 422), { bold, size: 10 });
+  y = Math.min(y - 26, 400);
+  for (const line of [
+    `Documento fuente SHA-256: ${input.sourceSha256}`,
+    `Documento final SHA-256: ${input.finalSha256}`,
+    `Definición de campos SHA-256: ${input.fieldDefinitionSha256}`,
+    `Consentimiento: ${input.consentVersion}`,
+    `Divulgación de privacidad: ${input.privacyDisclosureVersion}`,
+    `Privacidad es-PR SHA-256: ${input.privacyDisclosureEsPrSha256}`,
+    `Privacidad en-US SHA-256: ${input.privacyDisclosureEnUsSha256}`,
+    "Cadena de eventos e integridad HMAC verificadas antes de la finalización.",
+  ]) {
+    certificateLine(page, font, line, y, { size: 7.7 });
+    y -= 18;
+  }
+  certificateLine(page, font, `Solicitud: ${input.documentId}`, 54, { size: 7.5 });
+  certificateLine(page, font, "Este certificado documenta evidencia técnica de la transacción electrónica.", 34, { size: 7.5 });
+  certificateLine(page, font, "No constituye notarización ni opinión legal.", 20, { size: 7.5 });
   return new Uint8Array(await pdf.save({ useObjectStreams: false }));
 }
 
@@ -70,6 +92,7 @@ export async function finalizeCompletedSignatureDocument(
     privacy_disclosure_es_pr_sha256: string; privacy_disclosure_en_us_sha256: string;
     privacy_disclosure_effective_from: string | Date; privacy_disclosure_approval_reference: string;
     privacy_disclosure_es_pr_text: string; privacy_disclosure_en_us_text: string;
+    sender_operator: string;
   }>(
     `SELECT d.id::text AS document_id, d.title, d.status, v.id::text AS version_id,
             v.version_number, v.source_r2_key, v.filename_snapshot, v.byte_count::integer,
@@ -79,9 +102,10 @@ export async function finalizeCompletedSignatureDocument(
             d.privacy_disclosure_version, d.privacy_disclosure_es_pr_sha256,
             d.privacy_disclosure_en_us_sha256, d.privacy_disclosure_effective_from,
             d.privacy_disclosure_approval_reference, d.privacy_disclosure_es_pr_text,
-            d.privacy_disclosure_en_us_text
+            d.privacy_disclosure_en_us_text, a.username AS sender_operator
        FROM public.signature_documents d JOIN public.signature_document_versions v ON v.id=d.active_version_id
        JOIN public.signature_consent_versions cv ON cv.id=d.consent_version_id
+       JOIN public.admin_users a ON a.id=d.created_by_admin_id
       WHERE d.id=$1::uuid`, [documentId]
   );
   const document = rows[0];
@@ -93,7 +117,8 @@ export async function finalizeCompletedSignatureDocument(
   }
   const participants = await runtime.database.unsafe<{
     id: string; name_snapshot: string; role: string; completed_at: string | Date | null; status: string;
-  }>(`SELECT id::text, name_snapshot, role, completed_at, status FROM public.signature_participants WHERE document_version_id=$1::uuid ORDER BY id`, [document.version_id]);
+    routing_order: number | null; is_broker_final_signer: boolean;
+  }>(`SELECT id::text, name_snapshot, role, completed_at, status, routing_order, is_broker_final_signer FROM public.signature_participants WHERE document_version_id=$1::uuid ORDER BY coalesce(routing_order,1),id`, [document.version_id]);
   if (!participants.length || participants.some((participant) => participant.status !== "completed" || !participant.completed_at)) {
     throw new Error("signature_participants_incomplete");
   }
@@ -151,7 +176,11 @@ export async function finalizeCompletedSignatureDocument(
   const finalSha256 = sha256SignatureValue(finalized.finalBytes);
   const certificateBytes = await createDetachedCertificate({
     title: document.title, documentId, sourceSha256: document.source_sha256, finalSha256,
-    fieldDefinitionSha256: layoutHash, verificationId, participants: participantModels, completedAt,
+    fieldDefinitionSha256: layoutHash, verificationId, senderOperator: document.sender_operator,
+    participants: participantModels.map((participant) => {
+      const row = participants.find((candidate) => candidate.id === participant.id)!;
+      return { ...participant, routingOrder: row.routing_order ?? 1, finalSigner: row.is_broker_final_signer };
+    }), completedAt,
     consentVersion: document.consent_version,
     privacyDisclosureVersion: document.privacy_disclosure_version,
     privacyDisclosureEsPrSha256: document.privacy_disclosure_es_pr_sha256,
@@ -183,7 +212,7 @@ export async function finalizeCompletedSignatureDocument(
   const updated = await runtime.database.unsafe<{ id: string }>(
     `UPDATE public.signature_document_versions SET finalized_at=$2::timestamptz,
        final_r2_key=$3, final_filename=$4, final_mime_type='application/pdf', final_byte_count=$5,
-       final_page_count=page_count+1, final_pdf_metadata=$6::text::jsonb, final_pdf_sha256=$7,
+       final_page_count=page_count, final_pdf_metadata=$6::text::jsonb, final_pdf_sha256=$7,
        certificate_r2_key=$8, certificate_mime_type='application/pdf', certificate_byte_count=$9,
        certificate_metadata=$10::text::jsonb, certificate_sha256=$11
      WHERE id=$1::uuid AND finalized_at IS NULL RETURNING id::text`,

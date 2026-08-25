@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       sessionId: signer.sessionId, sessionSecret: signer.sessionSecret, csrfNonce,
       idempotencyKey: randomUUID(),
     });
-    // Finalization is invoked only after every synthetic participant has completed.
+    // Finalization is invoked only after every participant has completed.
     if (result.allParticipantsCompleted) {
       const { finalizeCompletedSignatureDocument } = await import("@/lib/signatures/signer/finalize");
       await finalizeCompletedSignatureDocument(result.documentId);

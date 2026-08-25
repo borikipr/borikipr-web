@@ -79,14 +79,14 @@ export type PdfCompatibilityReport = Readonly<{
 }>;
 
 export type PrototypeEvidenceManifest = Readonly<{
-  schemaVersion: "phase2a-prototype-v1";
+  schemaVersion: "boriki-sign-final-v1";
   requestId: string;
   verificationId: string;
   sourceSha256: string;
   finalPdfSha256: string;
   fieldDefinitionSha256: string;
   certificate: Readonly<{
-    appended: true;
+    appended: false;
     consentVersion: string;
     completedAt: string;
   }>;

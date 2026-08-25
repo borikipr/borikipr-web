@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { degrees, PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
-import { drawPrototypeCertificatePage } from "./certificate";
 import {
   fieldPointToPagePoint,
   normalizedRectToPdfPlacement,
@@ -19,8 +18,6 @@ import type {
   PrototypeField,
   PrototypeParticipant,
 } from "./types";
-
-const FIXED_METADATA_DATE = new Date("2030-01-01T00:00:00.000Z");
 
 function displayDimensions(geometry: PdfPageGeometry, bounds: { width: number; height: number }) {
   return geometry.rotation === 90 || geometry.rotation === 270
@@ -96,14 +93,6 @@ function drawField({
   bodyFont: PDFFont;
 }) {
   const placement = normalizedRectToPdfPlacement(field.rect, geometry);
-  page.drawRectangle({
-    ...placement.bounds,
-    borderColor: rgb(0.12, 0.32, 0.62),
-    borderWidth: 0.75,
-    color: rgb(0.94, 0.97, 1),
-    opacity: 0.16,
-  });
-
   if (field.value.method === "drawn") {
     validateDrawnSignature(field.value.strokes);
     for (const stroke of field.value.strokes) {
@@ -171,14 +160,14 @@ export async function finalizePrototypePdf({
     updateMetadata: false,
   });
   document.registerFontkit(fontkit);
-  document.setTitle(`${sourceTitle} - Phase 2A prototype`);
-  document.setAuthor("BorikiPR Phase 2A prototype");
-  document.setCreator("BorikiPR Phase 2A prototype");
+  document.setTitle(`${sourceTitle} — completado`);
+  document.setAuthor("Borikí Sign");
+  document.setCreator("Borikí Sign");
   document.setProducer("pdf-lib 1.17.1");
-  document.setCreationDate(FIXED_METADATA_DATE);
-  document.setModificationDate(FIXED_METADATA_DATE);
+  const completionDate = new Date(completedAt);
+  document.setCreationDate(completionDate);
+  document.setModificationDate(completionDate);
   const bodyFont = await document.embedFont(StandardFonts.Helvetica);
-  const boldFont = await document.embedFont(StandardFonts.HelveticaBold);
   const typedFontBytes = await readFile(typedSignatureFontPath);
   const typedFont = await document.embedFont(typedFontBytes, { subset: true });
   const pages = document.getPages();
@@ -193,21 +182,6 @@ export async function finalizePrototypePdf({
     drawField({ page, geometry, field, typedFont, bodyFont });
   }
 
-  const certificatePage = document.addPage([612, 792]);
-  drawPrototypeCertificatePage({
-    page: certificatePage,
-    font: bodyFont,
-    boldFont,
-    input: {
-      requestId,
-      documentTitle: sourceTitle,
-      participants,
-      consentVersion,
-      sourceSha256,
-      verificationId,
-      completedAt,
-    },
-  });
   const finalBytes = await document.save({
     addDefaultPage: false,
     objectsPerTick: 50,
@@ -217,13 +191,13 @@ export async function finalizePrototypePdf({
   const fieldDefinitionSha256 = hashFieldDefinitions(fields);
   const finalPdfSha256 = sha256Hex(finalBytes);
   const manifest: PrototypeEvidenceManifest = {
-    schemaVersion: "phase2a-prototype-v1",
+    schemaVersion: "boriki-sign-final-v1",
     requestId,
     verificationId,
     sourceSha256,
     finalPdfSha256,
     fieldDefinitionSha256,
-    certificate: { appended: true, consentVersion, completedAt },
+    certificate: { appended: false, consentVersion, completedAt },
     participants: participants.map(({ id, role, completedAt: participantCompletedAt }) => ({
       id,
       role,

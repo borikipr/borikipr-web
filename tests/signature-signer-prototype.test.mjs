@@ -5,6 +5,7 @@ import path from "node:path";
 import test, { after, before, beforeEach } from "node:test";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
+import { PDFDocument } from "pdf-lib";
 import { createSignatureDomainServices } from "../lib/signatures/domain/service.ts";
 import { hashSignatureFieldDefinition } from "../lib/signatures/field-definition.ts";
 import { sha256SignatureValue } from "../lib/signatures/domain/crypto.ts";
@@ -355,9 +356,10 @@ test("synthetic flow finalizes once, writes private outputs, and verifies event 
   assert.ok(first); assert.equal(second.existing, true); assert.equal(first.finalSha256, second.finalSha256);
   assert.equal(objects.size, 3); assert.equal((await services.verifyEventChain(fixture.documentId)).valid, true);
   const state = (await db.query(`SELECT d.status, v.finalized_at, v.final_pdf_sha256, v.certificate_sha256,
-    v.certificate_metadata
+    v.certificate_metadata, v.page_count, v.final_page_count
     FROM public.signature_documents d JOIN public.signature_document_versions v ON v.id=d.active_version_id WHERE d.id=$1`, [fixture.documentId])).rows[0];
   assert.equal(state.status, "completed"); assert.ok(state.finalized_at); assert.match(state.final_pdf_sha256, /^[0-9a-f]{64}$/); assert.match(state.certificate_sha256, /^[0-9a-f]{64}$/);
+  assert.equal(state.final_page_count, state.page_count);
   assert.deepEqual(state.certificate_metadata.privacyDisclosure, {
     version: "phase2d-synthetic-privacy-v1", esPrSha256: syntheticPrivacyEsPrSha, enUsSha256: syntheticPrivacyEnUsSha,
     effectiveFrom: "2031-01-01T00:00:00.000Z", approvalReference: "synthetic-test-only",
@@ -366,6 +368,20 @@ test("synthetic flow finalizes once, writes private outputs, and verifies event 
       "en-US": { text: syntheticPrivacyEnUsText, sha256: syntheticPrivacyEnUsSha },
     },
   });
+  const finalBytes = [...objects.entries()].find(([key]) => key.startsWith("signatures/final/"))[1];
+  const certificateBytes = [...objects.entries()].find(([key]) => key.startsWith("signatures/certificates/"))[1];
+  assert.equal((await PDFDocument.load(finalBytes)).getPageCount(), 1);
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const certificateTask = pdfjs.getDocument({ data: new Uint8Array(certificateBytes) });
+  const certificateDocument = await certificateTask.promise;
+  try {
+    const text = (await (await certificateDocument.getPage(1)).getTextContent()).items.map((item) => item.str).join(" ");
+    assert.match(text, /Borikí Sign/i);
+    assert.match(text, /Certificado de finalización/);
+    assert.doesNotMatch(text, /SYNTHETIC COMPLETION CERTIFICATE|Phase 2D prototype|NOT LEGALLY APPROVED/i);
+  } finally {
+    await certificateTask.destroy();
+  }
 });
 
 test("temporary final-output failure retries safely without duplicate finalization", async () => {
