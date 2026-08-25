@@ -580,11 +580,19 @@ textarea {
   @apply flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[#11518b];
 }
 .signature-directory-toolbar {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   border-radius: 0.75rem;
   box-shadow: none;
 }
+.signature-directory-toolbar > * {
+  min-width: 0;
+  max-width: 100%;
+}
 .signature-lifecycle-tabs {
-  @apply flex max-w-full gap-1 overflow-x-auto border-b border-slate-200 pb-0;
+  @apply flex w-full min-w-0 max-w-full gap-1 overflow-x-auto border-b border-slate-200 pb-0;
   scrollbar-width: thin;
 }
 .signature-lifecycle-tabs a {

@@ -86,6 +86,8 @@ test("sender and signer surfaces expose parity UX without changing security sema
   assert.match(templates,/signature-template-grid/);
   assert.match(styles,/signature-field-editor-layout/);
   assert.match(styles,/signature-adoption-dialog/);
+  assert.match(styles,/\.signature-directory-toolbar\s*\{[\s\S]*?max-width:\s*100%/);
+  assert.match(styles,/\.signature-lifecycle-tabs\s*\{[\s\S]*?min-w-0/);
 });
 
 test("send mutation rechecks visual geometry server-side",async()=>{
