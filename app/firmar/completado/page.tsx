@@ -1,8 +1,43 @@
 import { notFound } from "next/navigation";
 import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
 
-export default async function SigningCompletedPage({searchParams}:{searchParams:Promise<{document?:string}>}) {
+export default async function SigningCompletedPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ document?: string }>;
+}) {
   if (!isSignerRuntimeEnabled()) notFound();
-  const finalDocument=(await searchParams).document==="completed";
-  return <section className="mx-auto flex min-h-screen max-w-xl items-center px-5 py-12"><div className="w-full rounded-2xl border border-emerald-200 bg-white p-6 shadow-sm"><div aria-hidden="true" className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-2xl text-emerald-800">✓</div><h1 className="mt-4 text-2xl font-semibold">Firma completada</h1><p className="mt-3 leading-7 text-slate-700">{finalDocument?"El documento ha sido completado.":"Tu participación está completada. El documento continuará con los demás firmantes."}</p><p className="mt-3 text-sm text-slate-600">No tienes que realizar ninguna otra acción. La sesión privada fue cerrada.</p><time className="mt-4 block text-xs text-slate-500" dateTime={new Date().toISOString()} suppressHydrationWarning>{new Date().toLocaleString("es-PR",{timeZone:"America/Puerto_Rico"})} · Hora de Puerto Rico</time></div></section>;
+  const finalDocument = (await searchParams).document === "completed";
+  return (
+    <section className="signature-completion-page">
+      <div className="signature-completion-card">
+        <div aria-hidden="true" className="signature-completion-check">
+          ✓
+        </div>
+        <p className="text-xs font-bold uppercase tracking-[.12em] text-[#11518b]">
+          Borikí Sign
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold">Firma completada</h1>
+        <p className="mt-4 text-lg leading-7 text-slate-700">
+          {finalDocument
+            ? "El documento ha sido completado."
+            : "Tu participación fue completada correctamente. El documento continuará con los demás firmantes."}
+        </p>
+        <p className="mt-3 text-sm text-slate-600">
+          No tienes que realizar ninguna otra acción. Tu sesión privada fue
+          cerrada.
+        </p>
+        <time
+          className="mt-6 block border-t border-slate-200 pt-4 text-xs text-slate-500"
+          dateTime={new Date().toISOString()}
+          suppressHydrationWarning
+        >
+          {new Date().toLocaleString("es-PR", {
+            timeZone: "America/Puerto_Rico",
+          })}{" "}
+          · Hora de Puerto Rico
+        </time>
+      </div>
+    </section>
+  );
 }

@@ -57,7 +57,7 @@ test("waiting language is operational and ordinary waiting does not require atte
 });
 
 test("sender and signer surfaces expose parity UX without changing security semantics",async()=>{
-  const [editor,routing,detail,session,completed,landing,exchange,actions,templates]=await Promise.all([
+  const [editor,routing,detail,session,completed,landing,exchange,actions,templates,styles]=await Promise.all([
     source("components/admin/signatures/SignatureDraftEditor.tsx"),
     source("components/admin/signatures/SignatureRoutingSummary.tsx"),
     source("app/admin/signatures/[id]/page.tsx"),
@@ -67,8 +67,9 @@ test("sender and signer surfaces expose parity UX without changing security sema
     source("app/api/signatures/session/exchange/route.ts"),
     source("components/admin/signatures/SignatureDocumentActions.tsx"),
     source("app/admin/signatures/plantillas/page.tsx"),
+    source("app/globals.css"),
   ]);
-  assert.match(editor,/Revisión visual de campos/);
+  assert.match(editor,/Todo listo para enviar/);
   assert.match(editor,/visualPreflight\.sendBlocked/);
   assert.match(editor,/SignatureRoutingSummary/);
   assert.match(routing,/Ruta de firmas/);
@@ -77,12 +78,14 @@ test("sender and signer surfaces expose parity UX without changing security sema
   assert.match(detail,/Requiere atención/);
   assert.match(detail,/Detalles avanzados/);
   assert.match(session,/SignerRequiredFieldNavigator/);
-  assert.match(completed,/Tu participación está completada/);
+  assert.match(completed,/Tu participación fue completada/);
   assert.match(completed,/El documento ha sido completado/);
   assert.match(landing,/Esta invitación fue reemplazada/);
   assert.match(exchange,/inspectSigningTokenUnavailableReason/);
   assert.match(actions,/conserva su evidencia/);
-  assert.match(templates,/sm:grid-cols-2 xl:grid-cols-3/);
+  assert.match(templates,/signature-template-grid/);
+  assert.match(styles,/signature-field-editor-layout/);
+  assert.match(styles,/signature-adoption-dialog/);
 });
 
 test("send mutation rechecks visual geometry server-side",async()=>{

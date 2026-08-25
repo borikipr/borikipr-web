@@ -267,13 +267,21 @@ textarea {
 }
 
 @keyframes admin-drawer-in {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(0); }
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 @keyframes admin-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Authenticated Admin application language. These scoped overrides keep the
@@ -315,7 +323,10 @@ textarea {
 
 .admin-app .input-field,
 .admin-app .input-premium,
-.admin-app input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]),
+.admin-app
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not(
+    [type="file"]
+  ),
 .admin-app select,
 .admin-app textarea {
   box-sizing: border-box;
@@ -366,33 +377,307 @@ textarea {
 }
 
 .signature-editor [aria-label="Cambiar paso"] {
-  gap: .25rem;
-  padding: .25rem;
+  gap: 0.25rem;
+  padding: 0.25rem;
   border: 1px solid var(--admin-border);
-  border-radius: .75rem;
+  border-radius: 0.75rem;
   background: white;
 }
 
 .signature-editor [aria-label="Cambiar paso"] button {
   min-height: 2.5rem;
-  border-radius: .55rem;
-  padding: .5rem .8rem;
+  border-radius: 0.55rem;
+  padding: 0.5rem 0.8rem;
 }
 
 .signature-editor article,
 .signature-editor article form > div {
-  border-radius: .75rem;
+  border-radius: 0.75rem;
 }
 
 .signature-editor .sticky {
-  bottom: .75rem;
+  bottom: 0.75rem;
   border: 1px solid var(--admin-border);
-  border-radius: .75rem;
-  box-shadow: 0 8px 30px rgba(15, 23, 42, .12);
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.12);
 }
 
 .signature-editor aside.surface-card {
   border-radius: 1rem;
+}
+
+.signature-workflow-progress {
+  @apply border-b border-slate-200 bg-white px-4 py-3;
+}
+
+.signature-workflow-step {
+  @apply relative flex min-w-0 items-center justify-center gap-2 border-b-2 border-transparent px-2 py-2 text-slate-500;
+}
+
+.signature-workflow-step::after {
+  content: "";
+  @apply absolute right-[-.5rem] top-1/2 hidden h-px w-4 bg-slate-300 lg:block;
+}
+
+.signature-workflow-step:last-child::after {
+  display: none;
+}
+.signature-workflow-step.is-active {
+  @apply border-[#11518b] text-[#0d1b2a];
+}
+.signature-workflow-step.is-complete {
+  @apply text-emerald-700;
+}
+.signature-workflow-step-number {
+  @apply flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[.7rem] font-bold;
+}
+.signature-workflow-step.is-active .signature-workflow-step-number {
+  @apply bg-[#0d1b2a] text-white;
+}
+.signature-workflow-step.is-complete .signature-workflow-step-number {
+  @apply bg-emerald-700 text-white;
+}
+
+.signature-step-tabs {
+  @apply grid grid-cols-4 gap-1 rounded-lg border border-slate-200 bg-white p-1;
+}
+.signature-step-tabs button {
+  @apply min-w-0 rounded-md px-2 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50;
+}
+.signature-step-tabs button.is-active {
+  @apply bg-[#0d1b2a] text-white;
+}
+.signature-workflow-panel {
+  @apply border border-slate-200 bg-white p-5 md:p-6;
+  border-radius: 0.875rem;
+}
+.signature-recipient-add-form {
+  @apply border border-slate-200 bg-slate-50 p-4;
+  border-radius: 0.75rem;
+}
+.signature-recipient-card {
+  @apply border border-slate-200 bg-white p-4;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.signature-field-editor-layout {
+  @apply relative grid min-w-0 overflow-hidden border border-slate-200 bg-white;
+  grid-template-columns: 13.75rem minmax(0, 1fr) 17.5rem;
+  border-radius: 0.875rem;
+  min-height: 44rem;
+}
+
+.signature-field-palette {
+  @apply z-20 border-r border-slate-200 bg-white p-4;
+}
+.signature-field-tools {
+  @apply mt-4 grid gap-2;
+}
+.signature-field-tool {
+  @apply flex min-h-11 w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm font-semibold text-slate-800 transition hover:border-[#11518b] hover:bg-blue-50 disabled:opacity-50;
+}
+.signature-field-tool svg {
+  @apply text-[#11518b];
+}
+.signature-document-workspace {
+  @apply order-none min-w-0 bg-slate-100;
+}
+.signature-document-toolbar {
+  @apply sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur;
+}
+.signature-toolbar-icon {
+  @apply inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40;
+}
+.signature-mobile-tools-button {
+  @apply hidden min-h-10 items-center gap-2 rounded-lg bg-[#0d1b2a] px-3 text-sm font-semibold text-white;
+}
+.signature-document-canvas-scroll {
+  @apply max-h-[76vh] overflow-auto overscroll-contain p-4 sm:p-6;
+}
+.signature-document-canvas {
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.16);
+}
+.signature-field-properties {
+  @apply grid content-start gap-3 overflow-y-auto border-l border-slate-200 bg-white p-3;
+  max-height: 82vh;
+}
+.signature-properties-section {
+  @apply border-t border-slate-200 px-1 pt-3;
+}
+.signature-field-overlay {
+  @apply flex h-full w-full touch-none cursor-move flex-col items-center justify-center overflow-hidden border bg-white/90 px-1 text-[10px] font-semibold shadow-sm outline-none focus:ring-4 focus:ring-[#d4af37]/50;
+}
+.signature-field-overlay.is-selected {
+  @apply ring-2 ring-[#11518b]/40;
+  border-width: 2px;
+}
+.signature-field-overlay.is-critical {
+  @apply border-red-600 ring-4 ring-red-500/30;
+}
+.signature-field-overlay.is-warning {
+  @apply border-amber-500 ring-2 ring-amber-400/30;
+}
+.signature-field-resize {
+  @apply absolute -bottom-2 -right-2 h-5 w-5 touch-none rounded border-2 border-white shadow focus:ring-2 focus:ring-[#d4af37];
+}
+.signature-field-list-item {
+  @apply rounded-lg border border-slate-200 bg-white p-3;
+}
+.signature-field-list-item.is-selected {
+  @apply border-[#11518b] bg-blue-50/40 ring-2 ring-[#11518b]/15;
+}
+.signature-preflight-panel {
+  @apply border-l-4 bg-white p-4;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+.signature-preflight-panel.is-ready {
+  @apply border-emerald-500;
+}
+.signature-preflight-panel.has-warnings {
+  @apply border-amber-500;
+}
+.signature-preflight-panel.is-blocked {
+  @apply border-red-500;
+}
+.signature-mobile-sheet-close,
+.signature-mobile-sheet-backdrop {
+  display: none;
+}
+
+.signature-routing-summary {
+  @apply border border-slate-200 bg-white p-4;
+  border-radius: 0.75rem;
+}
+.signature-routing-summary.is-compact {
+  @apply bg-slate-50;
+}
+.signature-routing-stages {
+  @apply mt-4 grid gap-3;
+}
+.signature-routing-stage {
+  @apply relative grid grid-cols-[2rem_minmax(0,1fr)] gap-3;
+}
+.signature-routing-stage:not(:last-child)::after {
+  content: "";
+  @apply absolute left-[.95rem] top-8 h-[calc(100%+.75rem)] w-px bg-slate-300;
+}
+.signature-routing-stage-number {
+  @apply z-10 flex h-8 w-8 items-center justify-center rounded-full bg-[#0d1b2a] text-sm font-bold text-white;
+}
+
+.signature-upload-zone {
+  @apply flex min-h-44 w-full cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 outline-none transition hover:border-[#11518b] hover:bg-blue-50/40 focus-within:border-[#11518b] focus-within:ring-4 focus-within:ring-blue-100;
+}
+.signature-upload-zone.is-dragging {
+  @apply border-[#11518b] bg-blue-50 ring-4 ring-blue-100;
+}
+.signature-upload-zone.has-file {
+  @apply min-h-24 border-solid bg-white;
+}
+.signature-upload-icon {
+  @apply flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[#11518b];
+}
+.signature-directory-toolbar {
+  border-radius: 0.75rem;
+  box-shadow: none;
+}
+.signature-lifecycle-tabs {
+  @apply flex max-w-full gap-1 overflow-x-auto border-b border-slate-200 pb-0;
+  scrollbar-width: thin;
+}
+.signature-lifecycle-tabs a {
+  @apply shrink-0 border-b-2 border-transparent px-3 py-2.5 text-sm font-semibold text-slate-600;
+}
+.signature-lifecycle-tabs a.is-active {
+  @apply border-[#11518b] text-[#0d1b2a];
+}
+.signature-document-row {
+  @apply grid gap-3 border border-slate-200 bg-white px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:px-5;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.035);
+}
+.signature-template-grid {
+  @apply grid gap-3 sm:grid-cols-2 xl:grid-cols-3;
+}
+.signature-template-card {
+  @apply flex min-w-0 flex-col border border-slate-200 bg-white p-4;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+.signature-document-summary {
+  @apply border-y border-slate-200 bg-white px-1 py-5;
+}
+.signature-download-bar {
+  @apply flex flex-wrap items-center justify-between gap-4 border border-emerald-200 bg-emerald-50/50 p-4;
+  border-radius: 0.75rem;
+}
+.signature-activity-panel {
+  @apply overflow-hidden border border-slate-200 bg-white;
+  border-radius: 0.75rem;
+}
+.signature-activity-panel > summary {
+  @apply flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4;
+}
+.signature-activity-panel > summary span:first-child {
+  @apply flex flex-col;
+}
+.signature-activity-panel > summary small {
+  @apply mt-1 text-sm font-normal text-slate-600;
+}
+.signature-review-layout {
+  @apply grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(20rem,.85fr)];
+}
+
+.signer-session-header {
+  @apply flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 py-4 sm:px-4;
+}
+.signer-workspace-grid {
+  @apply mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_23rem];
+}
+.signer-document-viewer {
+  @apply min-w-0 overflow-hidden border border-slate-200 bg-slate-100;
+  border-radius: 0.75rem;
+}
+.signer-document-toolbar {
+  @apply flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 bg-white px-3 py-2.5;
+}
+.signer-document-scroll {
+  @apply max-h-[78vh] overflow-auto overscroll-contain p-2 sm:p-4;
+}
+.signer-fields-panel {
+  @apply border border-slate-200 bg-white p-4 xl:sticky xl:top-24 xl:max-h-[78vh] xl:overflow-y-auto;
+  border-radius: 0.75rem;
+}
+.signer-field-card {
+  @apply border border-slate-200 bg-white p-4;
+  border-radius: 0.65rem;
+}
+.signer-required-navigator {
+  @apply sticky top-2 z-30 mt-4 flex flex-wrap items-center justify-between gap-3 border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur;
+  border-radius: 0.75rem;
+}
+.signer-complete-bar {
+  @apply sticky bottom-2 z-30 mt-4 flex justify-end border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur;
+  border-radius: 0.75rem;
+}
+.signature-adoption-backdrop {
+  @apply fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-slate-950/55 p-0 backdrop-blur-[2px] sm:items-center sm:p-5;
+}
+.signature-adoption-dialog {
+  @apply max-h-[94vh] w-full max-w-3xl overflow-y-auto bg-white p-5 shadow-2xl sm:p-6;
+  border-radius: 1rem 1rem 0 0;
+}
+.signature-completion-page {
+  @apply mx-auto flex min-h-screen max-w-xl items-center px-5 py-12;
+}
+.signature-completion-card {
+  @apply w-full border border-slate-200 bg-white p-7 text-center shadow-sm;
+  border-radius: 1rem;
+}
+.signature-completion-check {
+  @apply mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl font-bold text-emerald-800;
 }
 
 @media (max-width: 640px) {
@@ -409,5 +694,75 @@ textarea {
   .admin-app .admin-page-actions a,
   .admin-app .admin-page-actions button {
     width: 100%;
+  }
+}
+
+@media (max-width: 1279px) {
+  .signature-field-editor-layout {
+    grid-template-columns: minmax(0, 1fr) 17rem;
+  }
+  .signature-field-palette {
+    @apply fixed bottom-0 left-0 right-0 z-[70] max-h-[78vh] translate-y-full overflow-y-auto border-r-0 border-t p-5 transition-transform;
+    border-radius: 1rem 1rem 0 0;
+  }
+  .signature-field-palette.is-open {
+    @apply translate-y-0;
+  }
+  .signature-mobile-tools-button {
+    @apply inline-flex;
+  }
+  .signature-mobile-sheet-close {
+    @apply inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200;
+  }
+  .signature-mobile-sheet-backdrop {
+    @apply fixed inset-0 z-[60] block bg-slate-950/45;
+  }
+  .signature-field-tools {
+    @apply grid-cols-2;
+  }
+}
+
+@media (max-width: 767px) {
+  .signature-field-editor-layout {
+    @apply block overflow-visible border-0 bg-transparent;
+    min-height: 0;
+  }
+  .signature-document-workspace {
+    @apply overflow-hidden border border-slate-200;
+    border-radius: 0.75rem;
+  }
+  .signature-field-properties {
+    @apply mt-3 max-h-none overflow-visible border border-slate-200 p-3;
+    border-radius: 0.75rem;
+  }
+  .signature-document-toolbar {
+    @apply static px-3;
+  }
+  .signature-document-canvas-scroll {
+    @apply max-h-[70vh] p-2;
+  }
+  .signature-step-tabs {
+    @apply grid-cols-2;
+  }
+  .signature-editor .sticky {
+    bottom: 0.25rem;
+  }
+  .signature-routing-stages {
+    @apply gap-4;
+  }
+  .signer-session-header {
+    @apply sticky top-0 z-40 -mx-3;
+  }
+  .signer-required-navigator {
+    @apply top-[4.75rem];
+  }
+  .signer-fields-panel {
+    @apply p-3;
+  }
+}
+
+@media (min-width: 640px) {
+  .signature-adoption-dialog {
+    border-radius: 1rem;
   }
 }
