@@ -24,6 +24,8 @@ import { parseSignatureParticipantDraft, SignatureParticipantAdminValidationErro
 import { createSignatureDraftLifecycleService } from "@/lib/signatures/draft-lifecycle";
 import { buildTemplateBlueprint,createSignatureProductRepository } from "@/lib/signatures/productization";
 import { evaluateSignatureVisualPreflight } from "@/lib/signatures/visual-preflight";
+import { parseChoiceOptionsText } from "@/lib/signatures/field-options";
+import { SIGNATURE_FIELD_TYPES, type SignatureFieldType, type SignatureFieldValidationLimits } from "@/lib/signatures/domain/types";
 
 export type SignatureAdminActionState = Readonly<{
   ok: boolean;
@@ -57,6 +59,13 @@ function checked(formData:FormData,key:string){return formData.getAll(key).map(S
 
 function numberValue(formData: FormData, key: string) {
   const parsed = Number(value(formData, key));
+  if (!Number.isFinite(parsed)) throw new Error("signature_number_invalid");
+  return parsed;
+}
+function optionalNumberValue(formData: FormData, key: string) {
+  const raw = value(formData, key);
+  if (!raw) return undefined;
+  const parsed = Number(raw);
   if (!Number.isFinite(parsed)) throw new Error("signature_number_invalid");
   return parsed;
 }
@@ -170,7 +179,7 @@ export async function removeSignatureParticipantAction(
 
 function fieldInput(formData: FormData, detail: SignatureDraftDetail) {
   const fieldType = value(formData, "fieldType");
-  if (!(["signature", "initials", "date", "date_signed", "text"] as const).includes(fieldType as never)) {
+  if (!SIGNATURE_FIELD_TYPES.includes(fieldType as SignatureFieldType)) {
     throw new Error("signature_field_type_invalid");
   }
   const pageIndex = numberValue(formData, "pageIndex");
@@ -179,9 +188,24 @@ function fieldInput(formData: FormData, detail: SignatureDraftDetail) {
   const maxLength = fieldType === "text"
     ? Math.min(Math.max(numberValue(formData, "maxLength") || 1, 1), 500)
     : undefined;
+  const validationLimits: Record<string, unknown> = {};
+  if (maxLength) validationLimits.maxLength = maxLength;
+  if (fieldType === "radio" || fieldType === "dropdown") {
+    const options = parseChoiceOptionsText(value(formData, "options"));
+    if (options.length < 2) throw new Error("signature_choice_options_invalid");
+    validationLimits.options = options;
+  }
+  if (fieldType === "number") {
+    validationLimits.allowDecimals = checked(formData, "allowDecimals");
+    const min = optionalNumberValue(formData, "min");
+    const max = optionalNumberValue(formData, "max");
+    if (min !== undefined) validationLimits.min = min;
+    if (max !== undefined) validationLimits.max = max;
+    if (min !== undefined && max !== undefined && min > max) throw new Error("signature_number_range_invalid");
+  }
   return {
     participantId: value(formData, "participantId"),
-    fieldType: fieldType as "signature" | "initials" | "date" | "date_signed" | "text",
+    fieldType: fieldType as SignatureFieldType,
     pageIndex,
     rect: {
       x: numberValue(formData, "x"),
@@ -192,7 +216,7 @@ function fieldInput(formData: FormData, detail: SignatureDraftDetail) {
     pageGeometryReference: geometry,
     label: value(formData, "label") || fieldType,
     required: formData.getAll("required").map(String).includes("true"),
-    validationLimits: maxLength ? { maxLength } : undefined,
+    validationLimits: validationLimits as SignatureFieldValidationLimits,
   };
 }
 

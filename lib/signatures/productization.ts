@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { SignatureDatabase } from "./domain/types";
 import type { SignatureDraftDetail } from "./admin-repository";
+import type { SignatureFieldValidationLimits } from "./domain/types";
+import type { SignatureFieldType } from "./domain/types";
 
 export const BROKER_SETTINGS_CONFIRMATION = "CONFIGURAR CORREDORA FINAL";
 
@@ -9,9 +11,9 @@ export type SignatureTemplateBlueprint = Readonly<{
   routingMode:"parallel"|"sequential"|"grouped";requiresBrokerSignature:boolean;
   sourceDocumentVersionId:string;
   roles:readonly Readonly<{key:string;role:string;routingOrder:number|null;isBrokerFinalSigner:boolean;optional?:boolean}>[];
-  fields:readonly Readonly<{ownerRoleKey:string;fieldType:"signature"|"initials"|"date"|"date_signed"|"text";
+  fields:readonly Readonly<{ownerRoleKey:string;fieldType:SignatureFieldType;
     pageIndex:number;x:number;y:number;width:number;height:number;pageGeometryReference:unknown;
-    label:string;required:boolean;tabOrder:number;validationLimits:Record<string,number>}>[];
+    label:string;required:boolean;tabOrder:number;validationLimits:SignatureFieldValidationLimits}>[];
 }>;
 
 export function buildTemplateBlueprint(detail:SignatureDraftDetail,input?:{optionalParticipantIds?:ReadonlySet<string>}) {

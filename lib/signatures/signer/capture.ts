@@ -6,7 +6,8 @@ import {
 } from "../prototype/capture";
 import { canonicalSignatureJson, sha256SignatureValue } from "../domain/crypto";
 import type { DrawnStroke, PrototypeFieldValue } from "../prototype/types";
-import type { SignatureFieldType } from "../domain/types";
+import type { SignatureFieldType, SignatureFieldValidationLimits } from "../domain/types";
+import { fieldChoiceOptions, fieldMaxLength } from "../field-options";
 import {
   isSignatureStyleId,
   normalizeSignatureStyleId,
@@ -21,7 +22,8 @@ export type SignerCaptureInput =
 
 export function normalizeSignerCapture(
   fieldType: SignatureFieldType,
-  input: SignerCaptureInput
+  input: SignerCaptureInput,
+  validationLimits: SignatureFieldValidationLimits = {},
 ): Readonly<{
   captureMethod: "drawn_vector" | "typed" | "system_date" | "text_entry";
   typedValue: string | null;
@@ -64,11 +66,32 @@ export function normalizeSignerCapture(
     }
     value = input.value;
   } else {
-    if (fieldType !== "text") throw new Error("signature_capture_type_mismatch");
+    if (fieldType === "signer_name" || fieldType === "date_signed" || fieldType === "signature" || fieldType === "initials" || fieldType === "date") {
+      throw new Error("signature_capture_type_mismatch");
+    }
     if (/<\s*\/?\s*(script|iframe|object|embed)\b/i.test(input.value)) {
       throw new Error("signature_text_markup_rejected");
     }
-    value = validateBoundedText(input.value);
+    value = validateBoundedText(input.value).trim();
+    if (fieldType === "checkbox") {
+      if (value !== "true") throw new Error("signature_checkbox_required");
+    } else if (fieldType === "radio" || fieldType === "dropdown") {
+      const options = fieldChoiceOptions(validationLimits);
+      if (options.length < 2 || !options.includes(value)) throw new Error("signature_choice_invalid");
+    } else if (fieldType === "number") {
+      if (!/^-?\d+(?:\.\d+)?$/.test(value)) throw new Error("signature_number_invalid");
+      if (validationLimits.allowDecimals === false && value.includes(".")) throw new Error("signature_number_decimals_invalid");
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) throw new Error("signature_number_invalid");
+      if (typeof validationLimits.min === "number" && numeric < validationLimits.min) throw new Error("signature_number_min");
+      if (typeof validationLimits.max === "number" && numeric > validationLimits.max) throw new Error("signature_number_max");
+    } else if (fieldType === "email") {
+      if (value.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) throw new Error("signature_email_invalid");
+    } else if (fieldType === "phone") {
+      if (value.length > 50 || !/^[+()\d\s.-]+$/.test(value) || value.replace(/\D/g, "").length < 7) throw new Error("signature_phone_invalid");
+    } else if (fieldType === "text" && value.length > fieldMaxLength(validationLimits, 500)) {
+      throw new Error("signature_text_too_long");
+    }
   }
   const captureMethod = input.method === "typed" ? "typed" : "text_entry";
   const signatureStyleId = input.method === "typed" ? normalizeSignatureStyleId(input.style) : null;

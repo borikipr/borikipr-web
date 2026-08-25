@@ -2004,6 +2004,12 @@ const signatureStyleEvidenceMigrationSql = await readMigration(
 const signatureStyleEvidenceRollbackSql = await readMigration(
   "0037_add_signature_style_evidence.rollback.sql"
 );
+const signaturePracticalFieldsMigrationSql = await readMigration(
+  "0038_add_signature_practical_fields.sql"
+);
+const signaturePracticalFieldsRollbackSql = await readMigration(
+  "0038_add_signature_practical_fields.rollback.sql"
+);
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -2321,8 +2327,16 @@ try {
   assert.match(styleConstraint.rows[0].definition,/styleId/);
   assert.match(styleConstraint.rows[0].definition,/great-vibes/);
   assert.match(signatureStyleEvidenceRollbackSql,/rollback blocked: typed signature-style evidence already exists/);
+  await signatureProductizationDb.exec(signaturePracticalFieldsMigrationSql);
+  const practicalFieldsConstraint=await signatureProductizationDb.query(`SELECT pg_get_constraintdef(oid) definition
+    FROM pg_constraint WHERE conrelid='signature_fields'::regclass
+      AND conname='signature_fields_type_check'`);
+  assert.match(practicalFieldsConstraint.rows[0].definition,/checkbox/);
+  assert.match(practicalFieldsConstraint.rows[0].definition,/signer_name/);
+  await signatureProductizationDb.exec(signaturePracticalFieldsRollbackSql);
   await assert.rejects(signatureProductizationDb.exec(signatureProductizationRollbackSql),/0035 rollback is intentionally blocked/);
   console.log("Validated Borikí Sign productization migration 0035 and rollback guard.");
   console.log("Validated historical governance effective dates migration 0036 and rollback guard.");
   console.log("Validated typed signature-style evidence migration 0037 and rollback guard.");
+  console.log("Validated practical signing fields migration 0038 and guarded rollback.");
 } finally { await signatureProductizationDb.close(); }

@@ -146,3 +146,10 @@ It adds parallel/sequential routing, an explicitly configured final-broker role,
 reusable identity-free template blueprints, correction lineage, and a distinct
 system-derived `date_signed` field. The rollback is intentionally blocked so a
 reviewed forward migration is required once any of these durable records exist.
+
+Migration `0038` adds focused participant-owned field primitives for ordinary
+brokerage forms: checkbox, exclusive choice, dropdown, number, email, phone,
+and the system-bound signer name. Options and numeric limits remain part of the
+immutable field definition; submitted values remain immutable and bound to the
+signer session. Its rollback is blocked after any new field or identity evidence
+exists.

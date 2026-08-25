@@ -1,4 +1,5 @@
 import { hashSignatureFieldDefinition } from "./field-definition";
+import type { SignatureFieldType, SignatureFieldValidationLimits } from "./domain/types";
 import type { SignatureQueryExecutor } from "./domain/types";
 import type { PdfPageGeometry } from "./prototype/types";
 
@@ -58,7 +59,7 @@ export type SignatureDraftDetail = Readonly<{
   fields: readonly Readonly<{
     id: string;
     participantId: string;
-    fieldType: "signature" | "initials" | "date" | "date_signed" | "text";
+    fieldType: SignatureFieldType;
     pageIndex: number;
     normalizedX: number;
     normalizedY: number;
@@ -68,7 +69,7 @@ export type SignatureDraftDetail = Readonly<{
     label: string;
     required: boolean;
     tabOrder: number;
-    validationLimits: Record<string, number>;
+    validationLimits: SignatureFieldValidationLimits;
   }>[];
   currentFieldDefinitionSha256: string;
   events: readonly Readonly<{ id: string; eventType: string; actorClass: string; createdAt: string | Date }>[];
@@ -257,7 +258,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         label: field.label,
         required: field.required,
         tabOrder: field.tab_order,
-        validationLimits: json<Record<string, number>>(field.validation_limits),
+        validationLimits: json<SignatureFieldValidationLimits>(field.validation_limits),
       }));
       const document = documents[0];
       const events = await database.unsafe<{ id:string; event_type:string; actor_class:string; created_at:string | Date }>(

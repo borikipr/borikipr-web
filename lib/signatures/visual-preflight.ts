@@ -1,4 +1,7 @@
-export type SignatureVisualFieldType = "signature" | "initials" | "date" | "date_signed" | "text";
+import type { SignatureFieldType, SignatureFieldValidationLimits } from "./domain/types";
+import { fieldChoiceOptions, SIGNATURE_FIELD_LABELS } from "./field-options";
+
+export type SignatureVisualFieldType = SignatureFieldType;
 
 export type SignatureVisualField = Readonly<{
   id: string;
@@ -9,6 +12,7 @@ export type SignatureVisualField = Readonly<{
   normalizedWidth: number;
   normalizedHeight: number;
   label?: string;
+  validationLimits?: SignatureFieldValidationLimits;
 }>;
 
 export type SignatureVisualPreflightIssue = Readonly<{
@@ -26,12 +30,17 @@ const MINIMUM_SIZE: Readonly<Record<SignatureVisualFieldType, Readonly<{ width: 
   date: { width: 0.12, height: 0.035 },
   date_signed: { width: 0.14, height: 0.035 },
   text: { width: 0.08, height: 0.03 },
+  checkbox: { width: 0.025, height: 0.025 },
+  radio: { width: 0.12, height: 0.04 },
+  dropdown: { width: 0.14, height: 0.035 },
+  number: { width: 0.09, height: 0.03 },
+  email: { width: 0.16, height: 0.03 },
+  phone: { width: 0.12, height: 0.03 },
+  signer_name: { width: 0.14, height: 0.035 },
 };
 
 function fieldName(field: SignatureVisualField) {
-  return field.label?.trim() || (field.fieldType === "date_signed" ? "Fecha de firma" :
-    field.fieldType === "signature" ? "Firma" : field.fieldType === "initials" ? "Iniciales" :
-      field.fieldType === "date" ? "Fecha" : "Texto");
+  return field.label?.trim() || SIGNATURE_FIELD_LABELS[field.fieldType];
 }
 function overlapRatio(left: SignatureVisualField, right: SignatureVisualField) {
   const width = Math.max(0, Math.min(left.normalizedX + left.normalizedWidth, right.normalizedX + right.normalizedWidth) -
@@ -74,9 +83,33 @@ export function evaluateSignatureVisualPreflight(fields: readonly SignatureVisua
         message: `El campo ${fieldName(field)} es demasiado pequeño para mostrarse correctamente.`,
       });
     }
+    if ((field.fieldType === "radio" || field.fieldType === "dropdown") &&
+      fieldChoiceOptions(field.validationLimits ?? {}).length < 2) {
+      issues.push({
+        id: `options:${field.id}`,
+        code: "field_too_small",
+        severity: "critical",
+        pageIndex: field.pageIndex,
+        fieldIds: [field.id],
+        message: `${fieldName(field)} necesita al menos dos opciones distintas.`,
+      });
+    }
+    if (field.fieldType === "dropdown") {
+      const longest = Math.max(0, ...fieldChoiceOptions(field.validationLimits ?? {}).map((option) => option.length));
+      if (longest > 24 && field.normalizedWidth < 0.2) {
+        issues.push({
+          id: `choice-width:${field.id}`,
+          code: "field_too_small",
+          severity: "warning",
+          pageIndex: field.pageIndex,
+          fieldIds: [field.id],
+          message: `${fieldName(field)} puede ser estrecho para su opción más larga.`,
+        });
+      }
+    }
     const margin = Math.min(field.normalizedX, field.normalizedY, 1 - right, 1 - bottom);
     if (!partiallyOutside && !completelyOutside && margin < 0.012 &&
-      (field.fieldType === "signature" || field.fieldType === "date_signed" || field.fieldType === "text")) {
+      (["signature", "date_signed", "text", "dropdown", "signer_name"].includes(field.fieldType))) {
       issues.push({
         id: `margin:${field.id}`,
         code: "margin_position",

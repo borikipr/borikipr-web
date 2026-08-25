@@ -1,4 +1,4 @@
-import type { SignatureQueryExecutor } from "../domain/types";
+import type { SignatureQueryExecutor, SignatureFieldType, SignatureFieldValidationLimits } from "../domain/types";
 
 export function createSignerRepository(database: SignatureQueryExecutor) {
   return {
@@ -32,10 +32,10 @@ export function createSignerRepository(database: SignatureQueryExecutor) {
       );
       if (!documents[0]) return null;
       const fields = await database.unsafe<{
-        id: string; field_type: "signature" | "initials" | "date" | "date_signed" | "text";
+        id: string; field_type: SignatureFieldType;
         page_index: number; normalized_x: string; normalized_y: string;
         normalized_width: string; normalized_height: string; label: string;
-        required: boolean; tab_order: number; validation_limits: unknown; completed: boolean;
+        required: boolean; tab_order: number; validation_limits: SignatureFieldValidationLimits | string; completed: boolean;
       }>(
         `SELECT f.id::text, f.field_type, f.page_index, f.normalized_x::text,
                 f.normalized_y::text, f.normalized_width::text, f.normalized_height::text,
@@ -50,6 +50,7 @@ export function createSignerRepository(database: SignatureQueryExecutor) {
         ...documents[0],
         fields: fields.map((field) => ({
           ...field,
+          validation_limits: typeof field.validation_limits === "string" ? JSON.parse(field.validation_limits) : field.validation_limits,
           x: Number(field.normalized_x), y: Number(field.normalized_y),
           width: Number(field.normalized_width), height: Number(field.normalized_height),
         })),

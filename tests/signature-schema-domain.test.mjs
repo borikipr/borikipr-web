@@ -41,7 +41,8 @@ const signerMigrationSql = await readFile(path.join(root, "db/migrations/0023_ex
 const deliveryMigrationSql = await readFile(path.join(root, "db/migrations/0024_add_signature_delivery_governance.sql"), "utf8");
 const privacyBindingMigrationSql = await readFile(path.join(root, "db/migrations/0025_bind_signature_privacy_disclosure.sql"), "utf8");
 const privacyHistoryMigrationSql = await readFile(path.join(root, "db/migrations/0026_preserve_signature_privacy_disclosure_text.sql"), "utf8");
-const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql","0034_add_signature_operational_hiding.sql","0035_productize_boriki_sign.sql","0036_allow_historical_governance_effective_dates.sql","0037_add_signature_style_evidence.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
+const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql","0034_add_signature_operational_hiding.sql","0035_productize_boriki_sign.sql","0036_allow_historical_governance_effective_dates.sql","0037_add_signature_style_evidence.sql","0038_add_signature_practical_fields.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
+const practicalFieldsRollbackSql = await readFile(path.join(root, "db/migrations/0038_add_signature_practical_fields.rollback.sql"), "utf8");
 const SOURCE_HASH = "a".repeat(64);
 const FINAL_HASH = "b".repeat(64);
 const CERTIFICATE_HASH = "c".repeat(64);
@@ -286,6 +287,21 @@ test("latest isolated signing schema preserves the foundation tables", async () 
   assert.match(migrationSql, /byte_count BETWEEN 1 AND 3000000/);
   assert.match(migrationSql, /final_byte_count BETWEEN 1 AND 4000000/);
   assert.match(migrationSql, /page_count BETWEEN 1 AND 25/);
+});
+
+test("0038 can roll back only while no practical-field evidence exists", async () => {
+  const isolated = new PGlite();
+  try {
+    await isolated.exec(`CREATE TABLE public.admin_users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), username text NOT NULL UNIQUE);
+      CREATE TABLE public.leads (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), full_name text NOT NULL, status text NOT NULL DEFAULT 'active');
+      CREATE TABLE public.lead_groups (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), title text NOT NULL);`);
+    await isolated.exec(migrationSql); await isolated.exec(signerMigrationSql); await isolated.exec(deliveryMigrationSql);
+    await isolated.exec(privacyBindingMigrationSql); await isolated.exec(privacyHistoryMigrationSql);
+    for (const migration of phase2GovernanceMigrations) await isolated.exec(migration);
+    await isolated.exec(practicalFieldsRollbackSql);
+    const constraint = await isolated.query(`SELECT pg_get_constraintdef(oid) definition FROM pg_constraint WHERE conname='signature_fields_type_check'`);
+    assert.doesNotMatch(constraint.rows[0].definition, /checkbox|radio|dropdown|signer_name/);
+  } finally { await isolated.close(); }
 });
 
 test("valid draft creation preserves the counsel gate", async () => {

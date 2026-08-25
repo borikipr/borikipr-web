@@ -219,6 +219,18 @@ if (!process.env.DATABASE_URL) {
                 AND pg_get_constraintdef(oid) LIKE '%styleId%'
                 AND pg_get_constraintdef(oid) LIKE '%great-vibes%'
             ) AS v0037
+          ,EXISTS (
+              SELECT 1 FROM pg_constraint
+              WHERE conrelid='public.signature_fields'::regclass
+                AND conname='signature_fields_type_check'
+                AND pg_get_constraintdef(oid) LIKE '%checkbox%'
+                AND pg_get_constraintdef(oid) LIKE '%signer_name%'
+            ) AND EXISTS (
+              SELECT 1 FROM pg_constraint
+              WHERE conrelid='public.signature_field_values'::regclass
+                AND conname='signature_field_values_capture_method_check'
+                AND pg_get_constraintdef(oid) LIKE '%system_identity%'
+            ) AS v0038
       )
       SELECT * FROM facts
     `;

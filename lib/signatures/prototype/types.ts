@@ -30,7 +30,7 @@ export type PdfPlacement = Readonly<{
   rotation: PdfRotation;
 }>;
 
-export type SignatureFieldType = "signature" | "initials" | "date" | "date_signed" | "text";
+export type SignatureFieldType = import("../domain/types").SignatureFieldType;
 
 export type DrawnStroke = readonly PdfPoint[];
 
@@ -38,7 +38,8 @@ export type PrototypeFieldValue =
   | Readonly<{ method: "drawn"; strokes: readonly DrawnStroke[] }>
   | Readonly<{ method: "typed"; value: string; style?: SignatureStyleId }>
   | Readonly<{ method: "date"; value: string }>
-  | Readonly<{ method: "text"; value: string }>;
+  | Readonly<{ method: "text"; value: string }>
+  | Readonly<{ method: "checkbox"; value: true }>;
 
 export type PrototypeField = Readonly<{
   id: string;

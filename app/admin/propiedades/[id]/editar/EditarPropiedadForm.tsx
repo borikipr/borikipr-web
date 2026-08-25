@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
-import Image from "next/image";
 import { municipiosPR } from "@/data/municipios";
 import { updatePropiedadAction, type UpdatePropiedadState } from "../../actions";
 import ImagenesUploader from "../../ImagenesUploader";
+import PropertyMediaManager from "../../PropertyMediaManager";
 import { formatPropertyLocation, getSectoresForMunicipio } from "@/lib/puerto-rico-sectores";
 
 type EditarPropiedadFormProps = {
@@ -738,86 +738,12 @@ export default function EditarPropiedadForm({
       />
      </div>
 
-     <div className="space-y-3">
-      <label htmlFor="imagenes" className="text-sm font-medium text-[#000000]">
-       Imágenes
-      </label>
-      <textarea
-       id="imagenes"
-       name="imagenes"
-       rows={4}
-       value={imagenesValue}
-       onChange={(e) => setImagenesValue(e.target.value)}
-       className="input-premium"
-      />
-      <p className="text-sm text-[#4d4d4d]">
-       Puedes subir nuevas imágenes arriba o pegar URLs manualmente.
-      </p>
-     </div>
-
-     {imagenesPreview.length > 0 && (
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-       {imagenesPreview.map((url) => {
-        const esVideo = /\.(mp4|webm|mov)(\?|$)/i.test(url) || url.includes("/videos/");
-        return (
-         <div
-          key={url}
-          className="relative overflow-hidden rounded-2xl border border-[#e8e8e8] bg-white"
-         >
-          {/* Botón eliminar */}
-          <button
-           type="button"
-           onClick={() => {
-            const urls = imagenesPreview.filter((u) => u !== url);
-            setImagenesValue(urls.join(", "));
-           }}
-           className="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-white shadow-md transition hover:bg-red-600"
-           title="Quitar imagen"
-          >
-           <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-           </svg>
-          </button>
-
-          {esVideo ? (
-           <div className="relative h-40 w-full bg-black">
-            <video
-             src={url}
-             className="h-full w-full object-cover"
-             muted
-             playsInline
-             preload="metadata"
-            />
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80">
-              <svg className="h-5 w-5 text-[#11518b] ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-               <path d="M8 5v14l11-7z" />
-              </svg>
-             </div>
-            </div>
-            <span className="absolute top-2 left-2 rounded-full bg-[#11518b] px-2 py-0.5 text-[10px] font-semibold uppercase text-white">
-             Video
-            </span>
-           </div>
-          ) : (
-           <div className="relative h-40 w-full">
-            <Image
-             src={url}
-             alt="Preview"
-             fill
-             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-             className="object-cover"
-            />
-           </div>
-          )}
-          <div className="p-3">
-           <p className="break-all text-xs text-[#4d4d4d]">{url}</p>
-          </div>
-         </div>
-        );
-       })}
-      </div>
-     )}
+     <input type="hidden" id="imagenes" name="imagenes" value={imagenesValue} />
+     <PropertyMediaManager items={imagenesPreview} onChange={(urls) => setImagenesValue(urls.join(", "))} />
+     <details className="rounded-lg border border-slate-200 p-3">
+      <summary className="cursor-pointer text-sm font-semibold text-slate-700">Añadir o editar URLs manualmente</summary>
+      <textarea aria-label="URLs de imágenes y videos" rows={3} value={imagenesValue} onChange={(event) => setImagenesValue(event.target.value)} className="input-premium mt-3" />
+     </details>
 
      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
 

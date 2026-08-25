@@ -16,13 +16,16 @@ import {
   type SignatureStyleId,
 } from "@/lib/signatures/signature-styles";
 import SignerActionForm from "./SignerActionForm";
+import type { SignatureFieldType, SignatureFieldValidationLimits } from "@/lib/signatures/domain/types";
+import { fieldChoiceOptions, fieldMaxLength } from "@/lib/signatures/field-options";
 
 type Field = Readonly<{
   id: string;
-  field_type: "signature" | "initials" | "date" | "date_signed" | "text";
+  field_type: SignatureFieldType;
   label: string;
   required: boolean;
   completed: boolean;
+  validation_limits: SignatureFieldValidationLimits;
 }>;
 
 export default function SignerFieldForm({
@@ -37,7 +40,7 @@ export default function SignerFieldForm({
   const signatureLike =
     field.field_type === "signature" || field.field_type === "initials";
   const [method, setMethod] = useState(
-    field.field_type === "signature" ? "typed" : field.field_type,
+    field.field_type === "signature" ? "typed" : field.field_type === "date" ? "date" : "text",
   );
   const [style, setStyle] = useState<SignatureStyleId>(
     DEFAULT_SIGNATURE_STYLE_ID,
@@ -192,7 +195,7 @@ export default function SignerFieldForm({
     );
   }
 
-  if (field.field_type === "date_signed") {
+  if (field.field_type === "date_signed" || field.field_type === "signer_name") {
     return (
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
         <p className="font-medium">
@@ -200,8 +203,9 @@ export default function SignerFieldForm({
           {field.required ? " *" : ""}
         </p>
         <p className="mt-1 text-sm text-slate-700">
-          Borikí colocará automáticamente la fecha real cuando completes tu
-          firma.
+          {field.field_type === "date_signed"
+            ? "Borikí colocará automáticamente la fecha real cuando completes tu firma."
+            : `Borikí colocará automáticamente el nombre verificado de este participante: ${participantName}.`}
         </p>
       </div>
     );
@@ -451,11 +455,38 @@ export default function SignerFieldForm({
               </div>
               <input type="hidden" name="style" value={style} />
             </div>
+          ) : field.field_type === "checkbox" ? (
+            <label className="mt-3 flex min-h-12 items-center gap-3 rounded-lg border border-slate-300 bg-white px-3 py-2">
+              <input name="value" type="checkbox" value="true" required={field.required} className="h-5 w-5 accent-[#11518b]" />
+              <span>{field.label}{field.required ? " *" : ""}</span>
+            </label>
+          ) : field.field_type === "radio" ? (
+            <fieldset className="mt-3 rounded-lg border border-slate-300 bg-white p-3">
+              <legend className="px-1 font-semibold">{field.label}{field.required ? " *" : ""}</legend>
+              <div className="mt-2 grid gap-2">
+                {fieldChoiceOptions(field.validation_limits).map((option) => (
+                  <label className="flex min-h-11 items-center gap-3 rounded-md border border-slate-200 px-3 py-2" key={option}>
+                    <input name="value" type="radio" value={option} required={field.required} className="h-5 w-5 accent-[#11518b]" />
+                    <span>{option}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          ) : field.field_type === "dropdown" ? (
+            <select name="value" required={field.required} defaultValue="" className="mt-3 block min-h-12 w-full rounded-lg border border-slate-300 bg-white p-2">
+              <option value="" disabled>Selecciona una opción</option>
+              {fieldChoiceOptions(field.validation_limits).map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
           ) : (
             <input
               name="value"
-              type={field.field_type === "date" ? "date" : "text"}
-              maxLength={field.field_type === "text" ? 500 : 120}
+              type={field.field_type === "date" ? "date" : field.field_type === "number" ? "number" : field.field_type === "email" ? "email" : field.field_type === "phone" ? "tel" : "text"}
+              inputMode={field.field_type === "number" ? "decimal" : field.field_type === "email" ? "email" : field.field_type === "phone" ? "tel" : undefined}
+              step={field.field_type === "number" ? (field.validation_limits.allowDecimals === false ? "1" : "any") : undefined}
+              min={field.field_type === "number" && typeof field.validation_limits.min === "number" ? field.validation_limits.min : undefined}
+              max={field.field_type === "number" && typeof field.validation_limits.max === "number" ? field.validation_limits.max : undefined}
+              maxLength={field.field_type === "text" ? fieldMaxLength(field.validation_limits, 500) : field.field_type === "email" ? 254 : field.field_type === "phone" ? 50 : 120}
+              autoComplete={field.field_type === "email" ? "email" : field.field_type === "phone" ? "tel" : undefined}
               required={field.required}
               className="mt-3 block min-h-12 w-full rounded-lg border border-slate-300 p-2"
             />

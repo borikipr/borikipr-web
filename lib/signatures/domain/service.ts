@@ -32,6 +32,7 @@ import type {
   SignatureEventRecord,
   SignatureEventType,
   SignatureFieldType,
+  SignatureFieldValidationLimits,
   SignatureParticipantStatus,
   SignatureQueryExecutor,
 } from "./types";
@@ -571,7 +572,7 @@ export function createSignatureDomainServices({
     label: string;
     required?: boolean;
     tabOrder: number;
-    validationLimits?: Readonly<Record<string, number>>;
+    validationLimits?: SignatureFieldValidationLimits;
     actorAdminId: string;
     idempotencyKey: string;
   }) {
@@ -713,7 +714,7 @@ export function createSignatureDomainServices({
     label: string;
     required: boolean;
     tabOrder: number;
-    validationLimits?: Readonly<Record<string, number>>;
+    validationLimits?: SignatureFieldValidationLimits;
     actorAdminId: string;
     idempotencyKey: string;
   }) {
@@ -1682,8 +1683,8 @@ export function createSignatureDomainServices({
     }
     return database.begin(async (transaction) => {
       await assertActiveSessionInTransaction(transaction, input, context);
-      const locked = await transaction.unsafe<{ status: SignatureParticipantStatus }>(
-        `SELECT status FROM public.signature_participants WHERE id=$1::uuid FOR UPDATE`,
+      const locked = await transaction.unsafe<{ status: SignatureParticipantStatus; name_snapshot: string }>(
+        `SELECT status, name_snapshot FROM public.signature_participants WHERE id=$1::uuid FOR UPDATE`,
         [context.participantId]
       );
       if (locked[0]?.status === "consented") return { accepted: true as const };
@@ -1727,15 +1728,16 @@ export function createSignatureDomainServices({
     const context = await getSessionContext(input);
     return database.begin(async (transaction) => {
       await assertActiveSessionInTransaction(transaction, input, context);
-      const rows = await transaction.unsafe<{ field_type: SignatureFieldType; participant_id: string }>(
-        `SELECT f.field_type, f.participant_id::text FROM public.signature_fields f
+      const rows = await transaction.unsafe<{ field_type: SignatureFieldType; participant_id: string; validation_limits: SignatureFieldValidationLimits | string }>(
+        `SELECT f.field_type, f.participant_id::text, f.validation_limits FROM public.signature_fields f
          JOIN public.signature_participants p ON p.id=f.participant_id
          WHERE f.id=$1::uuid AND f.document_version_id=$2::uuid AND p.status='consented' FOR UPDATE OF f`,
         [input.fieldId, context.documentVersionId]
       );
       const field = rows[0];
       if (!field || field.participant_id !== context.participantId) throw new Error("signature_field_not_owned");
-      const normalized = normalizeSignerCapture(field.field_type, input.value);
+      const limits = typeof field.validation_limits === "string" ? JSON.parse(field.validation_limits) : field.validation_limits;
+      const normalized = normalizeSignerCapture(field.field_type, input.value, limits);
       const inserted = await transaction.unsafe<{ id: string }>(
         `INSERT INTO public.signature_field_values (
            signature_field_id, participant_id, capture_method, sanitized_typed_value,
@@ -1777,32 +1779,40 @@ export function createSignatureDomainServices({
     const context = await getSessionContext(input);
     return database.begin(async (transaction) => {
       await assertActiveSessionInTransaction(transaction, input, context);
+      const participantRows = await transaction.unsafe<{ name_snapshot: string }>(
+        `SELECT name_snapshot FROM public.signature_participants WHERE id=$1::uuid FOR UPDATE`,
+        [context.participantId]
+      );
+      if (!participantRows[0]) throw new Error("signature_participant_not_found");
       const completedAt = clock();
       const dateParts = new Intl.DateTimeFormat("en-US", {
         timeZone: "America/Puerto_Rico", year: "numeric", month: "2-digit", day: "2-digit",
       }).formatToParts(completedAt);
       const part = (type: Intl.DateTimeFormatPartTypes) => dateParts.find((item) => item.type === type)?.value ?? "";
       const signedDate = `${part("year")}-${part("month")}-${part("day")}`;
-      const automaticFields = await transaction.unsafe<{ id: string }>(
-        `SELECT f.id::text FROM public.signature_fields f
-          WHERE f.participant_id=$1::uuid AND f.field_type='date_signed'
+      const automaticFields = await transaction.unsafe<{ id: string; field_type: "date_signed" | "signer_name" }>(
+        `SELECT f.id::text, f.field_type FROM public.signature_fields f
+          WHERE f.participant_id=$1::uuid AND f.field_type IN ('date_signed','signer_name')
             AND NOT EXISTS (SELECT 1 FROM public.signature_field_values fv WHERE fv.signature_field_id=f.id)
           ORDER BY f.tab_order FOR UPDATE OF f`, [context.participantId]
       );
       for (const field of automaticFields) {
-        const valueSha256 = sha256SignatureValue(canonicalSignatureJson({ method:"date", value:signedDate }));
+        const automaticValue = field.field_type === "date_signed" ? signedDate : participantRows[0].name_snapshot;
+        const captureMethod = field.field_type === "date_signed" ? "system_date" : "system_identity";
+        const prototypeMethod = field.field_type === "date_signed" ? "date" : "text";
+        const valueSha256 = sha256SignatureValue(canonicalSignatureJson({ method:prototypeMethod, value:automaticValue }));
         await transaction.unsafe(
           `INSERT INTO public.signature_field_values(signature_field_id,participant_id,capture_method,
              sanitized_typed_value,sanitized_value_payload,value_artifact_sha256,signer_session_id,submitted_at)
-           VALUES($1::uuid,$2::uuid,'system_date',$3,NULL,$4,$5::uuid,$6::timestamptz)`,
-          [field.id,context.participantId,signedDate,valueSha256,input.sessionId,iso(completedAt)]
+           VALUES($1::uuid,$2::uuid,$3,$4,NULL,$5,$6::uuid,$7::timestamptz)`,
+          [field.id,context.participantId,captureMethod,automaticValue,valueSha256,input.sessionId,iso(completedAt)]
         );
         await appendEventInTransaction(transaction, {
           documentId:context.documentId,documentVersionId:context.documentVersionId,
           participantId:context.participantId,sessionId:input.sessionId,eventType:"field_completed",
           actorClass:"system",versionHash:context.sourceSha256,
-          controlledMetadata:{field_type:"date_signed",capture_method:"system_date",time_zone:"America/Puerto_Rico"},
-          idempotencyKey:derivedIdempotencyKey(input.idempotencyKey,`date_signed:${field.id}`),
+          controlledMetadata:{field_type:field.field_type,capture_method:captureMethod,...(field.field_type === "date_signed" ? {time_zone:"America/Puerto_Rico"} : {})},
+          idempotencyKey:derivedIdempotencyKey(input.idempotencyKey,`${field.field_type}:${field.id}`),
         });
       }
       const missing = await transaction.unsafe<{ count: number }>(

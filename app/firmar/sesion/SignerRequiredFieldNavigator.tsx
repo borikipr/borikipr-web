@@ -19,7 +19,7 @@ export default function SignerRequiredFieldNavigator({
   const actionable = useMemo(
     () =>
       fields.filter(
-        (field) => field.required && field.field_type !== "date_signed",
+        (field) => field.required && !["date_signed", "signer_name"].includes(field.field_type),
       ),
     [fields],
   );

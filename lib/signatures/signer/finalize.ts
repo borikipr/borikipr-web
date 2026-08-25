@@ -6,6 +6,7 @@ import type { SignatureCompletedStorage } from "../storage";
 import type { createSignatureDomainServices } from "../domain/service";
 import { finalizePrototypePdf } from "../prototype/finalize";
 import type { PdfPageGeometry, PrototypeField, PrototypeParticipant } from "../prototype/types";
+import type { SignatureFieldValidationLimits } from "../domain/types";
 import { hashSignatureFieldDefinition } from "../field-definition";
 import { canonicalSignatureJson, sha256SignatureValue } from "../domain/crypto";
 import { signatureCertificateR2Key, signatureFinalR2Key } from "../domain/r2-keys";
@@ -147,7 +148,7 @@ export async function finalizeCompletedSignatureDocument(
       normalizedX: Number(field.normalized_x), normalizedY: Number(field.normalized_y),
       normalizedWidth: Number(field.normalized_width), normalizedHeight: Number(field.normalized_height),
       required: field.required, tabOrder: field.tab_order,
-      validationLimits: parsed<Record<string, number>>(field.validation_limits),
+      validationLimits: parsed<SignatureFieldValidationLimits>(field.validation_limits),
     })),
   });
   if (layoutHash !== document.field_definition_sha256) throw new Error("signature_field_definition_hash_mismatch");
@@ -166,8 +167,12 @@ export async function finalizeCompletedSignatureDocument(
       ? { method: "drawn", strokes: parsed<{ strokes: PrototypeField["value"] extends { method: "drawn"; strokes: infer S } ? S : never }>(field.sanitized_value_payload).strokes }
       : field.capture_method === "system_date"
         ? { method: "date", value: field.sanitized_typed_value! }
+        : field.field_type === "checkbox"
+          ? { method: "checkbox", value: true }
         : field.capture_method === "text_entry"
           ? { method: "text", value: field.sanitized_typed_value! }
+          : field.capture_method === "system_identity"
+            ? { method: "text", value: field.sanitized_typed_value! }
           : (() => {
               const payload = parsed<{ styleId?: unknown } | null>(field.sanitized_value_payload);
               const style = payload && isSignatureStyleId(payload.styleId)

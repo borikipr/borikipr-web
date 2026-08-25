@@ -98,6 +98,13 @@ function drawField({
   bodyFont: PDFFont;
 }) {
   const placement = normalizedRectToPdfPlacement(field.rect, geometry);
+  if (field.value.method === "checkbox") {
+    const { x, y, width, height } = placement.bounds;
+    const inset = Math.max(1.5, Math.min(width, height) * 0.16);
+    page.drawLine({ start: { x: x + inset, y: y + inset }, end: { x: x + width - inset, y: y + height - inset }, thickness: 1.8, color: rgb(0.03, 0.08, 0.18) });
+    page.drawLine({ start: { x: x + inset, y: y + height - inset }, end: { x: x + width - inset, y: y + inset }, thickness: 1.8, color: rgb(0.03, 0.08, 0.18) });
+    return;
+  }
   if (field.value.method === "drawn") {
     validateDrawnSignature(field.value.strokes);
     for (const stroke of field.value.strokes) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { uploadImageToR2 } from "@/lib/r2";
 import { SESSION_COOKIE, verifyAdminSessionValue } from "@/lib/admin/auth";
+import { sameSignerOrigin } from "@/lib/signatures/signer/origin";
 
 export const runtime = "nodejs";
 
@@ -20,8 +21,21 @@ const ALLOWED_VIDEO_TYPES = new Set([
 ]);
 const ALL_ALLOWED_TYPES = new Set([...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES]);
 
+function matchesDeclaredType(type: string, bytes: Uint8Array) {
+  const ascii = (start: number, length: number) => String.fromCharCode(...bytes.slice(start, start + length));
+  if (type === "image/jpeg" || type === "image/jpg") return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (type === "image/png") return bytes[0] === 0x89 && ascii(1, 3) === "PNG";
+  if (type === "image/webp") return ascii(0, 4) === "RIFF" && ascii(8, 4) === "WEBP";
+  if (type === "video/webm") return bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
+  if (type === "video/mp4" || type === "video/quicktime") return ascii(4, 4) === "ftyp";
+  return false;
+}
+
 export async function POST(request: Request) {
   try {
+    if (!sameSignerOrigin(request)) {
+      return NextResponse.json({ ok: false, error: "Origen no autorizado." }, { status: 403 });
+    }
     const cookieHeader = request.headers.get("cookie") || "";
     const sessionCookie = cookieHeader
       .split(";")
@@ -42,7 +56,12 @@ export async function POST(request: Request) {
     }
 
     const formData = await request.formData();
+    const purpose = String(formData.get("purpose") || "property");
     const files = formData.getAll("files").filter((item): item is File => item instanceof File);
+
+    if (purpose !== "property" && purpose !== "testimonial") {
+      return NextResponse.json({ ok: false, error: "Destino de carga no válido." }, { status: 400 });
+    }
 
     if (files.length === 0) {
       return NextResponse.json(
@@ -51,9 +70,10 @@ export async function POST(request: Request) {
       );
     }
 
-    if (files.length > MAX_FILES) {
+    const maxFiles = purpose === "testimonial" ? 1 : MAX_FILES;
+    if (files.length > maxFiles) {
       return NextResponse.json(
-        { ok: false, error: `Máximo ${MAX_FILES} archivos por subida.` },
+        { ok: false, error: `Máximo ${maxFiles} archivos por subida.` },
         { status: 400 }
       );
     }
@@ -67,7 +87,10 @@ export async function POST(request: Request) {
       }
 
       const isVideo = ALLOWED_VIDEO_TYPES.has(file.type);
-      const maxSize = isVideo ? MAX_VIDEO_SIZE_MB : MAX_IMAGE_SIZE_MB;
+      if (purpose === "testimonial" && isVideo) {
+        return NextResponse.json({ ok: false, error: "Los testimonios solo aceptan imágenes." }, { status: 400 });
+      }
+      const maxSize = purpose === "testimonial" ? 5 : isVideo ? MAX_VIDEO_SIZE_MB : MAX_IMAGE_SIZE_MB;
       const sizeMb = file.size / (1024 * 1024);
       if (sizeMb > maxSize) {
         return NextResponse.json(
@@ -75,13 +98,18 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
+
+      const signature = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+      if (!matchesDeclaredType(file.type, signature)) {
+        return NextResponse.json({ ok: false, error: `${file.name} no coincide con su formato declarado.` }, { status: 400 });
+      }
     }
 
     const urls: string[] = [];
 
     for (const file of files) {
       const isVideo = ALLOWED_VIDEO_TYPES.has(file.type);
-      const folder = isVideo ? "propiedades/videos" : "propiedades";
+      const folder = purpose === "testimonial" ? "testimonios" : isVideo ? "propiedades/videos" : "propiedades";
       const url = await uploadImageToR2(file, folder);
       urls.push(url);
     }

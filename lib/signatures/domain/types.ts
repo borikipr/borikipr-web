@@ -31,6 +31,13 @@ export const SIGNATURE_FIELD_TYPES = [
   "date",
   "date_signed",
   "text",
+  "checkbox",
+  "radio",
+  "dropdown",
+  "number",
+  "email",
+  "phone",
+  "signer_name",
 ] as const;
 
 export type SignatureFieldType = (typeof SIGNATURE_FIELD_TYPES)[number];
@@ -40,10 +47,13 @@ export const SIGNATURE_CAPTURE_METHODS = [
   "typed",
   "system_date",
   "text_entry",
+  "system_identity",
 ] as const;
 
 export type SignatureCaptureMethod =
   (typeof SIGNATURE_CAPTURE_METHODS)[number];
+
+export type SignatureFieldValidationLimits = Readonly<Record<string, unknown>>;
 
 export const SIGNATURE_ACTOR_CLASSES = [
   "admin",

@@ -12,12 +12,19 @@ import Link from "next/link";
 import {
   IconCalendar,
   IconCalendarTime,
+  IconCheckbox,
+  IconCircleDot,
   IconChevronLeft,
   IconChevronRight,
   IconFileText,
+  IconList,
+  IconMail,
+  IconNumber123,
   IconPlus,
   IconSignature,
   IconTextSize,
+  IconPhone,
+  IconUser,
   IconWritingSign,
   IconX,
 } from "@tabler/icons-react";
@@ -44,6 +51,8 @@ import {
   type SignatureVisualPreflightIssue,
 } from "@/lib/signatures/visual-preflight";
 import { signatureDeliveryLabel } from "@/lib/signatures/admin-ux";
+import type { SignatureFieldType, SignatureFieldValidationLimits } from "@/lib/signatures/domain/types";
+import { fieldChoiceOptions, fieldMaxLength, SIGNATURE_FIELD_LABELS } from "@/lib/signatures/field-options";
 
 const INITIAL: SignatureAdminActionState = { ok: false, message: "" };
 const COLORS = [
@@ -56,14 +65,8 @@ const COLORS = [
   "#704214",
   "#565b66",
 ];
-const FIELD_LABELS = {
-  signature: "Firma",
-  initials: "Iniciales",
-  date: "Fecha",
-  date_signed: "Fecha de firma",
-  text: "Texto",
-} as const;
-type FieldType = keyof typeof FIELD_LABELS;
+const FIELD_LABELS = SIGNATURE_FIELD_LABELS;
+type FieldType = SignatureFieldType;
 type Rect = { x: number; y: number; width: number; height: number };
 const FIELD_ICONS = {
   signature: IconSignature,
@@ -71,7 +74,19 @@ const FIELD_ICONS = {
   date: IconCalendar,
   date_signed: IconCalendarTime,
   text: IconTextSize,
+  checkbox: IconCheckbox,
+  radio: IconCircleDot,
+  dropdown: IconList,
+  number: IconNumber123,
+  email: IconMail,
+  phone: IconPhone,
+  signer_name: IconUser,
 } as const;
+const FIELD_GROUPS: readonly Readonly<{ label: string; fields: readonly FieldType[] }>[] = [
+  { label: "Firma", fields: ["signature", "initials", "date_signed", "signer_name"] },
+  { label: "Datos", fields: ["text", "date", "number", "email", "phone"] },
+  { label: "Selección", fields: ["checkbox", "radio", "dropdown"] },
+];
 const READINESS_LABELS: Record<string, string> = {
   document_not_draft: "El documento ya no está en borrador.",
   active_version_missing: "Falta el PDF activo.",
@@ -119,6 +134,18 @@ function bounded(rect: Rect): Rect {
     height,
   };
 }
+function defaultFieldSize(type: FieldType) {
+  if (type === "checkbox") return { width: 0.04, height: 0.04 };
+  if (type === "initials" || type === "date") return { width: 0.18, height: 0.07 };
+  if (type === "radio") return { width: 0.22, height: 0.07 };
+  return { width: 0.3, height: 0.07 };
+}
+function defaultValidation(type: FieldType): SignatureFieldValidationLimits {
+  if (type === "radio" || type === "dropdown") return { options: ["Sí", "No"] };
+  if (type === "number") return { allowDecimals: true };
+  if (type === "text") return { maxLength: 120 };
+  return {};
+}
 function appendFieldData(
   form: FormData,
   input: {
@@ -130,6 +157,7 @@ function appendFieldData(
     label?: string;
     required?: boolean;
     maxLength?: number;
+    validationLimits?: SignatureFieldValidationLimits;
     fieldId?: string;
   },
 ) {
@@ -145,6 +173,11 @@ function appendFieldData(
   form.set("label", input.label ?? FIELD_LABELS[input.fieldType]);
   form.set("required", String(input.required ?? true));
   form.set("maxLength", String(input.maxLength ?? 120));
+  const limits = input.validationLimits ?? {};
+  form.set("options", fieldChoiceOptions(limits).join("\n"));
+  form.set("allowDecimals", String(limits.allowDecimals !== false));
+  if (typeof limits.min === "number") form.set("min", String(limits.min));
+  if (typeof limits.max === "number") form.set("max", String(limits.max));
 }
 
 function FieldOverlay({
@@ -185,7 +218,8 @@ function FieldOverlay({
       rect: next,
       label: field.label,
       required: field.required,
-      maxLength: field.validationLimits.maxLength,
+      maxLength: fieldMaxLength(field.validationLimits, 120),
+      validationLimits: field.validationLimits,
     });
     startTransition(() => action(form));
   }
@@ -359,6 +393,7 @@ export default function SignatureDraftEditor({
       fieldType,
       pageIndex,
       rect: bounded(rect),
+      validationLimits: defaultValidation(fieldType),
     });
     startTransition(() => fieldAction(form));
   }
@@ -369,12 +404,11 @@ export default function SignatureDraftEditor({
     ) as FieldType;
     if (!FIELD_LABELS[type] || !canvasRef.current) return;
     const b = canvasRef.current.getBoundingClientRect(),
-      width = type === "initials" || type === "date" ? 0.18 : 0.3;
+      size = defaultFieldSize(type);
     createField(type, {
-      x: (event.clientX - b.left) / b.width - width / 2,
-      y: (event.clientY - b.top) / b.height - 0.035,
-      width,
-      height: 0.07,
+      x: (event.clientX - b.left) / b.width - size.width / 2,
+      y: (event.clientY - b.top) / b.height - size.height / 2,
+      ...size,
     });
   }
   const colors = new Map(
@@ -619,42 +653,33 @@ export default function SignatureDraftEditor({
               </label>
             </div>
             <div className="signature-field-tools">
-              {(Object.keys(FIELD_LABELS) as FieldType[]).map((type) => {
-                const FieldIcon = FIELD_ICONS[type];
-                return (
-                  <button
-                    className="signature-field-tool"
-                    disabled={!editable || !participantId || fieldPending}
-                    draggable
-                    onClick={() => {
-                      createField(type, {
-                        x: 0.35,
-                        y: 0.45,
-                        width:
-                          type === "initials" || type === "date" ? 0.18 : 0.3,
-                        height: 0.07,
-                      });
-                      setMobileToolsOpen(false);
-                    }}
-                    onDragStart={(e) =>
-                      e.dataTransfer.setData(
-                        "application/x-borikipr-signature-field",
-                        type,
-                      )
-                    }
-                    key={type}
-                    type="button"
-                  >
-                    <FieldIcon aria-hidden="true" size={21} />
-                    <span>{FIELD_LABELS[type]}</span>
-                    <IconPlus
-                      aria-hidden="true"
-                      className="ml-auto text-slate-400"
-                      size={17}
-                    />
-                  </button>
-                );
-              })}
+              {FIELD_GROUPS.map((group) => (
+                <div className="contents" key={group.label}>
+                  <p className="signature-field-tool-group">{group.label}</p>
+                  {group.fields.map((type) => {
+                    const FieldIcon = FIELD_ICONS[type];
+                    return (
+                      <button
+                        className="signature-field-tool"
+                        disabled={!editable || !participantId || fieldPending}
+                        draggable
+                        onClick={() => {
+                          const size = defaultFieldSize(type);
+                          createField(type, { x: 0.35, y: 0.45, ...size });
+                          setMobileToolsOpen(false);
+                        }}
+                        onDragStart={(e) => e.dataTransfer.setData("application/x-borikipr-signature-field", type)}
+                        key={type}
+                        type="button"
+                      >
+                        <FieldIcon aria-hidden="true" size={20} />
+                        <span>{FIELD_LABELS[type]}</span>
+                        <IconPlus aria-hidden="true" className="ml-auto text-slate-400" size={17} />
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
             <Feedback state={fieldState} />
           </aside>
@@ -1553,11 +1578,29 @@ function FieldSettings({
             Requerido
           </label>
           {field.fieldType === "text" && (
-            <input
-              name="maxLength"
-              type="hidden"
-              value={field.validationLimits.maxLength ?? 120}
-            />
+            <label className="block text-xs font-semibold">
+              Máximo de caracteres
+              <input className="mt-1 w-full rounded-lg border px-2 py-2 text-sm" name="maxLength" type="number" min="1" max="500" defaultValue={fieldMaxLength(field.validationLimits, 120)} />
+            </label>
+          )}
+          {(field.fieldType === "radio" || field.fieldType === "dropdown") && (
+            <label className="block text-xs font-semibold">
+              Opciones · una por línea
+              <textarea className="mt-1 min-h-24 w-full resize-y rounded-lg border px-2 py-2 text-sm" name="options" defaultValue={fieldChoiceOptions(field.validationLimits).join("\n")} required />
+            </label>
+          )}
+          {field.fieldType === "number" && (
+            <div className="space-y-2 rounded-lg border border-slate-200 p-2">
+              <label className="flex items-center gap-2 text-xs font-semibold">
+                <input name="allowDecimals" type="hidden" value="false" />
+                <input name="allowDecimals" type="checkbox" value="true" defaultChecked={field.validationLimits.allowDecimals !== false} />
+                Permitir decimales
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs font-semibold">Mínimo<input className="mt-1 w-full rounded-lg border px-2 py-2 text-sm" name="min" type="number" step="any" defaultValue={typeof field.validationLimits.min === "number" ? field.validationLimits.min : ""} /></label>
+                <label className="text-xs font-semibold">Máximo<input className="mt-1 w-full rounded-lg border px-2 py-2 text-sm" name="max" type="number" step="any" defaultValue={typeof field.validationLimits.max === "number" ? field.validationLimits.max : ""} /></label>
+              </div>
+            </div>
           )}
           <button
             className="text-sm font-semibold text-[#11518b]"

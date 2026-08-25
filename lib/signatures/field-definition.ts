@@ -1,8 +1,9 @@
 import { canonicalSignatureJson, sha256SignatureValue } from "./domain/crypto";
+import type { SignatureFieldType, SignatureFieldValidationLimits } from "./domain/types";
 
 export type SignatureLayoutField = Readonly<{
   participantId: string;
-  fieldType: "signature" | "initials" | "date" | "date_signed" | "text";
+  fieldType: SignatureFieldType;
   pageIndex: number;
   normalizedX: number;
   normalizedY: number;
@@ -10,7 +11,7 @@ export type SignatureLayoutField = Readonly<{
   normalizedHeight: number;
   required: boolean;
   tabOrder: number;
-  validationLimits: Readonly<Record<string, number>>;
+  validationLimits: SignatureFieldValidationLimits;
 }>;
 
 function normalizeNumber(value: number) {
