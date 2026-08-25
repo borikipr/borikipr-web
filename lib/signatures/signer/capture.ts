@@ -7,10 +7,15 @@ import {
 import { canonicalSignatureJson, sha256SignatureValue } from "../domain/crypto";
 import type { DrawnStroke, PrototypeFieldValue } from "../prototype/types";
 import type { SignatureFieldType } from "../domain/types";
+import {
+  isSignatureStyleId,
+  normalizeSignatureStyleId,
+  type SignatureStyleId,
+} from "../signature-styles";
 
 export type SignerCaptureInput =
   | Readonly<{ method: "drawn"; strokes: readonly DrawnStroke[] }>
-  | Readonly<{ method: "typed"; value: string }>
+  | Readonly<{ method: "typed"; value: string; style?: SignatureStyleId }>
   | Readonly<{ method: "date"; value: string }>
   | Readonly<{ method: "text"; value: string }>;
 
@@ -23,6 +28,7 @@ export function normalizeSignerCapture(
   valuePayload: Readonly<Record<string, unknown>> | null;
   valueSha256: string;
   prototypeValue: PrototypeFieldValue;
+  signatureStyleId: SignatureStyleId | null;
 }> {
   if (input.method === "drawn") {
     if (fieldType !== "signature" && fieldType !== "initials") {
@@ -36,11 +42,15 @@ export function normalizeSignerCapture(
       valuePayload: payload,
       valueSha256: sha256SignatureValue(canonicalSignatureJson(payload)),
       prototypeValue: input,
+      signatureStyleId: null,
     };
   }
 
   let value: string;
   if (input.method === "typed") {
+    if (input.style !== undefined && !isSignatureStyleId(input.style)) {
+      throw new Error("signature_style_invalid");
+    }
     if (fieldType === "signature") value = validateTypedSignature(input.value);
     else if (fieldType === "initials") value = validateInitials(input.value);
     else throw new Error("signature_capture_type_mismatch");
@@ -61,12 +71,18 @@ export function normalizeSignerCapture(
     value = validateBoundedText(input.value);
   }
   const captureMethod = input.method === "typed" ? "typed" : "text_entry";
-  const prototypeValue = Object.freeze({ ...input, value }) as PrototypeFieldValue;
+  const signatureStyleId = input.method === "typed" ? normalizeSignatureStyleId(input.style) : null;
+  const prototypeValue = Object.freeze({
+    ...input,
+    value,
+    ...(signatureStyleId ? { style: signatureStyleId } : {}),
+  }) as PrototypeFieldValue;
   return {
     captureMethod,
     typedValue: value,
-    valuePayload: null,
+    valuePayload: signatureStyleId ? Object.freeze({ styleId: signatureStyleId }) : null,
     valueSha256: sha256SignatureValue(canonicalSignatureJson(prototypeValue)),
     prototypeValue,
+    signatureStyleId,
   };
 }

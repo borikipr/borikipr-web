@@ -79,6 +79,8 @@ if (!existing.rows[0]?.relation) {
     "0033_harden_signature_preflight_authorization.sql",
     "0034_add_signature_operational_hiding.sql",
     "0035_productize_boriki_sign.sql",
+    "0036_allow_historical_governance_effective_dates.sql",
+    "0037_add_signature_style_evidence.sql",
   ];
   for (const name of names) {
     await db.exec(await readFile(path.join(root, "db", "migrations", name), "utf8"));
@@ -141,6 +143,11 @@ const productizationColumn = await db.query(`SELECT count(*)::integer AS count F
   WHERE table_schema='public' AND table_name='signature_documents' AND column_name='routing_mode'`);
 if (productizationColumn.rows[0]?.count === 0) {
   await db.exec(await readFile(path.join(root,"db","migrations","0035_productize_boriki_sign.sql"),"utf8"));
+}
+const styledEvidenceConstraint = await db.query(`SELECT pg_get_constraintdef(oid) AS definition
+  FROM pg_constraint WHERE conname='signature_field_values_payload_check'`);
+if (!styledEvidenceConstraint.rows[0]?.definition?.includes("great-vibes")) {
+  await db.exec(await readFile(path.join(root,"db","migrations","0037_add_signature_style_evidence.sql"),"utf8"));
 }
 
 const passwordHash = await bcrypt.hash(password, 12);

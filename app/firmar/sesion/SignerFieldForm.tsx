@@ -1,6 +1,12 @@
 "use client";
 
 import { useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import {
+  DEFAULT_SIGNATURE_STYLE_ID,
+  SIGNATURE_STYLES,
+  deriveSuggestedInitials,
+  type SignatureStyleId,
+} from "@/lib/signatures/signature-styles";
 import SignerActionForm from "./SignerActionForm";
 
 type Field = Readonly<{
@@ -11,8 +17,21 @@ type Field = Readonly<{
   completed: boolean;
 }>;
 
-export default function SignerFieldForm({ field, csrf }: { field: Field; csrf: string }) {
+export default function SignerFieldForm({
+  field,
+  csrf,
+  participantName,
+}: {
+  field: Field;
+  csrf: string;
+  participantName: string;
+}) {
+  const signatureLike = field.field_type === "signature" || field.field_type === "initials";
   const [method, setMethod] = useState(field.field_type === "signature" ? "typed" : field.field_type);
+  const [style, setStyle] = useState<SignatureStyleId>(DEFAULT_SIGNATURE_STYLE_ID);
+  const [typedValue, setTypedValue] = useState(
+    field.field_type === "initials" ? deriveSuggestedInitials(participantName) : participantName
+  );
   const [strokes, setStrokes] = useState<{ x: number; y: number }[][]>([]);
   const canvas = useRef<HTMLCanvasElement>(null);
   const activePointerId = useRef<number | null>(null);
@@ -34,6 +53,10 @@ export default function SignerFieldForm({ field, csrf }: { field: Field; csrf: s
     const context = canvas.current?.getContext("2d");
     const bounds = event.currentTarget.getBoundingClientRect();
     if (context) {
+      context.lineCap = "round";
+      context.lineJoin = "round";
+      context.lineWidth = 2;
+      context.strokeStyle = "#0d1b2a";
       context.beginPath();
       context.moveTo(start.x * bounds.width, start.y * bounds.height);
     }
@@ -92,70 +115,124 @@ export default function SignerFieldForm({ field, csrf }: { field: Field; csrf: s
 
   function clearDrawing() {
     const context = canvas.current?.getContext("2d");
-    if (context && canvas.current) {
-      context.clearRect(0, 0, canvas.current.width, canvas.current.height);
-    }
+    if (context && canvas.current) context.clearRect(0, 0, canvas.current.width, canvas.current.height);
     setStrokes([]);
   }
 
   if (field.completed) {
-    return <div className="rounded-lg border bg-emerald-50 p-4">{field.label}: completado</div>;
+    return <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
+      {field.label}: completado
+    </div>;
   }
 
   if (field.field_type === "date_signed") {
-    return <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+    return <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
       <p className="font-medium">{field.label}{field.required ? " *" : ""}</p>
       <p className="mt-1 text-sm text-slate-700">Borikí colocará automáticamente la fecha real cuando completes tu firma.</p>
     </div>;
   }
+
+  const selectedStyle = SIGNATURE_STYLES.find((candidate) => candidate.id === style)!;
+  const submitLabel = field.field_type === "signature"
+    ? method === "drawn" ? "Adoptar firma dibujada" : "Adoptar y continuar"
+    : field.field_type === "initials" ? "Adoptar iniciales" : "Guardar campo";
 
   return (
     <SignerActionForm
       action="/api/signatures/session/field"
       destination="/firmar/sesion"
       errorMessage="No se pudo guardar el campo. Verifica que la sesión siga vigente e intenta nuevamente."
-      className="rounded-lg border bg-white p-4"
+      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
     >
-      <label className="font-medium">{field.label}{field.required ? " *" : ""}</label>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <label className="font-semibold text-slate-950">{field.label}{field.required ? " *" : ""}</label>
+        {field.field_type === "signature" && (
+          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1" role="tablist" aria-label="Método de firma">
+            <button type="button" role="tab" aria-selected={method === "typed"} onClick={() => setMethod("typed")}
+              className={`min-h-10 rounded-md px-4 text-sm font-semibold ${method === "typed" ? "bg-[#11518b] text-white" : "text-slate-700"}`}>
+              Escribir
+            </button>
+            <button type="button" role="tab" aria-selected={method === "drawn"} onClick={() => setMethod("drawn")}
+              className={`min-h-10 rounded-md px-4 text-sm font-semibold ${method === "drawn" ? "bg-[#11518b] text-white" : "text-slate-700"}`}>
+              Dibujar
+            </button>
+          </div>
+        )}
+      </div>
+
       <input type="hidden" name="csrf" value={csrf} />
       <input type="hidden" name="fieldId" value={field.id} />
-      {field.field_type === "signature" && (
-        <select name="method" value={method} onChange={(event) => setMethod(event.target.value)} className="ml-3 border p-1">
-          <option value="typed">Firma escrita</option>
-          <option value="drawn">Firma dibujada</option>
-        </select>
-      )}
-      {field.field_type !== "signature" && (
-        <input type="hidden" name="method" value={field.field_type === "initials" ? "typed" : field.field_type} />
-      )}
+      <input type="hidden" name="method" value={method === "drawn" ? "drawn" : signatureLike ? "typed" : method} />
+
       {method === "drawn" ? (
-        <>
-          <canvas
-            ref={canvas}
-            width={600}
-            height={180}
-            onPointerDown={down}
-            onPointerMove={move}
-            onPointerUp={up}
-            onMouseUp={mouseUp}
-            className="mt-3 h-40 w-full touch-none border"
-            aria-label="Área para dibujar la firma"
-          />
+        <div className="mt-4">
+          <p className="text-sm text-slate-600">Dibuja dentro del recuadro. Puedes borrar y volver a intentar antes de adoptar.</p>
+          <canvas ref={canvas} width={600} height={180} onPointerDown={down} onPointerMove={move}
+            onPointerUp={up} onPointerCancel={up} onMouseUp={mouseUp}
+            className="mt-3 h-40 w-full touch-none rounded-lg border-2 border-slate-300 bg-white"
+            aria-label="Área para dibujar la firma" />
           <input type="hidden" name="strokes" value={JSON.stringify(strokes)} />
-          <button className="mt-2 rounded border border-slate-400 px-3 py-2 text-sm" onClick={clearDrawing} type="button">
-            Borrar y volver a dibujar
-          </button>
-        </>
+          <button className="mt-3 min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-800"
+            onClick={clearDrawing} type="button">Borrar y volver a dibujar</button>
+        </div>
+      ) : signatureLike ? (
+        <div className="mt-4 space-y-5">
+          <div>
+            <label htmlFor={`signature-value-${field.id}`} className="text-sm font-medium text-slate-800">
+              {field.field_type === "initials" ? "Confirma tus iniciales" : "Confirma tu nombre completo"}
+            </label>
+            <input id={`signature-value-${field.id}`} name="value" value={typedValue}
+              onChange={(event) => setTypedValue(event.target.value)} maxLength={field.field_type === "initials" ? 8 : 120}
+              required={field.required} autoComplete="name"
+              className="mt-2 block min-h-12 w-full rounded-lg border border-slate-300 px-3 py-2 text-base focus:border-[#11518b]" />
+            {field.field_type === "initials" && (
+              <p className="mt-2 text-xs text-slate-600">Esta es una sugerencia basada en tu nombre. Revísala antes de adoptar.</p>
+            )}
+          </div>
+
+          <fieldset>
+            <legend className="text-sm font-semibold text-slate-900">Elige un estilo</legend>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {SIGNATURE_STYLES.map((candidate) => {
+                const selected = candidate.id === style;
+                return (
+                  <button key={candidate.id} type="button" aria-pressed={selected}
+                    aria-label={`${candidate.label}: seleccionar este estilo de firma`} onClick={() => setStyle(candidate.id)}
+                    className={`min-w-0 rounded-xl border p-3 text-left ${selected ? "border-[#11518b] bg-blue-50 ring-2 ring-[#11518b]/20" : "border-slate-200 bg-white hover:border-slate-400"}`}>
+                    <span className="block text-xs font-semibold uppercase tracking-[0.08em] text-slate-600">{candidate.label}</span>
+                    <span className="mt-2 block min-h-12 overflow-hidden text-3xl leading-tight text-[#0d1b2a]"
+                      style={{ fontFamily: `"${candidate.fontFamily}", cursive` }}>
+                      {typedValue || participantName}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          <div className="rounded-xl border border-[#d4af37]/50 bg-[#fffdf5] p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-600">Vista previa · {selectedStyle.label}</p>
+            <p className="mt-2 min-h-14 overflow-hidden text-4xl leading-tight text-[#0d1b2a] sm:text-5xl"
+              style={{ fontFamily: `"${selectedStyle.fontFamily}", cursive` }}>
+              {typedValue || participantName}
+            </p>
+          </div>
+          <input type="hidden" name="style" value={style} />
+        </div>
       ) : (
-        <input
-          name="value"
-          type={field.field_type === "date" ? "date" : "text"}
-          maxLength={field.field_type === "initials" ? 8 : field.field_type === "text" ? 500 : 120}
-          required={field.required}
-          className="mt-3 block w-full rounded border p-2"
-        />
+        <input name="value" type={field.field_type === "date" ? "date" : "text"}
+          maxLength={field.field_type === "text" ? 500 : 120} required={field.required}
+          className="mt-3 block min-h-12 w-full rounded-lg border border-slate-300 p-2" />
       )}
-      <button className="mt-3 rounded bg-blue-700 px-4 py-2 text-white">Guardar campo</button>
+
+      <button className="mt-5 min-h-12 w-full rounded-lg bg-[#0d1b2a] px-5 py-3 font-semibold text-white sm:w-auto">
+        {submitLabel}
+      </button>
+      {signatureLike && (
+        <p className="mt-3 text-xs leading-5 text-slate-600">
+          Al adoptar esta representación confirmas que deseas usarla como tu firma o iniciales electrónicas para este documento.
+        </p>
+      )}
     </SignerActionForm>
   );
 }

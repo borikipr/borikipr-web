@@ -212,6 +212,13 @@ if (!process.env.DATABASE_URL) {
                 AND conname='signature_consent_versions_time_check'
                 AND pg_get_constraintdef(oid) LIKE '%effective_from%'
             ) AS v0036
+          ,EXISTS (
+              SELECT 1 FROM pg_constraint
+              WHERE conrelid='public.signature_field_values'::regclass
+                AND conname='signature_field_values_payload_check'
+                AND pg_get_constraintdef(oid) LIKE '%styleId%'
+                AND pg_get_constraintdef(oid) LIKE '%great-vibes%'
+            ) AS v0037
       )
       SELECT * FROM facts
     `;

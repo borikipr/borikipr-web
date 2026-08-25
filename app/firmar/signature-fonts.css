@@ -1,0 +1,29 @@
+@font-face {
+  font-family: "Boriki Signature Great Vibes";
+  src: url("/fonts/signatures/great-vibes/GreatVibes-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Boriki Signature Allura";
+  src: url("/fonts/signatures/allura/Allura-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Boriki Signature Alex Brush";
+  src: url("/fonts/signatures/alex-brush/AlexBrush-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Boriki Signature Parisienne";
+  src: url("/fonts/signatures/parisienne/Parisienne-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Boriki Signature Sacramento";
+  src: url("/fonts/signatures/sacramento/Sacramento-Regular.ttf") format("truetype");
+  font-display: swap;
+}

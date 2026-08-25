@@ -25,7 +25,7 @@ const [foundationSql, signerSql, deliverySql, privacyBindingSql, privacyHistoryS
   readFile(path.join(root, "db/migrations/0026_preserve_signature_privacy_disclosure_text.sql"), "utf8"),
   readFile(path.join(root, "tests/fixtures/signatures/rejections/valid-ordinary.pdf")),
 ]);
-const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql","0034_add_signature_operational_hiding.sql","0035_productize_boriki_sign.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
+const phase2GovernanceMigrations = await Promise.all(["0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql","0034_add_signature_operational_hiding.sql","0035_productize_boriki_sign.sql","0036_allow_historical_governance_effective_dates.sql","0037_add_signature_style_evidence.sql"].map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
 
 function pgliteDatabase(db) {
   const executor = (source) => ({ async unsafe(query, parameters = []) { return (await source.query(query, parameters)).rows; } });
@@ -277,7 +277,8 @@ test("a completed participant cannot resume with a previously issued current lin
     documentVersionId: fixture.documentVersionId, expiresAt: new Date("2031-01-05T13:00:00Z"), keyVersion: 1,
     actorAdminId: adminId, idempotencyKey: randomUUID() });
   const values = [{ method: "drawn", strokes: [[{ x: 0.1, y: 0.2 }, { x: 0.7, y: 0.6 }]] },
-    { method: "typed", value: "Synthetic Signer" }, { method: "typed", value: "SS" },
+    { method: "typed", value: "Synthetic Signer", style: "allura" },
+    { method: "typed", value: "SS", style: "parisienne" },
     { method: "date", value: "2031-01-05" }, { method: "text", value: "Synthetic acceptance only" }];
   for (let index = 0; index < values.length; index += 1) await services.submitSignerField({
     sessionId: session.sessionId, sessionSecret: session.sessionSecret, csrfNonce: session.csrfNonce,
@@ -335,11 +336,19 @@ test("synthetic flow finalizes once, writes private outputs, and verifies event 
   await services.acceptSignerConsent({ sessionId: session.sessionId, sessionSecret: session.sessionSecret, csrfNonce: session.csrfNonce,
     consentVersion: "phase2d-synthetic-v1", consentTextSha256: syntheticConsentSha, locale: "es-PR", idempotencyKey: randomUUID() });
   const values = [{ method: "drawn", strokes: [[{ x: 0.1, y: 0.2 }, { x: 0.7, y: 0.6 }]] },
-    { method: "typed", value: "Synthetic Signer" }, { method: "typed", value: "SS" },
+    { method: "typed", value: "Synthetic Signer", style: "allura" },
+    { method: "typed", value: "SS", style: "parisienne" },
     { method: "date", value: "2031-01-05" }, { method: "text", value: "Synthetic acceptance only" }];
   for (let index = 0; index < 5; index += 1) await services.submitSignerField({ sessionId: session.sessionId,
     sessionSecret: session.sessionSecret, csrfNonce: session.csrfNonce, fieldId: fixture.fields[index].fieldId,
     value: values[index], idempotencyKey: randomUUID() });
+  const styledValues = (await db.query(`SELECT sanitized_value_payload FROM public.signature_field_values
+    WHERE capture_method='typed' ORDER BY submitted_at, id`)).rows;
+  assert.deepEqual(styledValues.map((row) => row.sanitized_value_payload.styleId).sort(), ["allura", "parisienne"]);
+  const styledEvents = (await db.query(`SELECT controlled_metadata FROM public.signature_events
+    WHERE event_type='signature_submitted' AND controlled_metadata ? 'signature_style'
+    ORDER BY server_timestamp, id`)).rows;
+  assert.deepEqual(styledEvents.map((row) => row.controlled_metadata.signature_style).sort(), ["allura", "parisienne"]);
   const completed = await services.completeSignerParticipant({ sessionId: session.sessionId, sessionSecret: session.sessionSecret,
     csrfNonce: session.csrfNonce, idempotencyKey: randomUUID() }); assert.equal(completed.allParticipantsCompleted, true);
   const objects = new Map([[fixture.sourceR2Key, new Uint8Array(sourceBytes)]]);

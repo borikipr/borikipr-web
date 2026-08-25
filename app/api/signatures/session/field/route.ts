@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { isSignerRuntimeEnabled } from "@/lib/signatures/public-config";
 import { requireSignerRequestContext, sameSignerOrigin } from "@/lib/signatures/signer/request";
 import type { DrawnStroke } from "@/lib/signatures/prototype/types";
+import { isSignatureStyleId } from "@/lib/signatures/signature-styles";
 
 function parseStrokes(value: FormDataEntryValue | null): readonly DrawnStroke[] {
   if (typeof value !== "string" || value.length > 100_000) throw new Error("signature_strokes_invalid");
@@ -25,7 +26,16 @@ export async function POST(request: Request) {
         ? { method: "date" as const, value: String(form.get("value") ?? "") }
         : method === "text"
           ? { method: "text" as const, value: String(form.get("value") ?? "") }
-          : { method: "typed" as const, value: String(form.get("value") ?? "") };
+          : (() => {
+              const rawStyle = String(form.get("style") ?? "");
+              if (rawStyle && !isSignatureStyleId(rawStyle)) throw new Error("signature_style_invalid");
+              const style = isSignatureStyleId(rawStyle) ? rawStyle : undefined;
+              return {
+                method: "typed" as const,
+                value: String(form.get("value") ?? ""),
+                ...(style ? { style } : {}),
+              };
+            })();
     await signer.runtime.domain.submitSignerField({
       sessionId: signer.sessionId, sessionSecret: signer.sessionSecret, csrfNonce,
       fieldId: String(form.get("fieldId") ?? ""), value, idempotencyKey: randomUUID(),

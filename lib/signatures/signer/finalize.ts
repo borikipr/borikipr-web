@@ -9,6 +9,11 @@ import type { PdfPageGeometry, PrototypeField, PrototypeParticipant } from "../p
 import { hashSignatureFieldDefinition } from "../field-definition";
 import { canonicalSignatureJson, sha256SignatureValue } from "../domain/crypto";
 import { signatureCertificateR2Key, signatureFinalR2Key } from "../domain/r2-keys";
+import {
+  SIGNATURE_STYLES,
+  isSignatureStyleId,
+  type SignatureStyleId,
+} from "../signature-styles";
 
 function parsed<T>(value: unknown): T {
   return (typeof value === "string" ? JSON.parse(value) : value) as T;
@@ -163,7 +168,13 @@ export async function finalizeCompletedSignatureDocument(
         ? { method: "date", value: field.sanitized_typed_value! }
         : field.capture_method === "text_entry"
           ? { method: "text", value: field.sanitized_typed_value! }
-          : { method: "typed", value: field.sanitized_typed_value! },
+          : (() => {
+              const payload = parsed<{ styleId?: unknown } | null>(field.sanitized_value_payload);
+              const style = payload && isSignatureStyleId(payload.styleId)
+                ? payload.styleId
+                : undefined;
+              return { method: "typed" as const, value: field.sanitized_typed_value!, ...(style ? { style } : {}) };
+            })(),
   }));
   const verificationId = sha256SignatureValue(`${document.document_id}:${document.source_sha256}:${layoutHash}`).slice(0, 32);
   const finalized = await finalizePrototypePdf({
@@ -171,7 +182,10 @@ export async function finalizeCompletedSignatureDocument(
     geometries: parsed<readonly PdfPageGeometry[]>(document.page_geometry_manifest), fields,
     participants: participantModels, requestId: document.document_id, verificationId,
     consentVersion: document.consent_version, completedAt,
-    typedSignatureFontPath: path.join(process.cwd(), "tests/fixtures/signatures/fonts/great-vibes/GreatVibes-Regular.ttf"),
+    typedSignatureFontPaths: Object.fromEntries(SIGNATURE_STYLES.map((style) => [
+      style.id,
+      path.join(process.cwd(), "public", ...style.publicPath.split("/").filter(Boolean)),
+    ])) as Record<SignatureStyleId, string>,
   });
   const finalSha256 = sha256SignatureValue(finalized.finalBytes);
   const certificateBytes = await createDetachedCertificate({

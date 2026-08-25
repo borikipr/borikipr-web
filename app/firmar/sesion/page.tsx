@@ -64,7 +64,9 @@ export default async function SignerSessionPage() {
             <SignerDocumentViewer pageCount={view.page_count} />
             <ol className="mt-6 space-y-4">
               {view.fields.map((field) => (
-                <li key={field.id}><SignerFieldForm field={field} csrf={csrf} /></li>
+                <li key={field.id}>
+                  <SignerFieldForm field={field} csrf={csrf} participantName={view.participant_name} />
+                </li>
               ))}
             </ol>
             <SignerActionForm

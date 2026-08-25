@@ -18,6 +18,11 @@ import type {
   PrototypeField,
   PrototypeParticipant,
 } from "./types";
+import {
+  DEFAULT_SIGNATURE_STYLE_ID,
+  normalizeSignatureStyleId,
+  type SignatureStyleId,
+} from "../signature-styles";
 
 function displayDimensions(geometry: PdfPageGeometry, bounds: { width: number; height: number }) {
   return geometry.rotation === 90 || geometry.rotation === 270
@@ -83,13 +88,13 @@ function drawField({
   page,
   geometry,
   field,
-  typedFont,
+  typedFonts,
   bodyFont,
 }: {
   page: PDFPage;
   geometry: PdfPageGeometry;
   field: PrototypeField;
-  typedFont: PDFFont;
+  typedFonts: ReadonlyMap<SignatureStyleId, PDFFont>;
   bodyFont: PDFFont;
 }) {
   const placement = normalizedRectToPdfPlacement(field.rect, geometry);
@@ -114,7 +119,10 @@ function drawField({
     value = field.type === "initials"
       ? validateInitials(field.value.value)
       : validateTypedSignature(field.value.value);
-    font = typedFont;
+    const style = normalizeSignatureStyleId(field.value.style);
+    const selectedFont = typedFonts.get(style);
+    if (!selectedFont) throw new Error("Typed signature font is unavailable.");
+    font = selectedFont;
   } else if (field.value.method === "date") {
     value = validateBoundedText(field.value.value);
   } else {
@@ -135,6 +143,7 @@ export async function finalizePrototypePdf({
   consentVersion,
   completedAt,
   typedSignatureFontPath,
+  typedSignatureFontPaths,
 }: {
   sourceBytes: Uint8Array;
   sourceTitle: string;
@@ -146,7 +155,8 @@ export async function finalizePrototypePdf({
   verificationId: string;
   consentVersion: string;
   completedAt: string;
-  typedSignatureFontPath: string;
+  typedSignatureFontPath?: string;
+  typedSignatureFontPaths?: Readonly<Partial<Record<SignatureStyleId, string>>>;
 }): Promise<{
   finalBytes: Uint8Array;
   fieldDefinitionSha256: string;
@@ -168,8 +178,21 @@ export async function finalizePrototypePdf({
   document.setCreationDate(completionDate);
   document.setModificationDate(completionDate);
   const bodyFont = await document.embedFont(StandardFonts.Helvetica);
-  const typedFontBytes = await readFile(typedSignatureFontPath);
-  const typedFont = await document.embedFont(typedFontBytes, { subset: true });
+  const requiredTypedStyles = new Set<SignatureStyleId>(fields
+    .filter((field) => field.value.method === "typed")
+    .map((field) => field.value.method === "typed"
+      ? normalizeSignatureStyleId(field.value.style)
+      : DEFAULT_SIGNATURE_STYLE_ID));
+  const typedFonts = new Map<SignatureStyleId, PDFFont>();
+  for (const style of requiredTypedStyles) {
+    const fontPath = typedSignatureFontPaths?.[style]
+      ?? (style === DEFAULT_SIGNATURE_STYLE_ID ? typedSignatureFontPath : undefined);
+    if (!fontPath) throw new Error(`Typed signature font is unavailable for style ${style}.`);
+    // Some script fonts rely on OpenType tables that fontkit's subsetter can
+    // discard, producing a browser/PDF mismatch. Embed the selected font in
+    // full so the adopted representation remains deterministic in the final PDF.
+    typedFonts.set(style, await document.embedFont(await readFile(fontPath), { subset: false }));
+  }
   const pages = document.getPages();
 
   for (const field of [...fields].sort((left, right) => left.id.localeCompare(right.id))) {
@@ -179,7 +202,7 @@ export async function finalizePrototypePdf({
     if (!participants.some((participant) => participant.id === field.participantId)) {
       throw new Error("Field references an unknown participant.");
     }
-    drawField({ page, geometry, field, typedFont, bodyFont });
+    drawField({ page, geometry, field, typedFonts, bodyFont });
   }
 
   const finalBytes = await document.save({
@@ -211,7 +234,10 @@ export async function finalizePrototypePdf({
         fieldType: field.type,
         captureMethod: field.value.method,
         ...(field.value.method === "typed"
-          ? { adoptedValue: field.value.value }
+          ? {
+              adoptedValue: field.value.value,
+              adoptedStyle: normalizeSignatureStyleId(field.value.style),
+            }
           : {}),
         captureSha256: sha256Hex(canonicalJson(field.value)),
       })),

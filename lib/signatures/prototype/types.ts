@@ -36,7 +36,7 @@ export type DrawnStroke = readonly PdfPoint[];
 
 export type PrototypeFieldValue =
   | Readonly<{ method: "drawn"; strokes: readonly DrawnStroke[] }>
-  | Readonly<{ method: "typed"; value: string }>
+  | Readonly<{ method: "typed"; value: string; style?: SignatureStyleId }>
   | Readonly<{ method: "date"; value: string }>
   | Readonly<{ method: "text"; value: string }>;
 
@@ -101,7 +101,9 @@ export type PrototypeEvidenceManifest = Readonly<{
     fieldType: SignatureFieldType;
     captureMethod: PrototypeFieldValue["method"];
     adoptedValue?: string;
+    adoptedStyle?: SignatureStyleId;
     captureSha256: string;
   }>[];
   eventPlaceholders: readonly string[];
 }>;
+import type { SignatureStyleId } from "../signature-styles";

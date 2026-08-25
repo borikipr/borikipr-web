@@ -1731,7 +1731,11 @@ export function createSignatureDomainServices({
         documentId: context.documentId, documentVersionId: context.documentVersionId,
         participantId: context.participantId, sessionId: input.sessionId,
         eventType, actorClass: "participant", versionHash: context.sourceSha256,
-        controlledMetadata: { field_type: field.field_type, capture_method: normalized.captureMethod },
+        controlledMetadata: {
+          field_type: field.field_type,
+          capture_method: normalized.captureMethod,
+          ...(normalized.signatureStyleId ? { signature_style: normalized.signatureStyleId } : {}),
+        },
         idempotencyKey: input.idempotencyKey,
       });
       await appendEventInTransaction(transaction, {

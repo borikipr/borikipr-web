@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import "./signature-fonts.css";
 
 export const dynamic = "force-dynamic";
 
