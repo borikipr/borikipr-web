@@ -8,6 +8,7 @@ import { sha256SignatureValue } from "@/lib/signatures/domain/crypto";
 import SignerFieldForm from "./SignerFieldForm";
 import SignerDocumentViewer from "./SignerDocumentViewer";
 import SignerActionForm from "./SignerActionForm";
+import SignerRequiredFieldNavigator from "./SignerRequiredFieldNavigator";
 
 export const dynamic = "force-dynamic";
 
@@ -60,11 +61,12 @@ export default async function SignerSessionPage() {
           </SignerActionForm>
           </div>
         ) : (
-          <>
-            <SignerDocumentViewer pageCount={view.page_count} />
-            <ol className="mt-6 space-y-4">
-              {view.fields.map((field) => (
-                <li key={field.id}>
+            <>
+              <SignerDocumentViewer pageCount={view.page_count} />
+              <SignerRequiredFieldNavigator fields={view.fields} />
+              <ol className="mt-6 space-y-4">
+                {view.fields.map((field) => (
+                <li id={`signer-field-${field.id}`} key={field.id} tabIndex={-1}>
                   <SignerFieldForm field={field} csrf={csrf} participantName={view.participant_name} />
                 </li>
               ))}

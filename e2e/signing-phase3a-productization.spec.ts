@@ -85,14 +85,14 @@ test.describe("Phase 3A Borikí Sign product workflow",()=>{
     await expect(page.getByText(/no reutiliza personas, firmas ni accesos/)).toBeVisible();
     await expect(page.getByText("phase3a-buyer@example.test")).toHaveCount(0);
     await page.screenshot({fullPage:true,path:path.join(artifacts,"phase3a-template-use-desktop.png")});
-    await page.getByLabel("Expira").fill("2026-09-30");
+    await page.getByLabel("Expira").fill("2026-09-30T12:00");
     const names=page.locator('input[name^="name:"]');const emails=page.locator('input[name^="email:"]');
     await names.nth(0).fill("Nueva Parte Compradora");await emails.nth(0).fill("phase3a-new-buyer@example.test");
     await names.nth(1).fill("Nueva Parte Vendedora");await emails.nth(1).fill("phase3a-new-seller@example.test");
     await page.getByRole("button",{name:"Crear solicitud desde plantilla"}).click();
     await page.waitForURL(/\/admin\/signatures\/[0-9a-f-]+$/,{timeout:120_000});await page.waitForLoadState("networkidle");
     await page.getByRole("button",{name:"Destinatarios",exact:true}).click();
-    await expect(page.getByText("Nueva Parte Compradora",{exact:true})).toBeVisible();await expect(page.getByText("Corredora · Firma final")).toBeVisible();
+    await expect(page.getByRole("heading",{name:"Nueva Parte Compradora",exact:true})).toBeVisible();await expect(page.getByText("Corredora · Firma final").first()).toBeVisible();
     await page.getByText("Más acciones",{exact:true}).click();
     await expect(page.getByRole("button",{name:"Duplicar solicitud"})).toBeVisible();
     await expect(page.getByText(/Cancelar solicitud/)).toHaveCount(0);

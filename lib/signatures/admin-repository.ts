@@ -25,6 +25,7 @@ export type SignatureDraftDetail = Readonly<{
   leadGroupId: string | null;
   expiresAt: string | Date | null;
   createdAt: string | Date;
+  createdByName: string;
   operationallyHiddenAt: string | Date | null;
   version: Readonly<{
     id: string;
@@ -95,6 +96,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         participant_count: number | bigint;
         completed_participant_count: number | bigint;
         last_delivery_status: string | null;
+        current_signer_label: string | null;
         page_count: number;
         expires_at: string | Date | null;
         operationally_hidden_at: string | Date | null;
@@ -106,7 +108,16 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
                 count(p.id)::integer AS participant_count,
                 count(p.id) FILTER (WHERE p.status='completed')::integer AS completed_participant_count,
                 (SELECT di.status FROM public.signature_delivery_intents di
-                  WHERE di.document_version_id=v.id ORDER BY di.created_at DESC LIMIT 1) AS last_delivery_status
+                  WHERE di.document_version_id=v.id ORDER BY di.created_at DESC LIMIT 1) AS last_delivery_status,
+                (SELECT string_agg(CASE WHEN current_p.is_broker_final_signer THEN 'Ivonne' ELSE current_p.role END, ' y ' ORDER BY current_p.created_at)
+                   FROM public.signature_participants current_p
+                  WHERE current_p.document_version_id=v.id AND current_p.removed_at IS NULL
+                    AND current_p.status NOT IN ('completed','revoked','expired','declined')
+                    AND coalesce(current_p.routing_order,1)=(
+                      SELECT min(coalesce(stage_p.routing_order,1)) FROM public.signature_participants stage_p
+                       WHERE stage_p.document_version_id=v.id AND stage_p.removed_at IS NULL
+                         AND stage_p.status NOT IN ('completed','revoked','expired','declined')
+                    )) AS current_signer_label
            FROM public.signature_documents d
            JOIN public.signature_document_versions v ON v.id=d.active_version_id
            LEFT JOIN public.signature_participants p ON p.document_version_id=v.id
@@ -121,6 +132,10 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
               OR ($4 = 'waiting' AND d.status IN ('sent','viewed','partially_signed') AND d.operationally_hidden_at IS NULL)
               OR ($4 = 'completed' AND d.status='completed')
               OR ($4 = 'cancelled' AND d.status IN ('voided','expired') AND d.operationally_hidden_at IS NULL)
+              OR ($4 = 'attention' AND d.operationally_hidden_at IS NULL AND (
+                d.status='expired' OR (d.status IN ('sent','viewed','partially_signed') AND d.expires_at<=now())
+                OR (SELECT di.status FROM public.signature_delivery_intents di
+                     WHERE di.document_version_id=v.id ORDER BY di.created_at DESC LIMIT 1)='failed'))
               OR ($4 = 'archived' AND (d.status='archived' OR d.operationally_hidden_at IS NOT NULL)))
             AND ($2 = 'all' OR d.status=$2)
             AND ($3 = 'all' OR d.document_type=$3)
@@ -144,6 +159,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         expires_at: string | Date | null;
         created_at: string | Date;
         operationally_hidden_at: string | Date | null;
+        created_by_name: string;
         routing_mode: "parallel" | "sequential" | "grouped";
         requires_broker_signature: boolean;
         version_id: string;
@@ -161,12 +177,14 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
                 d.document_type_approval_reference, d.status,
                 d.canonical_lead_id::text, d.lead_group_id::text,
                 d.expires_at, d.created_at, d.operationally_hidden_at,
+                a.username AS created_by_name,
                 d.routing_mode, d.requires_broker_signature,
                 v.id::text AS version_id, v.version_number, v.filename_snapshot,
                 v.byte_count, v.page_count, v.source_sha256,
                 v.page_geometry_manifest, v.field_definition_sha256, v.locked_at, v.source_deleted_at
            FROM public.signature_documents d
            JOIN public.signature_document_versions v ON v.id=d.active_version_id
+           JOIN public.admin_users a ON a.id=d.created_by_admin_id
           WHERE d.id=$1::uuid`,
         [documentId]
       );
@@ -258,6 +276,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         leadGroupId: document.lead_group_id,
         expiresAt: document.expires_at,
         createdAt: document.created_at,
+        createdByName: document.created_by_name,
         operationallyHiddenAt: document.operationally_hidden_at,
         version: {
           id: document.version_id,

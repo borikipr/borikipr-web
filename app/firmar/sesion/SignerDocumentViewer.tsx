@@ -1,11 +1,20 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function SignerDocumentViewer({ pageCount }: { pageCount: number }) {
   const [pageIndex, setPageIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
+
+  useEffect(() => {
+    function goToFieldPage(event: Event) {
+      const requested = Number((event as CustomEvent<{pageIndex?:number}>).detail?.pageIndex);
+      if (Number.isInteger(requested) && requested >= 0 && requested < pageCount) setPageIndex(requested);
+    }
+    window.addEventListener("boriki:signer-page", goToFieldPage);
+    return () => window.removeEventListener("boriki:signer-page", goToFieldPage);
+  }, [pageCount]);
 
   return (
     <section className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4" aria-label="Visor del documento">

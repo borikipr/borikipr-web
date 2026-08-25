@@ -1493,6 +1493,28 @@ export function createSignatureDomainServices({
       : { eligible: false as const };
   }
 
+  async function inspectSigningTokenUnavailableReason(plaintextToken: string) {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(plaintextToken)) return "invalid" as const;
+    const rows = await database.unsafe<{
+      consumed_at: string | Date | null; revoked_at: string | Date | null; superseded_at: string | Date | null;
+      expires_at: string | Date; participant_status: string; document_status: string;
+    }>(`SELECT t.consumed_at,t.revoked_at,t.superseded_at,t.expires_at,
+              p.status AS participant_status,d.status AS document_status
+         FROM public.signature_signing_tokens t
+         JOIN public.signature_participants p ON p.id=t.participant_id
+         JOIN public.signature_document_versions v ON v.id=t.document_version_id
+         JOIN public.signature_documents d ON d.id=v.document_id
+        WHERE t.token_digest=$1 AND t.purpose='sign_document' LIMIT 1`,
+      [sha256SignatureValue(plaintextToken)]);
+    const token = rows[0];
+    if (!token) return "invalid" as const;
+    if (token.superseded_at) return "replaced" as const;
+    if (new Date(token.expires_at).getTime() <= clock().getTime()) return "expired" as const;
+    if (token.document_status === "voided") return "cancelled" as const;
+    if (token.document_status === "completed" || token.participant_status === "completed" || token.consumed_at) return "completed" as const;
+    return "unavailable" as const;
+  }
+
   async function redeemSigningToken(input: {
     plaintextToken: string;
     idempotencyKey: string;
@@ -2037,6 +2059,7 @@ export function createSignatureDomainServices({
     revokeSigningToken,
     createSignerSession,
     inspectSigningToken,
+    inspectSigningTokenUnavailableReason,
     redeemSigningToken,
     inspectCompletionAccessToken,
     redeemCompletionAccessToken,

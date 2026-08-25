@@ -23,6 +23,7 @@ import { loadActivePrivacyDisclosure, loadActiveRetentionPolicy } from "@/lib/si
 import { parseSignatureParticipantDraft, SignatureParticipantAdminValidationError } from "@/lib/signatures/admin-participant";
 import { createSignatureDraftLifecycleService } from "@/lib/signatures/draft-lifecycle";
 import { buildTemplateBlueprint,createSignatureProductRepository } from "@/lib/signatures/productization";
+import { evaluateSignatureVisualPreflight } from "@/lib/signatures/visual-preflight";
 
 export type SignatureAdminActionState = Readonly<{
   ok: boolean;
@@ -285,11 +286,16 @@ export async function prepareSignatureSendAction(
     } } : inspectSignaturePrivacyDisclosure();
     const durableRetention = await loadActiveRetentionPolicy(runtime.database);
     const authorizationDetail = await createSignatureAdminRepository(runtime.database).detail(documentId);
+    if (!authorizationDetail) return { ok:false, message:"Documento no disponible." };
+    const visualPreflight = evaluateSignatureVisualPreflight(authorizationDetail.fields);
+    if (visualPreflight.sendBlocked) {
+      return { ok:false, message:`Corrige la colocación de campos antes de enviar: ${visualPreflight.criticalCount} ${visualPreflight.criticalCount===1?"problema crítico":"problemas críticos"}.` };
+    }
     const publicEnabled = isPublicSigningEnabled();
     const isolatedEnabled = isInternalCanarySigningEnabled();
-    const scopedProductionCanaryEnabled = Boolean(authorizationDetail?.participants.length) &&
-      Boolean(authorizationDetail?.version.id) &&
-      (await Promise.all((authorizationDetail?.participants ?? []).map((participant) =>
+    const scopedProductionCanaryEnabled = Boolean(authorizationDetail.participants.length) &&
+      Boolean(authorizationDetail.version.id) &&
+      (await Promise.all(authorizationDetail.participants.map((participant) =>
         isSignerAccessAuthorized(runtime.database, {
           participantId: participant.id,
           documentVersionId: authorizationDetail!.version.id,

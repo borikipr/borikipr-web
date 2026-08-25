@@ -31,7 +31,12 @@ export async function POST(request: Request) {
     if (!limit.allowed) return new Response(null, { status: 404 });
     const runtime = createSignatureDomainRuntime();
     const eligibility = await runtime.domain.inspectSigningToken(token);
-    if (!eligibility.eligible || !await isSignerAccessAuthorized(runtime.database, eligibility)) return new Response(null,{status:404});
+    if (!eligibility.eligible) {
+      const reason = await runtime.domain.inspectSigningTokenUnavailableReason(token);
+      if (reason === "invalid" || !request.headers.get("accept")?.includes("application/json")) return new Response(null,{status:404});
+      return NextResponse.json({ reason }, { status:410, headers:{"Cache-Control":"private, no-store"} });
+    }
+    if (!await isSignerAccessAuthorized(runtime.database, eligibility)) return new Response(null,{status:404});
     const session = await runtime.domain.redeemSigningToken({
       plaintextToken: token,
       idempotencyKey: randomUUID(),
