@@ -132,22 +132,25 @@ export async function renderHomePage(locale: AppLocale) {
   let destacadas: PropiedadHomeDestacada[] = [];
   let allTestimonios: TestimonioPublico[] = [];
 
-  try {
-    rows = (await getPropiedades()) as unknown as { id: string }[];
-  } catch (error) {
-    console.warn("HOME WARNING: no se pudo cargar el total de propiedades.", error);
+  const [rowsResult, destacadasResult, testimoniosResult] = await Promise.allSettled([
+    getPropiedades(),
+    getPropiedadesDestacadas(3),
+    getTestimoniosPublicos(),
+  ]);
+  if (rowsResult.status === "fulfilled") {
+    rows = rowsResult.value as unknown as { id: string }[];
+  } else {
+    console.warn("HOME WARNING: no se pudo cargar el total de propiedades.", rowsResult.reason);
   }
-
-  try {
-    destacadas = await getPropiedadesDestacadas(3);
-  } catch (error) {
-    console.warn("HOME WARNING: no se pudieron cargar propiedades destacadas.", error);
+  if (destacadasResult.status === "fulfilled") {
+    destacadas = destacadasResult.value;
+  } else {
+    console.warn("HOME WARNING: no se pudieron cargar propiedades destacadas.", destacadasResult.reason);
   }
-
-  try {
-    allTestimonios = await getTestimoniosPublicos();
-  } catch (error) {
-    console.warn("HOME WARNING: no se pudieron cargar testimonios.", error);
+  if (testimoniosResult.status === "fulfilled") {
+    allTestimonios = testimoniosResult.value;
+  } else {
+    console.warn("HOME WARNING: no se pudieron cargar testimonios.", testimoniosResult.reason);
   }
 
   [destacadas, allTestimonios] = await Promise.all([

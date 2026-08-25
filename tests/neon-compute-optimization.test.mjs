@@ -39,6 +39,7 @@ test("production builds do not query Neon for the public home page or sitemap", 
     assert.match(source, /import \{ connection \} from "next\/server"/);
     assert.match(source, /await connection\(\)/);
   }
+  assert.match(home, /Promise\.allSettled/);
 });
 
 test("Analytics live refresh remains opt-in and skips hidden tabs", async () => {
