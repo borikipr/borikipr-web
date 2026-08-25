@@ -72,11 +72,16 @@ test("sender and signer surfaces expose parity UX without changing security sema
   assert.match(editor,/Todo listo para enviar/);
   assert.match(editor,/visualPreflight\.sendBlocked/);
   assert.match(editor,/SignatureRoutingSummary/);
+  assert.match(editor,/signature-editor-application-bar/);
+  assert.match(editor,/Campos para/);
+  assert.match(editor,/signature-mobile-properties-backdrop/);
   assert.match(routing,/Ruta de firmas/);
   assert.match(editor,/Reenviar invitación/);
   assert.match(editor,/Un recordatorio conserva el acceso actual/);
   assert.match(detail,/Requiere atención/);
   assert.match(detail,/Detalles avanzados/);
+  assert.match(detail,/detail\.status !== "completed" \? \(/);
+  assert.match(detail,/signature-completed-header/);
   assert.match(session,/SignerRequiredFieldNavigator/);
   assert.match(completed,/Tu participación fue completada/);
   assert.match(completed,/El documento ha sido completado/);
@@ -86,6 +91,9 @@ test("sender and signer surfaces expose parity UX without changing security sema
   assert.match(templates,/signature-template-grid/);
   assert.match(styles,/signature-field-editor-layout/);
   assert.match(styles,/signature-adoption-dialog/);
+  assert.match(styles,/grid-template-areas:\s*"application application application"/);
+  assert.match(styles,/\.signature-field-properties\.has-selection/);
+  assert.match(styles,/\.signature-lifecycle-mobile-menu/);
   assert.match(styles,/\.signature-directory-toolbar\s*\{[\s\S]*?max-width:\s*100%/);
   assert.match(styles,/\.signature-lifecycle-tabs\s*\{[\s\S]*?min-w-0/);
 });

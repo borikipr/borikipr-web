@@ -474,5 +474,5 @@ test("signer routes enforce the server gate, same-origin POSTs, private headers,
   assert.match(documentViewer, /src=\{`\/firmar\/sesion\/pages\/\$\{pageIndex\}`\}/);
   assert.equal(documentViewer.match(/<Image/g)?.length, 1);
   assert.match(documentViewer, /signer-document-scroll/);
-  assert.match(await readFile(path.join(root, "app/globals.css"), "utf8"), /signer-document-scroll[\s\S]*max-h-\[78vh\][\s\S]*overscroll-contain/);
+  assert.match(await readFile(path.join(root, "app/globals.css"), "utf8"), /signer-document-scroll[\s\S]*max-h-\[(?:78vh|calc\(100vh-10rem\))\][\s\S]*overscroll-contain/);
 });

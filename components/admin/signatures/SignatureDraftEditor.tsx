@@ -15,6 +15,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconFileText,
+  IconPlus,
   IconSignature,
   IconTextSize,
   IconWritingSign,
@@ -412,7 +413,9 @@ export default function SignatureDraftEditor({
   }
 
   return (
-    <div className="signature-editor min-w-0 space-y-4">
+    <div
+      className={`signature-editor min-w-0 space-y-4 ${step === 3 ? "is-field-step" : ""}`}
+    >
       <SignatureStepProgress current={step} />
       <div className="signature-step-tabs" aria-label="Cambiar paso">
         {[2, 3, 4, 5].map((number) => (
@@ -539,6 +542,34 @@ export default function SignatureDraftEditor({
 
       {step === 3 && (
         <section className="signature-field-editor-layout">
+          <header className="signature-editor-application-bar">
+            <button
+              aria-label="Volver a destinatarios"
+              className="signature-toolbar-icon"
+              onClick={() => setStep(2)}
+              type="button"
+            >
+              <IconChevronLeft aria-hidden="true" size={20} />
+            </button>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-950">
+                {detail.title}
+              </p>
+              <p className="text-xs text-slate-500">Preparación · Campos</p>
+            </div>
+            <div className="hidden items-center gap-2 text-xs font-semibold text-slate-600 sm:flex">
+              <span>{detail.fields.length}/100 campos</span>
+              <span aria-hidden="true">·</span>
+              <span>Página {pageIndex + 1} de {detail.version.pageCount}</span>
+            </div>
+            <button
+              className="btn-primary"
+              onClick={() => setStep(4)}
+              type="button"
+            >
+              Revisar
+            </button>
+          </header>
           <aside
             className={`signature-field-palette ${mobileToolsOpen ? "is-open" : ""}`}
             aria-label="Herramientas de campos"
@@ -559,22 +590,34 @@ export default function SignatureDraftEditor({
                 <IconX aria-hidden="true" size={20} />
               </button>
             </div>
-            <label className="mt-4 block text-sm font-semibold">
-              Campos para
-              <select
-                className="mt-1 w-full rounded-lg border px-3 py-2.5"
-                value={participantId}
-                onChange={(event) => setParticipantId(event.target.value)}
-              >
-                <option value="">Añade un destinatario</option>
-                {detail.participants.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.role} · {p.name}
-                    {p.isBrokerFinalSigner ? " · Firma final" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="signature-owner-context">
+              <label className="block text-xs font-bold uppercase tracking-[.08em] text-slate-500">
+                Campos para
+                <span className="mt-2 flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="h-3 w-3 shrink-0 rounded-full"
+                    style={{
+                      backgroundColor:
+                        colors.get(participantId) ?? COLORS[0],
+                    }}
+                  />
+                  <select
+                    className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm font-semibold normal-case tracking-normal"
+                    value={participantId}
+                    onChange={(event) => setParticipantId(event.target.value)}
+                  >
+                    <option value="">Añade un destinatario</option>
+                    {detail.participants.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.role} · {p.name}
+                        {p.isBrokerFinalSigner ? " · Firma final" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </span>
+              </label>
+            </div>
             <div className="signature-field-tools">
               {(Object.keys(FIELD_LABELS) as FieldType[]).map((type) => {
                 const FieldIcon = FIELD_ICONS[type];
@@ -604,9 +647,11 @@ export default function SignatureDraftEditor({
                   >
                     <FieldIcon aria-hidden="true" size={21} />
                     <span>{FIELD_LABELS[type]}</span>
-                    <span aria-hidden="true" className="ml-auto text-slate-400">
-                      ＋
-                    </span>
+                    <IconPlus
+                      aria-hidden="true"
+                      className="ml-auto text-slate-400"
+                      size={17}
+                    />
                   </button>
                 );
               })}
@@ -734,46 +779,92 @@ export default function SignatureDraftEditor({
               </div>
             </div>
           </div>
-          <aside className="signature-field-properties">
-            <VisualPreflightPanel
-              preflight={visualPreflight}
-              onIssue={jumpToIssue}
+          {selectedFieldId ? (
+            <button
+              aria-label="Cerrar propiedades del campo"
+              className="signature-mobile-properties-backdrop"
+              onClick={() => setSelectedFieldId(null)}
+              type="button"
             />
+          ) : null}
+          <aside
+            className={`signature-field-properties ${selectedFieldId ? "has-selection" : ""}`}
+          >
             <section className="signature-properties-section">
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[.08em] text-slate-500">
                     Documento
                   </p>
-                  <h2 className="font-semibold">
-                  Campos ({detail.fields.length}/100)
-                  </h2>
+                  <h2 className="font-semibold">Propiedades del campo</h2>
                 </div>
                 {selectedFieldId ? (
-                  <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-[#11518b]">
-                    Seleccionado
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-[#11518b]">
+                      Seleccionado
+                    </span>
+                    <button
+                      aria-label="Cerrar propiedades del campo"
+                      className="signature-mobile-properties-close"
+                      onClick={() => setSelectedFieldId(null)}
+                      type="button"
+                    >
+                      <IconX aria-hidden="true" size={18} />
+                    </button>
+                  </div>
                 ) : null}
               </div>
               <div className="mt-4 space-y-3">
-                {detail.fields.map((field) => (
-                  <FieldSettings
-                    key={field.id}
-                    detail={detail}
-                    field={field}
-                    editable={editable}
-                    selected={selectedFieldId === field.id}
-                    onSelect={() => {
-                      setSelectedFieldId(field.id);
-                      setPageIndex(field.pageIndex);
-                    }}
-                  />
-                ))}
-                {!detail.fields.length && (
-                  <p className="text-sm text-slate-500">Aún no hay campos.</p>
+                {selectedFieldId ? (
+                  detail.fields
+                    .filter((field) => field.id === selectedFieldId)
+                    .map((field) => (
+                      <FieldSettings
+                        key={field.id}
+                        detail={detail}
+                        field={field}
+                        editable={editable}
+                        selected
+                        onSelect={() => setPageIndex(field.pageIndex)}
+                      />
+                    ))
+                ) : (
+                  <p className="rounded-lg bg-slate-50 p-3 text-sm leading-5 text-slate-600">
+                    Selecciona un campo en el PDF para editar su propietario,
+                    etiqueta y requisito.
+                  </p>
                 )}
               </div>
             </section>
+            <details className="signature-properties-section group">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold">
+                <span>Todos los campos ({detail.fields.length})</span>
+                <IconPlus aria-hidden="true" className="text-slate-400 transition group-open:rotate-45" size={17} />
+              </summary>
+              <div className="mt-3 space-y-2">
+                {detail.fields.map((field) => (
+                  <button
+                    className="w-full rounded-md border border-slate-200 px-3 py-2 text-left text-xs hover:border-[#11518b] hover:bg-blue-50"
+                    key={field.id}
+                    onClick={() => {
+                      setSelectedFieldId(field.id);
+                      setPageIndex(field.pageIndex);
+                    }}
+                    type="button"
+                  >
+                    <span className="block font-semibold">{FIELD_LABELS[field.fieldType]} · Página {field.pageIndex + 1}</span>
+                    <span className="mt-0.5 block truncate text-slate-500">{field.label}</span>
+                  </button>
+                ))}
+                {!detail.fields.length ? (
+                  <p className="text-sm text-slate-500">Aún no hay campos.</p>
+                ) : null}
+              </div>
+            </details>
+            <VisualPreflightPanel
+              preflight={visualPreflight}
+              onIssue={jumpToIssue}
+            />
           </aside>
         </section>
       )}
@@ -1058,7 +1149,11 @@ export default function SignatureDraftEditor({
           onClick={() => setStep((value) => Math.min(5, value + 1))}
           type="button"
         >
-          {step === 4 ? "Revisar envío" : "Siguiente"}
+          {step === 4
+            ? "Continuar al envío"
+            : step === 3
+              ? "Revisar"
+              : "Siguiente"}
         </button>
       </div>
     </div>
@@ -1088,7 +1183,9 @@ function VisualPreflightPanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="visual-preflight-heading" className="font-semibold">
           {preflight.sendBlocked
-            ? `${preflight.criticalCount} ${preflight.criticalCount === 1 ? "problema requiere" : "problemas requieren"} atención`
+            ? preflight.criticalCount === 1
+              ? "Hay un problema que debes corregir"
+              : `Hay ${preflight.criticalCount} problemas que debes corregir`
             : preflight.warningCount
               ? `${preflight.warningCount} ${preflight.warningCount === 1 ? "advertencia" : "advertencias"} para revisar`
               : "Todo listo para enviar"}
@@ -1123,8 +1220,7 @@ function VisualPreflightPanel({
                   type="button"
                 >
                   <span className="font-semibold">
-                    Página {issue.pageIndex + 1} ·{" "}
-                    {issue.severity === "critical" ? "Corregir" : "Revisar"}
+                    Página {issue.pageIndex + 1} · Ir al campo
                   </span>
                   <span className="mt-0.5 block">{issue.message}</span>
                 </button>

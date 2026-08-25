@@ -90,6 +90,24 @@ export default async function SignatureDocumentsPage({
             </Link>
           ))}
         </nav>
+        <details className="signature-lifecycle-mobile-menu md:col-span-4">
+          <summary>
+            <span>Vista</span>
+            <strong>{VIEWS.find((item) => item.id === view)?.label}</strong>
+          </summary>
+          <nav aria-label="Cambiar vista de solicitudes">
+            {VIEWS.map((item) => (
+              <Link
+                key={item.id}
+                href={`/admin/signatures?view=${item.id}`}
+                aria-current={view === item.id ? "page" : undefined}
+                className={view === item.id ? "is-active" : ""}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </details>
         <form className="contents" method="get">
           <input name="view" type="hidden" value={view} />
           <label className="md:col-span-2">

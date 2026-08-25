@@ -134,27 +134,33 @@ export default async function SignatureDraftPage({
 
   return (
     <AdminPageShell>
-      <AdminPageHeader
-        breadcrumbs={[
-          { href: "/admin", label: "Admin" },
-          { href: "/admin/signatures", label: "Firmas" },
-          { label: detail.title },
-        ]}
-        eyebrow="Firmas · Documento"
-        title={detail.title}
-        description="Prepara destinatarios y campos, revisa todo y envía únicamente cuando los controles estén completos."
-        actions={
-          !detail.version.sourceDeleted && detail.status !== "archived" ? (
-            <Link
-              className="btn-secondary"
-              href={`/admin/signatures/${detail.id}/source`}
-              target="_blank"
-            >
-              Abrir PDF
-            </Link>
-          ) : undefined
-        }
-      />
+      <div className={detail.status === "completed" ? "signature-completed-header" : "signature-document-header"}>
+        <AdminPageHeader
+          breadcrumbs={[
+            { href: "/admin", label: "Admin" },
+            { href: "/admin/signatures", label: "Firmas" },
+            { label: detail.title },
+          ]}
+          eyebrow={detail.status === "completed" ? "Firmas · Completado" : "Firmas · Documento"}
+          title={detail.title}
+          description={
+            detail.status === "completed"
+              ? "Consulta participantes, ruta, documento firmado y certificado."
+              : "Prepara destinatarios y campos, revisa todo y envía únicamente cuando los controles estén completos."
+          }
+          actions={
+            !detail.version.sourceDeleted && detail.status !== "archived" ? (
+              <Link
+                className="btn-secondary"
+                href={`/admin/signatures/${detail.id}/source`}
+                target="_blank"
+              >
+                Abrir PDF
+              </Link>
+            ) : undefined
+          }
+        />
+      </div>
 
       {attention ? (
         <section className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-900">
@@ -244,7 +250,7 @@ export default async function SignatureDraftPage({
         </section>
       )}
       {detail.participants.length && detail.status !== "draft" ? (
-        <section className="grid gap-4 lg:grid-cols-2">
+        <section className="signature-participant-overview grid gap-4 lg:grid-cols-2">
           <SignatureRoutingSummary
             mode={detail.routingMode}
             participants={detail.participants}
@@ -309,14 +315,14 @@ export default async function SignatureDraftPage({
             Este registro continúa disponible como historial.
           </p>
         </section>
-      ) : (
+      ) : detail.status !== "completed" ? (
         <SignatureDraftEditor
           detail={detail}
           readiness={readiness}
           preflight={preflight}
           activationMode={activationMode}
         />
-      )}
+      ) : null}
       <SignatureDocumentActions
         documentId={detail.id}
         title={detail.title}

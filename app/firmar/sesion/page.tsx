@@ -43,7 +43,7 @@ export default async function SignerSessionPage() {
       notFound();
     const consented = view.participant_status === "consented";
     return (
-      <section className="mx-auto max-w-[1440px] px-3 py-4 sm:px-6 sm:py-6">
+      <section className="signer-session-shell">
         <header className="signer-session-header">
           <div>
             <p className="text-xs font-bold uppercase tracking-[.1em] text-[#11518b]">

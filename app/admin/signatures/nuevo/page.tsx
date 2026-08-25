@@ -15,9 +15,11 @@ export default async function NewSignatureDraftPage() {
   const options=await repository.linkageOptions();
   const minimumExpirationDate = new Date().toISOString().slice(0, 10);
   return <AdminPageShell>
-    <AdminPageHeader breadcrumbs={[{href:"/admin",label:"Admin"},{href:"/admin/signatures",label:"Firmas"},{label:"Nuevo documento"}]} eyebrow="Firmas · Nuevo documento" title="1. Sube el documento" description="Elige el PDF y completa los datos básicos. Añadirás destinatarios y campos en los pasos siguientes; nada se enviará todavía." />
-    <SignatureStepProgress current={1} />
-    <section className="grid gap-3 sm:grid-cols-2" aria-label="Cómo comenzar"><Link className="surface-card border-2 border-transparent p-5 transition hover:border-[#11518b]" href="/admin/signatures/plantillas"><span className="text-sm font-semibold text-[#11518b]">Opción rápida</span><h2 className="mt-1 text-lg font-semibold">Usar plantilla</h2><p className="mt-1 text-sm text-slate-600">Reutiliza PDF, roles, campos y ruta ya preparados.</p></Link><div className="surface-card border-2 border-[#11518b] p-5"><span className="text-sm font-semibold text-[#11518b]">Estás aquí</span><h2 className="mt-1 text-lg font-semibold">Subir PDF</h2><p className="mt-1 text-sm text-slate-600">Comienza una solicitud nueva desde un documento.</p></div></section>
-    <NewSignatureDraftForm documentTypes={SIGNATURE_DOCUMENT_TYPES} leads={options.leads} groups={options.groups} minimumExpirationDate={minimumExpirationDate} />
+    <div className="signature-new-document-page">
+      <AdminPageHeader breadcrumbs={[{href:"/admin",label:"Admin"},{href:"/admin/signatures",label:"Firmas"},{label:"Nuevo documento"}]} eyebrow="Firmas · Nuevo documento" title="Sube el documento" description="Elige el PDF y completa los datos básicos. Nada se enviará hasta que revises la solicitud." />
+      <SignatureStepProgress current={1} />
+      <section className="signature-start-options" aria-label="Cómo comenzar"><Link className="signature-start-option" href="/admin/signatures/plantillas"><span>Opción rápida</span><strong>Usar plantilla</strong><small>Reutiliza PDF, roles, campos y ruta.</small></Link><div className="signature-start-option is-active"><span>Estás aquí</span><strong>Subir PDF</strong><small>Comienza desde un documento nuevo.</small></div></section>
+      <NewSignatureDraftForm documentTypes={SIGNATURE_DOCUMENT_TYPES} leads={options.leads} groups={options.groups} minimumExpirationDate={minimumExpirationDate} />
+    </div>
   </AdminPageShell>;
 }

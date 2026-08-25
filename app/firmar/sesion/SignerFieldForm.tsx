@@ -272,7 +272,7 @@ export default function SignerFieldForm({
           role={signatureLike ? "dialog" : undefined}
         >
           {signatureLike ? (
-            <div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+            <div className="signature-adoption-header">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[.1em] text-[#11518b]">
                   Borikí Sign
@@ -307,7 +307,7 @@ export default function SignerFieldForm({
             </label>
             {field.field_type === "signature" && (
               <div
-                className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1"
+                className="signature-adoption-tabs"
                 role="tablist"
                 aria-label="Método de firma"
               >
@@ -407,7 +407,7 @@ export default function SignerFieldForm({
                 <legend className="text-sm font-semibold text-slate-900">
                   Elige un estilo
                 </legend>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="signature-style-grid">
                   {SIGNATURE_STYLES.map((candidate) => {
                     const selected = candidate.id === style;
                     return (
@@ -417,7 +417,7 @@ export default function SignerFieldForm({
                         aria-pressed={selected}
                         aria-label={`${candidate.label}: seleccionar este estilo de firma`}
                         onClick={() => setStyle(candidate.id)}
-                        className={`min-w-0 rounded-xl border p-3 text-left ${selected ? "border-[#11518b] bg-blue-50 ring-2 ring-[#11518b]/20" : "border-slate-200 bg-white hover:border-slate-400"}`}
+                        className={`signature-style-option ${selected ? "is-selected" : ""}`}
                       >
                         <span className="block text-xs font-semibold uppercase tracking-[0.08em] text-slate-600">
                           {candidate.label}
@@ -436,7 +436,7 @@ export default function SignerFieldForm({
                 </div>
               </fieldset>
 
-              <div className="rounded-xl border border-[#d4af37]/50 bg-[#fffdf5] p-4">
+              <div className="signature-adoption-preview">
                 <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-600">
                   Vista previa · {selectedStyle.label}
                 </p>
@@ -461,7 +461,7 @@ export default function SignerFieldForm({
             />
           )}
 
-          <button className="mt-5 min-h-12 w-full rounded-lg bg-[#0d1b2a] px-5 py-3 font-semibold text-white sm:w-auto">
+          <button className="signature-adoption-submit">
             {submitLabel}
           </button>
           {signatureLike && (

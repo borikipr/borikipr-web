@@ -81,7 +81,7 @@ export default function NewSignatureDraftForm({
   }
 
   return (
-    <form className="surface-card space-y-6 p-5 md:p-6" onSubmit={submit}>
+    <form className="signature-new-document-form" onSubmit={submit}>
       <FormSection
         title="Documento"
         description="Información principal del PDF que se preparará para firma."
