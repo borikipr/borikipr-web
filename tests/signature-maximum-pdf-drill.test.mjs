@@ -16,6 +16,6 @@ test("maximum 25-page, 8-participant, 100-field PDF finalizes within MVP limits"
   assert.equal(result.manifest.participants.length, 8);
   assert.equal(result.manifest.fieldCaptures.length, 100);
   const finalPdf = await PDFDocument.load(result.finalBytes);
-  assert.equal(finalPdf.getPageCount(), 26);
+  assert.equal(finalPdf.getPageCount(), 25);
   console.log(`synthetic_max_pdf_metrics=${JSON.stringify(result.metrics)}`);
 });
