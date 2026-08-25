@@ -23,10 +23,11 @@ export const sql = allowIsolatedDatabase
     )
   : postgres(connectionString, {
       ssl: disableSsl ? false : "require",
-      // Vercel functions already connect through Neon's pooled endpoint. A
-      // single short-lived connection per warm instance avoids multiplying
-      // idle pools without changing transaction or freshness semantics.
-      max: 1,
+      // Vercel functions already connect through Neon's pooled endpoint. Keep
+      // the per-instance pool small, but allow the homepage's three independent
+      // public reads to fail or complete concurrently instead of serializing
+      // three connection timeouts when the database is unavailable.
+      max: 3,
       idle_timeout: 10,
       connect_timeout: 10,
       prepare: false,

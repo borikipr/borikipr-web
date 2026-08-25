@@ -7,9 +7,9 @@ import { fileURLToPath } from "node:url";
 const root = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const source = (file) => readFile(path.join(root, file), "utf8");
 
-test("serverless runtime uses one pooled-compatible database connection per warm instance", async () => {
+test("serverless runtime uses a small pooled-compatible connection cap per warm instance", async () => {
   const database = await source("lib/db.ts");
-  assert.match(database, /max:\s*1/);
+  assert.match(database, /max:\s*3/);
   assert.match(database, /prepare:\s*false/);
   assert.match(database, /idle_timeout:\s*10/);
 });
