@@ -10,6 +10,10 @@ import { createSignatureLegalHoldService, type SignatureEvidenceClass } from "@/
 import { SIGNATURE_APPROVAL_MODES, type SignatureApprovalMode } from "@/lib/signatures/document-classification";
 import { createSignatureRiskAcceptanceService, SIGNATURE_RECOVERY_RISKS, type SignatureRecoveryRisk } from "@/lib/signatures/risk-acceptance";
 import type { SignaturePreflightLocale } from "@/lib/signatures/preflight";
+import {
+  authorizeProductionPublicLaunch,
+  PUBLIC_LAUNCH_CONFIRMATION_PHRASE,
+} from "@/lib/signatures/public-launch";
 
 export type GovernanceActionState = Readonly<{ ok: boolean; message: string }>;
 
@@ -62,11 +66,18 @@ async function run(operation: () => Promise<unknown>, success: string): Promise<
       signature_risk_scope_invalid: "La decisión de riesgo necesita descripción, evidencia y expiración válida de hasta 90 días.",
       signature_production_canary_confirmation_required: "Marca la confirmación y escribe AUTORIZAR CANARY INTERNO.",
       signature_production_canary_scope_invalid: "El alcance del canary no es válido.",
+      signature_public_launch_confirmation_required: `Marca la confirmación y escribe ${PUBLIC_LAUNCH_CONFIRMATION_PHRASE}.`,
+      signature_public_launch_flag_must_be_off: "La firma pública debe permanecer apagada mientras se registra la autorización.",
+      signature_public_launch_already_authorized: "Ya existe una autorización pública activa.",
     };
     if(code.startsWith("signature_preflight_blocked:")) {
       const blockers=code.slice(code.indexOf(":")+1).split(",");
       const guidance:Record<string,string>={classification_missing:"falta una clasificación aprobada; ve a Clasificaciones",privacy_missing:"falta privacidad aprobada; ve a Divulgación de privacidad",retention_missing:"falta una política activa; ve a Política de retención",neon_restore_unproven:"falta prueba o aceptación vigente del riesgo Neon",r2_independent_recovery_unproven:"falta prueba o aceptación vigente del riesgo R2",participant_scope_mismatch:"los correos no coinciden exactamente con el documento",locale_scope_invalid:"el locale no es válido",authorization_expiration_invalid:"la expiración debe ser futura y de hasta 24 horas"};
       return {ok:false,message:`No puedes autorizar este canary: ${blockers.map((blocker)=>guidance[blocker]??"hay un control obligatorio pendiente").join("; ")}.`};
+    }
+    if(code.startsWith("signature_public_launch_readiness_blocked:")) {
+      const blockers=code.slice(code.indexOf(":")+1).split(",").filter(Boolean);
+      return {ok:false,message:`El lanzamiento público permanece bloqueado: ${blockers.join(", ")}.`};
     }
     return { ok: false, message: messages[code] ?? "El cambio fue rechazado de forma segura. Revisa el estado y los datos." };
   }
@@ -172,4 +183,12 @@ export async function authorizeInternalCanaryAction(_:GovernanceActionState,data
 
 export async function revokeInternalCanaryAction(_:GovernanceActionState,data:FormData) {
   return run(async()=>{const {session,workflow}=await context();await workflow.revokeProductionCanary({id:value(data,"id"),actorAdminId:session.id,explicitConfirmation:checked(data,"explicitConfirmation"),idempotencyKey:randomUUID()});},"Autorización revocada. La evidencia permanece inmutable.");
+}
+
+export async function authorizePublicLaunchAction(_:GovernanceActionState,data:FormData) {
+  return run(async()=>{const {session}=await context();const runtime=createSignatureDomainRuntime();
+    await authorizeProductionPublicLaunch({database:runtime.database,actorAdminId:session.id,
+      explicitConfirmation:checked(data,"explicitConfirmation"),confirmationPhrase:value(data,"confirmationPhrase"),
+      notes:value(data,"notes")});
+  },"Autorización pública y snapshot canónico registrados. La bandera pública permanece desactivada.");
 }

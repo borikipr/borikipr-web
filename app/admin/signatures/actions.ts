@@ -15,6 +15,7 @@ import {
   isSignerRuntimeEnabled,
 } from "@/lib/signatures/public-config";
 import { isSignerAccessAuthorized } from "@/lib/signatures/canary-gate";
+import { inspectProductionPublicLaunchGate } from "@/lib/signatures/public-launch";
 import { evaluateSignatureSendReadiness } from "@/lib/signatures/send-readiness";
 import { getSignatureSecurityConfig } from "@/lib/signatures/config";
 import { inspectSignatureRetentionPolicy } from "@/lib/signatures/retention-policy";
@@ -320,7 +321,10 @@ export async function prepareSignatureSendAction(
     }
     const publicEnabled = isPublicSigningEnabled();
     const isolatedEnabled = isInternalCanarySigningEnabled();
-    const scopedProductionCanaryEnabled = Boolean(authorizationDetail.participants.length) &&
+    const publicLaunchGate = publicEnabled
+      ? await inspectProductionPublicLaunchGate(runtime.database)
+      : null;
+    const scopedProductionCanaryEnabled = !publicEnabled && Boolean(authorizationDetail.participants.length) &&
       Boolean(authorizationDetail.version.id) &&
       (await Promise.all(authorizationDetail.participants.map((participant) =>
         isSignerAccessAuthorized(runtime.database, {
@@ -332,7 +336,7 @@ export async function prepareSignatureSendAction(
       database: runtime.database,
       documentId,
       locale: "es-PR",
-      publicSigningEnabled: isolatedEnabled || scopedProductionCanaryEnabled,
+      publicSigningEnabled: Boolean(publicLaunchGate?.allowed) || isolatedEnabled || scopedProductionCanaryEnabled,
       eventKeysConfigured: Boolean(getSignatureSecurityConfig()),
       retentionPolicyConfigured: Boolean(durableRetention) || inspectSignatureRetentionPolicy().configured,
       privacyDisclosureConfigured: privacy.configured,
@@ -343,7 +347,7 @@ export async function prepareSignatureSendAction(
         message: `El envío permanece bloqueado: ${readiness.reasons.map((reason) => SEND_BLOCKER_MESSAGES[reason] ?? "Hay un control pendiente que requiere revisión.").join(" ")}`,
       };
     }
-    const sendMode=publicEnabled&&scopedProductionCanaryEnabled?"public":scopedProductionCanaryEnabled||isolatedEnabled?"internal_canary":"disabled";
+    const sendMode=publicEnabled&&publicLaunchGate?.allowed?"public":scopedProductionCanaryEnabled||isolatedEnabled?"internal_canary":"disabled";
     const expectedPhrase=sendMode==="public"?"CONFIRMAR ENVIO PUBLICO":"CONFIRMAR ENVIO CANARY INTERNO";
     if(sendMode==="disabled" || !checked(formData,"sendAcknowledged") || value(formData,"sendConfirmationPhrase")!==expectedPhrase) {
       return {ok:false,message:`El envío requiere confirmación explícita del modo ${sendMode==="public"?"FIRMA PÚBLICA":"CANARY INTERNO"}.`};

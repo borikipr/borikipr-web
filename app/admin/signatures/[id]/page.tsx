@@ -28,6 +28,7 @@ import {
   isPublicSigningEnabled,
 } from "@/lib/signatures/public-config";
 import { isSignerAccessAuthorized } from "@/lib/signatures/canary-gate";
+import { inspectProductionPublicLaunchGate } from "@/lib/signatures/public-launch";
 import { getSignatureSecurityConfig } from "@/lib/signatures/config";
 import { inspectSignatureRetentionPolicy } from "@/lib/signatures/retention-policy";
 import { inspectSignaturePrivacyDisclosure } from "@/lib/signatures/privacy-disclosure";
@@ -51,6 +52,10 @@ export default async function SignatureDraftPage({
   const detail = await repository.detail(id);
   if (!detail) notFound();
   const definition = getSignatureDocumentTypeDefinition(detail.documentType);
+  const publicSigningEnabled = isPublicSigningEnabled();
+  const internalCanaryEnabled =
+    isInternalCanarySigningEnabled() ||
+    isProductionInternalCanaryCapabilityEnabled();
   let keysConfigured = false;
   try {
     getSignatureSecurityConfig();
@@ -65,18 +70,20 @@ export default async function SignatureDraftPage({
     durableRetention,
     durablePrivacy,
     participantAuthorizations,
+    publicLaunchGate,
     preflight,
   ] = await Promise.all([
     loadActiveRetentionPolicy(database),
     loadActivePrivacyDisclosure(database),
-    Promise.all(
+    !publicSigningEnabled && internalCanaryEnabled ? Promise.all(
       detail.participants.map((participant) =>
         isSignerAccessAuthorized(database, {
           participantId: participant.id,
           documentVersionId: detail.version.id,
         }),
       ),
-    ),
+    ) : Promise.resolve([]),
+    inspectProductionPublicLaunchGate(database),
     evaluateSignaturePreflight({
       database,
       documentId: id,
@@ -89,12 +96,10 @@ export default async function SignatureDraftPage({
     }),
   ]);
   const scoped =
-    detail.participants.length > 0 && participantAuthorizations.every(Boolean);
-  const internalCanaryEnabled =
-    isInternalCanarySigningEnabled() ||
-    isProductionInternalCanaryCapabilityEnabled();
+    detail.participants.length > 0 && participantAuthorizations.length === detail.participants.length &&
+    participantAuthorizations.every(Boolean);
   const activationMode =
-    isPublicSigningEnabled() && scoped
+    publicSigningEnabled && publicLaunchGate.allowed
       ? "public"
       : internalCanaryEnabled && scoped
         ? "internal_canary"

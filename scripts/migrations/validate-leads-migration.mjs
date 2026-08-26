@@ -2010,6 +2010,12 @@ const signaturePracticalFieldsMigrationSql = await readMigration(
 const signaturePracticalFieldsRollbackSql = await readMigration(
   "0038_add_signature_practical_fields.rollback.sql"
 );
+const signaturePublicLaunchMigrationSql = await readMigration(
+  "0039_add_public_launch_readiness_scope.sql"
+);
+const signaturePublicLaunchRollbackSql = await readMigration(
+  "0039_add_public_launch_readiness_scope.rollback.sql"
+);
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -2334,9 +2340,17 @@ try {
   assert.match(practicalFieldsConstraint.rows[0].definition,/checkbox/);
   assert.match(practicalFieldsConstraint.rows[0].definition,/signer_name/);
   await signatureProductizationDb.exec(signaturePracticalFieldsRollbackSql);
+  await signatureProductizationDb.exec(signaturePublicLaunchMigrationSql);
+  const publicLaunchScope=await signatureProductizationDb.query(`SELECT pg_get_constraintdef(oid) definition
+    FROM pg_constraint WHERE conrelid='signature_launch_authorizations'::regclass
+      AND conname='signature_launch_auth_public_scope_check'`);
+  assert.match(publicLaunchScope.rows[0].definition,/production_public_launch/);
+  assert.match(publicLaunchScope.rows[0].definition,/authorized_participant_scope/);
+  await signatureProductizationDb.exec(signaturePublicLaunchRollbackSql);
   await assert.rejects(signatureProductizationDb.exec(signatureProductizationRollbackSql),/0035 rollback is intentionally blocked/);
   console.log("Validated Borikí Sign productization migration 0035 and rollback guard.");
   console.log("Validated historical governance effective dates migration 0036 and rollback guard.");
   console.log("Validated typed signature-style evidence migration 0037 and rollback guard.");
   console.log("Validated practical signing fields migration 0038 and guarded rollback.");
+  console.log("Validated public launch readiness scope migration 0039 and rollback.");
 } finally { await signatureProductizationDb.close(); }

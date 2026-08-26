@@ -231,6 +231,18 @@ if (!process.env.DATABASE_URL) {
                 AND conname='signature_field_values_capture_method_check'
                 AND pg_get_constraintdef(oid) LIKE '%system_identity%'
             ) AS v0038
+          ,EXISTS (
+              SELECT 1 FROM pg_constraint
+              WHERE conrelid='public.signature_launch_authorizations'::regclass
+                AND conname='signature_launch_auth_public_scope_check'
+                AND pg_get_constraintdef(oid) LIKE '%production_public_launch%'
+                AND pg_get_constraintdef(oid) LIKE '%authorized_participant_scope%'
+            ) AND EXISTS (
+              SELECT 1 FROM pg_constraint
+              WHERE conrelid='public.signature_readiness_snapshots'::regclass
+                AND conname='signature_readiness_email_scope_check'
+                AND pg_get_constraintdef(oid) LIKE '%production_public_launch%'
+            ) AS v0039
       )
       SELECT * FROM facts
     `;
