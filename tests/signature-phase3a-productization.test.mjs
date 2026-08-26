@@ -3,6 +3,11 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { buildTemplateBlueprint,templateSnapshotSha256 } from "../lib/signatures/productization.ts";
+import {
+  HOJA_DE_OFERTA_BROKER_FINAL_FIELD,
+  HOJA_DE_OFERTA_BROKER_FINAL_FIELD_POINTS,
+  HOJA_DE_OFERTA_PAGE_POINTS,
+} from "../lib/signatures/offer-template-geometry.ts";
 
 const root=process.cwd();
 test("Phase 3A schema preserves routing, broker, template, correction and date-signed invariants",async()=>{const sql=await readFile(path.join(root,"db/migrations/0035_productize_boriki_sign.sql"),"utf8");assert.match(sql,/date_signed/);assert.match(sql,/signature_participants_one_broker_final_idx/);assert.match(sql,/configured final broker/);assert.match(sql,/signature_templates/);assert.match(sql,/corrects_document_id/);});
@@ -11,5 +16,13 @@ test("template blueprint marks only explicitly selected non-broker roles optiona
 test("daily signing surfaces expose documents, templates and settings without making Governance primary",async()=>{const [home,settings,templates,editor,fieldOptions]=await Promise.all([readFile(path.join(root,"app/admin/signatures/page.tsx"),"utf8"),readFile(path.join(root,"app/admin/signatures/configuracion/page.tsx"),"utf8"),readFile(path.join(root,"app/admin/signatures/plantillas/page.tsx"),"utf8"),readFile(path.join(root,"components/admin/signatures/SignatureDraftEditor.tsx"),"utf8"),readFile(path.join(root,"lib/signatures/field-options.ts"),"utf8")]);assert.match(home,/Plantillas/);assert.match(home,/Configuración/);assert.doesNotMatch(home,/>Gobernanza</);assert.match(settings,/Corredora · firma final/);assert.match(templates,/Nunca guardan firmas, valores, tokens ni sesiones/);assert.match(fieldOptions,/Fecha de firma/);assert.match(editor,/Corredora · Firma final/);});
 test("template redirects stay on the browser origin and canary access remains conjunctive",async()=>{const [instantiate,detail]=await Promise.all([readFile(path.join(root,"app/api/admin/signatures/templates/[id]/instantiate/route.ts"),"utf8"),readFile(path.join(root,"app/admin/signatures/[id]/page.tsx"),"utf8")]);assert.match(instantiate,/request\.headers\.get\("origin"\)/);assert.match(instantiate,/blueprintRole\.optional&&!name&&!email/);assert.match(instantiate,/finalOrder=Math\.max/);assert.match(detail,/isProductionInternalCanaryCapabilityEnabled\(\)/);assert.match(detail,/internalCanaryEnabled\s*&&\s*scoped/);assert.doesNotMatch(detail,/internalCanaryEnabled\s*\|\|\s*scoped/);});
 test("Phase 3B catalog keeps real identities out of reusable template blueprints",async()=>{const source=await readFile(path.join(root,"scripts/signatures/configure-phase3b-initial-product.ts"),"utf8");assert.match(source,/Hoja de Oferta/);assert.match(source,/Hoja Informativa de los Compradores/);assert.match(source,/Contrato de Opción de Compraventa/);assert.match(source,/example\.invalid/);assert.doesNotMatch(source,/cedricjsantiago@gmail|ericksonrealestatepr@gmail/i);});
+test("Hoja de Oferta keeps the final broker field on Agente Listador",()=>{
+  assert.deepEqual(HOJA_DE_OFERTA_PAGE_POINTS,{width:612,height:792});
+  assert.deepEqual(HOJA_DE_OFERTA_BROKER_FINAL_FIELD_POINTS,{x:329,y:644,width:204,height:32});
+  assert.ok(Math.abs(HOJA_DE_OFERTA_BROKER_FINAL_FIELD.x-329/612)<1e-12);
+  assert.ok(Math.abs(HOJA_DE_OFERTA_BROKER_FINAL_FIELD.y-644/792)<1e-12);
+  assert.ok(HOJA_DE_OFERTA_BROKER_FINAL_FIELD.y>620.332/792,"field must clear the second Firma Vendedor label");
+  assert.ok(HOJA_DE_OFERTA_BROKER_FINAL_FIELD.y+HOJA_DE_OFERTA_BROKER_FINAL_FIELD.height<=676/792+1e-12,"field must remain on the line above Agente Listador");
+});
 test("template requests preserve an exact Puerto Rico expiration time",async()=>{const [route,page]=await Promise.all([readFile(path.join(root,"app/api/admin/signatures/templates/[id]/instantiate/route.ts"),"utf8"),readFile(path.join(root,"app/admin/signatures/plantillas/[id]/usar/page.tsx"),"utf8")]);assert.match(route,/\\d\{2\}:\\d\{2\}/);assert.match(route,/:00-04:00/);assert.match(route,/form\.get\("expiresAt"\)/);assert.match(page,/type="datetime-local"/);assert.match(page,/hora de Puerto Rico/);});
 test("production delivery worker honors the scoped signer runtime, not only the public gate",async()=>{const route=await readFile(path.join(root,"app/api/cron/process-email-queue/route.ts"),"utf8");assert.match(route,/isSignerRuntimeEnabled\(\)/);assert.doesNotMatch(route,/isPublicSigningEnabled\(\)/);});

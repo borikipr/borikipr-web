@@ -30,6 +30,7 @@ import {
 import { renderPdfWithPdfJs } from "../lib/signatures/prototype/render.ts";
 import { compareRenderedPdfPages } from "../lib/signatures/prototype/visual-regression.ts";
 import { fitSignatureText, signatureDateTextFits } from "../lib/signatures/text-fit.ts";
+import { HOJA_DE_OFERTA_BROKER_FINAL_FIELD } from "../lib/signatures/offer-template-geometry.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const representativeDirectory = path.join(
@@ -409,6 +410,51 @@ test("Date Signed fitting predicts and renders the final text inside its field b
     }])),
     /signature_field_text_does_not_fit/,
   );
+});
+
+test("Hoja de Oferta renders Ivonne on Agente Listador without moving other fields", async () => {
+  const sourceBytes = await fixture(representativeDirectory, "HOJA DE OFERTA - con logo.pdf");
+  const inspection = await inspectPdfCompatibility({ bytes: sourceBytes, mimeType: "application/pdf", limits });
+  const ivonne = {
+    id: "ivonne-final",
+    displayName: "Ivonne Erickson",
+    role: "Corredora · Firma final",
+    completedAt: "2030-01-01T12:02:00.000Z",
+  };
+  const dateField = {
+    id: "buyer-date-signed",
+    participantId: participant.id,
+    type: "date_signed",
+    pageIndex: 0,
+    rect: { x: 0.45, y: 0.58, width: 0.30, height: 0.07 },
+    value: { method: "date", value: "2030-01-01" },
+  };
+  const brokerField = {
+    id: "broker-final-signature",
+    participantId: ivonne.id,
+    type: "signature",
+    pageIndex: 0,
+    rect: HOJA_DE_OFERTA_BROKER_FINAL_FIELD,
+    value: { method: "typed", value: "Ivonne Erickson" },
+  };
+  const finalized = await finalizePrototypePdf({
+    ...finalizationInput(sourceBytes, inspection, [dateField, brokerField]),
+    participants: [participant, ivonne],
+  });
+  const document = await PDFDocument.load(finalized.finalBytes);
+  assert.equal(document.getPageCount(), 1);
+  const [sourcePage] = await renderPdfWithPdfJs(sourceBytes, 1.5);
+  const [finalPage] = await renderPdfWithPdfJs(finalized.finalBytes, 1.5);
+  const visual = compareRenderedPdfPages({
+    source: sourcePage,
+    finalized: finalPage,
+    expectedRegions: [dateField.rect, brokerField.rect],
+  });
+  assert.ok(visual.changedPixelsInsideExpectedRegions > 0);
+  assert.equal(visual.changedPixelsOutsideExpectedRegions, 0);
+  const secondSellerLabelBottom = 620.332 / 792;
+  assert.ok(brokerField.rect.y > secondSellerLabelBottom);
+  assert.ok(brokerField.rect.y + brokerField.rect.height <= 676 / 792 + 1e-12);
 });
 
 test("prototype code has no production storage, database, email, network, or logging coupling", async () => {

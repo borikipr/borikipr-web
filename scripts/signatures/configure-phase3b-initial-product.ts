@@ -10,6 +10,7 @@ import { GOVERNANCE_APPROVAL_PHRASE, RETENTION_ACTIVATION_PHRASE } from "../../l
 import { createSignatureGovernanceWorkflow } from "../../lib/signatures/governance-workflow";
 import { buildTemplateBlueprint, BROKER_SETTINGS_CONFIRMATION, createSignatureProductRepository } from "../../lib/signatures/productization";
 import { createPrivateSignatureStorage } from "../../lib/signatures/storage";
+import { HOJA_DE_OFERTA_BROKER_FINAL_FIELD_POINTS } from "../../lib/signatures/offer-template-geometry";
 
 type RoleSpec=Readonly<{key:string;role:string;order:number;optional?:boolean}>;
 type FieldSpec=Readonly<{roleKey:string;type:"signature"|"initials"|"date"|"date_signed"|"text";page:number;
@@ -41,7 +42,7 @@ const offer:TemplateSpec={name:"Hoja de Oferta",description:"Oferta ordinaria de
     {roleKey:"seller-1",type:"date_signed",page:0,x:473,y:512,width:60,height:30,label:"Fecha de firma Vendedor 1",required:true},
     {roleKey:"seller-2",type:"signature",page:0,x:318,y:578,width:150,height:30,label:"Firma Vendedor 2",required:true},
     {roleKey:"seller-2",type:"date_signed",page:0,x:473,y:578,width:60,height:30,label:"Fecha de firma Vendedor 2",required:true},
-    {roleKey:"broker",type:"signature",page:0,x:329,y:644,width:204,height:32,label:"Corredora · Firma final — Agente Listador",required:true},
+    {roleKey:"broker",type:"signature",page:0,...HOJA_DE_OFERTA_BROKER_FINAL_FIELD_POINTS,label:"Corredora · Firma final — Agente Listador",required:true},
   ]};
 
 const buyerInfoFields=(key:string,offset:number):FieldSpec[]=>[
