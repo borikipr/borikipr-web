@@ -24,6 +24,20 @@ function certificateLine(page: PDFPage, font: PDFFont, text: string, y: number, 
   page.drawText(text, { x: 48, y, size: options?.size ?? 9, font: options?.bold ?? font, maxWidth: 516, color: rgb(0.08, 0.14, 0.24) });
 }
 
+export function normalizeCertificateRoutingStages<T extends Readonly<{
+  id: string;
+  routingOrder: number;
+}>>(participants: readonly T[]) {
+  const internalOrders = [...new Set(participants.map((participant) => participant.routingOrder))]
+    .sort((left, right) => left - right);
+  return internalOrders.map((internalOrder, index) => ({
+    stage: index + 1,
+    participants: participants
+      .filter((participant) => participant.routingOrder === internalOrder)
+      .sort((left, right) => left.id.localeCompare(right.id)),
+  }));
+}
+
 export async function createDetachedCertificate(input: {
   title: string; documentId: string; sourceSha256: string; finalSha256: string;
   fieldDefinitionSha256: string; verificationId: string;
@@ -53,11 +67,18 @@ export async function createDetachedCertificate(input: {
   certificateLine(page, font, `Identificador de evidencia: ${input.verificationId}`, 596);
   certificateLine(page, font, "Participantes y orden de firma", 558, { bold, size: 10 });
   let y = 536;
-  for (const participant of [...input.participants].sort((a, b) => a.routingOrder - b.routingOrder || a.id.localeCompare(b.id))) {
-    certificateLine(page, font, `${participant.routingOrder}. ${participant.displayName} · ${participant.role}${participant.finalSigner && !/firma final/i.test(participant.role) ? " · Firmante final" : ""}`, y);
-    y -= 17;
-    certificateLine(page, font, `Finalizó: ${participant.completedAt}`, y, { size: 8 });
-    y -= 23;
+  for (const routingStage of normalizeCertificateRoutingStages(input.participants)) {
+    if (routingStage.participants.length > 1) {
+      certificateLine(page, font, `Etapa ${routingStage.stage} · Firmaron al mismo tiempo`, y, { bold, size: 8.5 });
+      y -= 17;
+    }
+    for (const participant of routingStage.participants) {
+      const prefix = routingStage.participants.length > 1 ? "-" : `${routingStage.stage}.`;
+      certificateLine(page, font, `${prefix} ${participant.displayName} · ${participant.role}${participant.finalSigner && !/firma final/i.test(participant.role) ? " · Firmante final" : ""}`, y);
+      y -= 17;
+      certificateLine(page, font, `Finalizó: ${participant.completedAt}`, y, { size: 8 });
+      y -= 23;
+    }
   }
   certificateLine(page, font, "Integridad del documento", Math.min(y - 4, 422), { bold, size: 10 });
   y = Math.min(y - 26, 400);

@@ -5,6 +5,7 @@ import test from "node:test";
 import { evaluateSignatureVisualPreflight } from "../lib/signatures/visual-preflight.ts";
 import { buildSignatureRoutingStages, signatureRoutingModeLabel } from "../lib/signatures/routing-ux.ts";
 import { signatureOperationalStatus, signatureRequiresAttention } from "../lib/signatures/admin-ux.ts";
+import { formatPuertoRicoDate, formatPuertoRicoDateTime } from "../lib/puerto-rico-time.ts";
 
 const root=process.cwd();
 const source=(file)=>readFile(path.join(root,file),"utf8");
@@ -35,6 +36,20 @@ test("visual preflight allows intentional separated fields and treats a near mar
   assert.equal(result.issues[0].code,"margin_position");
 });
 
+test("Date Signed preflight uses the final-render sizing model",()=>{
+  const geometry={pageIndex:0,mediaBox:{x:0,y:0,width:612,height:792},cropBox:{x:0,y:0,width:612,height:792},rotation:0,userUnit:1};
+  const canary=evaluateSignatureVisualPreflight([
+    field({id:"canary-date",fieldType:"date_signed",normalizedX:.42,normalizedY:.62,normalizedWidth:.30,normalizedHeight:.07}),
+  ],[geometry]);
+  assert.equal(canary.sendBlocked,false);
+  const compactGeometry={...geometry,mediaBox:{x:0,y:0,width:200,height:200},cropBox:{x:0,y:0,width:200,height:200}};
+  const tooNarrow=evaluateSignatureVisualPreflight([
+    field({id:"narrow-date",fieldType:"date_signed",normalizedX:.42,normalizedY:.62,normalizedWidth:.14,normalizedHeight:.04}),
+  ],[compactGeometry]);
+  assert.equal(tooNarrow.sendBlocked,true);
+  assert.ok(tooNarrow.issues.some((issue)=>issue.id==="date-fit:narrow-date"&&issue.code==="field_too_small"));
+});
+
 test("routing summary preserves grouped stages and Ivonne as the final stage",()=>{
   const participants=[
     {id:"buyer",name:"Cedric",role:"Comprador",routingOrder:1,isBrokerFinalSigner:false},
@@ -56,6 +71,21 @@ test("waiting language is operational and ordinary waiting does not require atte
   assert.equal(signatureRequiresAttention({status:"expired"}),true);
 });
 
+test("authenticated signing dates hydrate deterministically across server and browser time zones",()=>{
+  const originalTimeZone=process.env.TZ;
+  try {
+    process.env.TZ="UTC";
+    const server={date:formatPuertoRicoDate("2026-08-27T03:59:59.000Z"),dateTime:formatPuertoRicoDateTime("2026-08-25T23:33:03.000Z")};
+    process.env.TZ="Asia/Tokyo";
+    const browser={date:formatPuertoRicoDate("2026-08-27T03:59:59.000Z"),dateTime:formatPuertoRicoDateTime("2026-08-25T23:33:03.000Z")};
+    assert.deepEqual(browser,server);
+    assert.equal(server.date,"08/26/2026");
+    assert.match(server.dateTime,/08\/25\/2026/);
+  } finally {
+    process.env.TZ=originalTimeZone;
+  }
+});
+
 test("sender and signer surfaces expose parity UX without changing security semantics",async()=>{
   const [editor,routing,detail,session,completed,landing,exchange,actions,templates,styles]=await Promise.all([
     source("components/admin/signatures/SignatureDraftEditor.tsx"),
@@ -75,6 +105,7 @@ test("sender and signer surfaces expose parity UX without changing security sema
   assert.match(editor,/signature-editor-application-bar/);
   assert.match(editor,/Campos para/);
   assert.match(editor,/signature-mobile-properties-backdrop/);
+  assert.doesNotMatch(editor,/toLocale(?:DateString|String)\(\"es-PR\"/);
   assert.match(routing,/Ruta de firmas/);
   assert.match(editor,/Reenviar invitación/);
   assert.match(editor,/Un recordatorio conserva el acceso actual/);
@@ -100,7 +131,7 @@ test("sender and signer surfaces expose parity UX without changing security sema
 
 test("send mutation rechecks visual geometry server-side",async()=>{
   const actions=await source("app/admin/signatures/actions.ts");
-  assert.match(actions,/evaluateSignatureVisualPreflight\(authorizationDetail\.fields\)/);
+  assert.match(actions,/evaluateSignatureVisualPreflight\([\s\S]*authorizationDetail\.fields,[\s\S]*authorizationDetail\.version\.pageGeometry/);
   assert.match(actions,/visualPreflight\.sendBlocked/);
   assert.match(actions,/Corrige la colocación de campos antes de enviar/);
 });

@@ -29,6 +29,7 @@ import {
 } from "../lib/signatures/prototype/inspect.ts";
 import { renderPdfWithPdfJs } from "../lib/signatures/prototype/render.ts";
 import { compareRenderedPdfPages } from "../lib/signatures/prototype/visual-regression.ts";
+import { fitSignatureText, signatureDateTextFits } from "../lib/signatures/text-fit.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const representativeDirectory = path.join(
@@ -356,6 +357,58 @@ test("finalization is deterministic, preserves the source page count, and emits 
     assert.ok(visual.changedPixelsInsideExpectedRegions > 0);
     assert.equal(visual.changedPixelsOutsideExpectedRegions, 0);
   }
+});
+
+test("Date Signed fitting predicts and renders the final text inside its field bounds", async () => {
+  const normal = signatureDateTextFits({ widthPoints: 183.6, heightPoints: 55.44 });
+  const narrow = signatureDateTextFits({ widthPoints: 50, heightPoints: 24 });
+  const impossible = signatureDateTextFits({ widthPoints: 24, heightPoints: 12 });
+  assert.equal(normal.fits, true);
+  assert.equal(normal.fontSize, 10);
+  assert.equal(narrow.fits, true);
+  assert.ok(narrow.fontSize < normal.fontSize);
+  assert.equal(impossible.fits, false);
+
+  const exact = fitSignatureText({
+    value: "2026-08-25",
+    availableWidth: 54,
+    availableHeight: 12,
+    preferredFontSize: 10,
+    widthAtSize: (value, size) => value.length * size * 0.5,
+    heightAtSize: (size) => size,
+  });
+  assert.equal(exact.fits, true);
+  assert.ok(exact.width <= 54);
+  assert.ok(exact.height <= 12);
+
+  const sourceBytes = await fixture(representativeDirectory, "HOJA DE OFERTA - con logo.pdf");
+  const inspection = await inspectPdfCompatibility({ bytes: sourceBytes, mimeType: "application/pdf", limits });
+  const dateField = {
+    id: "canary-0038-date-signed",
+    participantId: participant.id,
+    type: "date_signed",
+    pageIndex: 0,
+    // Exact geometry captured from the immutable 0038 production canary.
+    rect: { x: 0.42, y: 0.62, width: 0.30, height: 0.07 },
+    value: { method: "date", value: "2026-08-25" },
+  };
+  const finalized = await finalizePrototypePdf(finalizationInput(sourceBytes, inspection, [dateField]));
+  const finalizedDocument = await PDFDocument.load(finalized.finalBytes);
+  assert.equal(finalizedDocument.getPageCount(), 1);
+  const [sourcePage] = await renderPdfWithPdfJs(sourceBytes, 1.5);
+  const [finalPage] = await renderPdfWithPdfJs(finalized.finalBytes, 1.5);
+  const visual = compareRenderedPdfPages({ source: sourcePage, finalized: finalPage, expectedRegions: [dateField.rect] });
+  assert.ok(visual.changedPixelsInsideExpectedRegions > 0);
+  assert.equal(visual.changedPixelsOutsideExpectedRegions, 0);
+
+  await assert.rejects(
+    finalizePrototypePdf(finalizationInput(sourceBytes, inspection, [{
+      ...dateField,
+      id: "impossible-date-signed",
+      rect: { x: 0.42, y: 0.62, width: 0.025, height: 0.015 },
+    }])),
+    /signature_field_text_does_not_fit/,
+  );
 });
 
 test("prototype code has no production storage, database, email, network, or logging coupling", async () => {

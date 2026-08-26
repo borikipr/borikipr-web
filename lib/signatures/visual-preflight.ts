@@ -1,5 +1,7 @@
 import type { SignatureFieldType, SignatureFieldValidationLimits } from "./domain/types";
 import { fieldChoiceOptions, SIGNATURE_FIELD_LABELS } from "./field-options";
+import type { PdfPageGeometry } from "./prototype/types";
+import { signatureDateTextFits } from "./text-fit";
 
 export type SignatureVisualFieldType = SignatureFieldType;
 
@@ -52,7 +54,16 @@ function overlapRatio(left: SignatureVisualField, right: SignatureVisualField) {
   return smallest > 0 ? intersection / smallest : 0;
 }
 
-export function evaluateSignatureVisualPreflight(fields: readonly SignatureVisualField[]) {
+function displayedPageDimensions(geometry: PdfPageGeometry) {
+  return geometry.rotation === 90 || geometry.rotation === 270
+    ? { width: geometry.cropBox.height, height: geometry.cropBox.width }
+    : { width: geometry.cropBox.width, height: geometry.cropBox.height };
+}
+
+export function evaluateSignatureVisualPreflight(
+  fields: readonly SignatureVisualField[],
+  pageGeometries?: readonly PdfPageGeometry[],
+) {
   const issues: SignatureVisualPreflightIssue[] = [];
   for (const field of fields) {
     const right = field.normalizedX + field.normalizedWidth;
@@ -82,6 +93,26 @@ export function evaluateSignatureVisualPreflight(fields: readonly SignatureVisua
         fieldIds: [field.id],
         message: `El campo ${fieldName(field)} es demasiado pequeño para mostrarse correctamente.`,
       });
+    }
+    if (field.fieldType === "date_signed" && pageGeometries) {
+      const geometry = pageGeometries[field.pageIndex];
+      if (geometry) {
+        const page = displayedPageDimensions(geometry);
+        const fit = signatureDateTextFits({
+          widthPoints: field.normalizedWidth * page.width,
+          heightPoints: field.normalizedHeight * page.height,
+        });
+        if (!fit.fits && !issues.some((issue) => issue.id === `small:${field.id}`)) {
+          issues.push({
+            id: `date-fit:${field.id}`,
+            code: "field_too_small",
+            severity: "critical",
+            pageIndex: field.pageIndex,
+            fieldIds: [field.id],
+            message: `El campo ${fieldName(field)} no puede contener la fecha automática sin recortarse.`,
+          });
+        }
+      }
     }
     if ((field.fieldType === "radio" || field.fieldType === "dropdown") &&
       fieldChoiceOptions(field.validationLimits ?? {}).length < 2) {

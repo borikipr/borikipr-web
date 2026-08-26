@@ -23,6 +23,10 @@ import {
   normalizeSignatureStyleId,
   type SignatureStyleId,
 } from "../signature-styles";
+import {
+  fitSignatureText,
+  SIGNATURE_DATE_PREFERRED_FONT_SIZE,
+} from "../text-fit";
 
 function displayDimensions(geometry: PdfPageGeometry, bounds: { width: number; height: number }) {
   return geometry.rotation === 90 || geometry.rotation === 270
@@ -33,25 +37,19 @@ function displayDimensions(geometry: PdfPageGeometry, bounds: { width: number; h
 function textOrigin(
   geometry: PdfPageGeometry,
   bounds: { x: number; y: number; width: number; height: number },
-  padding: number
+  inlineInset: number,
+  baselineInset: number
 ) {
   switch (geometry.rotation) {
     case 0:
-      return { x: bounds.x + padding, y: bounds.y + padding };
+      return { x: bounds.x + inlineInset, y: bounds.y + baselineInset };
     case 90:
-      return { x: bounds.x + bounds.width - padding, y: bounds.y + padding };
+      return { x: bounds.x + bounds.width - baselineInset, y: bounds.y + inlineInset };
     case 180:
-      return { x: bounds.x + bounds.width - padding, y: bounds.y + bounds.height - padding };
+      return { x: bounds.x + bounds.width - inlineInset, y: bounds.y + bounds.height - baselineInset };
     case 270:
-      return { x: bounds.x + padding, y: bounds.y + bounds.height - padding };
+      return { x: bounds.x + baselineInset, y: bounds.y + bounds.height - inlineInset };
   }
-}
-
-function fitFontSize(font: PDFFont, value: string, width: number, height: number) {
-  let size = Math.max(6, Math.min(26, height * 0.62));
-  const measured = font.widthOfTextAtSize(value, size);
-  if (measured > width) size = Math.max(6, (size * width) / measured);
-  return size;
 }
 
 function drawTextValue({
@@ -60,24 +58,34 @@ function drawTextValue({
   bounds,
   font,
   value,
+  preferredFontSize,
 }: {
   page: PDFPage;
   geometry: PdfPageGeometry;
   bounds: { x: number; y: number; width: number; height: number };
   font: PDFFont;
   value: string;
+  preferredFontSize?: number;
 }) {
   const dimensions = displayDimensions(geometry, bounds);
   const padding = Math.min(4, dimensions.height * 0.12);
-  const size = fitFontSize(
-    font,
+  const availableWidth = Math.max(0, dimensions.width - padding * 2);
+  const availableHeight = Math.max(0, dimensions.height - padding * 2);
+  const fit = fitSignatureText({
     value,
-    Math.max(1, dimensions.width - padding * 2),
-    Math.max(1, dimensions.height - padding * 2)
-  );
+    availableWidth,
+    availableHeight,
+    preferredFontSize: preferredFontSize ?? Math.min(26, dimensions.height * 0.62),
+    widthAtSize: (text, size) => font.widthOfTextAtSize(text, size),
+    heightAtSize: (size) => font.heightAtSize(size, { descender: true }),
+  });
+  if (!fit.fits) throw new Error("signature_field_text_does_not_fit");
+  const heightWithoutDescender = font.heightAtSize(fit.fontSize, { descender: false });
+  const descent = Math.max(0, fit.height - heightWithoutDescender);
+  const baselineInset = padding + (availableHeight - fit.height) / 2 + descent;
   page.drawText(value, {
-    ...textOrigin(geometry, bounds, padding),
-    size,
+    ...textOrigin(geometry, bounds, padding, baselineInset),
+    size: fit.fontSize,
     font,
     rotate: degrees(geometry.rotation),
     color: rgb(0.05, 0.12, 0.25),
@@ -135,7 +143,14 @@ function drawField({
   } else {
     value = validateBoundedText(field.value.value);
   }
-  drawTextValue({ page, geometry, bounds: placement.bounds, font, value });
+  drawTextValue({
+    page,
+    geometry,
+    bounds: placement.bounds,
+    font,
+    value,
+    preferredFontSize: field.value.method === "date" ? SIGNATURE_DATE_PREFERRED_FONT_SIZE : undefined,
+  });
 }
 
 export async function finalizePrototypePdf({

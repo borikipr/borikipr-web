@@ -9,7 +9,7 @@ import { PDFDocument } from "pdf-lib";
 import { createSignatureDomainServices } from "../lib/signatures/domain/service.ts";
 import { hashSignatureFieldDefinition } from "../lib/signatures/field-definition.ts";
 import { sha256SignatureValue } from "../lib/signatures/domain/crypto.ts";
-import { finalizeCompletedSignatureDocument } from "../lib/signatures/signer/finalize.ts";
+import { createDetachedCertificate, finalizeCompletedSignatureDocument, normalizeCertificateRoutingStages } from "../lib/signatures/signer/finalize.ts";
 import { isPublicSigningEnabled } from "../lib/signatures/public-config.ts";
 import { shouldExcludeAnalyticsPath } from "../lib/analytics-routes.ts";
 import { normalizeSignerCapture } from "../lib/signatures/signer/capture.ts";
@@ -36,6 +36,41 @@ const db = new PGlite();
 const clockState = { now: new Date("2031-01-05T12:00:00.000Z") };
 let adminId;
 let services;
+
+test("certificate routing normalizes sparse sequential and grouped internal stages", async () => {
+  const participants = [
+    { id: "buyer", displayName: "Cedric Santiago", role: "Comprador 1", routingOrder: 1, finalSigner: false, completedAt: "2031-01-05T13:00:00.000Z" },
+    { id: "seller", displayName: "Vendedor", role: "Vendedor", routingOrder: 1, finalSigner: false, completedAt: "2031-01-05T13:01:00.000Z" },
+    { id: "broker", displayName: "Ivonne Erickson", role: "Corredora · Firma final", routingOrder: 8, finalSigner: true, completedAt: "2031-01-05T14:00:00.000Z" },
+  ];
+  const stages = normalizeCertificateRoutingStages(participants);
+  assert.deepEqual(stages.map((stage) => ({ stage: stage.stage, ids: stage.participants.map((participant) => participant.id) })), [
+    { stage: 1, ids: ["buyer", "seller"] },
+    { stage: 2, ids: ["broker"] },
+  ]);
+  assert.deepEqual(normalizeCertificateRoutingStages([
+    { ...participants[0], routingOrder: 10 },
+    { ...participants[2], routingOrder: 20 },
+  ]).map((stage)=>stage.stage),[1,2]);
+  assert.deepEqual(normalizeCertificateRoutingStages([
+    { ...participants[0], routingOrder: 1 },
+    { ...participants[1], routingOrder: 1 },
+  ]).map((stage)=>stage.stage),[1]);
+  const certificate = await createDetachedCertificate({
+    title: "Documento de prueba", documentId: "request", sourceSha256: "a".repeat(64), finalSha256: "b".repeat(64),
+    fieldDefinitionSha256: "c".repeat(64), verificationId: "verification", senderOperator: "admin", participants,
+    completedAt: "2031-01-05T14:00:00.000Z", consentVersion: "consent", privacyDisclosureVersion: "privacy",
+    privacyDisclosureEsPrSha256: "d".repeat(64), privacyDisclosureEnUsSha256: "e".repeat(64),
+  });
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const task = pdfjs.getDocument({ data: new Uint8Array(certificate) });
+  try {
+    const text = (await (await task.promise).getPage(1).then((page)=>page.getTextContent())).items.map((item)=>item.str).join(" ");
+    assert.match(text,/Etapa 1 · Firmaron al mismo tiempo/);
+    assert.match(text,/2\. Ivonne Erickson/);
+    assert.doesNotMatch(text,/8\. Ivonne Erickson/);
+  } finally { await task.destroy(); }
+});
 
 before(async () => {
   await db.exec(`CREATE TABLE public.admin_users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), username text NOT NULL UNIQUE);

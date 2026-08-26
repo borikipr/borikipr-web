@@ -15,6 +15,7 @@ import {
   signatureStatusTone,
   SIGNATURE_STATUS_LABELS,
 } from "@/lib/signatures/admin-ux";
+import { formatPuertoRicoDate } from "@/lib/puerto-rico-time";
 import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/database";
 import { SIGNATURE_DOCUMENT_TYPES } from "@/lib/signatures/document-classification";
 
@@ -226,14 +227,14 @@ export default async function SignatureDocumentsPage({
                     <div>
                       <dt>Última actividad</dt>
                       <dd>
-                        {new Date(row.updated_at).toLocaleDateString("es-PR")}
+                        {formatPuertoRicoDate(row.updated_at)}
                       </dd>
                     </div>
                     <div>
                       <dt>Expiración</dt>
                       <dd>
                         {row.expires_at
-                          ? new Date(row.expires_at).toLocaleDateString("es-PR")
+                          ? formatPuertoRicoDate(row.expires_at)
                           : "Sin fecha"}
                       </dd>
                     </div>

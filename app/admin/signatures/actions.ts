@@ -311,7 +311,10 @@ export async function prepareSignatureSendAction(
     const durableRetention = await loadActiveRetentionPolicy(runtime.database);
     const authorizationDetail = await createSignatureAdminRepository(runtime.database).detail(documentId);
     if (!authorizationDetail) return { ok:false, message:"Documento no disponible." };
-    const visualPreflight = evaluateSignatureVisualPreflight(authorizationDetail.fields);
+    const visualPreflight = evaluateSignatureVisualPreflight(
+      authorizationDetail.fields,
+      authorizationDetail.version.pageGeometry,
+    );
     if (visualPreflight.sendBlocked) {
       return { ok:false, message:`Corrige la colocación de campos antes de enviar: ${visualPreflight.criticalCount} ${visualPreflight.criticalCount===1?"problema crítico":"problemas críticos"}.` };
     }

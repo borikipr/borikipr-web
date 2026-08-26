@@ -36,6 +36,8 @@ import {
   loadActiveRetentionPolicy,
 } from "@/lib/signatures/governance-config";
 import { evaluateSignaturePreflight } from "@/lib/signatures/preflight";
+import { formatPuertoRicoDate, formatPuertoRicoDateTime } from "@/lib/puerto-rico-time";
+import { buildSignatureRoutingStages } from "@/lib/signatures/routing-ux";
 
 export default async function SignatureDraftPage({
   params,
@@ -131,6 +133,11 @@ export default async function SignatureDraftPage({
     .sort(
       (left, right) => new Date(right).getTime() - new Date(left).getTime(),
     )[0];
+  const humanStageByParticipant = new Map(
+    buildSignatureRoutingStages(detail.participants, detail.routingMode).flatMap(
+      (stage, index) => stage.participants.map((participant) => [participant.id, index + 1] as const),
+    ),
+  );
 
   return (
     <AdminPageShell>
@@ -187,7 +194,7 @@ export default async function SignatureDraftPage({
           </div>
           {detail.status === "completed" && finalCompletedAt ? (
             <p className="text-sm text-slate-600">
-              Completado {new Date(finalCompletedAt).toLocaleString("es-PR")}
+              Completado {formatPuertoRicoDateTime(finalCompletedAt)}
             </p>
           ) : null}
         </div>
@@ -218,7 +225,7 @@ export default async function SignatureDraftPage({
             <dt>Expiración</dt>
             <dd>
               {detail.expiresAt
-                ? new Date(detail.expiresAt).toLocaleDateString("es-PR")
+                ? formatPuertoRicoDate(detail.expiresAt)
                 : "Sin fecha"}
             </dd>
           </div>
@@ -268,7 +275,7 @@ export default async function SignatureDraftPage({
                       {participant.name} · {participant.role}
                     </p>
                     <p className="text-xs text-slate-600">
-                      Etapa {participant.routingOrder ?? 1}
+                      Etapa {humanStageByParticipant.get(participant.id) ?? 1}
                       {participant.isBrokerFinalSigner ? " · Firma final" : ""}
                     </p>
                   </div>
@@ -352,7 +359,7 @@ export default async function SignatureDraftPage({
                 className="text-xs text-slate-500"
                 dateTime={new Date(event.createdAt).toISOString()}
               >
-                {new Date(event.createdAt).toLocaleString("es-PR")}
+                {formatPuertoRicoDateTime(event.createdAt)}
               </time>
             </li>
           ))}

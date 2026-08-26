@@ -51,6 +51,7 @@ import {
   type SignatureVisualPreflightIssue,
 } from "@/lib/signatures/visual-preflight";
 import { signatureDeliveryLabel } from "@/lib/signatures/admin-ux";
+import { formatPuertoRicoDate, formatPuertoRicoDateTime } from "@/lib/puerto-rico-time";
 import type { SignatureFieldType, SignatureFieldValidationLimits } from "@/lib/signatures/domain/types";
 import { fieldChoiceOptions, fieldMaxLength, SIGNATURE_FIELD_LABELS } from "@/lib/signatures/field-options";
 
@@ -424,7 +425,10 @@ export default function SignatureDraftEditor({
       detail.status === "draft" &&
       detail.participants.length === 0 &&
       detail.fields.length === 0;
-  const visualPreflight = evaluateSignatureVisualPreflight(detail.fields);
+  const visualPreflight = evaluateSignatureVisualPreflight(
+    detail.fields,
+    detail.version.pageGeometry,
+  );
   const fieldIssueSeverity = new Map<string, "critical" | "warning">();
   visualPreflight.issues.forEach((issue) =>
     issue.fieldIds.forEach((fieldId) => {
@@ -916,7 +920,7 @@ export default function SignatureDraftEditor({
                 label="Expiración"
                 value={
                   detail.expiresAt
-                    ? new Date(detail.expiresAt).toLocaleDateString("es-PR")
+                    ? formatPuertoRicoDate(detail.expiresAt)
                     : "Pendiente"
                 }
               />
@@ -983,7 +987,7 @@ export default function SignatureDraftEditor({
                 {detail.title} · {detail.participants.length} destinatarios ·
                 es-PR · expira{" "}
                 {detail.expiresAt
-                  ? new Date(detail.expiresAt).toLocaleDateString("es-PR")
+                  ? formatPuertoRicoDate(detail.expiresAt)
                   : "sin fecha"}
               </p>
               <label className="flex items-start gap-3 text-sm">
@@ -1358,7 +1362,7 @@ function RecipientCard({
             <p className="mt-2 text-xs text-slate-600">
               {signatureDeliveryLabel(participant.lastDeliveryStatus)}
               {participant.lastDeliveryAt
-                ? ` · ${new Date(participant.lastDeliveryAt).toLocaleString("es-PR")}`
+                ? ` · ${formatPuertoRicoDateTime(participant.lastDeliveryAt)}`
                 : ""}
             </p>
           ) : null}

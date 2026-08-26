@@ -11,6 +11,7 @@ import {
 import type { TranslationAdminActionState } from "@/app/admin/translations/actions";
 import { getTranslationAdminPresentation } from "@/lib/i18n/translations/admin-presentation";
 import type { TranslationAdminField } from "@/lib/i18n/translations/admin-service";
+import { formatPuertoRicoDateTime } from "@/lib/puerto-rico-time";
 
 const eventLabels: Record<string, string> = {
   created: "Registro creado",
@@ -30,9 +31,7 @@ const initialTranslationAdminActionState: TranslationAdminActionState = {
 };
 
 function dateLabel(value: string | null) {
-  return value
-    ? new Intl.DateTimeFormat("es-PR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value))
-    : "No disponible";
+  return value ? formatPuertoRicoDateTime(value) : "No disponible";
 }
 
 function CommonInputs({ field }: { field: TranslationAdminField }) {
