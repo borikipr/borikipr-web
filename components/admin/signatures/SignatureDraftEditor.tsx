@@ -475,7 +475,7 @@ export default function SignatureDraftEditor({
       </div>
 
       {step === 2 && (
-        <section className="signature-workflow-panel">
+        <section className="signature-workflow-panel" id="destinatarios">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <h2 className="text-xl font-semibold">2. Destinatarios</h2>

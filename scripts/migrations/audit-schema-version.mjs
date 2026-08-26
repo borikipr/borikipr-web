@@ -243,6 +243,14 @@ if (!process.env.DATABASE_URL) {
                 AND conname='signature_readiness_email_scope_check'
                 AND pg_get_constraintdef(oid) LIKE '%production_public_launch%'
             ) AS v0039
+          ,EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='signature_documents'
+                AND column_name='operationally_restored_at'
+            ) AND EXISTS (
+              SELECT 1 FROM pg_trigger
+              WHERE tgname='signature_documents_operational_restore_immutable_trigger'
+            ) AS v0040
       )
       SELECT * FROM facts
     `;

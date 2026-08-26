@@ -82,8 +82,23 @@ test("signer UI exposes accessible typed and drawn adoption without external gen
   assert.match(form, /Adoptar y continuar/);
   assert.match(form, /role="tab"/);
   assert.match(form, /aria-pressed=\{selected\}/);
-  assert.match(form, /Borrar y volver a dibujar/);
+  assert.match(form, /Limpiar/);
   assert.match(stylesheet, /\/fonts\/signatures\/great-vibes/);
   assert.match(route, /isSignatureStyleId/);
   assert.doesNotMatch(`${form}\n${route}`, /fetch\(|https?:\/\//);
+});
+
+test("drawn initials render as bounded vector evidence in the final PDF", async () => {
+  const sourceDocument = await PDFDocument.create();
+  sourceDocument.addPage([320, 180]);
+  const sourceBytes = await sourceDocument.save({ useObjectStreams: false });
+  const result = await finalizePrototypePdf({
+    sourceBytes, sourceTitle:"Drawn initials fixture", sourceSha256:sha256Hex(sourceBytes),
+    geometries:[{pageIndex:0,mediaBox:{x:0,y:0,width:320,height:180},cropBox:{x:0,y:0,width:320,height:180},rotation:0,userUnit:1}],
+    fields:[{id:"initials-drawn",participantId:"participant-1",type:"initials",pageIndex:0,rect:{x:.15,y:.25,width:.24,height:.18},value:{method:"drawn",strokes:[[{x:.08,y:.8},{x:.25,y:.15},{x:.45,y:.82}],[{x:.55,y:.78},{x:.72,y:.2},{x:.9,y:.72}]]}}],
+    participants:[{id:"participant-1",displayName:"Synthetic Signer",role:"Comprador",completedAt:"2031-01-05T12:00:00.000Z"}],requestId:"drawn-initials-fixture",verificationId:"drawn-initials-verification",consentVersion:"fixture-consent",completedAt:"2031-01-05T12:00:00.000Z",
+  });
+  assert.equal((await PDFDocument.load(result.finalBytes)).getPageCount(),1);
+  assert.equal(result.manifest.fieldCaptures[0].captureMethod,"drawn");
+  assert.ok(result.finalBytes.byteLength>sourceBytes.byteLength);
 });

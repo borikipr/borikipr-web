@@ -6,8 +6,6 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
-  type MouseEvent,
-  type PointerEvent,
 } from "react";
 import {
   DEFAULT_SIGNATURE_STYLE_ID,
@@ -18,6 +16,8 @@ import {
 import SignerActionForm from "./SignerActionForm";
 import type { SignatureFieldType, SignatureFieldValidationLimits } from "@/lib/signatures/domain/types";
 import { fieldChoiceOptions, fieldMaxLength } from "@/lib/signatures/field-options";
+import { hasAdoptableDrawing } from "@/lib/signatures/drawing";
+import DrawnMarkCanvas from "@/components/signatures/DrawnMarkCanvas";
 
 type Field = Readonly<{
   id: string;
@@ -40,7 +40,7 @@ export default function SignerFieldForm({
   const signatureLike =
     field.field_type === "signature" || field.field_type === "initials";
   const [method, setMethod] = useState(
-    field.field_type === "signature" ? "typed" : field.field_type === "date" ? "date" : "text",
+    signatureLike ? "typed" : field.field_type === "date" ? "date" : "text",
   );
   const [style, setStyle] = useState<SignatureStyleId>(
     DEFAULT_SIGNATURE_STYLE_ID,
@@ -52,10 +52,8 @@ export default function SignerFieldForm({
   );
   const [strokes, setStrokes] = useState<{ x: number; y: number }[][]>([]);
   const [adoptionOpen, setAdoptionOpen] = useState(false);
-  const canvas = useRef<HTMLCanvasElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
-  const activePointerId = useRef<number | null>(null);
 
   useEffect(() => {
     if (!adoptionOpen) return;
@@ -97,93 +95,7 @@ export default function SignerFieldForm({
     }
   }
 
-  function point(event: PointerEvent<HTMLCanvasElement>) {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    return {
-      x: (event.clientX - bounds.left) / bounds.width,
-      y: (event.clientY - bounds.top) / bounds.height,
-    };
-  }
-
-  function down(event: PointerEvent<HTMLCanvasElement>) {
-    event.preventDefault();
-    const start = point(event);
-    activePointerId.current = event.pointerId;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setStrokes((current) => [...current, [start]]);
-    const context = canvas.current?.getContext("2d");
-    const bounds = event.currentTarget.getBoundingClientRect();
-    if (context) {
-      context.lineCap = "round";
-      context.lineJoin = "round";
-      context.lineWidth = 2;
-      context.strokeStyle = "#0d1b2a";
-      context.beginPath();
-      context.moveTo(start.x * bounds.width, start.y * bounds.height);
-    }
-  }
-
-  function move(event: PointerEvent<HTMLCanvasElement>) {
-    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-    event.preventDefault();
-    const next = point(event);
-    setStrokes((current) =>
-      current.map((stroke, index) =>
-        index === current.length - 1 ? [...stroke, next] : stroke,
-      ),
-    );
-    const context = canvas.current?.getContext("2d");
-    if (context) {
-      const rect = event.currentTarget.getBoundingClientRect();
-      context.lineTo(next.x * rect.width, next.y * rect.height);
-      context.stroke();
-    }
-  }
-
-  function up(event: PointerEvent<HTMLCanvasElement>) {
-    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-    event.preventDefault();
-    const end = point(event);
-    setStrokes((current) =>
-      current.map((stroke, index) =>
-        index === current.length - 1 ? [...stroke, end] : stroke,
-      ),
-    );
-    const context = canvas.current?.getContext("2d");
-    if (context) {
-      const rect = event.currentTarget.getBoundingClientRect();
-      context.lineTo(end.x * rect.width, end.y * rect.height);
-      context.stroke();
-    }
-    event.currentTarget.releasePointerCapture(event.pointerId);
-    activePointerId.current = null;
-  }
-
-  function mouseUp(event: MouseEvent<HTMLCanvasElement>) {
-    if (activePointerId.current === null) return;
-    event.preventDefault();
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const end = {
-      x: (event.clientX - bounds.left) / bounds.width,
-      y: (event.clientY - bounds.top) / bounds.height,
-    };
-    setStrokes((current) =>
-      current.map((stroke, index) =>
-        index === current.length - 1 ? [...stroke, end] : stroke,
-      ),
-    );
-    const context = canvas.current?.getContext("2d");
-    if (context) {
-      context.lineTo(end.x * bounds.width, end.y * bounds.height);
-      context.stroke();
-    }
-    activePointerId.current = null;
-  }
-
   function clearDrawing() {
-    const context = canvas.current?.getContext("2d");
-    if (context && canvas.current)
-      context.clearRect(0, 0, canvas.current.width, canvas.current.height);
     setStrokes([]);
   }
 
@@ -220,7 +132,9 @@ export default function SignerFieldForm({
         ? "Adoptar firma dibujada"
         : "Adoptar y continuar"
       : field.field_type === "initials"
-        ? "Adoptar iniciales"
+        ? method === "drawn"
+          ? "Adoptar iniciales dibujadas"
+          : "Adoptar iniciales"
         : "Guardar campo";
 
   return (
@@ -309,11 +223,11 @@ export default function SignerFieldForm({
               {field.label}
               {field.required ? " *" : ""}
             </label>
-            {field.field_type === "signature" && (
+            {signatureLike && (
               <div
                 className="signature-adoption-tabs"
                 role="tablist"
-                aria-label="Método de firma"
+                aria-label={field.field_type === "initials" ? "Método de iniciales" : "Método de firma"}
               >
                 <button
                   type="button"
@@ -349,21 +263,14 @@ export default function SignerFieldForm({
 
           {method === "drawn" ? (
             <div className="mt-4">
-              <p className="text-sm text-slate-600">
-                Dibuja dentro del recuadro. Puedes borrar y volver a intentar
-                antes de adoptar.
+              <p className="text-sm text-slate-600" id={`drawing-help-${field.id}`}>
+                Dibuja {field.field_type === "initials" ? "tus iniciales" : "tu firma"} dentro del recuadro. Puedes limpiar y volver a intentar antes de adoptar.
               </p>
-              <canvas
-                ref={canvas}
-                width={600}
-                height={180}
-                onPointerDown={down}
-                onPointerMove={move}
-                onPointerUp={up}
-                onPointerCancel={up}
-                onMouseUp={mouseUp}
-                className="mt-3 h-40 w-full touch-none rounded-lg border-2 border-slate-300 bg-white"
-                aria-label="Área para dibujar la firma"
+              <DrawnMarkCanvas
+                describedBy={`drawing-help-${field.id}`}
+                kind={field.field_type === "initials" ? "initials" : "signature"}
+                onChange={(next) => setStrokes(next.map((stroke) => [...stroke]))}
+                strokes={strokes}
               />
               <input
                 type="hidden"
@@ -375,7 +282,7 @@ export default function SignerFieldForm({
                 onClick={clearDrawing}
                 type="button"
               >
-                Borrar y volver a dibujar
+                Limpiar
               </button>
             </div>
           ) : signatureLike ? (
@@ -492,9 +399,17 @@ export default function SignerFieldForm({
             />
           )}
 
-          <button className="signature-adoption-submit">
+          <button
+            className="signature-adoption-submit disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={method === "drawn" && !hasAdoptableDrawing(strokes)}
+          >
             {submitLabel}
           </button>
+          {method === "drawn" && !hasAdoptableDrawing(strokes) ? (
+            <p className="mt-2 text-sm text-slate-600" role="status">
+              Dibuja al menos un trazo antes de adoptar.
+            </p>
+          ) : null}
           {signatureLike && (
             <p className="mt-3 text-xs leading-5 text-slate-600">
               Al adoptar esta representación confirmas que deseas usarla como tu

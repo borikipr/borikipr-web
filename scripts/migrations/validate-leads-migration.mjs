@@ -2016,6 +2016,12 @@ const signaturePublicLaunchMigrationSql = await readMigration(
 const signaturePublicLaunchRollbackSql = await readMigration(
   "0039_add_public_launch_readiness_scope.rollback.sql"
 );
+const signatureOperationalRestoreMigrationSql = await readMigration(
+  "0040_add_signature_operational_restore.sql"
+);
+const signatureOperationalRestoreRollbackSql = await readMigration(
+  "0040_add_signature_operational_restore.rollback.sql"
+);
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -2346,6 +2352,12 @@ try {
       AND conname='signature_launch_auth_public_scope_check'`);
   assert.match(publicLaunchScope.rows[0].definition,/production_public_launch/);
   assert.match(publicLaunchScope.rows[0].definition,/authorized_participant_scope/);
+  await signatureProductizationDb.exec(signatureOperationalRestoreMigrationSql);
+  const operationalRestore=await signatureProductizationDb.query(`SELECT
+    EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='signature_documents' AND column_name='operationally_restored_at') restored_column,
+    EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='signature_documents_operational_restore_immutable_trigger') immutable_trigger`);
+  assert.deepEqual(operationalRestore.rows,[{restored_column:true,immutable_trigger:true}]);
+  await signatureProductizationDb.exec(signatureOperationalRestoreRollbackSql);
   await signatureProductizationDb.exec(signaturePublicLaunchRollbackSql);
   await assert.rejects(signatureProductizationDb.exec(signatureProductizationRollbackSql),/0035 rollback is intentionally blocked/);
   console.log("Validated Borikí Sign productization migration 0035 and rollback guard.");
@@ -2353,4 +2365,5 @@ try {
   console.log("Validated typed signature-style evidence migration 0037 and rollback guard.");
   console.log("Validated practical signing fields migration 0038 and guarded rollback.");
   console.log("Validated public launch readiness scope migration 0039 and rollback.");
+  console.log("Validated operational archive restoration migration 0040 and rollback.");
 } finally { await signatureProductizationDb.close(); }

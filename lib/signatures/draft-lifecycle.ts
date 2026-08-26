@@ -9,6 +9,8 @@ type EligibilityRow = Readonly<{
   source_r2_key: string; byte_count: number | bigint; source_sha256: string;
   participants: number; values_count: number; sessions: number; tokens: number;
   deliveries: number; finalized: boolean; final_artifacts: boolean; legal_holds: number;
+  operationally_hidden_at: string | Date | null; operationally_restored_at: string | Date | null;
+  source_deleted_at: string | Date | null;
 }>;
 
 export type SignatureDraftDeletionEligibility = Readonly<{
@@ -20,7 +22,8 @@ export type SignatureDraftDeletionEligibility = Readonly<{
 
 async function row(database: SignatureDatabase, documentId: string) {
   const rows = await database.unsafe<EligibilityRow>(`SELECT d.id::text document_id,v.id::text version_id,d.title,d.status,
-      v.source_r2_key,v.byte_count,v.source_sha256,
+      v.source_r2_key,v.byte_count,v.source_sha256,v.source_deleted_at,
+      d.operationally_hidden_at,d.operationally_restored_at,
       (SELECT count(*)::int FROM signature_participants p WHERE p.document_version_id=v.id) participants,
       (SELECT count(*)::int FROM signature_field_values fv JOIN signature_fields f ON f.id=fv.signature_field_id WHERE f.document_version_id=v.id) values_count,
       (SELECT count(*)::int FROM signature_sessions s WHERE s.document_version_id=v.id) sessions,
@@ -129,6 +132,30 @@ export function createSignatureDraftLifecycleService(database: SignatureDatabase
           VALUES ('signing_request',$1::uuid,'workflow_hidden',$2::uuid,$3,$4,$4,$5::uuid)`,
           [input.documentId,input.actorAdminId,sha256SignatureValue(canonicalJson({documentId:input.documentId,status:rows[0].status,hiddenAt:now,reason})),rows[0].status,input.idempotencyKey ?? randomUUID()]);
         return { status:rows[0].status, hidden:true as const };
+      });
+    },
+
+    async restoreToOperationalWorkflow(input: { documentId:string; actorAdminId:string; reason:string; idempotencyKey?:string }) {
+      const reason = input.reason.normalize("NFC").trim();
+      if (!reason || reason.length > 500) throw new Error("signature_request_restore_reason_invalid");
+      const item = await row(database, input.documentId);
+      if (!item || !item.operationally_hidden_at || item.operationally_restored_at || item.status === "archived" || item.source_deleted_at) {
+        throw new Error("signature_request_restore_rejected");
+      }
+      return database.begin(async (tx) => {
+        const now = clock().toISOString();
+        const rows = await tx.unsafe<{id:string;status:string}>(`UPDATE signature_documents
+          SET operationally_restored_at=$2::timestamptz,operationally_restored_by_admin_id=$3::uuid,
+              operationally_restore_reason=$4
+          WHERE id=$1::uuid AND operationally_hidden_at IS NOT NULL AND operationally_restored_at IS NULL
+            AND status<>'archived' AND deleted_at IS NULL
+          RETURNING id::text,status`, [input.documentId,now,input.actorAdminId,reason]);
+        if (!rows[0]) throw new Error("signature_request_restore_rejected");
+        await tx.unsafe(`INSERT INTO signature_governance_events(entity_type,entity_id,action,actor_admin_id,
+          snapshot_sha256,previous_state,new_state,idempotency_key)
+          VALUES ('signing_request',$1::uuid,'workflow_restored',$2::uuid,$3,$4,$4,$5::uuid)`,
+          [input.documentId,input.actorAdminId,sha256SignatureValue(canonicalJson({documentId:input.documentId,status:rows[0].status,restoredAt:now,reason})),rows[0].status,input.idempotencyKey ?? randomUUID()]);
+        return { status:rows[0].status, restored:true as const };
       });
     },
   };

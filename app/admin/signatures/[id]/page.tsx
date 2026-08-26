@@ -39,6 +39,8 @@ import {
 import { evaluateSignaturePreflight } from "@/lib/signatures/preflight";
 import { formatPuertoRicoDate, formatPuertoRicoDateTime } from "@/lib/puerto-rico-time";
 import { buildSignatureRoutingStages } from "@/lib/signatures/routing-ux";
+import { createSignatureDraftLifecycleService } from "@/lib/signatures/draft-lifecycle";
+import { createSignatureRuntime } from "@/lib/signatures/runtime";
 
 export default async function SignatureDraftPage({
   params,
@@ -143,6 +145,11 @@ export default async function SignatureDraftPage({
       (stage, index) => stage.participants.map((participant) => [participant.id, index + 1] as const),
     ),
   );
+  const operationallyHidden = Boolean(detail.operationallyHiddenAt && !detail.operationallyRestoredAt);
+  const deletionEligibility = await createSignatureDraftLifecycleService(
+    database,
+    createSignatureRuntime().storage,
+  ).inspectDeletion(id);
 
   return (
     <AdminPageShell>
@@ -187,6 +194,7 @@ export default async function SignatureDraftPage({
       <section
         className="signature-document-summary"
         aria-label="Resumen del documento"
+        id="resumen"
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -317,7 +325,7 @@ export default async function SignatureDraftPage({
         </section>
       )}
 
-      {detail.status === "archived" || detail.operationallyHiddenAt ? (
+      {detail.status === "archived" || operationallyHidden ? (
         <section className="surface-card p-5">
           <h2 className="text-lg font-semibold">
             Fuera de solicitudes activas
@@ -328,20 +336,23 @@ export default async function SignatureDraftPage({
           </p>
         </section>
       ) : detail.status !== "completed" ? (
-        <SignatureDraftEditor
+        <div id="preparacion"><SignatureDraftEditor
           detail={detail}
           readiness={readiness}
           preflight={preflight}
           activationMode={activationMode}
-        />
+        /></div>
       ) : null}
       <SignatureDocumentActions
         documentId={detail.id}
         title={detail.title}
         status={detail.status}
+        operationallyHidden={operationallyHidden}
+        sourceAvailable={!detail.version.sourceDeleted}
+        deletionEligible={deletionEligibility.eligible}
       />
 
-      <details className="signature-activity-panel">
+      <details className="signature-activity-panel" id="historial">
         <summary>
           <span>
             <strong>Actividad</strong>
@@ -376,7 +387,7 @@ export default async function SignatureDraftPage({
         )}
       </details>
 
-      <details className="surface-card p-5">
+      <details className="surface-card p-5" id="detalles-avanzados">
         <summary className="cursor-pointer font-semibold">
           Detalles avanzados
         </summary>

@@ -478,11 +478,11 @@ export async function archiveSignatureDraftAction(
   const documentId = value(formData,"documentId");
   try {
     const runtime = createSignatureRuntime();
-    await createSignatureDraftLifecycleService(runtime.database,runtime.storage).archiveDraft({
+    await createSignatureDraftLifecycleService(runtime.database,runtime.storage).hideFromOperationalWorkflow({
       documentId,actorAdminId:session.id,reason:value(formData,"reason"),idempotencyKey:randomUUID(),
     });
     refresh(documentId);
-    return { ok:true, message:"Borrador archivado. El PDF privado y la evidencia permanecen preservados." };
+    return { ok:true, message:"Borrador archivado de la vista operativa. Puede restaurarse y su evidencia permanece preservada." };
   } catch {
     return { ok:false, message:"No se pudo archivar el borrador en su estado actual." };
   }
@@ -524,6 +524,28 @@ export async function removeSignatureRequestAction(
   } catch(error) {
     if(error instanceof Error && error.message.includes("confirmation")) return {ok:false,message:"Escribe ELIMINAR BORRADOR para eliminar un borrador completamente inerte."};
     return {ok:false,message:"No pudimos quitar la solicitud de forma segura. No se destruyó evidencia."};
+  }
+}
+
+export async function restoreSignatureRequestAction(
+  _state: SignatureAdminActionState,
+  formData: FormData
+): Promise<SignatureAdminActionState> {
+  const session = await getAdminSession();
+  if (!session) return { ok:false, message:"Sesión expirada." };
+  const documentId = value(formData,"documentId");
+  try {
+    const runtime = createSignatureRuntime();
+    await createSignatureDraftLifecycleService(runtime.database,runtime.storage).restoreToOperationalWorkflow({
+      documentId,
+      actorAdminId: session.id,
+      reason: value(formData,"reason") || "Restaurado a la vista operativa por el administrador",
+      idempotencyKey: randomUUID(),
+    });
+    refresh(documentId);
+    return { ok:true, message:"Solicitud restaurada a la vista operativa. Su historial permanece intacto." };
+  } catch {
+    return { ok:false, message:"Esta solicitud no puede restaurarse sin alterar evidencia protegida." };
   }
 }
 

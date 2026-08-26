@@ -733,6 +733,31 @@ textarea {
   @apply flex flex-wrap items-center justify-between gap-4 border border-emerald-200 bg-emerald-50/50 p-4;
   border-radius: 0.75rem;
 }
+.signature-actions {
+  @apply relative justify-self-start;
+}
+.signature-actions > summary {
+  @apply cursor-pointer list-none;
+}
+.signature-actions-menu {
+  @apply mt-2 grid min-w-[18rem] max-w-xl gap-1 rounded-lg border border-slate-200 bg-white p-2 shadow-lg;
+}
+.signature-actions-menu > a,
+.signature-action-section > summary {
+  @apply min-h-11 cursor-pointer list-none rounded-md px-3 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-[#11518b];
+}
+.signature-action-section[open] > summary {
+  @apply bg-slate-100;
+}
+.signature-action-section > div {
+  @apply m-1 rounded-md border border-slate-200 p-3;
+}
+.signature-action-section.is-danger > summary {
+  @apply text-red-800 hover:bg-red-50;
+}
+.signature-danger-button {
+  @apply min-h-11 justify-self-start rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-800 disabled:opacity-50;
+}
 .signature-activity-panel {
   @apply overflow-hidden border border-slate-200 bg-white;
   border-radius: 0.75rem;
@@ -819,6 +844,14 @@ textarea {
 }
 .signature-adoption-submit {
   @apply mt-5 min-h-12 w-full rounded-lg bg-[#0d1b2a] px-5 py-3 font-semibold text-white sm:w-auto;
+}
+.drawn-mark-canvas {
+  @apply mt-3 block w-full touch-none rounded-lg border-2 border-slate-300 bg-white outline-none focus:border-[#11518b] focus:ring-4 focus:ring-blue-100;
+  height: 10rem;
+  cursor: crosshair;
+}
+.drawn-mark-canvas.is-initials {
+  height: 7.5rem;
 }
 .signature-completion-page {
   @apply mx-auto flex min-h-screen max-w-xl items-center px-5 py-12;

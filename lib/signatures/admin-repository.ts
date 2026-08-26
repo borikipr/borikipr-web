@@ -28,6 +28,7 @@ export type SignatureDraftDetail = Readonly<{
   createdAt: string | Date;
   createdByName: string;
   operationallyHiddenAt: string | Date | null;
+  operationallyRestoredAt: string | Date | null;
   version: Readonly<{
     id: string;
     number: number;
@@ -101,11 +102,12 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         page_count: number;
         expires_at: string | Date | null;
         operationally_hidden_at: string | Date | null;
+        operationally_restored_at: string | Date | null;
         routing_mode: "parallel" | "sequential" | "grouped";
         requires_broker_signature: boolean;
       }>(
         `SELECT d.id::text, d.title, d.document_type, d.status, d.routing_mode, d.requires_broker_signature,
-                d.created_at, d.updated_at, d.expires_at, d.operationally_hidden_at, v.page_count,
+                d.created_at, d.updated_at, d.expires_at, d.operationally_hidden_at, d.operationally_restored_at, v.page_count,
                 count(p.id)::integer AS participant_count,
                 count(p.id) FILTER (WHERE p.status='completed')::integer AS completed_participant_count,
                 (SELECT di.status FROM public.signature_delivery_intents di
@@ -128,16 +130,16 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
                                AND (sp.name_snapshot ILIKE '%' || $1 || '%'
                                     OR sp.normalized_email ILIKE '%' || $1 || '%')))
             AND ($4 = 'all'
-              OR ($4 = 'active' AND d.status NOT IN ('completed','archived') AND d.operationally_hidden_at IS NULL)
-              OR ($4 = 'drafts' AND d.status='draft' AND d.operationally_hidden_at IS NULL)
-              OR ($4 = 'waiting' AND d.status IN ('sent','viewed','partially_signed') AND d.operationally_hidden_at IS NULL)
-              OR ($4 = 'completed' AND d.status='completed')
-              OR ($4 = 'cancelled' AND d.status IN ('voided','expired') AND d.operationally_hidden_at IS NULL)
-              OR ($4 = 'attention' AND d.operationally_hidden_at IS NULL AND (
+              OR ($4 = 'active' AND d.status NOT IN ('completed','archived') AND (d.operationally_hidden_at IS NULL OR d.operationally_restored_at IS NOT NULL))
+              OR ($4 = 'drafts' AND d.status='draft' AND (d.operationally_hidden_at IS NULL OR d.operationally_restored_at IS NOT NULL))
+              OR ($4 = 'waiting' AND d.status IN ('sent','viewed','partially_signed') AND (d.operationally_hidden_at IS NULL OR d.operationally_restored_at IS NOT NULL))
+              OR ($4 = 'completed' AND d.status='completed' AND (d.operationally_hidden_at IS NULL OR d.operationally_restored_at IS NOT NULL))
+              OR ($4 = 'cancelled' AND d.status IN ('voided','expired') AND (d.operationally_hidden_at IS NULL OR d.operationally_restored_at IS NOT NULL))
+              OR ($4 = 'attention' AND (d.operationally_hidden_at IS NULL OR d.operationally_restored_at IS NOT NULL) AND (
                 d.status='expired' OR (d.status IN ('sent','viewed','partially_signed') AND d.expires_at<=now())
                 OR (SELECT di.status FROM public.signature_delivery_intents di
                      WHERE di.document_version_id=v.id ORDER BY di.created_at DESC LIMIT 1)='failed'))
-              OR ($4 = 'archived' AND (d.status='archived' OR d.operationally_hidden_at IS NOT NULL)))
+              OR ($4 = 'archived' AND (d.status='archived' OR (d.operationally_hidden_at IS NOT NULL AND d.operationally_restored_at IS NULL))))
             AND ($2 = 'all' OR d.status=$2)
             AND ($3 = 'all' OR d.document_type=$3)
           GROUP BY d.id, v.id, v.page_count
@@ -160,6 +162,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         expires_at: string | Date | null;
         created_at: string | Date;
         operationally_hidden_at: string | Date | null;
+        operationally_restored_at: string | Date | null;
         created_by_name: string;
         routing_mode: "parallel" | "sequential" | "grouped";
         requires_broker_signature: boolean;
@@ -177,7 +180,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         `SELECT d.id::text, d.title, d.document_type,
                 d.document_type_approval_reference, d.status,
                 d.canonical_lead_id::text, d.lead_group_id::text,
-                d.expires_at, d.created_at, d.operationally_hidden_at,
+                d.expires_at, d.created_at, d.operationally_hidden_at, d.operationally_restored_at,
                 a.username AS created_by_name,
                 d.routing_mode, d.requires_broker_signature,
                 v.id::text AS version_id, v.version_number, v.filename_snapshot,
@@ -279,6 +282,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
         createdAt: document.created_at,
         createdByName: document.created_by_name,
         operationallyHiddenAt: document.operationally_hidden_at,
+        operationallyRestoredAt: document.operationally_restored_at,
         version: {
           id: document.version_id,
           number: document.version_number,

@@ -18,6 +18,7 @@ import {
 import { formatPuertoRicoDate } from "@/lib/puerto-rico-time";
 import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/database";
 import { SIGNATURE_DOCUMENT_TYPES } from "@/lib/signatures/document-classification";
+import { signatureActionPolicy } from "@/lib/signatures/action-policy";
 
 const VIEWS = [
   { id: "active", label: "Recientes" },
@@ -189,6 +190,13 @@ export default async function SignatureDocumentsPage({
               deliveryStatus: row.last_delivery_status,
               expiresAt: row.expires_at,
             });
+            const operationallyHidden = Boolean(row.operationally_hidden_at && !row.operationally_restored_at);
+            const actions = signatureActionPolicy({
+              status: row.status,
+              operationallyHidden,
+              sourceAvailable: true,
+              deletionEligible: false,
+            });
             return (
               <article className="signature-document-row" key={row.id}>
                 <div className="min-w-0">
@@ -246,35 +254,26 @@ export default async function SignatureDocumentsPage({
                     </div>
                   </dl>
                 </div>
-                <details className="relative justify-self-start md:justify-self-end">
-                  <summary className="btn-secondary cursor-pointer list-none">
-                    Acciones
-                  </summary>
-                  <div className="mt-2 grid min-w-48 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-lg md:absolute md:right-0 md:z-20">
-                    <Link
-                      className="rounded-lg px-3 py-2 text-sm font-semibold hover:bg-slate-100"
-                      href={`/admin/signatures/${row.id}`}
-                    >
-                      {row.status === "draft" ? "Editar" : "Abrir"}
-                    </Link>
-                    {row.status === "completed" && (
-                      <>
-                        <Link
-                          className="rounded-lg px-3 py-2 text-sm font-semibold hover:bg-slate-100"
-                          href={`/admin/signatures/${row.id}/final`}
-                        >
-                          Descargar documento firmado
-                        </Link>
-                        <Link
-                          className="rounded-lg px-3 py-2 text-sm font-semibold hover:bg-slate-100"
-                          href={`/admin/signatures/${row.id}/certificate`}
-                        >
-                          Descargar certificado
-                        </Link>
-                      </>
-                    )}
-                  </div>
-                </details>
+                <div className="grid gap-2 justify-self-start md:justify-self-end">
+                  {row.status === "completed" && <div className="flex flex-wrap gap-2">
+                    <Link className="btn-primary" href={`/admin/signatures/${row.id}/final`}>Descargar documento firmado</Link>
+                    <Link className="btn-secondary" href={`/admin/signatures/${row.id}/certificate`}>Descargar certificado</Link>
+                  </div>}
+                  <details className="signature-actions md:justify-self-end">
+                    <summary className="btn-secondary">Acciones</summary>
+                    <div className="signature-actions-menu md:absolute md:right-0 md:z-20">
+                      <Link href={`/admin/signatures/${row.id}`}>{row.status === "draft" ? "Editar" : "Ver"}</Link>
+                      {actions.includes("resend") && <Link href={`/admin/signatures/${row.id}#destinatarios`}>Reenviar invitación</Link>}
+                      {actions.includes("remind") && <Link href={`/admin/signatures/${row.id}#destinatarios`}>Recordar</Link>}
+                      {actions.includes("correct") && <Link href={`/admin/signatures/${row.id}#acciones`}>Corregir</Link>}
+                      {actions.includes("cancel") && <Link href={`/admin/signatures/${row.id}#acciones`}>Cancelar solicitud</Link>}
+                      {actions.includes("duplicate") && <Link href={`/admin/signatures/${row.id}#acciones`}>Duplicar</Link>}
+                      {actions.includes("archive") && <Link href={`/admin/signatures/${row.id}#acciones`}>Archivar</Link>}
+                      {actions.includes("restore") && <Link href={`/admin/signatures/${row.id}#acciones`}>Restaurar</Link>}
+                      {actions.includes("history") && <Link href={`/admin/signatures/${row.id}#historial`}>Ver historial</Link>}
+                    </div>
+                  </details>
+                </div>
               </article>
             );
           })
