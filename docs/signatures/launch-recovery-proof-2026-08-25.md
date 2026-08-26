@@ -20,17 +20,29 @@ This record contains operational recovery evidence and aggregate verification on
 
 Result: the production PostgreSQL schema and representative aggregate signing data were recovered into an isolated target from an actual historical point. This closes the prior `neon_restore_unproven` evidence gap.
 
-## R2 independent recovery - BLOCKED
+## R2 independent recovery - PASS
 
-The authorized Cloudflare session exposes the configured private R2 buckets under one Cloudflare account. Existing Phase 2I evidence proves byte-for-byte restore from an application-controlled same-account private copy. That remains useful object-level recovery but does not protect against account/control-plane loss and therefore is not independent disaster recovery.
+- Recovery boundary: a separate Cloudflare account named `Borikí Sign Recovery`, distinct from the primary Borikí account and independently authenticated.
+- Recovery destination: private Standard-class bucket `boriki-sign-recovery` in the recovery account.
+- Public access verification:
+  - no custom domain assigned;
+  - Public Development URL disabled;
+  - no CORS policy configured;
+  - anonymous S3 endpoint access did not return the object.
+- Proof credential: a separate account token limited to Object Read & Write for the recovery bucket only, with a 24-hour TTL. It granted no bucket-administration or primary-account access.
+- Proof time: `2026-08-26T10:00:36Z` (UTC), `2026-08-26T06:00:36-04:00` (`America/Puerto_Rico`).
+- Test artifact: isolated synthetic one-page PDF produced by the Date Signed launch-blocker regression fixture; no customer data or production signing evidence was used.
+- Safe logical reference: `synthetic-date-signed-corrected.pdf`.
+- Byte length: `89370`.
+- Source SHA-256: `6aed846bb475fd72c5b93e744de0431ad8609a97b9f2308dddbedce0b95f7fb4`.
+- Independent backup SHA-256: `6aed846bb475fd72c5b93e744de0431ad8609a97b9f2308dddbedce0b95f7fb4`.
+- Restored SHA-256: `6aed846bb475fd72c5b93e744de0431ad8609a97b9f2308dddbedce0b95f7fb4`.
+- Restore method: download from the independent account using only the bucket-scoped recovery credential into an isolated local recovery path; the primary object was not overwritten or deleted.
+- Verification:
+  - source, backup, and restored hashes matched;
+  - source and restored byte counts matched;
+  - byte-for-byte comparison passed;
+  - restored PDF parsed as one page and rendered successfully;
+  - primary R2 buckets and credentials were not modified, rotated, or deleted.
 
-No second independently controlled account, external private object store, or durable encrypted export target is currently configured or authorized. Cloudflare's internal durability and provider replication are not an independently credentialed customer recovery copy. No production object, bucket policy, access token, or billing setting was changed during this inspection.
-
-To close `r2_independent_recovery_unproven`, provision one of the following and then perform a synthetic byte-for-byte restore test:
-
-1. a private bucket in a separately controlled Cloudflare account with separate least-privilege credentials; or
-2. a private object store at a second provider/account with encrypted scheduled copies, retention controls, and a documented restore path.
-
-Required proof: upload/copy a synthetic object, record its SHA-256 and byte count, recover it through the independent credentials after making the primary copy unavailable to the test process, verify exact bytes/hash and private access, and retain only non-secret evidence.
-
-Because this independent target does not exist, `SIGNING_R2_INDEPENDENT_RECOVERY_PROVEN` must remain absent/false and canonical public readiness must remain blocked.
+Result: the recovery copy survives loss of access to the primary R2 account because it is held in a separate Cloudflare account, is not deleted automatically with the primary bucket, and can be retrieved without primary R2 credentials. This closes `r2_independent_recovery_unproven` for canonical public readiness. The proof token is intentionally short-lived; future restore operations require a newly authorized bucket-scoped credential from the independent recovery account.
