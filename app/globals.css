@@ -338,6 +338,125 @@ textarea {
   background: linear-gradient(180deg, #fff 0%, #fcfdff 100%);
 }
 
+/* Dashboard 2.0 is intentionally denser than the legacy card grid while
+   remaining scoped to the Dashboard route. */
+.dashboard-welcome {
+  @apply flex flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between md:px-6;
+  background: linear-gradient(100deg, rgba(17, 81, 139, 0.035), transparent 42%), #fff;
+}
+
+.dashboard-welcome-actions {
+  @apply flex shrink-0 flex-col gap-2 sm:flex-row;
+}
+
+.dashboard-section-heading {
+  @apply flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 md:px-6;
+}
+
+.dashboard-section-link {
+  @apply inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-[#11518b] transition hover:text-[#0d406d];
+}
+
+.dashboard-metric-grid {
+  @apply grid grid-cols-2 gap-px overflow-hidden bg-slate-200 md:grid-cols-3 xl:grid-cols-5;
+}
+
+.dashboard-metric-tile {
+  @apply flex min-h-28 items-start gap-3 bg-white px-4 py-4 md:min-h-32 md:px-5;
+}
+
+.dashboard-metric-tile:last-child {
+  @apply col-span-2 md:col-span-1;
+}
+
+.dashboard-metric-icon,
+.dashboard-tool-icon,
+.dashboard-translation-icon {
+  @apply flex shrink-0 items-center justify-center rounded-lg;
+}
+
+.dashboard-metric-icon {
+  @apply h-9 w-9 bg-blue-50 text-[#11518b];
+}
+
+.dashboard-workspace-grid {
+  @apply grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(19rem,0.75fr)] lg:items-start;
+}
+
+.dashboard-tools-grid {
+  @apply grid md:grid-cols-2;
+}
+
+.dashboard-tool-link {
+  @apply flex min-h-[5.25rem] items-center gap-3 border-b border-slate-200 px-5 py-4 transition last:border-b-0 hover:bg-slate-50 focus-visible:z-10 md:[&:nth-last-child(-n+2)]:border-b-0 md:[&:nth-child(odd)]:border-r;
+}
+
+.dashboard-tool-icon {
+  @apply h-10 w-10 bg-slate-100 text-[#0d1b2a] transition;
+}
+
+.dashboard-tool-link:hover .dashboard-tool-icon {
+  @apply bg-blue-50 text-[#11518b];
+}
+
+.dashboard-translation-panel {
+  @apply min-w-0 p-5 md:p-6;
+}
+
+.dashboard-translation-icon {
+  @apply h-10 w-10;
+}
+
+.dashboard-translation-icon.is-healthy {
+  @apply bg-emerald-50 text-emerald-700;
+}
+
+.dashboard-translation-icon.is-warning {
+  @apply bg-amber-50 text-amber-700;
+}
+
+.dashboard-health-dot {
+  @apply h-2 w-2 shrink-0 rounded-full;
+}
+
+.dashboard-health-dot.is-healthy { @apply bg-emerald-500; }
+.dashboard-health-dot.is-warning { @apply bg-amber-500; }
+
+.dashboard-translation-metric { @apply min-w-0; }
+
+.dashboard-usage-progress {
+  @apply mt-2 block h-1.5 w-full overflow-hidden rounded-full border-0 bg-slate-100;
+  color: #11518b;
+}
+
+.dashboard-usage-progress::-webkit-progress-bar { @apply rounded-full bg-slate-100; }
+.dashboard-usage-progress::-webkit-progress-value { @apply rounded-full bg-[#11518b]; }
+.dashboard-usage-progress::-moz-progress-bar { @apply rounded-full bg-[#11518b]; }
+
+.dashboard-translation-alert { @apply mt-4 rounded-lg px-3 py-2.5 text-sm font-semibold; }
+.dashboard-translation-alert.is-error { @apply bg-red-50 text-red-800; }
+.dashboard-translation-alert.is-warning { @apply bg-amber-50 text-amber-800; }
+
+.dashboard-translation-details {
+  @apply mt-5 overflow-hidden rounded-xl border border-slate-200;
+}
+
+.dashboard-translation-details summary {
+  @apply flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden;
+}
+
+@media (max-width: 639px) {
+  .dashboard-welcome-actions,
+  .dashboard-welcome-actions form,
+  .dashboard-welcome-actions a,
+  .dashboard-welcome-actions button { width: 100%; }
+
+  .dashboard-section-heading { @apply items-end px-4; }
+  .dashboard-metric-tile { @apply min-h-[6.5rem] gap-2.5 px-3.5 py-3.5; }
+  .dashboard-metric-icon { @apply h-8 w-8; }
+  .dashboard-tool-link { @apply min-h-[4.75rem] px-4 py-3.5; }
+}
+
 .admin-filter-bar {
   @apply grid min-w-0 gap-3 border border-slate-200 bg-white p-4;
   border-radius: 1rem;
