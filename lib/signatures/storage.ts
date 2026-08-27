@@ -54,6 +54,8 @@ export interface SignatureCompletedStorage extends SignatureSourceStorage {
   putCertificate(input: ImmutableSignaturePdfObject): Promise<"created" | "existing">;
   getFinal(input: { key: string; byteCount: number; sha256: string }): Promise<Uint8Array>;
   getCertificate(input: { key: string; byteCount: number; sha256: string }): Promise<Uint8Array>;
+  deleteFinalIfExact(input: { key: string; byteCount: number; sha256: string }): Promise<boolean>;
+  deleteCertificateIfExact(input: { key: string; byteCount: number; sha256: string }): Promise<boolean>;
 }
 
 export function sanitizeSignatureFilename(filename: string) {
@@ -204,6 +206,19 @@ export function createPrivateSignatureR2Storage(): SignatureCompletedStorage {
     return bytes;
   }
 
+  async function deleteImmutablePdfIfExact(
+    input: { key: string; byteCount: number; sha256: string },
+    keyPattern: RegExp,
+    maximumBytes: number
+  ) {
+    if (!keyPattern.test(input.key) || input.byteCount < 1 || input.byteCount > maximumBytes) {
+      throw new Error("signature_completed_descriptor_invalid");
+    }
+    if (!(await matches({ ...input, sourceSha256: input.sha256 }))) return false;
+    await client.send(new DeleteObjectCommand({ Bucket: config.bucketName, Key: input.key }));
+    return true;
+  }
+
   return {
     async putSource(input) {
       assertSourceObject(input);
@@ -256,6 +271,10 @@ export function createPrivateSignatureR2Storage(): SignatureCompletedStorage {
     getFinal: (input) => getImmutablePdf(input, FINAL_KEY_PATTERN, MAX_SIGNATURE_FINAL_BYTES),
     getCertificate: (input) =>
       getImmutablePdf(input, CERTIFICATE_KEY_PATTERN, MAX_SIGNATURE_CERTIFICATE_BYTES),
+    deleteFinalIfExact: (input) =>
+      deleteImmutablePdfIfExact(input, FINAL_KEY_PATTERN, MAX_SIGNATURE_FINAL_BYTES),
+    deleteCertificateIfExact: (input) =>
+      deleteImmutablePdfIfExact(input, CERTIFICATE_KEY_PATTERN, MAX_SIGNATURE_CERTIFICATE_BYTES),
   };
 }
 
@@ -356,6 +375,18 @@ export function createPrivateSignatureIsolatedStorage(): SignatureCompletedStora
     ),
     getFinal: (input) => readExact(input, FINAL_KEY_PATTERN),
     getCertificate: (input) => readExact(input, CERTIFICATE_KEY_PATTERN),
+    async deleteFinalIfExact(input) {
+      try { await readExact(input, FINAL_KEY_PATTERN); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
+      await rm(isolatedObjectPath(root, input.key, FINAL_KEY_PATTERN));
+      return true;
+    },
+    async deleteCertificateIfExact(input) {
+      try { await readExact(input, CERTIFICATE_KEY_PATTERN); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
+      await rm(isolatedObjectPath(root, input.key, CERTIFICATE_KEY_PATTERN));
+      return true;
+    },
   };
 }
 

@@ -1,14 +1,21 @@
 import { randomUUID } from "node:crypto";
-import type { SignatureDatabase } from "./domain/types";
+import type { SignatureDatabase, SignatureQueryExecutor } from "./domain/types";
 import { sha256SignatureValue } from "./domain/crypto";
 import { canonicalJson } from "./prototype/hash";
-import type { SignatureSourceStorage } from "./storage";
+import type { SignatureCompletedStorage } from "./storage";
 
 type EligibilityRow = Readonly<{
   document_id: string; version_id: string; title: string; status: string;
   source_r2_key: string; byte_count: number | bigint; source_sha256: string;
-  participants: number; values_count: number; sessions: number; tokens: number;
-  deliveries: number; finalized: boolean; final_artifacts: boolean; legal_holds: number;
+  final_r2_key: string | null; final_byte_count: number | bigint | null; final_pdf_sha256: string | null;
+  certificate_r2_key: string | null; certificate_byte_count: number | bigint | null; certificate_sha256: string | null;
+  participants: number; values_count: number; sessions: number; tokens: number; deliveries: number;
+  active_sessions: number; usable_tokens: number; pending_deliveries: number; fields_count: number; events_count: number;
+  versions_count: number; finalized: boolean; final_artifacts: boolean; legal_holds: number;
+  linked_leads: number; correction_dependencies: number; template_dependencies: number;
+  document_business_links: number;
+  internal_canary_authorization_id: string | null;
+  active_internal_canary_authorizations: number;
   operationally_hidden_at: string | Date | null; operationally_restored_at: string | Date | null;
   source_deleted_at: string | Date | null;
 }>;
@@ -18,21 +25,50 @@ export type SignatureDraftDeletionEligibility = Readonly<{
   reasons: readonly string[];
   title: string | null;
   sourceWillBeRemoved: boolean;
+  mode: "inert_draft" | "internal_test_record" | null;
 }>;
 
-async function row(database: SignatureDatabase, documentId: string) {
+async function row(database: SignatureQueryExecutor, documentId: string) {
   const rows = await database.unsafe<EligibilityRow>(`SELECT d.id::text document_id,v.id::text version_id,d.title,d.status,
-      v.source_r2_key,v.byte_count,v.source_sha256,v.source_deleted_at,
+      v.source_r2_key,v.byte_count,v.source_sha256,v.source_deleted_at,v.final_r2_key,v.final_byte_count,
+      v.final_pdf_sha256,v.certificate_r2_key,v.certificate_byte_count,v.certificate_sha256,
       d.operationally_hidden_at,d.operationally_restored_at,
       (SELECT count(*)::int FROM signature_participants p WHERE p.document_version_id=v.id) participants,
+      (SELECT count(*)::int FROM signature_fields f WHERE f.document_version_id=v.id) fields_count,
       (SELECT count(*)::int FROM signature_field_values fv JOIN signature_fields f ON f.id=fv.signature_field_id WHERE f.document_version_id=v.id) values_count,
       (SELECT count(*)::int FROM signature_sessions s WHERE s.document_version_id=v.id) sessions,
       (SELECT count(*)::int FROM signature_signing_tokens t WHERE t.document_version_id=v.id) tokens,
       (SELECT count(*)::int FROM signature_delivery_intents di WHERE di.document_version_id=v.id) deliveries,
+      (SELECT count(*)::int FROM signature_sessions s WHERE s.document_version_id=v.id AND s.revoked_at IS NULL AND s.completed_at IS NULL AND s.expires_at>now() AND s.idle_expires_at>now()) active_sessions,
+      (SELECT count(*)::int FROM signature_signing_tokens t WHERE t.document_version_id=v.id AND t.consumed_at IS NULL AND t.revoked_at IS NULL AND t.superseded_at IS NULL AND t.expires_at>now()) usable_tokens,
+      (SELECT count(*)::int FROM signature_delivery_intents di WHERE di.document_version_id=v.id AND di.status IN ('pending','processing')) pending_deliveries,
+      (SELECT count(*)::int FROM signature_events e WHERE e.document_version_id=v.id) events_count,
+      (SELECT count(*)::int FROM signature_document_versions vx WHERE vx.document_id=d.id) versions_count,
       (v.finalized_at IS NOT NULL) finalized,
       (v.final_r2_key IS NOT NULL OR v.certificate_r2_key IS NOT NULL) final_artifacts,
-      (SELECT count(*)::int FROM signature_legal_holds h WHERE h.status='active' AND
-        (h.document_id=d.id OR h.document_version_id=v.id OR (h.scope_type='evidence_class' AND 'source_pdf'=ANY(h.evidence_classes)))) legal_holds
+      (SELECT count(*)::int FROM signature_legal_holds h WHERE h.document_id=d.id OR h.document_version_id=v.id
+        OR (h.scope_type='evidence_class' AND h.status='active')) legal_holds,
+      (SELECT count(*)::int FROM signature_participants p WHERE p.document_version_id=v.id AND p.canonical_lead_id IS NOT NULL) linked_leads,
+      (CASE WHEN d.canonical_lead_id IS NOT NULL OR d.lead_group_id IS NOT NULL THEN 1 ELSE 0 END)::int document_business_links,
+      ((SELECT count(*) FROM signature_documents child WHERE child.corrects_document_id=d.id)
+        + CASE WHEN d.corrects_document_id IS NULL THEN 0 ELSE 1 END)::int correction_dependencies,
+      ((SELECT count(*) FROM signature_templates t WHERE t.source_document_version_id=v.id)
+        + CASE WHEN d.source_template_id IS NULL THEN 0 ELSE 1 END)::int template_dependencies,
+      (SELECT a.id::text FROM signature_launch_authorizations a
+        JOIN signature_readiness_snapshots rs ON rs.id=a.readiness_snapshot_id
+       WHERE a.environment='production' AND a.authorization_type='internal_canary'
+         AND a.explicit_confirmation AND NOT a.phase2o_legacy AND rs.overall_status='pass'
+         AND a.readiness_snapshot_sha256=rs.snapshot_sha256
+         AND rs.snapshot#>>'{document,id}'=d.id::text
+         AND rs.snapshot#>>'{document,versionId}'=v.id::text
+         AND rs.snapshot#>>'{document,sourceSha256}'=v.source_sha256
+       ORDER BY a.authorized_at DESC LIMIT 1) internal_canary_authorization_id
+      ,(SELECT count(*)::int FROM signature_launch_authorizations a
+        JOIN signature_readiness_snapshots rs ON rs.id=a.readiness_snapshot_id
+       WHERE a.environment='production' AND a.authorization_type='internal_canary' AND a.status='active'
+         AND (a.expires_at IS NULL OR a.expires_at>now())
+         AND rs.snapshot#>>'{document,id}'=d.id::text
+         AND rs.snapshot#>>'{document,versionId}'=v.id::text) active_internal_canary_authorizations
     FROM signature_documents d JOIN signature_document_versions v ON v.id=d.active_version_id
     WHERE d.id=$1::uuid`, [documentId]);
   return rows[0] ?? null;
@@ -52,12 +88,34 @@ function reasons(item: EligibilityRow | null) {
   ];
 }
 
-export function createSignatureDraftLifecycleService(database: SignatureDatabase, storage: SignatureSourceStorage, clock = () => new Date()) {
+function internalTestReasons(item: EligibilityRow | null) {
+  if (!item) return ["document_not_found"];
+  return [
+    ...(["completed", "voided", "expired", "archived"].includes(item.status) ? [] : ["test_status_not_terminal"]),
+    ...(item.internal_canary_authorization_id ? [] : ["internal_canary_lineage_missing"]),
+    ...(item.active_internal_canary_authorizations === 0 ? [] : ["internal_canary_authorization_active"]),
+    ...(item.versions_count === 1 ? [] : ["multiple_versions_exist"]),
+    ...(item.active_sessions === 0 ? [] : ["active_sessions_exist"]),
+    ...(item.usable_tokens === 0 ? [] : ["usable_tokens_exist"]),
+    ...(item.pending_deliveries === 0 ? [] : ["pending_deliveries_exist"]),
+    ...(item.legal_holds === 0 ? [] : ["legal_hold_exists"]),
+    ...(item.linked_leads === 0 ? [] : ["canonical_lead_link_exists"]),
+    ...(item.document_business_links === 0 ? [] : ["document_business_link_exists"]),
+    ...(item.correction_dependencies === 0 ? [] : ["correction_dependency_exists"]),
+    ...(item.template_dependencies === 0 ? [] : ["template_dependency_exists"]),
+    ...(item.status !== "completed" || (item.finalized && item.final_r2_key && item.final_pdf_sha256 && item.certificate_r2_key && item.certificate_sha256) ? [] : ["artifact_descriptor_incomplete"]),
+  ];
+}
+
+export function createSignatureDraftLifecycleService(database: SignatureDatabase, storage: SignatureCompletedStorage, clock = () => new Date()) {
   return {
     async inspectDeletion(documentId: string): Promise<SignatureDraftDeletionEligibility> {
       const item = await row(database, documentId);
-      const blockers = reasons(item);
-      return { eligible: blockers.length === 0, reasons: Object.freeze(blockers), title: item?.title ?? null, sourceWillBeRemoved: Boolean(item) };
+      const draftBlockers = reasons(item);
+      const testBlockers = internalTestReasons(item);
+      const mode = draftBlockers.length === 0 ? "inert_draft" : testBlockers.length === 0 ? "internal_test_record" : null;
+      const blockers = mode ? [] : item?.status === "draft" ? draftBlockers : testBlockers;
+      return { eligible: Boolean(mode), reasons: Object.freeze(blockers), title: item?.title ?? null, sourceWillBeRemoved: Boolean(item), mode };
     },
 
     async deleteInertDraft(input: { documentId:string; actorAdminId:string; reason:string; confirmationPhrase:string; idempotencyKey?:string }) {
@@ -92,6 +150,63 @@ export function createSignatureDraftLifecycleService(database: SignatureDatabase
         });
       } catch (error) {
         await storage.putSource({ ...descriptor, bytes, mimeType:"application/pdf" }).catch(() => "existing");
+        throw error;
+      }
+    },
+
+    async deleteEligibleRecord(input: { documentId:string; actorAdminId:string; reason:string; confirmationPhrase:string; idempotencyKey?:string }) {
+      const reason = input.reason.normalize("NFC").trim();
+      if (!reason || reason.length > 500) throw new Error("signature_delete_reason_invalid");
+      const item = await row(database, input.documentId);
+      const draftBlockers = reasons(item);
+      if (item && draftBlockers.length === 0) return createSignatureDraftLifecycleService(database, storage, clock).deleteInertDraft(input);
+      const blockers = internalTestReasons(item);
+      if (!item || blockers.length) throw new Error(`signature_test_delete_blocked:${blockers.join("|")}`);
+      if (input.confirmationPhrase.normalize("NFC").trim() !== "ELIMINAR PRUEBA") throw new Error("signature_test_delete_confirmation_required");
+
+      const source = { key:item.source_r2_key, byteCount:Number(item.byte_count), sourceSha256:item.source_sha256 };
+      const final = item.final_r2_key && item.final_pdf_sha256 && item.final_byte_count
+        ? { key:item.final_r2_key, byteCount:Number(item.final_byte_count), sha256:item.final_pdf_sha256 } : null;
+      const certificate = item.certificate_r2_key && item.certificate_sha256 && item.certificate_byte_count
+        ? { key:item.certificate_r2_key, byteCount:Number(item.certificate_byte_count), sha256:item.certificate_sha256 } : null;
+      const sourceBytes = await storage.getSource(source);
+      const finalBytes = final ? await storage.getFinal(final) : null;
+      const certificateBytes = certificate ? await storage.getCertificate(certificate) : null;
+      const deleted: ("source"|"final"|"certificate")[] = [];
+      const restore = async () => {
+        if (deleted.includes("source")) await storage.putSource({ ...source, bytes:sourceBytes, mimeType:"application/pdf" });
+        if (final && finalBytes && deleted.includes("final")) await storage.putFinal({ ...final, bytes:finalBytes, mimeType:"application/pdf" });
+        if (certificate && certificateBytes && deleted.includes("certificate")) await storage.putCertificate({ ...certificate, bytes:certificateBytes, mimeType:"application/pdf" });
+      };
+      try {
+        if (!(await storage.deleteSourceIfExact(source))) throw new Error("signature_test_source_delete_failed");
+        deleted.push("source");
+        if (final) { if (!(await storage.deleteFinalIfExact(final))) throw new Error("signature_test_final_delete_failed"); deleted.push("final"); }
+        if (certificate) { if (!(await storage.deleteCertificateIfExact(certificate))) throw new Error("signature_test_certificate_delete_failed"); deleted.push("certificate"); }
+        return await database.begin(async (tx) => {
+          const current = await row(tx, input.documentId);
+          const raceBlockers = internalTestReasons(current);
+          if (!current || raceBlockers.length || current.internal_canary_authorization_id !== item.internal_canary_authorization_id) throw new Error("signature_test_delete_race_rejected");
+          const counts = { participants:item.participants, fields:item.fields_count, values:item.values_count, sessions:item.sessions, tokens:item.tokens, deliveries:item.deliveries, events:item.events_count, versions:item.versions_count };
+          const eligibilitySnapshot = canonicalJson({ documentId:item.document_id, versionId:item.version_id, authorizationId:item.internal_canary_authorization_id, status:item.status, sourceSha256:item.source_sha256, finalSha256:item.final_pdf_sha256, certificateSha256:item.certificate_sha256, counts });
+          await tx.unsafe(`INSERT INTO signature_test_cleanup_events(document_id,document_version_id,internal_canary_authorization_id,actor_admin_id,reason,title_sha256,source_sha256,final_pdf_sha256,certificate_sha256,eligibility_snapshot_sha256,removed_row_counts,removed_artifact_count,deleted_at)
+            VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7,$8,$9,$10,($11::text)::jsonb,$12,$13::timestamptz)`,
+            [item.document_id,item.version_id,item.internal_canary_authorization_id,input.actorAdminId,reason,sha256SignatureValue(item.title),item.source_sha256,item.final_pdf_sha256,item.certificate_sha256,sha256SignatureValue(eligibilitySnapshot),JSON.stringify(counts),deleted.length,clock().toISOString()]);
+          await tx.unsafe(`DELETE FROM signature_delivery_intents WHERE document_version_id=$1::uuid`,[item.version_id]);
+          await tx.unsafe(`DELETE FROM signature_field_values WHERE signature_field_id IN (SELECT id FROM signature_fields WHERE document_version_id=$1::uuid)`,[item.version_id]);
+          await tx.unsafe(`DELETE FROM signature_events WHERE document_version_id=$1::uuid`,[item.version_id]);
+          await tx.unsafe(`DELETE FROM signature_sessions WHERE document_version_id=$1::uuid`,[item.version_id]);
+          await tx.unsafe(`DELETE FROM signature_signing_tokens WHERE document_version_id=$1::uuid`,[item.version_id]);
+          await tx.unsafe(`DELETE FROM signature_fields WHERE document_version_id=$1::uuid`,[item.version_id]);
+          await tx.unsafe(`DELETE FROM signature_participants WHERE document_version_id=$1::uuid`,[item.version_id]);
+          await tx.unsafe(`SET CONSTRAINTS signature_documents_active_version_fk DEFERRED`);
+          await tx.unsafe(`DELETE FROM signature_document_versions WHERE id=$1::uuid`,[item.version_id]);
+          const removed = await tx.unsafe<{id:string}>(`DELETE FROM signature_documents WHERE id=$1::uuid RETURNING id::text`,[item.document_id]);
+          if (!removed[0]) throw new Error("signature_test_delete_race_rejected");
+          return { status:"deleted" as const, sourceDeleted:true as const, auditRetained:true as const };
+        });
+      } catch (error) {
+        await restore().catch(() => undefined);
         throw error;
       }
     },

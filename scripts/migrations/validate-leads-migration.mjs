@@ -2022,6 +2022,12 @@ const signatureOperationalRestoreMigrationSql = await readMigration(
 const signatureOperationalRestoreRollbackSql = await readMigration(
   "0040_add_signature_operational_restore.rollback.sql"
 );
+const signatureTestCleanupMigrationSql = await readMigration(
+  "0041_add_signature_test_cleanup.sql"
+);
+const signatureTestCleanupRollbackSql = await readMigration(
+  "0041_add_signature_test_cleanup.rollback.sql"
+);
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -2357,6 +2363,13 @@ try {
     EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='signature_documents' AND column_name='operationally_restored_at') restored_column,
     EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='signature_documents_operational_restore_immutable_trigger') immutable_trigger`);
   assert.deepEqual(operationalRestore.rows,[{restored_column:true,immutable_trigger:true}]);
+  await signatureProductizationDb.exec(signatureTestCleanupMigrationSql);
+  const testCleanup=await signatureProductizationDb.query(`SELECT
+    EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='signature_test_cleanup_events') cleanup_table,
+    EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='signature_test_cleanup_events_immutable_trigger') immutable_trigger,
+    EXISTS(SELECT 1 FROM pg_proc WHERE proname='signature_test_cleanup_permitted') scoped_delete_guard`);
+  assert.deepEqual(testCleanup.rows,[{cleanup_table:true,immutable_trigger:true,scoped_delete_guard:true}]);
+  await signatureProductizationDb.exec(signatureTestCleanupRollbackSql);
   await signatureProductizationDb.exec(signatureOperationalRestoreRollbackSql);
   await signatureProductizationDb.exec(signaturePublicLaunchRollbackSql);
   await assert.rejects(signatureProductizationDb.exec(signatureProductizationRollbackSql),/0035 rollback is intentionally blocked/);
@@ -2366,4 +2379,5 @@ try {
   console.log("Validated practical signing fields migration 0038 and guarded rollback.");
   console.log("Validated public launch readiness scope migration 0039 and rollback.");
   console.log("Validated operational archive restoration migration 0040 and rollback.");
+  console.log("Validated scoped internal-test cleanup migration 0041 and rollback.");
 } finally { await signatureProductizationDb.close(); }

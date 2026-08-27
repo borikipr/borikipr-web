@@ -19,6 +19,7 @@ import { formatPuertoRicoDate } from "@/lib/puerto-rico-time";
 import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/database";
 import { SIGNATURE_DOCUMENT_TYPES } from "@/lib/signatures/document-classification";
 import { signatureActionPolicy } from "@/lib/signatures/action-policy";
+import { SignatureActionsMenu } from "@/components/admin/signatures/SignatureActionsMenu";
 
 const VIEWS = [
   { id: "active", label: "Recientes" },
@@ -259,20 +260,17 @@ export default async function SignatureDocumentsPage({
                     <Link className="btn-primary" href={`/admin/signatures/${row.id}/final`}>Descargar documento firmado</Link>
                     <Link className="btn-secondary" href={`/admin/signatures/${row.id}/certificate`}>Descargar certificado</Link>
                   </div>}
-                  <details className="signature-actions md:justify-self-end">
-                    <summary className="btn-secondary">Acciones</summary>
-                    <div className="signature-actions-menu md:absolute md:right-0 md:z-20">
-                      <Link href={`/admin/signatures/${row.id}`}>{row.status === "draft" ? "Editar" : "Ver"}</Link>
-                      {actions.includes("resend") && <Link href={`/admin/signatures/${row.id}#destinatarios`}>Reenviar invitación</Link>}
-                      {actions.includes("remind") && <Link href={`/admin/signatures/${row.id}#destinatarios`}>Recordar</Link>}
-                      {actions.includes("correct") && <Link href={`/admin/signatures/${row.id}#acciones`}>Corregir</Link>}
-                      {actions.includes("cancel") && <Link href={`/admin/signatures/${row.id}#acciones`}>Cancelar solicitud</Link>}
-                      {actions.includes("duplicate") && <Link href={`/admin/signatures/${row.id}#acciones`}>Duplicar</Link>}
-                      {actions.includes("archive") && <Link href={`/admin/signatures/${row.id}#acciones`}>Archivar</Link>}
-                      {actions.includes("restore") && <Link href={`/admin/signatures/${row.id}#acciones`}>Restaurar</Link>}
-                      {actions.includes("history") && <Link href={`/admin/signatures/${row.id}#historial`}>Ver historial</Link>}
-                    </div>
-                  </details>
+                  <SignatureActionsMenu className="md:justify-self-end">
+                    <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}`}>{row.status === "draft" ? "Editar" : "Ver"}</Link>
+                    {actions.includes("resend") && <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}#destinatarios`}>Reenviar invitación</Link>}
+                    {actions.includes("remind") && <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}#destinatarios`}>Recordar</Link>}
+                    {actions.includes("correct") && <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}#acciones`}>Corregir</Link>}
+                    {actions.includes("cancel") && <Link role="menuitem" className="signature-actions-item is-danger" href={`/admin/signatures/${row.id}#acciones`}>Cancelar solicitud</Link>}
+                    {actions.includes("duplicate") && <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}#acciones`}>Duplicar</Link>}
+                    {actions.includes("archive") && <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}#acciones`}>Archivar</Link>}
+                    {actions.includes("restore") && <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}#acciones`}>Restaurar</Link>}
+                    {actions.includes("history") && <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}#historial`}>Ver historial</Link>}
+                  </SignatureActionsMenu>
                 </div>
               </article>
             );

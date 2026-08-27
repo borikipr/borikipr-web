@@ -455,17 +455,20 @@ export async function deleteSignatureDraftAction(
   const documentId = value(formData,"documentId");
   try {
     const runtime = createSignatureRuntime();
-    await createSignatureDraftLifecycleService(runtime.database,runtime.storage).deleteInertDraft({
+    const result = await createSignatureDraftLifecycleService(runtime.database,runtime.storage).deleteEligibleRecord({
       documentId,actorAdminId:session.id,reason:value(formData,"reason"),
       confirmationPhrase:value(formData,"confirmationPhrase"),idempotencyKey:randomUUID(),
     });
     refresh(documentId);
-    return { ok:true, message:"Borrador eliminado de la vista operativa y PDF fuente privado removido; la evidencia de auditoría se conservó." };
+    return { ok:true, message:result.status === "deleted"
+      ? "Prueba eliminada permanentemente junto con sus artefactos exclusivos. Se conservó solo el registro administrativo mínimo."
+      : "Borrador eliminado de la vista operativa y PDF fuente privado removido; la evidencia de auditoría se conservó." };
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
-    if (code.includes("confirmation")) return { ok:false, message:"Escribe ELIMINAR BORRADOR para confirmar." };
-    if (code.includes("blocked")) return { ok:false, message:"Este borrador contiene actividad o evidencia y no puede eliminarse. Usa Archivar." };
-    return { ok:false, message:"No se pudo eliminar el borrador de forma segura. No se modificó su estado." };
+    if (code.includes("test_delete_confirmation")) return { ok:false, message:"Escribe ELIMINAR PRUEBA para confirmar." };
+    if (code.includes("draft_delete_confirmation")) return { ok:false, message:"Escribe ELIMINAR BORRADOR para confirmar." };
+    if (code.includes("blocked")) return { ok:false, message:"Este registro contiene evidencia protegida o dependencias y no puede eliminarse. Usa Archivar." };
+    return { ok:false, message:"No se pudo eliminar de forma segura. No se afirmó una eliminación incompleta." };
   }
 }
 

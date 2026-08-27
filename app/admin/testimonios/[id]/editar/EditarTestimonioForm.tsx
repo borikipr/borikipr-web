@@ -110,20 +110,8 @@ export default function EditarTestimonioForm({ testimonio }: Props) {
             />
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="space-y-2">
-              <label htmlFor="foto_url" className="text-sm font-medium text-[#000000]">
-                Foto URL
-              </label>
-              <input
-                id="foto_url"
-                name="foto_url"
-                type="text"
-                value={fotoUrl}
-                onChange={(e) => setFotoUrl(e.target.value)}
-                className="input-premium"
-              />
-            </div>
+          <div>
+            <input name="foto_url" type="hidden" value={fotoUrl} />
 
             <div className="space-y-2">
               <label htmlFor="orden" className="text-sm font-medium text-[#000000]">

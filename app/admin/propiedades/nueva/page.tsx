@@ -735,10 +735,6 @@ export default function NuevaPropiedadPage() {
 
               <input type="hidden" id="imagenes" name="imagenes" value={imagenesValue} />
               <PropertyMediaManager items={imagenesPreview} onChange={(urls) => setImagenesValue(urls.join(", "))} />
-              <details className="rounded-lg border border-slate-200 p-3">
-                <summary className="cursor-pointer text-sm font-semibold text-slate-700">Añadir o editar URLs manualmente</summary>
-                <textarea aria-label="URLs de imágenes y videos" rows={3} value={imagenesValue} onChange={(event) => setImagenesValue(event.target.value)} className="input-premium mt-3" />
-              </details>
 
               {state.error && (
                 <p className="text-sm text-red-600">{state.error}</p>

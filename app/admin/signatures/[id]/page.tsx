@@ -350,6 +350,7 @@ export default async function SignatureDraftPage({
         operationallyHidden={operationallyHidden}
         sourceAvailable={!detail.version.sourceDeleted}
         deletionEligible={deletionEligibility.eligible}
+        deletionMode={deletionEligibility.mode}
       />
 
       <details className="signature-activity-panel" id="historial">

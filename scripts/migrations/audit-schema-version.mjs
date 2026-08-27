@@ -251,6 +251,16 @@ if (!process.env.DATABASE_URL) {
               SELECT 1 FROM pg_trigger
               WHERE tgname='signature_documents_operational_restore_immutable_trigger'
             ) AS v0040
+          ,EXISTS (
+              SELECT 1 FROM information_schema.tables
+              WHERE table_schema='public' AND table_name='signature_test_cleanup_events'
+            ) AND EXISTS (
+              SELECT 1 FROM pg_trigger
+              WHERE tgname='signature_test_cleanup_events_immutable_trigger'
+            ) AND EXISTS (
+              SELECT 1 FROM pg_proc
+              WHERE proname='signature_test_cleanup_permitted'
+            ) AS v0041
       )
       SELECT * FROM facts
     `;
