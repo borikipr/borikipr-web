@@ -268,6 +268,7 @@ export default async function SignatureDocumentsPage({
                     sourceAvailable={true}
                     deletionEligible={Boolean(deletionEligibility?.eligible)}
                     deletionMode={deletionEligibility?.mode ?? null}
+                    detailHref={`/admin/signatures/${row.id}`}
                   />
                 </div>
               </article>

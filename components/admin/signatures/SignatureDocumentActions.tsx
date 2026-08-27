@@ -17,9 +17,11 @@ function Result({ state }: { state: SignatureAdminActionState }) { return state.
 function FormShell({ children }: { children: ReactNode }) { return <div className="grid gap-4">{children}</div>; }
 function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="grid gap-1.5 text-sm font-semibold text-slate-800"><span>{label}</span>{children}</label>; }
 
-export default function SignatureDocumentActions({ documentId, title, status, operationallyHidden, sourceAvailable, deletionEligible, deletionMode }: {
+export default function SignatureDocumentActions({ documentId, title, status, operationallyHidden, sourceAvailable, deletionEligible, deletionMode, detailHref }: {
   documentId: string; title: string; status: string; operationallyHidden: boolean; sourceAvailable: boolean;
   deletionEligible: boolean; deletionMode: "inert_draft" | "internal_test_record" | null;
+  /** On a list card, action links lead to the matching detail surface. */
+  detailHref?: string;
 }) {
   const [dialog, setDialog] = useState<DialogName>(null);
   const [duplicateState, duplicate, duplicatePending] = useActionState(duplicateSignatureRequestAction, INITIAL);
@@ -31,13 +33,14 @@ export default function SignatureDocumentActions({ documentId, title, status, op
   const [deleteState, deleteAction, deletePending] = useActionState(deleteSignatureDraftAction, INITIAL);
   const actions = new Set<SignatureActionKey>(signatureActionPolicy({ status, operationallyHidden, sourceAvailable, deletionEligible }));
   const confirmationPhrase = deletionMode === "internal_test_record" ? "ELIMINAR PRUEBA" : "ELIMINAR BORRADOR";
+  const anchor = (fragment: string) => detailHref ? `${detailHref}${fragment}` : fragment;
 
   return <section id="acciones" aria-label="Acciones de la solicitud" className="flex justify-end">
     <SignatureActionsMenu>
-      <Link role="menuitem" data-close-menu="true" className="signature-actions-item" href={actions.has("edit") ? "#preparacion" : "#resumen"}><Eye aria-hidden="true" size={17}/><span>{actions.has("edit") ? "Editar" : "Ver"}</span></Link>
-      {(actions.has("resend") || actions.has("remind")) && <Link role="menuitem" data-close-menu="true" className="signature-actions-item" href="#destinatarios"><RotateCcw aria-hidden="true" size={17}/><span>Reenviar o recordar</span></Link>}
-      {actions.has("history") && <Link role="menuitem" data-close-menu="true" className="signature-actions-item" href="#historial"><History aria-hidden="true" size={17}/><span>Ver historial</span></Link>}
-      {actions.has("advanced") && <Link role="menuitem" data-close-menu="true" className="signature-actions-item" href="#detalles-avanzados"><Settings2 aria-hidden="true" size={17}/><span>Detalles avanzados</span></Link>}
+      <Link role="menuitem" data-close-menu="true" className="signature-actions-item" href={anchor(actions.has("edit") ? "#preparacion" : "#resumen")}><Eye aria-hidden="true" size={17}/><span>{actions.has("edit") ? "Editar" : "Ver"}</span></Link>
+      {(actions.has("resend") || actions.has("remind")) && <Link role="menuitem" data-close-menu="true" className="signature-actions-item" href={anchor("#destinatarios")}><RotateCcw aria-hidden="true" size={17}/><span>Reenviar o recordar</span></Link>}
+      {actions.has("history") && <Link role="menuitem" data-close-menu="true" className="signature-actions-item" href={anchor("#historial")}><History aria-hidden="true" size={17}/><span>Ver historial</span></Link>}
+      {actions.has("advanced") && <Link role="menuitem" data-close-menu="true" className="signature-actions-item" href={anchor("#detalles-avanzados")}><Settings2 aria-hidden="true" size={17}/><span>Detalles avanzados</span></Link>}
       {actions.has("duplicate") && <SignatureMenuItem icon={<Copy size={17}/>} onSelect={() => setDialog("duplicate")}>Duplicar</SignatureMenuItem>}
       {actions.has("correct") && <SignatureMenuItem icon={<FilePenLine size={17}/>} onSelect={() => setDialog("correct")}>Corregir</SignatureMenuItem>}
       {actions.has("archive") && <SignatureMenuItem icon={<Archive size={17}/>} onSelect={() => setDialog("archive")}>Archivar</SignatureMenuItem>}
