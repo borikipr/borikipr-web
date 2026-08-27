@@ -395,7 +395,8 @@ test("Admin action boundary derives actor from the authenticated session and UI 
 
 test("Admin usage panel exposes aggregate limits and sanitized budget states only", async () => {
   const panel = await readFile(fileURLToPath(new URL("../components/admin/TranslationUsageStatus.tsx", import.meta.url)), "utf8");
-  assert.match(panel, /Caracteres hoy \(UTC\)/);
+  assert.match(panel, />Hoy</);
+  assert.match(panel, /label="Caracteres"/);
   assert.match(panel, /Intentos este mes \(UTC\)/);
   assert.match(panel, /Pausados por límite/);
   assert.match(panel, /Traducciones automáticas pausadas por límite de uso\./);

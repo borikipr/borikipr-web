@@ -26,12 +26,17 @@ test("Dashboard exposes business metrics and primary Admin tools", async () => {
 
 test("Translation usage is compact by default without losing operational detail", async () => {
   const panel = await source("components/admin/TranslationUsageStatus.tsx");
-  assert.match(panel, /<details className="dashboard-translation-details/);
+  assert.doesNotMatch(panel, /<details|<summary|Ver detalle operativo/);
   assert.match(panel, /Caracteres este mes \(UTC\)/);
   assert.match(panel, /Intentos este mes \(UTC\)/);
-  assert.match(panel, /Caracteres hoy \(UTC\)/);
-  assert.match(panel, /Intentos hoy \(UTC\)/);
-  assert.match(panel, /Pausados por límite/);
+  assert.match(panel, /label="Caracteres"/);
+  assert.match(panel, /label="Intentos"/);
+  assert.match(panel, /label="En cola"/);
+  assert.match(panel, /label="Procesando"/);
+  assert.match(panel, /label="Fallidos"/);
+  assert.match(panel, /label="Pausados por límite"/);
+  assert.match(panel, /Worker:/);
+  assert.match(panel, /Proveedor:/);
   assert.match(panel, /<progress aria-label=/);
   assert.match(panel, /Traducciones automáticas pausadas por límite de uso\./);
 });

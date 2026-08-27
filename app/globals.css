@@ -437,12 +437,41 @@ textarea {
 .dashboard-translation-alert.is-error { @apply bg-red-50 text-red-800; }
 .dashboard-translation-alert.is-warning { @apply bg-amber-50 text-amber-800; }
 
-.dashboard-translation-details {
-  @apply mt-5 overflow-hidden rounded-xl border border-slate-200;
+.dashboard-translation-operational {
+  @apply mt-4 space-y-3 border-t border-slate-200 pt-4;
 }
 
-.dashboard-translation-details summary {
-  @apply flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden;
+.dashboard-translation-group-label {
+  @apply mb-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500;
+}
+
+.dashboard-translation-today-grid,
+.dashboard-translation-status-grid {
+  @apply grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200;
+}
+
+.dashboard-translation-status-grid {
+  @apply sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4;
+}
+
+.dashboard-translation-compact-value {
+  @apply min-w-0 bg-white px-3 py-2;
+}
+
+.dashboard-translation-compact-value dt {
+  @apply truncate text-[0.68rem] text-slate-500;
+}
+
+.dashboard-translation-compact-value dd {
+  @apply mt-0.5 truncate text-xs font-semibold tabular-nums text-slate-900;
+}
+
+.dashboard-translation-meta {
+  @apply break-words text-[0.68rem] leading-relaxed text-slate-500;
+}
+
+.dashboard-translation-meta strong {
+  @apply font-semibold text-slate-700;
 }
 
 @media (max-width: 639px) {
