@@ -135,7 +135,7 @@ export async function inspectSignatureDeletionEligibility(
     eligible: Boolean(mode),
     reasons: Object.freeze(blockers),
     title: item?.title ?? null,
-    sourceWillBeRemoved: Boolean(item),
+    sourceWillBeRemoved: Boolean(item && !item.source_deleted_at),
     mode,
   };
 }
@@ -192,23 +192,30 @@ export function createSignatureDraftLifecycleService(database: SignatureDatabase
       if (!item || blockers.length) throw new Error(`signature_test_delete_blocked:${blockers.join("|")}`);
       if (input.confirmationPhrase.normalize("NFC").trim() !== "ELIMINAR PRUEBA") throw new Error("signature_test_delete_confirmation_required");
 
-      const source = { key:item.source_r2_key, byteCount:Number(item.byte_count), sourceSha256:item.source_sha256 };
+      // Historical inert drafts can already have their source removed by the
+      // archive path.  That persisted marker is authoritative: never try to
+      // fetch or delete an object that the database says is already gone.
+      const source = item.source_deleted_at ? null : {
+        key:item.source_r2_key, byteCount:Number(item.byte_count), sourceSha256:item.source_sha256,
+      };
       const final = item.final_r2_key && item.final_pdf_sha256 && item.final_byte_count
         ? { key:item.final_r2_key, byteCount:Number(item.final_byte_count), sha256:item.final_pdf_sha256 } : null;
       const certificate = item.certificate_r2_key && item.certificate_sha256 && item.certificate_byte_count
         ? { key:item.certificate_r2_key, byteCount:Number(item.certificate_byte_count), sha256:item.certificate_sha256 } : null;
-      const sourceBytes = await storage.getSource(source);
+      const sourceBytes = source ? await storage.getSource(source) : null;
       const finalBytes = final ? await storage.getFinal(final) : null;
       const certificateBytes = certificate ? await storage.getCertificate(certificate) : null;
       const deleted: ("source"|"final"|"certificate")[] = [];
       const restore = async () => {
-        if (deleted.includes("source")) await storage.putSource({ ...source, bytes:sourceBytes, mimeType:"application/pdf" });
+        if (source && sourceBytes && deleted.includes("source")) await storage.putSource({ ...source, bytes:sourceBytes, mimeType:"application/pdf" });
         if (final && finalBytes && deleted.includes("final")) await storage.putFinal({ ...final, bytes:finalBytes, mimeType:"application/pdf" });
         if (certificate && certificateBytes && deleted.includes("certificate")) await storage.putCertificate({ ...certificate, bytes:certificateBytes, mimeType:"application/pdf" });
       };
       try {
-        if (!(await storage.deleteSourceIfExact(source))) throw new Error("signature_test_source_delete_failed");
-        deleted.push("source");
+        if (source) {
+          if (!(await storage.deleteSourceIfExact(source))) throw new Error("signature_test_source_delete_failed");
+          deleted.push("source");
+        }
         if (final) { if (!(await storage.deleteFinalIfExact(final))) throw new Error("signature_test_final_delete_failed"); deleted.push("final"); }
         if (certificate) { if (!(await storage.deleteCertificateIfExact(certificate))) throw new Error("signature_test_certificate_delete_failed"); deleted.push("certificate"); }
         return await database.begin(async (tx) => {
@@ -216,10 +223,10 @@ export function createSignatureDraftLifecycleService(database: SignatureDatabase
           const raceBlockers = internalTestReasons(current);
           if (!current || raceBlockers.length || current.internal_canary_authorization_id !== item.internal_canary_authorization_id) throw new Error("signature_test_delete_race_rejected");
           const counts = { participants:item.participants, fields:item.fields_count, values:item.values_count, sessions:item.sessions, tokens:item.tokens, deliveries:item.deliveries, events:item.events_count, versions:item.versions_count, templateSources:item.template_source_dependencies };
-          const eligibilitySnapshot = canonicalJson({ documentId:item.document_id, versionId:item.version_id, authorizationId:item.internal_canary_authorization_id, legacySynthetic:item.document_type_approval_reference===null, status:item.status, sourceSha256:item.source_sha256, finalSha256:item.final_pdf_sha256, certificateSha256:item.certificate_sha256, counts });
+          const eligibilitySnapshot = canonicalJson({ documentId:item.document_id, versionId:item.version_id, authorizationId:item.internal_canary_authorization_id, legacySynthetic:item.document_type_approval_reference===null, sourceAlreadyDeleted:Boolean(item.source_deleted_at), status:item.status, sourceSha256:item.source_sha256, finalSha256:item.final_pdf_sha256, certificateSha256:item.certificate_sha256, counts });
           await tx.unsafe(`INSERT INTO signature_test_cleanup_events(document_id,document_version_id,internal_canary_authorization_id,actor_admin_id,reason,title_sha256,source_sha256,final_pdf_sha256,certificate_sha256,eligibility_snapshot_sha256,removed_row_counts,removed_artifact_count,deleted_at)
             VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7,$8,$9,$10,($11::text)::jsonb,$12,$13::timestamptz)`,
-            [item.document_id,item.version_id,item.internal_canary_authorization_id,input.actorAdminId,reason,sha256SignatureValue(item.title),item.source_sha256,item.final_pdf_sha256,item.certificate_sha256,sha256SignatureValue(eligibilitySnapshot),JSON.stringify(counts),deleted.length,clock().toISOString()]);
+            [item.document_id,item.version_id,item.internal_canary_authorization_id,input.actorAdminId,reason,sha256SignatureValue(item.title),item.source_sha256,item.final_pdf_sha256,item.certificate_sha256,sha256SignatureValue(eligibilitySnapshot),JSON.stringify(counts),deleted.length + (item.source_deleted_at ? 1 : 0),clock().toISOString()]);
           await tx.unsafe(`DELETE FROM signature_templates WHERE source_document_version_id=$1::uuid`,[item.version_id]);
           await tx.unsafe(`DELETE FROM signature_delivery_intents WHERE document_version_id=$1::uuid`,[item.version_id]);
           await tx.unsafe(`DELETE FROM signature_field_values WHERE signature_field_id IN (SELECT id FROM signature_fields WHERE document_version_id=$1::uuid)`,[item.version_id]);

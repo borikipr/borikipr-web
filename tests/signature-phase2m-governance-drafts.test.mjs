@@ -142,6 +142,18 @@ test("legacy synthetic records without a canary authorization remain removable o
   assert.equal((await db.query(`SELECT internal_canary_authorization_id FROM signature_test_cleanup_events WHERE document_id=$1`,[created.documentId])).rows[0].internal_canary_authorization_id,null);
 });
 
+test("legacy cleanup honors an already-removed source artifact without fetching it again",async()=>{
+  const created=await draft();const storage=storageFor(created.sourceR2Key,created.bytes);
+  const archived=createSignatureDraftLifecycleService(database,storage);
+  await archived.deleteInertDraft({documentId:created.documentId,actorAdminId:adminId,reason:"Initial source cleanup",confirmationPhrase:"ELIMINAR BORRADOR"});
+  const service=createSignatureDraftLifecycleService(database,storage);
+  const eligibility=await service.inspectDeletion(created.documentId);
+  assert.equal(eligibility.eligible,true);assert.equal(eligibility.sourceWillBeRemoved,false);
+  await service.deleteEligibleRecord({documentId:created.documentId,actorAdminId:adminId,reason:"Legacy source cleanup",confirmationPhrase:"ELIMINAR PRUEBA"});
+  assert.equal((await db.query(`SELECT count(*)::int count FROM signature_documents WHERE id=$1`,[created.documentId])).rows[0].count,0);
+  assert.equal((await db.query(`SELECT removed_artifact_count FROM signature_test_cleanup_events WHERE document_id=$1`,[created.documentId])).rows[0].removed_artifact_count,1);
+});
+
 test("an eligible legacy template source removes its private template snapshot with the test record",async()=>{
   const created=await completedFixture({canary:false});
   const template=(await db.query(`INSERT INTO signature_templates(name,document_type,source_document_version_id,snapshot_sha256,created_by_admin_id) VALUES('Synthetic legacy template','transaction_acknowledgment',$1,$2,$3) RETURNING id::text`,[created.documentVersionId,"a".repeat(64),adminId])).rows[0];
