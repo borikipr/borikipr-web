@@ -451,7 +451,7 @@ textarea {
 }
 
 .dashboard-translation-status-grid {
-  @apply sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4;
+  @apply grid-cols-2;
 }
 
 .dashboard-translation-compact-value {
@@ -459,7 +459,7 @@ textarea {
 }
 
 .dashboard-translation-compact-value dt {
-  @apply truncate text-[0.68rem] text-slate-500;
+  @apply text-[0.68rem] leading-tight text-slate-500;
 }
 
 .dashboard-translation-compact-value dd {
