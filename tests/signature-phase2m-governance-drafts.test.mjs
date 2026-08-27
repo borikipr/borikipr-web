@@ -128,6 +128,19 @@ test("ordinary completed records and canaries with active protection remain fail
   const protectedService=createSignatureDraftLifecycleService(database,protectedCanary.storage);assert.equal((await protectedService.inspectDeletion(protectedCanary.documentId)).eligible,false);
 });
 
+test("synthetic cleanup eligibility is evaluated by safety state, not the lifecycle tab",async()=>{
+  const created=await completedFixture();const service=createSignatureDraftLifecycleService(database,created.storage);
+  await db.exec(`ALTER TABLE signature_documents DISABLE TRIGGER signature_documents_transition_trigger`);
+  try {
+    for(const status of ["draft","sent","viewed","partially_signed","completed","voided","expired","archived"]){
+      await db.query(`UPDATE signature_documents SET status=$2,completed_at=CASE WHEN $2='completed' THEN now() ELSE NULL END,voided_at=CASE WHEN $2='voided' THEN now() ELSE NULL END,void_reason=CASE WHEN $2='voided' THEN 'Synthetic terminal-state test' ELSE NULL END,archived_at=CASE WHEN $2='archived' THEN now() ELSE NULL END,archived_by_admin_id=CASE WHEN $2='archived' THEN $3::uuid ELSE NULL END,archive_reason=CASE WHEN $2='archived' THEN 'Synthetic terminal-state test' ELSE NULL END WHERE id=$1`,[created.documentId,status,adminId]);
+      const eligibility=await service.inspectDeletion(created.documentId);
+      assert.equal(eligibility.eligible,true,status);
+      assert.equal(eligibility.mode,"internal_test_record",status);
+    }
+  } finally { await db.exec(`ALTER TABLE signature_documents ENABLE TRIGGER signature_documents_transition_trigger`); }
+});
+
 test("artifact cleanup failure restores prior objects and leaves database evidence untouched",async()=>{
   const created=await completedFixture();const failingStorage={...created.storage,async deleteFinalIfExact(){return false;}};
   const service=createSignatureDraftLifecycleService(database,failingStorage);

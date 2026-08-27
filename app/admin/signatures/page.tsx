@@ -18,8 +18,8 @@ import {
 import { formatPuertoRicoDate } from "@/lib/puerto-rico-time";
 import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/database";
 import { SIGNATURE_DOCUMENT_TYPES } from "@/lib/signatures/document-classification";
-import { signatureActionPolicy } from "@/lib/signatures/action-policy";
-import { SignatureActionsMenu } from "@/components/admin/signatures/SignatureActionsMenu";
+import SignatureDocumentActions from "@/components/admin/signatures/SignatureDocumentActions";
+import { inspectSignatureDeletionEligibility } from "@/lib/signatures/draft-lifecycle";
 
 const VIEWS = [
   { id: "active", label: "Recientes" },
@@ -47,10 +47,15 @@ export default async function SignatureDocumentsPage({
   const view = VIEWS.some((item) => item.id === params.view)
     ? params.view!
     : "active";
-  const repository = createSignatureAdminRepository(
-    createPostgresSignatureDatabase(sql),
-  );
+  const database = createPostgresSignatureDatabase(sql);
+  const repository = createSignatureAdminRepository(database);
   const rows = await repository.list({ ...params, view });
+  const deletionEligibilityByDocument = new Map(
+    await Promise.all(rows.map(async (row) => [
+      row.id,
+      await inspectSignatureDeletionEligibility(database, row.id),
+    ] as const)),
+  );
 
   return (
     <AdminPageShell>
@@ -192,12 +197,7 @@ export default async function SignatureDocumentsPage({
               expiresAt: row.expires_at,
             });
             const operationallyHidden = Boolean(row.operationally_hidden_at && !row.operationally_restored_at);
-            const actions = signatureActionPolicy({
-              status: row.status,
-              operationallyHidden,
-              sourceAvailable: true,
-              deletionEligible: false,
-            });
+            const deletionEligibility = deletionEligibilityByDocument.get(row.id);
             return (
               <article className="signature-document-row" key={row.id}>
                 <div className="min-w-0">
@@ -260,17 +260,15 @@ export default async function SignatureDocumentsPage({
                     <Link className="btn-primary" href={`/admin/signatures/${row.id}/final`}>Descargar documento firmado</Link>
                     <Link className="btn-secondary" href={`/admin/signatures/${row.id}/certificate`}>Descargar certificado</Link>
                   </div>}
-                  <SignatureActionsMenu className="md:justify-self-end">
-                    <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}`}>{row.status === "draft" ? "Editar" : "Ver"}</Link>
-                    {actions.includes("resend") && <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}#destinatarios`}>Reenviar invitación</Link>}
-                    {actions.includes("remind") && <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}#destinatarios`}>Recordar</Link>}
-                    {actions.includes("correct") && <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}#acciones`}>Corregir</Link>}
-                    {actions.includes("cancel") && <Link role="menuitem" className="signature-actions-item is-danger" href={`/admin/signatures/${row.id}#acciones`}>Cancelar solicitud</Link>}
-                    {actions.includes("duplicate") && <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}#acciones`}>Duplicar</Link>}
-                    {actions.includes("archive") && <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}#acciones`}>Archivar</Link>}
-                    {actions.includes("restore") && <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}#acciones`}>Restaurar</Link>}
-                    {actions.includes("history") && <Link role="menuitem" className="signature-actions-item" href={`/admin/signatures/${row.id}#historial`}>Ver historial</Link>}
-                  </SignatureActionsMenu>
+                  <SignatureDocumentActions
+                    documentId={row.id}
+                    title={row.title}
+                    status={row.status}
+                    operationallyHidden={operationallyHidden}
+                    sourceAvailable={true}
+                    deletionEligible={Boolean(deletionEligibility?.eligible)}
+                    deletionMode={deletionEligibility?.mode ?? null}
+                  />
                 </div>
               </article>
             );

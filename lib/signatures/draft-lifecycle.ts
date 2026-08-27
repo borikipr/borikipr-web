@@ -91,7 +91,6 @@ function reasons(item: EligibilityRow | null) {
 function internalTestReasons(item: EligibilityRow | null) {
   if (!item) return ["document_not_found"];
   return [
-    ...(["completed", "voided", "expired", "archived"].includes(item.status) ? [] : ["test_status_not_terminal"]),
     ...(item.internal_canary_authorization_id ? [] : ["internal_canary_lineage_missing"]),
     ...(item.active_internal_canary_authorizations === 0 ? [] : ["internal_canary_authorization_active"]),
     ...(item.versions_count === 1 ? [] : ["multiple_versions_exist"]),
@@ -107,15 +106,38 @@ function internalTestReasons(item: EligibilityRow | null) {
   ];
 }
 
+/**
+ * The only eligibility decision for permanent signing-record cleanup.
+ * It intentionally does not use the current list tab or lifecycle label as
+ * an input: the server checks the actual record, security state, lineage and
+ * dependencies every time it is rendered or deleted.
+ */
+export async function inspectSignatureDeletionEligibility(
+  database: SignatureQueryExecutor,
+  documentId: string,
+): Promise<SignatureDraftDeletionEligibility> {
+  const item = await row(database, documentId);
+  const draftBlockers = reasons(item);
+  const testBlockers = internalTestReasons(item);
+  const mode = draftBlockers.length === 0
+    ? "inert_draft"
+    : testBlockers.length === 0
+      ? "internal_test_record"
+      : null;
+  const blockers = mode ? [] : item?.status === "draft" ? draftBlockers : testBlockers;
+  return {
+    eligible: Boolean(mode),
+    reasons: Object.freeze(blockers),
+    title: item?.title ?? null,
+    sourceWillBeRemoved: Boolean(item),
+    mode,
+  };
+}
+
 export function createSignatureDraftLifecycleService(database: SignatureDatabase, storage: SignatureCompletedStorage, clock = () => new Date()) {
   return {
     async inspectDeletion(documentId: string): Promise<SignatureDraftDeletionEligibility> {
-      const item = await row(database, documentId);
-      const draftBlockers = reasons(item);
-      const testBlockers = internalTestReasons(item);
-      const mode = draftBlockers.length === 0 ? "inert_draft" : testBlockers.length === 0 ? "internal_test_record" : null;
-      const blockers = mode ? [] : item?.status === "draft" ? draftBlockers : testBlockers;
-      return { eligible: Boolean(mode), reasons: Object.freeze(blockers), title: item?.title ?? null, sourceWillBeRemoved: Boolean(item), mode };
+      return inspectSignatureDeletionEligibility(database, documentId);
     },
 
     async deleteInertDraft(input: { documentId:string; actorAdminId:string; reason:string; confirmationPhrase:string; idempotencyKey?:string }) {

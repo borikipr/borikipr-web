@@ -8,14 +8,17 @@ import { signatureActionPolicy } from "../lib/signatures/action-policy.ts";
 const root=path.dirname(fileURLToPath(new URL("../package.json",import.meta.url)));
 const source=(name)=>readFile(path.join(root,name),"utf8");
 
-test("Signing actions use an accessible portaled menu and state-aware policy",async()=>{
-  const [menu,detail,list,styles]=await Promise.all([source("components/admin/signatures/SignatureActionsMenu.tsx"),source("components/admin/signatures/SignatureDocumentActions.tsx"),source("app/admin/signatures/page.tsx"),source("app/globals.css")]);
+test("Signing actions use one canonical eligibility result in list and detail",async()=>{
+  const [menu,actions,list,detailPage,styles]=await Promise.all([source("components/admin/signatures/SignatureActionsMenu.tsx"),source("components/admin/signatures/SignatureDocumentActions.tsx"),source("app/admin/signatures/page.tsx"),source("app/admin/signatures/[id]/page.tsx"),source("app/globals.css")]);
   assert.match(menu,/createPortal/);assert.match(menu,/role="menu"/);assert.match(menu,/ArrowDown/);assert.match(menu,/Escape/);assert.match(menu,/pointerdown/);
   assert.match(menu,/below \+ menuHeight > window\.innerHeight/);assert.match(styles,/max-height: calc\(100vh - 24px\)/);
-  assert.doesNotMatch(detail,/<details className="signature-actions"/);assert.match(list,/SignatureActionsMenu/);
+  assert.doesNotMatch(actions,/<details className="signature-actions"/);
+  assert.match(list,/inspectSignatureDeletionEligibility/);assert.match(list,/SignatureDocumentActions/);
+  assert.match(detailPage,/inspectSignatureDeletionEligibility/);assert.doesNotMatch(list,/deletionEligible: false/);
   assert.deepEqual(signatureActionPolicy({status:"completed",operationallyHidden:false,sourceAvailable:true,deletionEligible:true}).filter((item)=>["duplicate","archive","history","advanced","delete"].includes(item)),["duplicate","archive","delete","history","advanced"]);
   assert.ok(!signatureActionPolicy({status:"completed",operationallyHidden:false,sourceAvailable:true,deletionEligible:false}).includes("delete"));
-  assert.match(detail,/Descargar|deletionMode/);
+  for(const status of ["draft","sent","viewed","partially_signed","completed","voided","expired","archived"]){assert.ok(signatureActionPolicy({status,operationallyHidden:status==="archived",sourceAvailable:true,deletionEligible:true}).includes("delete"),status);}
+  assert.match(actions,/Descargar|deletionMode/);
 });
 
 test("manual media URL controls are absent while upload-backed hidden compatibility remains",async()=>{

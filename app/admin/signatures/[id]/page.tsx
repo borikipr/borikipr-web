@@ -39,8 +39,7 @@ import {
 import { evaluateSignaturePreflight } from "@/lib/signatures/preflight";
 import { formatPuertoRicoDate, formatPuertoRicoDateTime } from "@/lib/puerto-rico-time";
 import { buildSignatureRoutingStages } from "@/lib/signatures/routing-ux";
-import { createSignatureDraftLifecycleService } from "@/lib/signatures/draft-lifecycle";
-import { createSignatureRuntime } from "@/lib/signatures/runtime";
+import { inspectSignatureDeletionEligibility } from "@/lib/signatures/draft-lifecycle";
 
 export default async function SignatureDraftPage({
   params,
@@ -146,10 +145,7 @@ export default async function SignatureDraftPage({
     ),
   );
   const operationallyHidden = Boolean(detail.operationallyHiddenAt && !detail.operationallyRestoredAt);
-  const deletionEligibility = await createSignatureDraftLifecycleService(
-    database,
-    createSignatureRuntime().storage,
-  ).inspectDeletion(id);
+  const deletionEligibility = await inspectSignatureDeletionEligibility(database, id);
 
   return (
     <AdminPageShell>
