@@ -153,11 +153,12 @@ export default function EditarPropiedadForm({
   <div className="space-y-6">
    <ImagenesUploader onUploaded={handleUploaded} />
 
-   <div className="surface-card p-8 md:p-10">
-    <form action={formAction} className="space-y-8">
+   <div className="property-editor-surface">
+    <form action={formAction} className="property-editor-form">
      <input type="hidden" name="id" value={propiedad.id} />
      <input type="hidden" name="slug" value={propiedad.slug} />
 
+     <div className="property-form-section-heading"><span>01</span><div><h2>Información principal</h2><p>Identidad, ubicación y datos comerciales del listado.</p></div></div>
      <div className="grid gap-6 md:grid-cols-2">
       <div className="space-y-2">
        <p className="text-sm font-medium text-[#000000]">
@@ -298,7 +299,8 @@ export default function EditarPropiedadForm({
       </div>
      </div>
 
-     <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-6">
+     <div className="property-form-section-heading"><span>02</span><div><h2>Características</h2><p>Detalles físicos, estado y prioridad de publicación.</p></div></div>
+     <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-6">
       <div className="space-y-2">
        <label
         htmlFor="habitaciones"
@@ -441,6 +443,7 @@ export default function EditarPropiedadForm({
        </p>
       </div>
 
+     <div className="property-form-section-heading"><span>03</span><div><h2>Publicación y operación</h2><p>Origen del listado, permisos y herramientas de captación.</p></div></div>
       <div className="space-y-2">
        <label
         htmlFor="origen_listado"
@@ -714,6 +717,7 @@ export default function EditarPropiedadForm({
       </div>
      </div>
 
+     <div className="property-form-section-heading"><span>04</span><div><h2>Descripción</h2><p>Contenido público que presenta la propiedad.</p></div></div>
      <div className="space-y-2">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
        <label htmlFor="descripcion" className="text-sm font-medium text-[#000000]">
@@ -738,12 +742,13 @@ export default function EditarPropiedadForm({
       />
      </div>
 
+     <div className="property-form-section-heading"><span>05</span><div><h2>Multimedia</h2><p>Revisa el orden y selecciona la portada pública.</p></div></div>
      <input type="hidden" id="imagenes" name="imagenes" value={imagenesValue} />
      <PropertyMediaManager items={imagenesPreview} onChange={(urls) => setImagenesValue(urls.join(", "))} />
 
      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
 
-     <div className="flex flex-wrap gap-4">
+     <div className="property-save-bar">
       <button
        type="submit"
        disabled={pending}

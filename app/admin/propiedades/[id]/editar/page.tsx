@@ -6,6 +6,8 @@ import { createTranslationAdminService } from "@/lib/i18n/translations/admin-ser
 import { createPostgresTranslationDatabase } from "@/lib/i18n/translations/repository";
 import TranslationAdminPanel from "@/components/admin/TranslationAdminPanel";
 import Link from "next/link";
+import { ArrowLeft, ExternalLink } from "lucide-react";
+import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
 import EditarPropiedadForm from "./EditarPropiedadForm";
 
 export default async function EditarPropiedadPage({
@@ -30,38 +32,32 @@ export default async function EditarPropiedadPage({
   ).getEntityTranslations({ entityType: "property", ownerId: id });
 
   return (
-    <main className="min-h-screen bg-[#f8f8f8] px-6 py-10">
-      <div className="section-shell">
-        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="eyebrow">Admin · Editar propiedad</p>
-            <h1 className="mt-3 text-3xl font-bold text-[#000000]">
-              Editar propiedad
-            </h1>
-            <p className="body-base mt-3">
-              Modifica los datos del listado y sus imágenes.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
+    <AdminPageShell>
+      <div className="property-editor-page">
+        <AdminPageHeader
+          breadcrumbs={[{ href: "/admin", label: "Admin" }, { href: "/admin/propiedades", label: "Propiedades" }, { label: propiedad.titulo }]}
+          eyebrow="Inventario · Editar"
+          title={propiedad.titulo}
+          description="Actualiza la información comercial, la publicación y la galería de esta propiedad."
+          actions={<div className="flex flex-wrap gap-2">
             <Link
               href={`/listados/${propiedad.slug}`}
               target="_blank"
               rel="noopener noreferrer"
               className="btn-secondary"
             >
-              Ver web
+              <ExternalLink aria-hidden="true" size={16} /> Ver en sitio
             </Link>
 
             <Link href="/admin/propiedades" className="btn-secondary">
-              Volver a propiedades
+              <ArrowLeft aria-hidden="true" size={16} /> Volver
             </Link>
-          </div>
-        </div>
+          </div>}
+        />
 
         <EditarPropiedadForm propiedad={propiedad} />
         <TranslationAdminPanel fields={translationFields} />
       </div>
-    </main>
+    </AdminPageShell>
   );
 }

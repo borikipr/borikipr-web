@@ -1,92 +1,93 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { MousePointerClick, UsersRound } from "lucide-react";
+import {
+  Building2,
+  MapPin,
+  MousePointerClick,
+  Plus,
+  Search,
+  Star,
+  UsersRound,
+} from "lucide-react";
 import AdminAlert from "@/components/admin/AdminAlert";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
 import StatusBadge from "@/components/admin/StatusBadge";
 import { getAdminSessionUser } from "@/lib/admin/auth";
-import { getAdminPropiedades } from "@/lib/admin/queries";
+import { getAdminPropiedades, type AdminPropiedadRow } from "@/lib/admin/queries";
 import PropiedadRowActions from "./PropiedadRowActions";
-import TipoFilter from "./TipoFilter";
+
+type PropertyStatus = AdminPropiedadRow["estado"];
 
 function formatoPrecio(precio: number, tipo: "venta" | "renta") {
-  if (!Number.isFinite(precio) || precio <= 0) {
-    return "Precio próximamente";
-  }
-
+  if (!Number.isFinite(precio) || precio <= 0) return "Precio próximamente";
   return tipo === "renta"
     ? `$${precio.toLocaleString("en-US")}/mes`
     : `$${precio.toLocaleString("en-US")}`;
 }
 
-function estadoVariant(
-  estado: "disponible" | "coming_soon" | "bajo_contrato" | "vendida" | "rentada"
-) {
-  switch (estado) {
-    case "disponible":
-      return "blue";
-    case "coming_soon":
-    case "bajo_contrato":
-      return "gold";
-    case "vendida":
-    case "rentada":
-      return "gray";
-    default:
-      return "outline";
-  }
+function estadoVariant(estado: PropertyStatus) {
+  if (estado === "disponible") return "green";
+  if (estado === "coming_soon" || estado === "bajo_contrato") return "amber";
+  return "gray";
 }
 
-function estadoLabel(
-  estado: "disponible" | "coming_soon" | "bajo_contrato" | "vendida" | "rentada"
-) {
-  switch (estado) {
-    case "disponible":
-      return "Disponible";
-    case "coming_soon":
-      return "Próximamente";
-    case "bajo_contrato":
-      return "Bajo contrato";
-    case "vendida":
-      return "Vendida";
-    case "rentada":
-      return "Alquilada";
-    default:
-      return estado;
-  }
+function estadoLabel(estado: PropertyStatus) {
+  return {
+    disponible: "Disponible",
+    coming_soon: "Próximamente",
+    bajo_contrato: "Bajo contrato",
+    vendida: "Vendida",
+    rentada: "Alquilada",
+  }[estado];
+}
+
+function matchesQuery(item: AdminPropiedadRow, query: string) {
+  if (!query) return true;
+  const haystack = `${item.titulo} ${item.municipio} ${item.sector_comunidad ?? ""} ${item.slug}`.toLocaleLowerCase("es");
+  return haystack.includes(query.toLocaleLowerCase("es"));
 }
 
 export default async function AdminPropiedadesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; id?: string; tipo?: string }>;
+  searchParams: Promise<{
+    destacado?: string;
+    estado?: string;
+    id?: string;
+    ok?: string;
+    q?: string;
+    tipo?: string;
+  }>;
 }) {
   const user = await getAdminSessionUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  if (!user) redirect("/admin/login");
 
   const params = await searchParams;
-  const propiedades = await getAdminPropiedades(params.tipo);
+  const allProperties = await getAdminPropiedades();
+  const query = params.q?.trim() ?? "";
+  const properties = allProperties.filter((item) => {
+    if (!matchesQuery(item, query)) return false;
+    if (params.tipo && item.tipo_propiedad !== params.tipo) return false;
+    if (params.estado && item.estado !== params.estado) return false;
+    if (params.destacado === "si" && !item.destacado) return false;
+    if (params.destacado === "no" && item.destacado) return false;
+    return true;
+  });
+  const hasFilters = Boolean(query || params.tipo || params.estado || params.destacado);
 
   return (
     <AdminPageShell>
-      <div className="space-y-6">
+      <div className="property-inventory-page">
         <AdminPageHeader
-          breadcrumbs={[
-            { href: "/admin", label: "Admin" },
-            { label: "Propiedades" },
-          ]}
-          eyebrow="Admin · Propiedades"
-          title="Listado de propiedades"
-          description="Administra los listados disponibles en el website."
+          breadcrumbs={[{ href: "/admin", label: "Admin" }, { label: "Propiedades" }]}
+          eyebrow="Inventario"
+          title="Propiedades"
+          description="Consulta el inventario, actualiza su publicación y administra cada listado desde un solo lugar."
           actions={
-            <>
-              <TipoFilter currentTipo={params.tipo} />
-              <Link href="/admin/propiedades/nueva" className="btn-primary">
-                Nueva propiedad
-              </Link>
-            </>
+            <Link href="/admin/propiedades/nueva" className="btn-primary">
+              <Plus aria-hidden="true" size={17} /> Nueva propiedad
+            </Link>
           }
         />
 
@@ -98,178 +99,112 @@ export default async function AdminPropiedadesPage({
           </AdminAlert>
         )}
 
-        <div className="surface-card overflow-hidden">
-          {propiedades.length === 0 ? (
-            <div className="p-10 text-center md:p-16">
-              <h2 className="text-2xl font-semibold text-[#000000]">
-                No hay propiedades creadas
-              </h2>
-              <p className="mt-4 text-[#4d4d4d]">
-                Cuando añadas propiedades, aparecerán aquí.
-              </p>
-              <div className="mt-8">
-                <Link href="/admin/propiedades/nueva" className="btn-primary">
-                  Crear primera propiedad
-                </Link>
-              </div>
-            </div>
-          ) : (
-            <div className="overflow-x-auto xl:overflow-visible">
-              <table className="w-full min-w-[980px] table-fixed border-collapse xl:min-w-0">
-                <colgroup>
-                  <col className="w-[16%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[21%]" />
-                </colgroup>
-                <thead className="bg-[#0d1b2a] text-left text-sm text-white">
-                  <tr>
-                    <th className="px-4 py-4 font-semibold">Título</th>
-                    <th className="px-4 py-4 font-semibold">Municipio</th>
-                    <th className="px-4 py-4 font-semibold">Precio</th>
-                    <th className="px-4 py-4 font-semibold">Actividad</th>
-                    <th className="px-4 py-4 font-semibold">Tipo</th>
-                    <th className="px-4 py-4 font-semibold">Origen</th>
-                    <th className="px-4 py-4 font-semibold">Estado</th>
-                    <th className="px-4 py-4 font-semibold">Acciones</th>
-                  </tr>
-                </thead>
+        <section className="property-inventory-overview" aria-label="Resumen del inventario">
+          <div><span>Total</span><strong>{allProperties.length}</strong></div>
+          <div><span>Disponibles</span><strong>{allProperties.filter((item) => item.estado === "disponible").length}</strong></div>
+          <div><span>Bajo contrato</span><strong>{allProperties.filter((item) => item.estado === "bajo_contrato").length}</strong></div>
+          <div><span>Destacadas</span><strong>{allProperties.filter((item) => item.destacado).length}</strong></div>
+        </section>
 
-                <tbody>
-                  {propiedades.map((item) => (
-                    <tr
-                      key={item.id}
-                      className={`border-t border-[#ececec] align-top transition-all duration-700 ${
-                        params.id === item.id
-                          ? "bg-green-50 ring-2 ring-green-300"
-                          : "bg-white"
-                      }`}
-                    >
-                      <td className="px-4 py-5">
-                        <p className="break-words font-semibold text-[#000000]">
-                          {item.titulo}
-                        </p>
-                        <p className="mt-1 break-words text-sm text-[#4d4d4d]">
-                          /{item.slug}
-                        </p>
-                      </td>
+        <form method="get" className="property-filter-bar" aria-label="Filtrar propiedades">
+          <label className="property-search-field">
+            <span className="sr-only">Buscar propiedad</span>
+            <Search aria-hidden="true" size={18} />
+            <input name="q" defaultValue={query} placeholder="Buscar por título, municipio o sector" />
+          </label>
+          <label>
+            <span>Estado</span>
+            <select name="estado" defaultValue={params.estado ?? ""}>
+              <option value="">Todos</option>
+              <option value="disponible">Disponible</option>
+              <option value="coming_soon">Próximamente</option>
+              <option value="bajo_contrato">Bajo contrato</option>
+              <option value="vendida">Vendida</option>
+              <option value="rentada">Alquilada</option>
+            </select>
+          </label>
+          <label>
+            <span>Tipo</span>
+            <select name="tipo" defaultValue={params.tipo ?? ""}>
+              <option value="">Todos</option>
+              <option value="Casa">Casa</option>
+              <option value="Apartamento">Apartamento</option>
+              <option value="Condominio">Condominio</option>
+              <option value="Terreno">Terreno</option>
+              <option value="Comercial">Comercial</option>
+            </select>
+          </label>
+          <label>
+            <span>Destacada</span>
+            <select name="destacado" defaultValue={params.destacado ?? ""}>
+              <option value="">Todas</option>
+              <option value="si">Sí</option>
+              <option value="no">No</option>
+            </select>
+          </label>
+          <button type="submit" className="btn-secondary">Aplicar filtros</button>
+          {hasFilters && <Link href="/admin/propiedades" className="property-filter-reset">Limpiar</Link>}
+        </form>
 
-                      <td className="px-4 py-5 text-sm text-[#4d4d4d]">
-                        {item.sector_comunidad ? (
-                          <span>
-                            <span className="block font-semibold text-[#000000]">
-                              {item.sector_comunidad}
-                            </span>
-                            <span>{item.municipio}</span>
-                          </span>
-                        ) : (
-                          item.municipio
-                        )}
-                      </td>
-
-                      <td className="px-4 py-5 text-sm text-[#4d4d4d]">
-                        {formatoPrecio(Number(item.precio), item.tipo_negocio)}
-                      </td>
-
-                      <td className="px-4 py-5">
-                        <div className="space-y-2">
-                          <div
-                            className="flex items-center gap-2 px-2"
-                            title="Clics de WhatsApp y contacto registrados"
-                          >
-                            <MousePointerClick
-                              aria-hidden="true"
-                              className="h-4 w-4 shrink-0 text-[#1f9d4c]"
-                            />
-                            <p className="text-xs text-[#4d4d4d]">
-                              <span className="font-bold text-[#000000]">
-                                {item.total_interactions}
-                              </span>{" "}
-                              {item.total_interactions === 1
-                                ? "interacción"
-                                : "interacciones"}
-                            </p>
-                          </div>
-                          <Link
-                            aria-label={`Ver ${item.total_contacts} ${
-                              item.total_contacts === 1
-                                ? "contacto"
-                                : "contactos"
-                            } de ${item.titulo}`}
-                            href={`/admin/leads?property=${encodeURIComponent(
-                              item.id
-                            )}`}
-                            className="flex items-center gap-2 rounded-2xl px-2 py-1.5 transition hover:bg-[#11518b]/5 focus:outline-none focus:ring-2 focus:ring-[#11518b]/30"
-                          >
-                            <UsersRound
-                              aria-hidden="true"
-                              className="h-4 w-4 shrink-0 text-[#11518b]"
-                            />
-                            <p className="text-xs font-semibold text-[#11518b]">
-                              <span className="font-bold">
-                                {item.total_contacts}
-                              </span>{" "}
-                              contacto
-                              {item.total_contacts === 1 ? "" : "s"}
-                            </p>
-                          </Link>
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-5 text-sm text-[#4d4d4d]">
-                        <div className="space-y-2">
-                          <div>
-                            {item.tipo_negocio === "venta" ? "Venta" : "Alquiler"}
-                          </div>
-                          <StatusBadge variant="outline">
-                            {item.tipo_propiedad}
-                          </StatusBadge>
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-5">
-                        <StatusBadge
-                          variant={
-                            item.origen_listado === "propio"
-                              ? "blue"
-                              : item.origen_listado === "co_broke"
-                                ? "gold"
-                                : "outline"
-                          }
-                        >
-                          {item.origen_listado === "propio"
-                            ? "Propio"
-                            : item.origen_listado === "co_broke"
-                              ? "Co-Broke"
-                              : "Externo"}
-                        </StatusBadge>
-                      </td>
-
-                      <td className="px-4 py-5">
-                        <StatusBadge variant={estadoVariant(item.estado)}>
-                          {estadoLabel(item.estado)}
-                        </StatusBadge>
-                      </td>
-
-                      <td className="px-4 py-5">
-                        <PropiedadRowActions
-                          id={item.id}
-                          slug={item.slug}
-                          estadoActual={item.estado}
-                          destacadoActual={item.destacado}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+        <div className="property-inventory-heading">
+          <div>
+            <h2>Inventario</h2>
+            <p>{properties.length} {properties.length === 1 ? "propiedad visible" : "propiedades visibles"}</p>
+          </div>
         </div>
+
+        {properties.length === 0 ? (
+          <section className="property-empty-state">
+            <span aria-hidden="true"><Building2 size={24} /></span>
+            <h2>{hasFilters ? "No encontramos propiedades" : "No hay propiedades todavía"}</h2>
+            <p>{hasFilters ? "Ajusta los filtros para ver otros resultados." : "Crea la primera propiedad para comenzar a publicar inventario."}</p>
+            <Link href={hasFilters ? "/admin/propiedades" : "/admin/propiedades/nueva"} className="btn-primary">
+              {hasFilters ? "Limpiar filtros" : "Nueva propiedad"}
+            </Link>
+          </section>
+        ) : (
+          <section className="property-inventory-list" aria-label="Listado de propiedades">
+            {properties.map((item) => (
+              <article key={item.id} className={`property-inventory-row ${params.id === item.id ? "is-highlighted" : ""}`}>
+                <div className="property-thumbnail">
+                  {item.cover_image_url ? (
+                    <Image src={item.cover_image_url} alt="" fill sizes="(max-width: 640px) 104px, 132px" className="object-cover" />
+                  ) : (
+                    <Building2 aria-hidden="true" size={26} />
+                  )}
+                  {item.destacado && <span><Star aria-hidden="true" size={12} fill="currentColor" /> Destacada</span>}
+                </div>
+
+                <div className="property-primary-info">
+                  <div className="property-title-line">
+                    <h3>{item.titulo}</h3>
+                    <StatusBadge variant={estadoVariant(item.estado)}>{estadoLabel(item.estado)}</StatusBadge>
+                  </div>
+                  <p className="property-location"><MapPin aria-hidden="true" size={15} /> {item.sector_comunidad ? `${item.sector_comunidad}, ` : ""}{item.municipio}</p>
+                  <div className="property-compact-meta">
+                    <span>{item.tipo_negocio === "venta" ? "Venta" : "Alquiler"}</span>
+                    <span>{item.tipo_propiedad}</span>
+                    <span>{item.origen_listado === "propio" ? "Listado propio" : item.origen_listado === "co_broke" ? "Co-Broke" : "Externo"}</span>
+                  </div>
+                </div>
+
+                <div className="property-price-block">
+                  <span>Precio</span>
+                  <strong>{formatoPrecio(Number(item.precio), item.tipo_negocio)}</strong>
+                </div>
+
+                <div className="property-activity-block">
+                  <span><MousePointerClick aria-hidden="true" size={16} /><strong>{item.total_interactions}</strong> {item.total_interactions === 1 ? "interacción" : "interacciones"}</span>
+                  <Link href={`/admin/leads?property=${encodeURIComponent(item.id)}`} aria-label={`Ver contactos de ${item.titulo}`}>
+                    <UsersRound aria-hidden="true" size={16} /><strong>{item.total_contacts}</strong> {item.total_contacts === 1 ? "contacto" : "contactos"}
+                  </Link>
+                </div>
+
+                <PropiedadRowActions id={item.id} slug={item.slug} titulo={item.titulo} estadoActual={item.estado} destacadoActual={item.destacado} />
+              </article>
+            ))}
+          </section>
+        )}
       </div>
     </AdminPageShell>
   );

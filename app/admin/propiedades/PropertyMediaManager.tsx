@@ -1,23 +1,90 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
+import { useState } from "react";
+import { ArrowLeft, ArrowRight, GripVertical, ImageIcon, Star, Trash2, Video } from "lucide-react";
+import { AdminActionsMenu, AdminMenuItem } from "@/components/admin/AdminActionsMenu";
 
 type Props = { items: string[]; onChange: (items: string[]) => void };
-function isVideo(url: string) { return /\.(mp4|webm|mov)(\?|$)/i.test(url) || url.includes("/videos/"); }
+
+function isVideo(url: string) {
+  return /\.(mp4|webm|mov)(\?|$)/i.test(url) || url.includes("/videos/");
+}
 
 export default function PropertyMediaManager({ items, onChange }: Props) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const move = (from: number, to: number) => {
     if (to < 0 || to >= items.length || from === to) return;
-    const next = [...items]; const [item] = next.splice(from, 1); next.splice(to, 0, item); onChange(next);
+    const next = [...items];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    onChange(next);
   };
-  if (!items.length) return null;
-  return <section className="space-y-3" aria-labelledby="property-media-order-title">
-    <div><h3 id="property-media-order-title" className="text-sm font-semibold text-slate-950">Orden de imágenes</h3><p className="text-sm text-slate-600">La primera imagen es la portada pública. Arrastra en escritorio o usa los controles de orden.</p></div>
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{items.map((url, index) => <article key={`${url}-${index}`} draggable onDragStart={() => setDragIndex(index)} onDragEnd={() => setDragIndex(null)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); if (dragIndex !== null) move(dragIndex, index); setDragIndex(null); }} className={`overflow-hidden rounded-xl border bg-white transition ${dragIndex === index ? "border-[#d4af37] opacity-60" : "border-slate-200"}`}>
-      <div className="relative h-40 bg-slate-100">{isVideo(url) ? <video src={url} className="h-full w-full object-cover" muted playsInline /> : <Image src={url} alt={`Imagen ${index + 1} de la propiedad${index === 0 ? ", portada" : ""}`} fill sizes="(max-width: 640px) 100vw, 33vw" className="object-cover" />}<span className={`absolute left-2 top-2 rounded-full px-2 py-1 text-xs font-semibold ${index === 0 ? "bg-[#d4af37] text-slate-950" : "bg-slate-950/75 text-white"}`}>{index === 0 ? "Portada" : `Posición ${index + 1}`}</span><span className="absolute right-2 top-2 cursor-grab rounded-md bg-white/90 px-2 py-1 text-xs font-semibold text-slate-700" aria-hidden="true">Arrastrar</span></div>
-      <div className="flex flex-wrap gap-2 p-3">{index > 0 && <button type="button" className="rounded-md border px-2 py-1 text-xs font-semibold" onClick={() => move(index, index - 1)} aria-label={`Mover imagen ${index + 1} antes`}>← Antes</button>}{index < items.length - 1 && <button type="button" className="rounded-md border px-2 py-1 text-xs font-semibold" onClick={() => move(index, index + 1)} aria-label={`Mover imagen ${index + 1} después`}>Después →</button>}{index > 0 && <button type="button" className="rounded-md border border-[#d4af37] px-2 py-1 text-xs font-semibold text-[#725b00]" onClick={() => move(index, 0)}>Usar como portada</button>}<button type="button" className="ml-auto rounded-md px-2 py-1 text-xs font-semibold text-red-700" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}>Quitar</button></div>
-    </article>)}</div>
-  </section>;
+
+  if (!items.length) {
+    return (
+      <section className="property-media-empty" aria-label="Multimedia de la propiedad">
+        <ImageIcon aria-hidden="true" size={22} />
+        <div><strong>Sin archivos añadidos</strong><p>Sube imágenes o videos para preparar la galería pública.</p></div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="property-media-manager" aria-labelledby="property-media-order-title">
+      <header>
+        <div>
+          <p className="eyebrow">Galería pública</p>
+          <h3 id="property-media-order-title">Orden y portada</h3>
+          <p>Arrastra para ordenar. La primera imagen se usa como portada.</p>
+        </div>
+        <span>{items.length} {items.length === 1 ? "archivo" : "archivos"}</span>
+      </header>
+      <div className="property-media-grid">
+        {items.map((url, index) => {
+          const video = isVideo(url);
+          return (
+            <article
+              key={`${url}-${index}`}
+              draggable
+              onDragStart={() => setDragIndex(index)}
+              onDragEnd={() => setDragIndex(null)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                if (dragIndex !== null) move(dragIndex, index);
+                setDragIndex(null);
+              }}
+              className={dragIndex === index ? "is-dragging" : ""}
+            >
+              <div className="property-media-preview">
+                {video ? (
+                  <video src={url} className="h-full w-full object-cover" muted playsInline />
+                ) : (
+                  <Image src={url} alt={`Imagen ${index + 1} de la propiedad${index === 0 ? ", portada" : ""}`} fill sizes="(max-width: 640px) 50vw, 25vw" className="object-cover" />
+                )}
+                <span className="property-media-type" aria-label={video ? "Video" : "Imagen"}>
+                  {video ? <Video aria-hidden="true" size={15} /> : <ImageIcon aria-hidden="true" size={15} />}
+                </span>
+                {index === 0 && <span className="property-cover-badge"><Star aria-hidden="true" size={12} fill="currentColor" /> Portada</span>}
+                <button type="button" className="property-drag-handle" aria-label={`Arrastrar archivo ${index + 1}`} title="Arrastrar para ordenar">
+                  <GripVertical aria-hidden="true" size={18} />
+                </button>
+              </div>
+              <div className="property-media-footer">
+                <span>Posición {index + 1}</span>
+                <AdminActionsMenu compact label={`Acciones del archivo ${index + 1}`}>
+                  {index > 0 && <AdminMenuItem icon={<Star size={16} />} onSelect={() => move(index, 0)}>Usar como portada</AdminMenuItem>}
+                  {index > 0 && <AdminMenuItem icon={<ArrowLeft size={16} />} onSelect={() => move(index, index - 1)}>Mover imagen antes</AdminMenuItem>}
+                  {index < items.length - 1 && <AdminMenuItem icon={<ArrowRight size={16} />} onSelect={() => move(index, index + 1)}>Mover imagen después</AdminMenuItem>}
+                  <div className="admin-actions-separator" />
+                  <AdminMenuItem danger icon={<Trash2 size={16} />} onSelect={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}>Quitar archivo</AdminMenuItem>
+                </AdminActionsMenu>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
 }

@@ -73,11 +73,10 @@ export default function MediaDropZone({ purpose, multiple, title, instructions, 
   };
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5" aria-labelledby={`${purpose}-upload-title`}>
-      <h2 id={`${purpose}-upload-title`} className="text-sm font-semibold text-slate-950">{title}</h2>
-      <p className="mt-1 text-sm text-slate-600">{instructions}</p>
+    <section className={purpose === "property" ? "property-upload-panel" : "rounded-xl border border-slate-200 bg-white p-4 sm:p-5"} aria-labelledby={`${purpose}-upload-title`}>
+      <div className={purpose === "property" ? "property-upload-heading" : ""}><div><h2 id={`${purpose}-upload-title`} className={purpose === "property" ? "" : "text-sm font-semibold text-slate-950"}>{title}</h2><p className={purpose === "property" ? "" : "mt-1 text-sm text-slate-600"}>{instructions}</p></div></div>
       <div
-        className={`mt-4 flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-5 py-7 text-center transition ${dragging ? "border-[#d4af37] bg-[#fff9e6]" : "border-slate-300 bg-slate-50 hover:border-[#11518b]"}`}
+        className={purpose === "property" ? `property-upload-zone ${dragging ? "is-dragging" : ""}` : `mt-4 flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-5 py-7 text-center transition ${dragging ? "border-[#d4af37] bg-[#fff9e6]" : "border-slate-300 bg-slate-50 hover:border-[#11518b]"}`}
         onClick={() => inputRef.current?.click()}
         onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); inputRef.current?.click(); } }}
         onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
@@ -86,9 +85,9 @@ export default function MediaDropZone({ purpose, multiple, title, instructions, 
         onDrop={(event) => { event.preventDefault(); setDragging(false); selectFiles(event.dataTransfer.files); }}
         role="button" tabIndex={0} aria-label={multiple ? "Arrastra o selecciona imágenes y videos" : "Arrastra o selecciona una imagen"}
       >
-        <span className="text-sm font-semibold text-[#11518b]">{multiple ? "Arrastra tus archivos aquí" : "Arrastra la imagen aquí"}</span>
+        <span className="text-sm font-semibold text-[#11518b]">{multiple ? "Arrastra imágenes o videos aquí" : "Arrastra la imagen aquí"}</span>
         <span className="mt-1 text-sm text-slate-500">o selecciona desde tu dispositivo</span>
-        <span className="btn-secondary pointer-events-none mt-4 px-4 py-2 text-sm">Seleccionar {multiple ? "archivos" : "archivo"}</span>
+        <span className="btn-secondary pointer-events-none mt-3 px-4 py-2 text-sm">Seleccionar {multiple ? "archivos" : "archivo"}</span>
         <input ref={inputRef} className="sr-only" type="file" accept={accept} multiple={multiple} onChange={(event) => { if (event.target.files) selectFiles(event.target.files); event.currentTarget.value = ""; }} />
       </div>
       {items.length > 0 && <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Archivos seleccionados">
@@ -97,7 +96,7 @@ export default function MediaDropZone({ purpose, multiple, title, instructions, 
           <div className="flex items-center gap-3 p-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{item.file.name}</p><p className="text-xs text-slate-500">{(item.file.size / 1024 / 1024).toFixed(1)} MB · {item.status === "uploading" ? "Subiendo…" : item.status === "error" ? "Error" : "Listo"}</p></div><button type="button" className="text-sm font-semibold text-red-700" onClick={() => remove(item.id)} disabled={uploading}>Quitar</button></div>
         </article>)}
       </div>}
-      <div className="mt-4 flex flex-wrap items-center gap-3"><button type="button" className="btn-primary" onClick={upload} disabled={!items.length || uploading}>{uploading ? "Subiendo…" : `Añadir${items.length ? ` (${items.length})` : ""}`}</button>{message && <p className={`text-sm ${message.includes("correctamente") ? "text-emerald-700" : "text-red-700"}`} role="status">{message}</p>}</div>
+      {(purpose !== "property" || items.length > 0 || message) && <div className="mt-4 flex flex-wrap items-center gap-3"><button type="button" className="btn-primary" onClick={upload} disabled={!items.length || uploading}>{uploading ? "Subiendo…" : `Añadir${items.length ? ` (${items.length})` : ""}`}</button>{message && <p className={`text-sm ${message.includes("correctamente") ? "text-emerald-700" : "text-red-700"}`} role="status">{message}</p>}</div>}
     </section>
   );
 }

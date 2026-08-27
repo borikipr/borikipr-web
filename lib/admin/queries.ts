@@ -9,13 +9,14 @@ export type AdminPropiedadRow = {
   sector_comunidad?: string | null;
   precio: string | number;
   tipo_negocio: "venta" | "renta";
-  tipo_propiedad: "Casa" | "Apartamento" | "Condominio" | "Terreno";
+  tipo_propiedad: "Casa" | "Apartamento" | "Condominio" | "Terreno" | "Comercial";
   estado: "disponible" | "coming_soon" | "bajo_contrato" | "vendida" | "rentada";
   destacado: boolean;
   created_at: string;
   total_interactions: number;
   total_contacts: number;
   origen_listado: "propio" | "co_broke" | "externo";
+  cover_image_url: string | null;
 };
 
 export type AdminPropiedadDetalle = {
@@ -27,7 +28,7 @@ export type AdminPropiedadDetalle = {
   sector_comunidad?: string | null;
   precio: string | number;
   tipo_negocio: "venta" | "renta";
-  tipo_propiedad: "Casa" | "Apartamento" | "Condominio" | "Terreno";
+  tipo_propiedad: "Casa" | "Apartamento" | "Condominio" | "Terreno" | "Comercial";
   habitaciones: number;
   banos: number;
   estacionamientos: number;
@@ -107,6 +108,13 @@ export async function getAdminPropiedades(tipo?: string) {
         p.destacado,
         p.created_at,
         p.origen_listado,
+        (
+          SELECT pi.url
+          FROM propiedad_imagenes pi
+          WHERE pi.propiedad_id = p.id
+          ORDER BY pi.orden ASC
+          LIMIT 1
+        ) AS cover_image_url,
         COUNT(le.id)::int AS total_interactions
       FROM propiedades p
       LEFT JOIN lead_events le ON le.propiedad_slug = p.slug

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
+import { ArrowLeft } from "lucide-react";
+import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
 import { municipiosPR } from "@/data/municipios";
 import { createPropiedadAction, type CreatePropiedadState } from "../actions";
 import ImagenesUploader from "../ImagenesUploader";
@@ -125,29 +127,22 @@ export default function NuevaPropiedadPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f8f8f8] px-6 py-10">
-      <div className="section-shell">
-        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="eyebrow">Admin · Nueva propiedad</p>
-            <h1 className="mt-3 text-3xl font-bold text-[#000000]">
-              Crear propiedad
-            </h1>
-            <p className="body-base mt-3">
-              Añade un nuevo listado al website.
-            </p>
-          </div>
-
-          <Link href="/admin/propiedades" className="btn-secondary">
-            Volver a propiedades
-          </Link>
-        </div>
+    <AdminPageShell>
+      <div className="property-editor-page">
+        <AdminPageHeader
+          breadcrumbs={[{ href: "/admin", label: "Admin" }, { href: "/admin/propiedades", label: "Propiedades" }, { label: "Nueva" }]}
+          eyebrow="Inventario · Nueva propiedad"
+          title="Crear propiedad"
+          description="Prepara la información comercial, la publicación y la galería del nuevo listado."
+          actions={<Link href="/admin/propiedades" className="btn-secondary"><ArrowLeft aria-hidden="true" size={16} /> Volver</Link>}
+        />
 
         <div className="space-y-6">
           <ImagenesUploader onUploaded={handleUploaded} />
 
-          <div className="surface-card p-8 md:p-10">
-            <form action={formAction} className="space-y-8">
+          <div className="property-editor-surface">
+            <form action={formAction} className="property-editor-form">
+              <div className="property-form-section-heading"><span>01</span><div><h2>Información principal</h2><p>Identidad, ubicación y datos comerciales del listado.</p></div></div>
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-[#000000]">
@@ -304,7 +299,8 @@ export default function NuevaPropiedadPage() {
                 </div>
               </div>
 
-              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-6">
+              <div className="property-form-section-heading"><span>02</span><div><h2>Características</h2><p>Detalles físicos, estado y prioridad de publicación.</p></div></div>
+              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-6">
                 <div className="space-y-2">
                   <label
                     htmlFor="habitaciones"
@@ -452,6 +448,7 @@ export default function NuevaPropiedadPage() {
                 </p>
               </div>
 
+              <div className="property-form-section-heading"><span>03</span><div><h2>Publicación y operación</h2><p>Origen del listado, permisos y herramientas de captación.</p></div></div>
               <div className="space-y-2">
                 <label
                   htmlFor="origen_listado"
@@ -705,6 +702,7 @@ export default function NuevaPropiedadPage() {
                 )}
               </div>
 
+              <div className="property-form-section-heading"><span>04</span><div><h2>Descripción</h2><p>Contenido público que presenta la propiedad.</p></div></div>
               <div className="space-y-2">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <label
@@ -733,6 +731,7 @@ export default function NuevaPropiedadPage() {
                 />
               </div>
 
+              <div className="property-form-section-heading"><span>05</span><div><h2>Multimedia</h2><p>Revisa el orden y selecciona la portada pública.</p></div></div>
               <input type="hidden" id="imagenes" name="imagenes" value={imagenesValue} />
               <PropertyMediaManager items={imagenesPreview} onChange={(urls) => setImagenesValue(urls.join(", "))} />
 
@@ -740,7 +739,7 @@ export default function NuevaPropiedadPage() {
                 <p className="text-sm text-red-600">{state.error}</p>
               )}
 
-              <div className="flex flex-wrap gap-4">
+              <div className="property-save-bar">
                 <button
                   type="submit"
                   disabled={pending}
@@ -757,6 +756,6 @@ export default function NuevaPropiedadPage() {
           </div>
         </div>
       </div>
-    </main>
+    </AdminPageShell>
   );
 }
