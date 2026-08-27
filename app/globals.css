@@ -740,6 +740,8 @@ textarea {
   @apply inline-flex items-center gap-2;
 }
 .signature-actions-popover {
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
   @apply z-[120] grid gap-0.5 border border-slate-200 bg-white p-1.5 shadow-xl;
   border-radius: 0.55rem;
 }

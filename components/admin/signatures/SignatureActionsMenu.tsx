@@ -42,10 +42,15 @@ export function SignatureActionsMenu({
     const trigger = buttonRef.current;
     if (!trigger) return;
     const rect = trigger.getBoundingClientRect();
+    const menuHeight = menuRef.current?.getBoundingClientRect().height ?? 320;
     const width = Math.min(288, window.innerWidth - 24);
     const preferredLeft = align === "end" ? rect.right - width : rect.left;
+    const below = rect.bottom + 6;
+    const top = below + menuHeight > window.innerHeight - 12
+      ? Math.max(12, rect.top - menuHeight - 6)
+      : below;
     setPlacement({
-      top: rect.bottom + 6,
+      top,
       left: Math.max(12, Math.min(preferredLeft, window.innerWidth - width - 12)),
       width,
     });
@@ -53,8 +58,11 @@ export function SignatureActionsMenu({
 
   useLayoutEffect(() => {
     if (!open) return;
-    place();
-    requestAnimationFrame(() => focusableItems(menuRef.current)[0]?.focus());
+    const frame = requestAnimationFrame(() => {
+      place();
+      focusableItems(menuRef.current)[0]?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
   }, [open, place]);
 
   useEffect(() => {
@@ -98,7 +106,10 @@ export function SignatureActionsMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (!open) place();
+          setOpen((value) => !value);
+        }}
       >
         {compact ? <MoreHorizontal aria-hidden="true" size={18} /> : <>Acciones <ChevronDown aria-hidden="true" size={15} /></>}
       </button>

@@ -9,8 +9,9 @@ const root=path.dirname(fileURLToPath(new URL("../package.json",import.meta.url)
 const source=(name)=>readFile(path.join(root,name),"utf8");
 
 test("Signing actions use an accessible portaled menu and state-aware policy",async()=>{
-  const [menu,detail,list]=await Promise.all([source("components/admin/signatures/SignatureActionsMenu.tsx"),source("components/admin/signatures/SignatureDocumentActions.tsx"),source("app/admin/signatures/page.tsx")]);
+  const [menu,detail,list,styles]=await Promise.all([source("components/admin/signatures/SignatureActionsMenu.tsx"),source("components/admin/signatures/SignatureDocumentActions.tsx"),source("app/admin/signatures/page.tsx"),source("app/globals.css")]);
   assert.match(menu,/createPortal/);assert.match(menu,/role="menu"/);assert.match(menu,/ArrowDown/);assert.match(menu,/Escape/);assert.match(menu,/pointerdown/);
+  assert.match(menu,/below \+ menuHeight > window\.innerHeight/);assert.match(styles,/max-height: calc\(100vh - 24px\)/);
   assert.doesNotMatch(detail,/<details className="signature-actions"/);assert.match(list,/SignatureActionsMenu/);
   assert.deepEqual(signatureActionPolicy({status:"completed",operationallyHidden:false,sourceAvailable:true,deletionEligible:true}).filter((item)=>["duplicate","archive","history","advanced","delete"].includes(item)),["duplicate","archive","delete","history","advanced"]);
   assert.ok(!signatureActionPolicy({status:"completed",operationallyHidden:false,sourceAvailable:true,deletionEligible:false}).includes("delete"));
