@@ -261,6 +261,16 @@ if (!process.env.DATABASE_URL) {
               SELECT 1 FROM pg_proc
               WHERE proname='signature_test_cleanup_permitted'
             ) AS v0041
+          ,(
+            SELECT is_nullable='YES'
+            FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='signature_test_cleanup_events'
+              AND column_name='internal_canary_authorization_id'
+          ) AND EXISTS (
+            SELECT 1 FROM pg_proc p
+            WHERE p.proname='signature_enforce_template_immutability'
+              AND pg_get_functiondef(p.oid) LIKE '%signature_test_cleanup_permitted%'
+          ) AS v0042
       )
       SELECT * FROM facts
     `;

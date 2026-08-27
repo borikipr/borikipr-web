@@ -2028,6 +2028,12 @@ const signatureTestCleanupMigrationSql = await readMigration(
 const signatureTestCleanupRollbackSql = await readMigration(
   "0041_add_signature_test_cleanup.rollback.sql"
 );
+const signatureExpandedTestCleanupMigrationSql = await readMigration(
+  "0042_expand_test_signature_cleanup.sql"
+);
+const signatureExpandedTestCleanupRollbackSql = await readMigration(
+  "0042_expand_test_signature_cleanup.rollback.sql"
+);
 const signatureFoundationDb = new PGlite();
 try {
   await signatureFoundationDb.exec(`
@@ -2369,6 +2375,13 @@ try {
     EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='signature_test_cleanup_events_immutable_trigger') immutable_trigger,
     EXISTS(SELECT 1 FROM pg_proc WHERE proname='signature_test_cleanup_permitted') scoped_delete_guard`);
   assert.deepEqual(testCleanup.rows,[{cleanup_table:true,immutable_trigger:true,scoped_delete_guard:true}]);
+  await signatureProductizationDb.exec(signatureExpandedTestCleanupMigrationSql);
+  const expandedTestCleanup=await signatureProductizationDb.query(`SELECT
+    is_nullable='YES' AS legacy_authorization_supported
+    FROM information_schema.columns WHERE table_schema='public'
+      AND table_name='signature_test_cleanup_events' AND column_name='internal_canary_authorization_id'`);
+  assert.deepEqual(expandedTestCleanup.rows,[{legacy_authorization_supported:true}]);
+  await signatureProductizationDb.exec(signatureExpandedTestCleanupRollbackSql);
   await signatureProductizationDb.exec(signatureTestCleanupRollbackSql);
   await signatureProductizationDb.exec(signatureOperationalRestoreRollbackSql);
   await signatureProductizationDb.exec(signaturePublicLaunchRollbackSql);
@@ -2380,4 +2393,5 @@ try {
   console.log("Validated public launch readiness scope migration 0039 and rollback.");
   console.log("Validated operational archive restoration migration 0040 and rollback.");
   console.log("Validated scoped internal-test cleanup migration 0041 and rollback.");
+  console.log("Validated legacy synthetic-test cleanup migration 0042 and rollback.");
 } finally { await signatureProductizationDb.close(); }

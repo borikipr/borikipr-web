@@ -16,6 +16,9 @@ test("Signing actions use one canonical eligibility result in list and detail",a
   assert.match(list,/inspectSignatureDeletionEligibility/);assert.match(list,/SignatureDocumentActions/);
   assert.match(detailPage,/inspectSignatureDeletionEligibility/);assert.doesNotMatch(list,/deletionEligible: false/);
   assert.match(actions,/detailHref/);assert.match(list,/detailHref=\{`\/admin\/signatures\/\$\{row\.id\}`\}/);
+  assert.match(actions,/disabled=\{!actions\.has\("delete"\)\}/);
+  assert.match(actions,/No se puede eliminar porque contiene evidencia o una dependencia protegida\./);
+  assert.match(styles,/\.signature-actions-item:disabled/);
   assert.deepEqual(signatureActionPolicy({status:"completed",operationallyHidden:false,sourceAvailable:true,deletionEligible:true}).filter((item)=>["duplicate","archive","history","advanced","delete"].includes(item)),["duplicate","archive","delete","history","advanced"]);
   assert.ok(!signatureActionPolicy({status:"completed",operationallyHidden:false,sourceAvailable:true,deletionEligible:false}).includes("delete"));
   for(const status of ["draft","sent","viewed","partially_signed","completed","voided","expired","archived"]){assert.ok(signatureActionPolicy({status,operationallyHidden:status==="archived",sourceAvailable:true,deletionEligible:true}).includes("delete"),status);}

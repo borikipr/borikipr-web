@@ -139,11 +139,15 @@ export function SignatureMenuItem({
   icon,
   danger = false,
   onSelect,
+  disabled = false,
+  title,
 }: {
   children: ReactNode;
   icon?: ReactNode;
   danger?: boolean;
   onSelect: () => void;
+  disabled?: boolean;
+  title?: string;
 }) {
   return (
     <button
@@ -151,6 +155,8 @@ export function SignatureMenuItem({
       role="menuitem"
       className={`signature-actions-item ${danger ? "is-danger" : ""}`}
       onClick={onSelect}
+      disabled={disabled}
+      title={title}
     >
       <span aria-hidden="true">{icon}</span><span>{children}</span>
     </button>

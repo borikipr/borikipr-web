@@ -13,7 +13,7 @@ import { createSignatureGovernanceWorkflow } from "../lib/signatures/governance-
 import { GOVERNANCE_APPROVAL_PHRASE } from "../lib/signatures/governance-constants.ts";
 
 const root=path.dirname(fileURLToPath(new URL("../package.json",import.meta.url)));
-const names=["0022_create_signature_foundation.sql","0023_extend_signature_signer_evidence.sql","0024_add_signature_delivery_governance.sql","0025_bind_signature_privacy_disclosure.sql","0026_preserve_signature_privacy_disclosure_text.sql","0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql","0034_add_signature_operational_hiding.sql","0035_productize_boriki_sign.sql","0040_add_signature_operational_restore.sql","0041_add_signature_test_cleanup.sql"];
+const names=["0022_create_signature_foundation.sql","0023_extend_signature_signer_evidence.sql","0024_add_signature_delivery_governance.sql","0025_bind_signature_privacy_disclosure.sql","0026_preserve_signature_privacy_disclosure_text.sql","0027_add_signature_launch_governance.sql","0028_harden_signature_launch_governance.sql","0029_add_signature_governance_workflows.sql","0030_harden_signature_governance_workflow_immutability.sql","0031_add_signature_legal_holds.sql","0032_correct_signature_business_governance.sql","0033_harden_signature_preflight_authorization.sql","0034_add_signature_operational_hiding.sql","0035_productize_boriki_sign.sql","0040_add_signature_operational_restore.sql","0041_add_signature_test_cleanup.sql","0042_expand_test_signature_cleanup.sql"];
 const migrations=await Promise.all(names.map((name)=>readFile(path.join(root,"db/migrations",name),"utf8")));
 const db=new PGlite();
 const executor=(source)=>({async unsafe(query,parameters=[]){return (await source.query(query,parameters)).rows;}});
@@ -126,6 +126,33 @@ test("ordinary completed records and canaries with active protection remain fail
   await db.exec(`TRUNCATE signature_test_cleanup_events,signature_events,signature_field_values,signature_sessions,signature_delivery_intents,signature_signing_tokens,signature_fields,signature_participants,signature_document_versions,signature_documents,signature_readiness_snapshots,signature_launch_authorizations,signature_consent_versions,signature_document_type_approvals CASCADE`);
   const protectedCanary=await completedFixture({active:true});
   const protectedService=createSignatureDraftLifecycleService(database,protectedCanary.storage);assert.equal((await protectedService.inspectDeletion(protectedCanary.documentId)).eligible,false);
+});
+
+test("legacy synthetic records without a canary authorization remain removable only without business linkage",async()=>{
+  const created=await completedFixture({canary:false});
+  await db.exec(`ALTER TABLE signature_documents DISABLE TRIGGER signature_documents_transition_trigger`);
+  try {
+    await db.query(`UPDATE signature_documents SET status='archived',completed_at=NULL,document_type_approval_reference=NULL,archived_at=now(),archived_by_admin_id=$2::uuid,archive_reason='Legacy synthetic cleanup test' WHERE id=$1`,[created.documentId,adminId]);
+  } finally { await db.exec(`ALTER TABLE signature_documents ENABLE TRIGGER signature_documents_transition_trigger`); }
+  const service=createSignatureDraftLifecycleService(database,created.storage);
+  const eligibility=await service.inspectDeletion(created.documentId);
+  assert.equal(eligibility.eligible,true);assert.equal(eligibility.mode,"internal_test_record");
+  await service.deleteEligibleRecord({documentId:created.documentId,actorAdminId:adminId,reason:"Legacy test cleanup",confirmationPhrase:"ELIMINAR PRUEBA"});
+  assert.equal((await db.query(`SELECT count(*)::int count FROM signature_documents WHERE id=$1`,[created.documentId])).rows[0].count,0);
+  assert.equal((await db.query(`SELECT internal_canary_authorization_id FROM signature_test_cleanup_events WHERE document_id=$1`,[created.documentId])).rows[0].internal_canary_authorization_id,null);
+});
+
+test("an eligible legacy template source removes its private template snapshot with the test record",async()=>{
+  const created=await completedFixture({canary:false});
+  const template=(await db.query(`INSERT INTO signature_templates(name,document_type,source_document_version_id,snapshot_sha256,created_by_admin_id) VALUES('Synthetic legacy template','transaction_acknowledgment',$1,$2,$3) RETURNING id::text`,[created.documentVersionId,"a".repeat(64),adminId])).rows[0];
+  await db.exec(`ALTER TABLE signature_documents DISABLE TRIGGER signature_documents_transition_trigger`);
+  try {
+    await db.query(`UPDATE signature_documents SET status='archived',completed_at=NULL,document_type_approval_reference=NULL,archived_at=now(),archived_by_admin_id=$2::uuid,archive_reason='Legacy template cleanup test' WHERE id=$1`,[created.documentId,adminId]);
+  } finally { await db.exec(`ALTER TABLE signature_documents ENABLE TRIGGER signature_documents_transition_trigger`); }
+  const service=createSignatureDraftLifecycleService(database,created.storage);
+  assert.equal((await service.inspectDeletion(created.documentId)).eligible,true);
+  await service.deleteEligibleRecord({documentId:created.documentId,actorAdminId:adminId,reason:"Legacy template cleanup",confirmationPhrase:"ELIMINAR PRUEBA"});
+  assert.equal((await db.query(`SELECT count(*)::int count FROM signature_templates WHERE id=$1`,[template.id])).rows[0].count,0);
 });
 
 test("synthetic cleanup eligibility is evaluated by safety state, not the lifecycle tab",async()=>{

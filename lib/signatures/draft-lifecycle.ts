@@ -6,13 +6,15 @@ import type { SignatureCompletedStorage } from "./storage";
 
 type EligibilityRow = Readonly<{
   document_id: string; version_id: string; title: string; status: string;
+  document_type_approval_reference: string | null;
   source_r2_key: string; byte_count: number | bigint; source_sha256: string;
   final_r2_key: string | null; final_byte_count: number | bigint | null; final_pdf_sha256: string | null;
   certificate_r2_key: string | null; certificate_byte_count: number | bigint | null; certificate_sha256: string | null;
   participants: number; values_count: number; sessions: number; tokens: number; deliveries: number;
   active_sessions: number; usable_tokens: number; pending_deliveries: number; fields_count: number; events_count: number;
   versions_count: number; finalized: boolean; final_artifacts: boolean; legal_holds: number;
-  linked_leads: number; correction_dependencies: number; template_dependencies: number;
+  linked_leads: number; correction_dependencies: number;
+  template_source_dependencies: number; template_instance_dependencies: number;
   document_business_links: number;
   internal_canary_authorization_id: string | null;
   active_internal_canary_authorizations: number;
@@ -29,7 +31,7 @@ export type SignatureDraftDeletionEligibility = Readonly<{
 }>;
 
 async function row(database: SignatureQueryExecutor, documentId: string) {
-  const rows = await database.unsafe<EligibilityRow>(`SELECT d.id::text document_id,v.id::text version_id,d.title,d.status,
+  const rows = await database.unsafe<EligibilityRow>(`SELECT d.id::text document_id,v.id::text version_id,d.title,d.status,d.document_type_approval_reference,
       v.source_r2_key,v.byte_count,v.source_sha256,v.source_deleted_at,v.final_r2_key,v.final_byte_count,
       v.final_pdf_sha256,v.certificate_r2_key,v.certificate_byte_count,v.certificate_sha256,
       d.operationally_hidden_at,d.operationally_restored_at,
@@ -52,8 +54,9 @@ async function row(database: SignatureQueryExecutor, documentId: string) {
       (CASE WHEN d.canonical_lead_id IS NOT NULL OR d.lead_group_id IS NOT NULL THEN 1 ELSE 0 END)::int document_business_links,
       ((SELECT count(*) FROM signature_documents child WHERE child.corrects_document_id=d.id)
         + CASE WHEN d.corrects_document_id IS NULL THEN 0 ELSE 1 END)::int correction_dependencies,
-      ((SELECT count(*) FROM signature_templates t WHERE t.source_document_version_id=v.id)
-        + CASE WHEN d.source_template_id IS NULL THEN 0 ELSE 1 END)::int template_dependencies,
+      (SELECT count(*)::int FROM signature_templates t WHERE t.source_document_version_id=v.id) template_source_dependencies,
+      (SELECT count(*)::int FROM signature_documents child WHERE child.source_template_id IN
+        (SELECT t.id FROM signature_templates t WHERE t.source_document_version_id=v.id)) template_instance_dependencies,
       (SELECT a.id::text FROM signature_launch_authorizations a
         JOIN signature_readiness_snapshots rs ON rs.id=a.readiness_snapshot_id
        WHERE a.environment='production' AND a.authorization_type='internal_canary'
@@ -90,8 +93,11 @@ function reasons(item: EligibilityRow | null) {
 
 function internalTestReasons(item: EligibilityRow | null) {
   if (!item) return ["document_not_found"];
+  const legacySynthetic = ["completed", "voided", "expired", "archived"].includes(item.status)
+    && item.document_type_approval_reference === null
+    && item.linked_leads === 0 && item.document_business_links === 0;
   return [
-    ...(item.internal_canary_authorization_id ? [] : ["internal_canary_lineage_missing"]),
+    ...(item.internal_canary_authorization_id || legacySynthetic ? [] : ["internal_canary_lineage_missing"]),
     ...(item.active_internal_canary_authorizations === 0 ? [] : ["internal_canary_authorization_active"]),
     ...(item.versions_count === 1 ? [] : ["multiple_versions_exist"]),
     ...(item.active_sessions === 0 ? [] : ["active_sessions_exist"]),
@@ -101,7 +107,7 @@ function internalTestReasons(item: EligibilityRow | null) {
     ...(item.linked_leads === 0 ? [] : ["canonical_lead_link_exists"]),
     ...(item.document_business_links === 0 ? [] : ["document_business_link_exists"]),
     ...(item.correction_dependencies === 0 ? [] : ["correction_dependency_exists"]),
-    ...(item.template_dependencies === 0 ? [] : ["template_dependency_exists"]),
+    ...(item.template_instance_dependencies === 0 ? [] : ["template_instances_exist"]),
     ...(item.status !== "completed" || (item.finalized && item.final_r2_key && item.final_pdf_sha256 && item.certificate_r2_key && item.certificate_sha256) ? [] : ["artifact_descriptor_incomplete"]),
   ];
 }
@@ -209,11 +215,12 @@ export function createSignatureDraftLifecycleService(database: SignatureDatabase
           const current = await row(tx, input.documentId);
           const raceBlockers = internalTestReasons(current);
           if (!current || raceBlockers.length || current.internal_canary_authorization_id !== item.internal_canary_authorization_id) throw new Error("signature_test_delete_race_rejected");
-          const counts = { participants:item.participants, fields:item.fields_count, values:item.values_count, sessions:item.sessions, tokens:item.tokens, deliveries:item.deliveries, events:item.events_count, versions:item.versions_count };
-          const eligibilitySnapshot = canonicalJson({ documentId:item.document_id, versionId:item.version_id, authorizationId:item.internal_canary_authorization_id, status:item.status, sourceSha256:item.source_sha256, finalSha256:item.final_pdf_sha256, certificateSha256:item.certificate_sha256, counts });
+          const counts = { participants:item.participants, fields:item.fields_count, values:item.values_count, sessions:item.sessions, tokens:item.tokens, deliveries:item.deliveries, events:item.events_count, versions:item.versions_count, templateSources:item.template_source_dependencies };
+          const eligibilitySnapshot = canonicalJson({ documentId:item.document_id, versionId:item.version_id, authorizationId:item.internal_canary_authorization_id, legacySynthetic:item.document_type_approval_reference===null, status:item.status, sourceSha256:item.source_sha256, finalSha256:item.final_pdf_sha256, certificateSha256:item.certificate_sha256, counts });
           await tx.unsafe(`INSERT INTO signature_test_cleanup_events(document_id,document_version_id,internal_canary_authorization_id,actor_admin_id,reason,title_sha256,source_sha256,final_pdf_sha256,certificate_sha256,eligibility_snapshot_sha256,removed_row_counts,removed_artifact_count,deleted_at)
             VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7,$8,$9,$10,($11::text)::jsonb,$12,$13::timestamptz)`,
             [item.document_id,item.version_id,item.internal_canary_authorization_id,input.actorAdminId,reason,sha256SignatureValue(item.title),item.source_sha256,item.final_pdf_sha256,item.certificate_sha256,sha256SignatureValue(eligibilitySnapshot),JSON.stringify(counts),deleted.length,clock().toISOString()]);
+          await tx.unsafe(`DELETE FROM signature_templates WHERE source_document_version_id=$1::uuid`,[item.version_id]);
           await tx.unsafe(`DELETE FROM signature_delivery_intents WHERE document_version_id=$1::uuid`,[item.version_id]);
           await tx.unsafe(`DELETE FROM signature_field_values WHERE signature_field_id IN (SELECT id FROM signature_fields WHERE document_version_id=$1::uuid)`,[item.version_id]);
           await tx.unsafe(`DELETE FROM signature_events WHERE document_version_id=$1::uuid`,[item.version_id]);
