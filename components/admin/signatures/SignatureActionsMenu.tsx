@@ -2,6 +2,7 @@
 
 import { createPortal } from "react-dom";
 import {
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -37,7 +38,7 @@ export function SignatureActionsMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
 
-  const place = () => {
+  const place = useCallback(() => {
     const trigger = buttonRef.current;
     if (!trigger) return;
     const rect = trigger.getBoundingClientRect();
@@ -48,13 +49,13 @@ export function SignatureActionsMenu({
       left: Math.max(12, Math.min(preferredLeft, window.innerWidth - width - 12)),
       width,
     });
-  };
+  }, [align]);
 
   useLayoutEffect(() => {
     if (!open) return;
     place();
     requestAnimationFrame(() => focusableItems(menuRef.current)[0]?.focus());
-  }, [open]);
+  }, [open, place]);
 
   useEffect(() => {
     if (!open) return;
@@ -71,7 +72,7 @@ export function SignatureActionsMenu({
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
-  }, [open]);
+  }, [open, place]);
 
   const keyboard = (event: KeyboardEvent<HTMLDivElement>) => {
     const items = focusableItems(menuRef.current);
