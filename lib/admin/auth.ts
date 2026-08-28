@@ -7,6 +7,7 @@ import {
   signAdminSessionPayload,
   verifyLegacyAdminSession,
 } from "@/lib/admin/auth-core";
+import { parseProfessionalRoles, type ProfessionalRoleId } from "@/lib/admin/professional-profile";
 
 export const SESSION_COOKIE = "boriki_admin_session";
 
@@ -16,6 +17,8 @@ export type AdminSessionUser = {
   displayName: string;
   email: string | null;
   professionalTitle: string | null;
+  professionalRoles: ProfessionalRoleId[];
+  professionalLicenseNumber: string | null;
   profileImageUrl: string | null;
   sessionVersion: number;
 };
@@ -26,6 +29,8 @@ type AdminUserRow = {
   display_name: string | null;
   email: string | null;
   professional_title: string | null;
+  professional_roles: unknown;
+  professional_license_number: string | null;
   profile_image_url: string | null;
   password_hash: string;
   activo: boolean;
@@ -49,6 +54,8 @@ function toSessionUser(row: AdminUserRow): AdminSessionUser {
     displayName: row.display_name?.trim() || row.username,
     email: row.email,
     professionalTitle: row.professional_title?.trim() || null,
+    professionalRoles: parseProfessionalRoles(row.professional_roles) ?? [],
+    professionalLicenseNumber: row.professional_license_number?.trim() || null,
     profileImageUrl: row.profile_image_url || null,
     sessionVersion: row.session_version,
   };
@@ -56,7 +63,7 @@ function toSessionUser(row: AdminUserRow): AdminSessionUser {
 
 async function findActiveAdminByUsername(username: string) {
   const rows = await sql<AdminUserRow[]>`
-    SELECT id::text, username, display_name, email, professional_title, profile_image_url, password_hash, activo,
+    SELECT id::text, username, display_name, email, professional_title, professional_roles, professional_license_number, profile_image_url, password_hash, activo,
            session_version, password_changed_at
     FROM public.admin_users
     WHERE username = ${username}
@@ -68,7 +75,7 @@ async function findActiveAdminByUsername(username: string) {
 
 async function findActiveAdminById(id: string) {
   const rows = await sql<AdminUserRow[]>`
-    SELECT id::text, username, display_name, email, professional_title, profile_image_url, password_hash, activo,
+    SELECT id::text, username, display_name, email, professional_title, professional_roles, professional_license_number, profile_image_url, password_hash, activo,
            session_version, password_changed_at
     FROM public.admin_users
     WHERE id = ${id}::uuid

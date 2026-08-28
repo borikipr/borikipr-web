@@ -10,6 +10,7 @@ import {
   normalizeAdminEmail,
   PASSWORD_RESET_TTL_MINUTES,
 } from "@/lib/admin/auth-core";
+import { normalizeProfessionalProfile, type ProfessionalRoleId } from "@/lib/admin/professional-profile";
 
 export type AuthAttemptType = "login" | "password_reset_request";
 
@@ -65,20 +66,28 @@ export async function completeAuthAttempt(id: string, succeeded: boolean) {
 export async function updateOwnAdminProfile({
   admin,
   displayName,
-  professionalTitle,
+  professionalRoles,
+  professionalCustomTitle,
+  professionalLicenseNumber,
   profileImageUrl,
   email,
   currentPassword,
 }: {
   admin: AdminSessionUser;
   displayName: string;
-  professionalTitle: string;
+  professionalRoles: string;
+  professionalCustomTitle: string;
+  professionalLicenseNumber: string;
   profileImageUrl: string;
   email: string;
   currentPassword: string;
 }) {
   const cleanName = displayName.trim();
-  const cleanProfessionalTitle = professionalTitle.trim();
+  const professionalProfile = normalizeProfessionalProfile({
+    roles: professionalRoles,
+    customTitle: professionalCustomTitle,
+    licenseNumber: professionalLicenseNumber,
+  });
   const cleanProfileImageUrl = profileImageUrl.trim();
   const cleanEmail = normalizeAdminEmail(email);
   if (!cleanName || cleanName.length > 100) {
@@ -87,9 +96,7 @@ export async function updateOwnAdminProfile({
   if (!/^\S+@\S+\.\S+$/.test(cleanEmail) || cleanEmail.length > 254) {
     return { ok: false as const, error: "Ingresa un email válido." };
   }
-  if (cleanProfessionalTitle && (cleanProfessionalTitle.length < 2 || cleanProfessionalTitle.length > 120)) {
-    return { ok: false as const, error: "Ingresa un cargo profesional válido." };
-  }
+  if (!professionalProfile.ok) return professionalProfile;
   const imageKey = cleanProfileImageUrl ? extractManagedPublicObjectKey(cleanProfileImageUrl) : null;
   if (cleanProfileImageUrl && (!imageKey || !imageKey.startsWith("perfiles/"))) {
     return { ok: false as const, error: "La foto de perfil no es válida." };
@@ -110,11 +117,13 @@ export async function updateOwnAdminProfile({
       await transaction.unsafe(
         `UPDATE public.admin_users
             SET display_name = $2,
-                professional_title = NULLIF($3, ''),
-                profile_image_url = NULLIF($4, ''),
-                email = $5
+                professional_title = $3,
+                professional_roles = $4::text[],
+                professional_license_number = NULLIF($5, ''),
+                profile_image_url = NULLIF($6, ''),
+                email = $7
           WHERE id = $1::uuid AND activo = true`,
-        [admin.id, cleanName, cleanProfessionalTitle, cleanProfileImageUrl, cleanEmail]
+        [admin.id, cleanName, professionalProfile.displayTitle, professionalProfile.roles, professionalProfile.licenseNumber, cleanProfileImageUrl, cleanEmail]
       );
       return { ok: true as const, previousProfileImageUrl: rows[0].profile_image_url };
     });
@@ -168,14 +177,14 @@ export async function changeOwnAdminPassword({
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
     const updated = await transaction.unsafe<
-      { id: string; username: string; display_name: string | null; email: string | null; professional_title: string | null; profile_image_url: string | null; session_version: number }[]
+      { id: string; username: string; display_name: string | null; email: string | null; professional_title: string | null; professional_roles: ProfessionalRoleId[]; professional_license_number: string | null; profile_image_url: string | null; session_version: number }[]
     >(
       `UPDATE public.admin_users
           SET password_hash = $2,
               password_changed_at = now(),
               session_version = session_version + 1
         WHERE id = $1::uuid
-        RETURNING id::text, username, display_name, email, professional_title, profile_image_url, session_version`,
+        RETURNING id::text, username, display_name, email, professional_title, professional_roles, professional_license_number, profile_image_url, session_version`,
       [admin.id, passwordHash]
     );
     await transaction.unsafe(
@@ -193,6 +202,8 @@ export async function changeOwnAdminPassword({
         displayName: user.display_name?.trim() || user.username,
         email: user.email,
         professionalTitle: user.professional_title?.trim() || null,
+        professionalRoles: user.professional_roles || [],
+        professionalLicenseNumber: user.professional_license_number?.trim() || null,
         profileImageUrl: user.profile_image_url || null,
         sessionVersion: user.session_version,
       },
@@ -298,14 +309,14 @@ export async function resetAdminPassword(token: string, newPassword: string) {
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
     const updated = await transaction.unsafe<
-      { id: string; username: string; display_name: string | null; email: string | null; professional_title: string | null; profile_image_url: string | null; session_version: number }[]
+      { id: string; username: string; display_name: string | null; email: string | null; professional_title: string | null; professional_roles: ProfessionalRoleId[]; professional_license_number: string | null; profile_image_url: string | null; session_version: number }[]
     >(
       `UPDATE public.admin_users
           SET password_hash = $2,
               password_changed_at = now(),
               session_version = session_version + 1
         WHERE id = $1::uuid
-        RETURNING id::text, username, display_name, email, professional_title, profile_image_url, session_version`,
+        RETURNING id::text, username, display_name, email, professional_title, professional_roles, professional_license_number, profile_image_url, session_version`,
       [resetToken.admin_user_id, passwordHash]
     );
     await transaction.unsafe(
@@ -323,6 +334,8 @@ export async function resetAdminPassword(token: string, newPassword: string) {
         displayName: user.display_name?.trim() || user.username,
         email: user.email,
         professionalTitle: user.professional_title?.trim() || null,
+        professionalRoles: user.professional_roles || [],
+        professionalLicenseNumber: user.professional_license_number?.trim() || null,
         profileImageUrl: user.profile_image_url || null,
         sessionVersion: user.session_version,
       },

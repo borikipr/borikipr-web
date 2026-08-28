@@ -109,7 +109,8 @@ test("professional profile identity remains presentation-only and uses managed a
   assert.match(profileSource, /Rol del sistema:/);
   assert.match(profilePage, /professionalTitle/);
   assert.match(profileActions, /profileImageUrl/);
-  assert.match(accountSource, /professional_title = NULLIF/);
+  assert.match(accountSource, /professional_title = \$3/);
+  assert.match(accountSource, /professional_roles = \$4::text\[\]/);
   assert.match(accountSource, /startsWith\("perfiles\/"\)/);
   assert.match(uploadRoute, /purpose !== "profile"/);
   assert.match(uploadRoute, /"perfiles"/);

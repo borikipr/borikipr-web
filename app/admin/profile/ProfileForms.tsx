@@ -1,8 +1,9 @@
 "use client";
 
-import { ChangeEvent, DragEvent, useActionState, useRef, useState } from "react";
-import { Building2, Camera, Eye, EyeOff, ImagePlus, KeyRound, Mail, ShieldCheck, Trash2, Upload, UserRound } from "lucide-react";
+import { ChangeEvent, DragEvent, KeyboardEvent, useActionState, useMemo, useRef, useState } from "react";
+import { BadgeCheck, Building2, Camera, Eye, EyeOff, ImagePlus, KeyRound, Mail, ShieldCheck, Trash2, Upload, UserRound, X } from "lucide-react";
 import { changePassword, updateProfile, type ProfileState } from "./actions";
+import { PROFESSIONAL_ROLE_OPTIONS, professionalRoleLabels, professionalRoleTitle, rolesRequireLicense, type ProfessionalRoleId } from "@/lib/admin/professional-profile";
 
 const initial: ProfileState = { error: "", success: "" };
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
@@ -82,19 +83,59 @@ function ProfilePhotoControl({ imageUrl, onChange, displayName, username }: { im
   </div>;
 }
 
-export default function ProfileForms({ displayName, professionalTitle, profileImageUrl, email, username, roleLabel }: {
-  displayName: string; professionalTitle: string; profileImageUrl: string; email: string; username: string; roleLabel: string;
+function RolePicker({ roles, onChange, customTitle, onCustomTitleChange }: {
+  roles: ProfessionalRoleId[]; onChange: (roles: ProfessionalRoleId[]) => void; customTitle: string; onCustomTitleChange: (title: string) => void;
+}) {
+  const [open, setOpen] = useState(false); const [query, setQuery] = useState(""); const [activeIndex, setActiveIndex] = useState(0);
+  const filtered = useMemo(() => PROFESSIONAL_ROLE_OPTIONS.filter((role) => role.label.toLocaleLowerCase("es-PR").includes(query.toLocaleLowerCase("es-PR"))), [query]);
+  function toggle(role: ProfessionalRoleId) {
+    if (roles.includes(role)) onChange(roles.filter((value) => value !== role));
+    else if (roles.length < 2) onChange([...roles, role]);
+    setQuery(""); setOpen(false);
+  }
+  function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") { setOpen(false); return; }
+    if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); setActiveIndex((index) => Math.min(index + 1, Math.max(filtered.length - 1, 0))); return; }
+    if (event.key === "ArrowUp") { event.preventDefault(); setOpen(true); setActiveIndex((index) => Math.max(index - 1, 0)); return; }
+    if (event.key === "Enter" && open && filtered[activeIndex]) { event.preventDefault(); toggle(filtered[activeIndex].id); }
+  }
+  return <div className="profile-role-picker">
+    <label htmlFor="professionalRoleSearch" className="text-sm font-semibold text-slate-800">Roles profesionales</label>
+    <p className="mt-1 text-xs leading-5 text-slate-500">Selecciona hasta dos roles que describan tu trabajo; no cambian tus permisos.</p>
+    <div className="profile-role-chips" aria-live="polite">
+      {roles.map((role) => <span key={role} className="profile-role-chip">{professionalRoleLabels([role], customTitle)[0]}<button type="button" onClick={() => toggle(role)} aria-label={`Eliminar ${professionalRoleLabels([role], customTitle)[0]}`}><X aria-hidden="true" size={14}/></button></span>)}
+    </div>
+    <div className="relative mt-2">
+      <input id="professionalRoleSearch" role="combobox" aria-expanded={open} aria-controls="professional-role-options" aria-activedescendant={open && filtered[activeIndex] ? `professional-role-${filtered[activeIndex].id}` : undefined} className="input-premium" value={query} onFocus={() => setOpen(true)} onChange={(event) => { setQuery(event.target.value); setOpen(true); setActiveIndex(0); }} onKeyDown={onKeyDown} placeholder={roles.length >= 2 ? "Máximo de dos roles seleccionado" : "Buscar o seleccionar un rol"} disabled={roles.length >= 2} />
+      {open && <div id="professional-role-options" role="listbox" aria-label="Opciones de roles profesionales" className="profile-role-options">
+        {filtered.length ? filtered.map((role, index) => { const selected = roles.includes(role.id); const disabled = !selected && roles.length >= 2; return <button key={role.id} id={`professional-role-${role.id}`} type="button" role="option" aria-selected={selected} disabled={disabled} className={index === activeIndex ? "is-active" : ""} onMouseDown={(event) => event.preventDefault()} onClick={() => toggle(role.id)}><span>{role.label}</span>{selected ? <BadgeCheck aria-label="Seleccionado" size={16}/> : null}</button>; }) : <p className="px-3 py-2 text-sm text-slate-500">No encontramos ese rol.</p>}
+      </div>}
+    </div>
+    <input type="hidden" name="professionalRoles" value={JSON.stringify(roles)} />
+    {roles.includes("other") && <div className="mt-3 space-y-1.5"><label htmlFor="professionalCustomTitle" className="text-sm font-semibold text-slate-800">Describe tu otro rol</label><input id="professionalCustomTitle" name="professionalCustomTitle" className="input-premium" value={customTitle} onChange={(event) => onCustomTitleChange(event.target.value)} maxLength={120} required placeholder="Por ejemplo, Diseño de experiencias" /></div>}
+    {roles.length >= 2 && <p className="mt-2 text-xs font-medium text-slate-600">Máximo de dos roles profesionales.</p>}
+  </div>;
+}
+
+export default function ProfileForms({ displayName, professionalTitle, professionalRoles, professionalLicenseNumber, profileImageUrl, email, username, roleLabel }: {
+  displayName: string; professionalTitle: string; professionalRoles: ProfessionalRoleId[]; professionalLicenseNumber: string; profileImageUrl: string; email: string; username: string; roleLabel: string;
 }) {
   const [profileState, profileAction, profilePending] = useActionState(updateProfile, initial);
   const [passwordState, passwordAction, passwordPending] = useActionState(changePassword, initial);
   const [imageUrl, setImageUrl] = useState(profileImageUrl);
-  const effectiveTitle = professionalTitle || "Cargo profesional pendiente";
+  const initialRoles = professionalRoles.length ? professionalRoles : professionalTitle ? ["other"] as ProfessionalRoleId[] : [];
+  const [roles, setRoles] = useState<ProfessionalRoleId[]>(initialRoles);
+  const [customTitle, setCustomTitle] = useState(initialRoles.includes("other") ? professionalTitle : "");
+  const [licenseNumber, setLicenseNumber] = useState(professionalLicenseNumber);
+  const effectiveTitle = roles.length ? professionalRoleTitle(roles, customTitle) : "Cargo profesional pendiente";
+  const needsLicense = rolesRequireLicense(roles);
   return <div className="profile-settings-layout">
     <aside className="profile-account-summary" aria-label="Resumen de la cuenta">
       <Avatar imageUrl={imageUrl} name={displayName} username={username} />
       <div className="min-w-0">
         <h2>{displayName || username}</h2>
         <p className="profile-professional-title">{effectiveTitle}</p>
+        {needsLicense && licenseNumber ? <p className="profile-license-summary">Lic. {licenseNumber}</p> : null}
         <p className="profile-organization"><Building2 aria-hidden="true" size={14}/>Erickson Real Estate · Borikí</p>
         <p className="truncate" title={email || username}>{email || username}</p>
       </div>
@@ -107,10 +148,10 @@ export default function ProfileForms({ displayName, professionalTitle, profileIm
         <form action={profileAction} className="profile-settings-form">
           <ProfilePhotoControl imageUrl={imageUrl} onChange={setImageUrl} displayName={displayName} username={username} />
           <input type="hidden" name="profileImageUrl" value={imageUrl} />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5"><label htmlFor="displayName" className="text-sm font-semibold text-slate-800">Nombre visible</label><input id="displayName" name="displayName" className="input-premium" defaultValue={displayName} maxLength={100} autoComplete="name" required /></div>
-            <div className="space-y-1.5"><label htmlFor="professionalTitle" className="text-sm font-semibold text-slate-800">Cargo profesional</label><input id="professionalTitle" name="professionalTitle" className="input-premium" defaultValue={professionalTitle} maxLength={120} placeholder="Por ejemplo, Corredora de Bienes Raíces" /></div>
-          </div>
+          <div className="space-y-1.5"><label htmlFor="displayName" className="text-sm font-semibold text-slate-800">Nombre visible</label><input id="displayName" name="displayName" className="input-premium" defaultValue={displayName} maxLength={100} autoComplete="name" required /></div>
+          <RolePicker roles={roles} onChange={setRoles} customTitle={customTitle} onCustomTitleChange={setCustomTitle} />
+          {needsLicense && <div className="space-y-1.5"><label htmlFor="professionalLicenseNumber" className="text-sm font-semibold text-slate-800">Número de licencia</label><input id="professionalLicenseNumber" name="professionalLicenseNumber" className="input-premium" value={licenseNumber} onChange={(event) => setLicenseNumber(event.target.value)} maxLength={80} required placeholder="Lic. C-XXXXX" /><p className="text-xs leading-5 text-slate-500">Se muestra solo como información profesional; no modifica permisos.</p></div>}
+          {!needsLicense && <input type="hidden" name="professionalLicenseNumber" value="" />}
           <div className="profile-account-context"><span><Building2 aria-hidden="true" size={16}/>Organización</span><strong>Erickson Real Estate · Borikí</strong></div>
           <div className="profile-section-divider" />
           <div className="profile-inline-heading"><Mail aria-hidden="true" size={18}/><div><h3>Correo y recuperación</h3><p>Se usa para acceso y recuperación segura de la cuenta.</p></div></div>

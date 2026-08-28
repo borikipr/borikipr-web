@@ -282,6 +282,17 @@ if (!process.env.DATABASE_URL) {
               AND column_name='profile_image_url'
               AND data_type='text'
           ) AS v0043
+          ,EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='admin_users'
+              AND column_name='professional_roles'
+              AND data_type='ARRAY'
+          ) AND EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='admin_users'
+              AND column_name='professional_license_number'
+              AND data_type='text'
+          ) AS v0044
       )
       SELECT * FROM facts
     `;

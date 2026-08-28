@@ -158,3 +158,8 @@ Migration `0043` adds optional presentation-only identity fields to the
 existing `admin_users` table: a professional title and a managed profile-image
 reference. They do not participate in sessions, authorization, or permissions.
 Its rollback refuses to discard saved profile identity data.
+
+Migration `0044` replaces no existing identity data. It adds a bounded list of
+presentation-only professional roles and an optional real-estate license number.
+Known titles are mapped forward; unmatched titles remain represented as `other`.
+Neither field participates in authorization, sessions, or system permissions.

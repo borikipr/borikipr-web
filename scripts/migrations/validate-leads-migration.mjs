@@ -2395,3 +2395,26 @@ try {
   console.log("Validated scoped internal-test cleanup migration 0041 and rollback.");
   console.log("Validated legacy synthetic-test cleanup migration 0042 and rollback.");
 } finally { await signatureProductizationDb.close(); }
+
+const adminProfessionalRolesMigrationSql = await readMigration("0044_add_admin_professional_roles.sql");
+const adminProfessionalRolesRollbackSql = await readMigration("0044_add_admin_professional_roles.rollback.sql");
+const adminProfessionalRolesDb = new PGlite();
+try {
+  await adminProfessionalRolesDb.exec(`
+    CREATE TABLE public.admin_users (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(), username text NOT NULL UNIQUE,
+      professional_title text NULL, profile_image_url text NULL
+    );
+    INSERT INTO public.admin_users(username, professional_title)
+    VALUES ('profile-broker', 'Corredora de Bienes Raíces'), ('profile-custom', 'Gestión de operaciones');
+  `);
+  await adminProfessionalRolesDb.exec(adminProfessionalRolesMigrationSql);
+  const profileColumns = await adminProfessionalRolesDb.query(`SELECT
+    (SELECT professional_roles FROM public.admin_users WHERE username='profile-broker') AS broker_roles,
+    (SELECT professional_roles FROM public.admin_users WHERE username='profile-custom') AS custom_roles,
+    EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='admin_users' AND column_name='professional_license_number') AS license_column`);
+  assert.deepEqual(profileColumns.rows, [{ broker_roles: ['real_estate_broker'], custom_roles: ['other'], license_column: true }]);
+  await assert.rejects(adminProfessionalRolesDb.exec(`UPDATE public.admin_users SET professional_roles=ARRAY['administrator','marketing','community_manager'] WHERE username='profile-broker'`));
+  await assert.rejects(adminProfessionalRolesDb.exec(adminProfessionalRolesRollbackSql), /0044 rollback blocked/);
+  console.log("Validated professional profile roles migration 0044 and guarded rollback.");
+} finally { await adminProfessionalRolesDb.close(); }

@@ -970,6 +970,9 @@ textarea {
 .profile-account-summary .profile-professional-title {
   @apply font-medium text-slate-800;
 }
+.profile-license-summary {
+  @apply font-semibold text-[#0d4d84];
+}
 .profile-account-summary .profile-organization {
   @apply flex items-center gap-1.5 text-slate-500;
 }
@@ -1066,6 +1069,13 @@ textarea {
 }
 .profile-feedback.is-error { @apply text-red-700; }
 .profile-feedback.is-success { @apply text-emerald-700; }
+.profile-role-picker { @apply min-w-0; }
+.profile-role-chips { @apply mt-3 flex flex-wrap gap-2; }
+.profile-role-chip { @apply inline-flex min-h-8 items-center gap-1 rounded-full border border-blue-200 bg-blue-50 py-1 pl-2.5 pr-1 text-sm font-medium text-[#0d4d84]; }
+.profile-role-chip button { @apply inline-flex min-h-7 min-w-7 items-center justify-center rounded-full text-[#0d4d84] hover:bg-blue-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#11518b]; }
+.profile-role-options { @apply absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg; }
+.profile-role-options button { @apply flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-100 focus:outline-none focus-visible:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45; }
+.profile-role-options button.is-active { @apply bg-blue-50 text-[#0d4d84]; }
 .signature-activity-panel {
   @apply overflow-hidden border border-slate-200 bg-white;
   border-radius: 0.75rem;

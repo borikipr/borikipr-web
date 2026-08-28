@@ -16,7 +16,9 @@ export async function updateProfile(
   const result = await updateOwnAdminProfile({
     admin,
     displayName: String(formData.get("displayName") || ""),
-    professionalTitle: String(formData.get("professionalTitle") || ""),
+    professionalRoles: String(formData.get("professionalRoles") || ""),
+    professionalCustomTitle: String(formData.get("professionalCustomTitle") || ""),
+    professionalLicenseNumber: String(formData.get("professionalLicenseNumber") || ""),
     profileImageUrl: String(formData.get("profileImageUrl") || ""),
     email: String(formData.get("email") || ""),
     currentPassword: String(formData.get("currentPassword") || ""),
