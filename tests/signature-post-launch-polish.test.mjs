@@ -45,8 +45,8 @@ test("lifecycle action policy is state-aware and deletion fails closed",()=>{
 });
 
 test("signer and Admin UI expose drawn initials and consistent accessible actions",async()=>{
-  const [form,canvas,detail,directory,actions]=await Promise.all([
-    source("app/firmar/sesion/SignerFieldForm.tsx"),source("components/signatures/DrawnMarkCanvas.tsx"),source("app/admin/signatures/[id]/page.tsx"),source("app/admin/signatures/page.tsx"),source("components/admin/signatures/SignatureDocumentActions.tsx"),
+  const [form,canvas,detail,actions]=await Promise.all([
+    source("app/firmar/sesion/SignerFieldForm.tsx"),source("components/signatures/DrawnMarkCanvas.tsx"),source("app/admin/signatures/[id]/page.tsx"),source("components/admin/signatures/SignatureDocumentActions.tsx"),
   ]);
   assert.match(form,/signatureLike && \(/);
   assert.match(form,/Adoptar iniciales dibujadas/);
@@ -57,7 +57,7 @@ test("signer and Admin UI expose drawn initials and consistent accessible action
   assert.match(canvas,/quadraticCurveTo/);
   assert.match(detail,/Descargar documento firmado/);
   assert.match(detail,/Descargar certificado/);
-  assert.match(directory,/Acciones/);
+  assert.match(actions,/Acciones/);
   assert.match(actions,/Restaurar/);
   assert.match(actions,/Eliminar definitivamente/);
 });

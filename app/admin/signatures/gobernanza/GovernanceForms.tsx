@@ -145,10 +145,5 @@ export function GovernanceForms({ drafts }: { drafts: Drafts }) {
       <form action={holdReleaseAction} className={formClass}><h3>Liberar retención</h3>{select("id", drafts.legalHolds)}<label>Referencia de liberación<input name="releaseReference" required /></label><label className="flex items-start gap-2"><input name="immutableAcknowledged" type="checkbox" value="true" required /> <span>Confirmo que la liberación es explícita, auditable y no borra el historial.</span></label><label>Escriba <code>LIBERAR RETENCION LEGAL</code><input name="confirmationPhrase" required /></label><Submit>Liberar explícitamente</Submit><Result state={holdRelease} /></form>
     </div></details>
 
-    <details className="surface-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5"><summary className="font-semibold">Autorización futura de canary interno</summary><div className="mt-4 space-y-3 text-sm text-slate-700">
-      <p>Esta pantalla no activa firmas. La autorización se registra únicamente cuando la clasificación, el locale, privacidad, retención y decisiones de recuperación estén completos.</p>
-      <ul className="list-disc space-y-1 pl-5"><li>Tipo: canary interno de producción.</li><li>Alcance: participantes sintéticos exactos y clasificaciones exactas.</li><li>Evidencia: hash de readiness, expiración, actor y confirmación explícita.</li><li>Activación: la bandera de servidor se administra por separado y permanece desactivada.</li></ul>
-      <p className="rounded-lg bg-amber-50 p-3 text-amber-900"><strong>Canary interno: Desactivado.</strong> READY no equivale a ENABLED.</p>
-    </div></details>
   </section>;
 }
