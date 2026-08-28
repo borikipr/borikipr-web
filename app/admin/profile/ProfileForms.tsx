@@ -1,7 +1,7 @@
 "use client";
 
-import { ChangeEvent, DragEvent, KeyboardEvent, useActionState, useMemo, useRef, useState } from "react";
-import { BadgeCheck, Building2, Camera, Eye, EyeOff, ImagePlus, KeyRound, Mail, ShieldCheck, Trash2, Upload, UserRound, X } from "lucide-react";
+import { ChangeEvent, DragEvent, KeyboardEvent, useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { BadgeCheck, Building2, Camera, ChevronDown, ChevronUp, Eye, EyeOff, ImagePlus, KeyRound, Mail, ShieldCheck, Trash2, Upload, UserRound, X } from "lucide-react";
 import { changePassword, updateProfile, type ProfileState } from "./actions";
 import { PROFESSIONAL_ROLE_OPTIONS, professionalRoleLabels, professionalRoleTitle, rolesRequireLicense, type ProfessionalRoleId } from "@/lib/admin/professional-profile";
 
@@ -87,17 +87,26 @@ function RolePicker({ roles, onChange, customTitle, onCustomTitleChange }: {
   roles: ProfessionalRoleId[]; onChange: (roles: ProfessionalRoleId[]) => void; customTitle: string; onCustomTitleChange: (title: string) => void;
 }) {
   const [open, setOpen] = useState(false); const [query, setQuery] = useState(""); const [activeIndex, setActiveIndex] = useState(0);
+  const pickerRef = useRef<HTMLDivElement>(null);
   const filtered = useMemo(() => PROFESSIONAL_ROLE_OPTIONS.filter((role) => role.label.toLocaleLowerCase("es-PR").includes(query.toLocaleLowerCase("es-PR"))), [query]);
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!pickerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
+  }, [open]);
   function toggle(role: ProfessionalRoleId) {
     if (roles.includes(role)) onChange(roles.filter((value) => value !== role));
     else if (roles.length < 2) onChange([...roles, role]);
-    setQuery(""); setOpen(false);
+    setQuery(""); setActiveIndex(0);
   }
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Escape") { setOpen(false); return; }
     if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); setActiveIndex((index) => Math.min(index + 1, Math.max(filtered.length - 1, 0))); return; }
     if (event.key === "ArrowUp") { event.preventDefault(); setOpen(true); setActiveIndex((index) => Math.max(index - 1, 0)); return; }
-    if (event.key === "Enter" && open && filtered[activeIndex]) { event.preventDefault(); toggle(filtered[activeIndex].id); }
+    if ((event.key === "Enter" || event.key === " ") && open && filtered[activeIndex]) { event.preventDefault(); toggle(filtered[activeIndex].id); }
   }
   return <div className="profile-role-picker">
     <label htmlFor="professionalRoleSearch" className="text-sm font-semibold text-slate-800">Roles profesionales</label>
@@ -105,8 +114,9 @@ function RolePicker({ roles, onChange, customTitle, onCustomTitleChange }: {
     <div className="profile-role-chips" aria-live="polite">
       {roles.map((role) => <span key={role} className="profile-role-chip">{professionalRoleLabels([role], customTitle)[0]}<button type="button" onClick={() => toggle(role)} aria-label={`Eliminar ${professionalRoleLabels([role], customTitle)[0]}`}><X aria-hidden="true" size={14}/></button></span>)}
     </div>
-    <div className="relative mt-2">
+    <div ref={pickerRef} className={`profile-role-control ${open ? "is-open" : ""}`}>
       <input id="professionalRoleSearch" role="combobox" aria-expanded={open} aria-controls="professional-role-options" aria-activedescendant={open && filtered[activeIndex] ? `professional-role-${filtered[activeIndex].id}` : undefined} className="input-premium" value={query} onFocus={() => setOpen(true)} onChange={(event) => { setQuery(event.target.value); setOpen(true); setActiveIndex(0); }} onKeyDown={onKeyDown} placeholder={roles.length >= 2 ? "Máximo de dos roles seleccionado" : "Buscar o seleccionar un rol"} disabled={roles.length >= 2} />
+      <button type="button" className="profile-role-toggle" onClick={() => setOpen((value) => !value)} aria-label={open ? "Cerrar opciones de roles profesionales" : "Abrir opciones de roles profesionales"} aria-controls="professional-role-options" aria-expanded={open} disabled={roles.length >= 2}>{open ? <ChevronUp aria-hidden="true" size={18}/> : <ChevronDown aria-hidden="true" size={18}/>}</button>
       {open && <div id="professional-role-options" role="listbox" aria-label="Opciones de roles profesionales" className="profile-role-options">
         {filtered.length ? filtered.map((role, index) => { const selected = roles.includes(role.id); const disabled = !selected && roles.length >= 2; return <button key={role.id} id={`professional-role-${role.id}`} type="button" role="option" aria-selected={selected} disabled={disabled} className={index === activeIndex ? "is-active" : ""} onMouseDown={(event) => event.preventDefault()} onClick={() => toggle(role.id)}><span>{role.label}</span>{selected ? <BadgeCheck aria-label="Seleccionado" size={16}/> : null}</button>; }) : <p className="px-3 py-2 text-sm text-slate-500">No encontramos ese rol.</p>}
       </div>}

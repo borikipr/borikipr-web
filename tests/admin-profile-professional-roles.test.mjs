@@ -37,13 +37,19 @@ test("other preserves a custom professional title", () => {
 });
 
 test("profile UI exposes an accessible capped role combobox and readonly system role", async () => {
-  const [profile, actions, account, migration] = await Promise.all([
+  const [profile, css, actions, account, migration] = await Promise.all([
     readFile(`${root}/app/admin/profile/ProfileForms.tsx`, "utf8"),
+    readFile(`${root}/app/globals.css`, "utf8"),
     readFile(`${root}/app/admin/profile/actions.ts`, "utf8"),
     readFile(`${root}/lib/admin/account.ts`, "utf8"),
     readFile(`${root}/db/migrations/0044_add_admin_professional_roles.sql`, "utf8"),
   ]);
   assert.match(profile, /role="combobox"/);
+  assert.match(profile, /role="listbox"/);
+  assert.match(profile, /role="option"/);
+  assert.match(profile, /profile-role-toggle/);
+  assert.match(profile, /closeOnOutsidePointer/);
+  assert.match(profile, /event\.key === " "/);
   assert.match(profile, /Máximo de dos roles profesionales/);
   assert.match(profile, /Número de licencia/);
   assert.match(profile, /Rol del sistema:/);
@@ -53,4 +59,6 @@ test("profile UI exposes an accessible capped role combobox and readonly system 
   assert.match(account, /professional_roles = \$4::text\[\]/);
   assert.match(migration, /professional_roles text\[\]/);
   assert.match(migration, /professional_license_number text NULL/);
+  assert.match(css, /\.profile-role-options \{[^}]*display: flex[^}]*flex-direction: column[^}]*position: absolute[^}]*z-index: 50/s);
+  assert.match(css, /\.profile-role-options button \{[^}]*display: flex[^}]*width: 100%/s);
 });
