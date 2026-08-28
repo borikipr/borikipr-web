@@ -1657,3 +1657,101 @@ textarea {
     border-radius: 1rem;
   }
 }
+
+/* Admin 2.0 — Testimonios */
+.testimonial-summary-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.testimonial-directory-surface {
+  overflow: hidden;
+  border: 1px solid rgb(226 232 240);
+  border-radius: 0.85rem;
+  background: white;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.03);
+}
+
+.testimonial-directory-list {
+  display: grid;
+}
+
+.testimonial-directory-row {
+  display: grid;
+  grid-template-columns: minmax(13rem, 0.8fr) minmax(18rem, 1.6fr) minmax(8rem, 0.45fr) auto;
+  align-items: center;
+  gap: 1.25rem;
+  min-width: 0;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgb(241 245 249);
+  transition: background-color 160ms ease;
+}
+
+.testimonial-directory-row:last-child { border-bottom: 0; }
+.testimonial-directory-row:hover { background: rgb(248 250 252); }
+.testimonial-directory-row.is-current { background: rgb(236 253 245); box-shadow: inset 3px 0 0 rgb(16 185 129); }
+
+.testimonial-directory-identity,
+.testimonial-directory-meta,
+.testimonial-directory-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.testimonial-directory-identity { gap: 0.75rem; }
+.testimonial-directory-meta { flex-direction: column; align-items: flex-start; gap: 0.4rem; color: rgb(100 116 139); font-size: 0.75rem; font-weight: 600; }
+.testimonial-directory-meta span { display: inline-flex; align-items: center; gap: 0.35rem; }
+.testimonial-directory-actions { justify-content: flex-end; gap: 0.5rem; }
+.testimonial-directory-actions .btn-secondary { min-height: 2.25rem; padding: 0.4rem 0.8rem; font-size: 0.8125rem; }
+
+.testimonial-editor-shell {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.testimonial-editor-form {
+  display: grid;
+  gap: 1.5rem;
+  border: 1px solid rgb(226 232 240);
+  border-radius: 0.85rem;
+  background: white;
+  padding: 1.25rem;
+}
+
+.testimonial-editor-section {
+  display: grid;
+  gap: 1rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgb(241 245 249);
+}
+
+.testimonial-editor-section:last-of-type { padding-bottom: 0; border-bottom: 0; }
+.testimonial-editor-section-heading { display: grid; gap: 0.2rem; }
+.testimonial-editor-section-heading h2 { color: rgb(15 23 42); font-size: 1rem; font-weight: 650; }
+.testimonial-editor-section-heading p { color: rgb(100 116 139); font-size: 0.875rem; line-height: 1.45; }
+.testimonial-editor-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.testimonial-editor-options { display: flex; flex-wrap: wrap; align-items: end; gap: 1.5rem; }
+.testimonial-editor-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; padding-top: 0.25rem; }
+.testimonial-image-preview { position: relative; height: 13rem; width: min(100%, 20rem); overflow: hidden; border: 1px solid rgb(226 232 240); border-radius: 0.75rem; background: rgb(248 250 252); }
+.testimonial-image-preview button { position: absolute; right: 0.5rem; top: 0.5rem; z-index: 2; display: inline-flex; height: 2rem; width: 2rem; align-items: center; justify-content: center; border-radius: 9999px; background: rgb(185 28 28); color: white; box-shadow: 0 1px 2px rgb(15 23 42 / 0.2); }
+
+@media (max-width: 960px) {
+  .testimonial-directory-row { grid-template-columns: minmax(12rem, 0.75fr) minmax(15rem, 1.4fr) auto; }
+  .testimonial-directory-meta { display: none; }
+}
+
+@media (max-width: 639px) {
+  .testimonial-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.55rem; }
+  .testimonial-summary-grid .surface-card { padding: 0.8rem; }
+  .testimonial-summary-grid .surface-card p:nth-of-type(2) { font-size: 1.45rem; }
+  .testimonial-directory-row { grid-template-columns: minmax(0, 1fr) auto; gap: 0.9rem; padding: 1rem; align-items: start; }
+  .testimonial-directory-content { grid-column: 1 / -1; }
+  .testimonial-directory-actions { grid-column: 1 / -1; justify-content: space-between; padding-top: 0.7rem; border-top: 1px solid rgb(241 245 249); }
+  .testimonial-editor-form { padding: 1rem; gap: 1.25rem; }
+  .testimonial-editor-section { padding-bottom: 1.25rem; }
+  .testimonial-editor-grid { grid-template-columns: 1fr; }
+  .testimonial-editor-actions { align-items: stretch; }
+  .testimonial-editor-actions > div { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; width: 100%; }
+}

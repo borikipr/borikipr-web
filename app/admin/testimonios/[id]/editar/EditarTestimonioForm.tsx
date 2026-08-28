@@ -44,14 +44,13 @@ export default function EditarTestimonioForm({ testimonio }: Props) {
   };
 
   return (
-    <div className="space-y-6">
-      <ImagenesUploader onUploaded={handleUploaded} />
-
-      <div className="surface-card p-8 md:p-10">
-        <form action={formAction} className="space-y-8">
+    <div className="testimonial-editor-shell">
+      <form action={formAction} className="testimonial-editor-form">
           <input type="hidden" name="id" value={testimonio.id} />
 
-          <div className="grid gap-6 md:grid-cols-3">
+          <section className="testimonial-editor-section" aria-labelledby="testimonial-main-heading">
+            <div className="testimonial-editor-section-heading"><h2 id="testimonial-main-heading">Información principal</h2><p>Identifica a la persona y el contexto que acompaña su experiencia.</p></div>
+          <div className="testimonial-editor-grid">
             <div className="space-y-2">
               <label htmlFor="nombre" className="text-sm font-medium text-[#000000]">
                 Nombre <span className="text-red-500">*</span>
@@ -95,7 +94,10 @@ export default function EditarTestimonioForm({ testimonio }: Props) {
               </select>
             </div>
           </div>
+          </section>
 
+          <section className="testimonial-editor-section" aria-labelledby="testimonial-copy-heading">
+            <div className="testimonial-editor-section-heading"><h2 id="testimonial-copy-heading">Testimonio</h2><p>Este es el texto principal que se mostrará en el website cuando esté publicado.</p></div>
           <div className="space-y-2">
             <label htmlFor="texto" className="text-sm font-medium text-[#000000]">
               Testimonio <span className="text-red-500">*</span>
@@ -109,56 +111,21 @@ export default function EditarTestimonioForm({ testimonio }: Props) {
               required
             />
           </div>
+          </section>
 
-          <div>
+          <section className="testimonial-editor-section" aria-labelledby="testimonial-image-heading">
             <input name="foto_url" type="hidden" value={fotoUrl} />
-
-            <div className="space-y-2">
-              <label htmlFor="orden" className="text-sm font-medium text-[#000000]">
-                Orden
-              </label>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setOrden(Math.max(0, orden - 1))}
-                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#d9d9d9] bg-white text-[#000000] transition hover:bg-[#f8f8f8]"
-                >
-                  -
-                </button>
-                <input
-                  id="orden"
-                  name="orden"
-                  type="number"
-                  min="0"
-                  value={orden}
-                  onChange={(e) => setOrden(parseInt(e.target.value) || 0)}
-                  className="input-premium w-24 text-center"
-                />
-                <button
-                  type="button"
-                  onClick={() => setOrden(orden + 1)}
-                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#d9d9d9] bg-white text-[#000000] transition hover:bg-[#f8f8f8]"
-                >
-                  +
-                </button>
-              </div>
-              <p className="text-xs text-[#4d4d4d]">
-                Define la posición en la lista (0 es el primero).
-              </p>
-            </div>
-          </div>
+            <div className="testimonial-editor-section-heading"><h2 id="testimonial-image-heading">Imagen</h2><p>Añade o reemplaza el retrato asociado al testimonio.</p></div>
+            <ImagenesUploader onUploaded={handleUploaded} />
 
           {fotoUrl && (
             <div className="space-y-3">
-              <p className="text-sm font-medium text-[#000000]">
-                Previsualización del testimonio:
-              </p>
-              <div className="relative h-52 max-w-xs overflow-hidden rounded-2xl border border-[#e8e8e8] bg-white shadow-sm">
-                {/* Botón eliminar */}
+              <p className="text-sm font-medium text-slate-900">Imagen actual</p>
+              <div className="testimonial-image-preview">
                 <button
                   type="button"
                   onClick={() => setFotoUrl("")}
-                  className="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-white shadow-md transition hover:bg-red-600"
+                  aria-label="Quitar imagen"
                   title="Quitar foto"
                 >
                   <svg
@@ -185,8 +152,11 @@ export default function EditarTestimonioForm({ testimonio }: Props) {
               </div>
             </div>
           )}
+          </section>
 
-          <div className="flex flex-wrap items-center gap-10">
+          <section className="testimonial-editor-section" aria-labelledby="testimonial-publication-heading">
+            <div className="testimonial-editor-section-heading"><h2 id="testimonial-publication-heading">Publicación</h2><p>Controla la visibilidad, prioridad y orden en el website.</p></div>
+          <div className="testimonial-editor-options">
             <div className="space-y-2">
               <label className="text-sm font-medium text-[#000000]">
                 Estado
@@ -200,6 +170,8 @@ export default function EditarTestimonioForm({ testimonio }: Props) {
                 <button
                   type="button"
                   onClick={() => setActivo(!activo)}
+                  aria-label={activo ? "Ocultar del website" : "Publicar en el website"}
+                  aria-pressed={activo}
                   className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                     activo ? "bg-[#11518b]" : "bg-[#d9d9d9]"
                   }`}
@@ -229,6 +201,7 @@ export default function EditarTestimonioForm({ testimonio }: Props) {
                 <button
                   type="button"
                   onClick={() => setDestacado(!destacado)}
+                  aria-pressed={destacado}
                   className={`flex h-10 w-40 items-center justify-center gap-2 rounded-xl border transition-all duration-300 ${
                     destacado
                       ? "border-[#d4af37] bg-[#fff9e6] text-[#d4af37] shadow-sm"
@@ -253,13 +226,24 @@ export default function EditarTestimonioForm({ testimonio }: Props) {
                 </button>
               </div>
             </div>
+            <div className="space-y-2">
+              <label htmlFor="orden" className="text-sm font-medium text-[#000000]">Orden</label>
+              <div className="flex items-center gap-2">
+                <button type="button" aria-label="Reducir orden" onClick={() => setOrden(Math.max(0, orden - 1))} className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50">−</button>
+                <input id="orden" name="orden" type="number" min="0" value={orden} onChange={(e) => setOrden(parseInt(e.target.value) || 0)} className="input-premium w-20 text-center" />
+                <button type="button" aria-label="Aumentar orden" onClick={() => setOrden(orden + 1)} className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50">+</button>
+              </div>
+            </div>
           </div>
+          </section>
 
           {state.error && (
             <p className="text-sm text-red-600">{state.error}</p>
           )}
 
-          <div className="flex flex-wrap gap-4">
+          <div className="testimonial-editor-actions">
+            <p className="text-sm text-slate-500">Los cambios se reflejan en el Admin y, si está publicado, en el website.</p>
+            <div className="flex flex-wrap gap-3">
             <button
               type="submit"
               disabled={pending}
@@ -271,9 +255,9 @@ export default function EditarTestimonioForm({ testimonio }: Props) {
             <Link href="/admin/testimonios" className="btn-secondary">
               Cancelar
             </Link>
+            </div>
           </div>
         </form>
-      </div>
     </div>
   );
 }

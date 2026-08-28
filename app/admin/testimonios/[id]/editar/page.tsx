@@ -7,6 +7,8 @@ import { createPostgresTranslationDatabase } from "@/lib/i18n/translations/repos
 import TranslationAdminPanel from "@/components/admin/TranslationAdminPanel";
 import Link from "next/link";
 import EditarTestimonioForm from "./EditarTestimonioForm";
+import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
+import StatusBadge from "@/components/admin/StatusBadge";
 
 export default async function EditarTestimonioPage({
   params,
@@ -30,29 +32,23 @@ export default async function EditarTestimonioPage({
   ).getEntityTranslations({ entityType: "testimonial", ownerId: id });
 
   return (
-    <main className="min-h-screen bg-[#f8f8f8] px-6 py-10">
-      <div className="section-shell">
-        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="eyebrow">Admin · Editar testimonio</p>
-            <h1 className="mt-3 text-3xl font-bold text-[#000000]">
-              Editar testimonio
-            </h1>
-            <p className="body-base mt-3">
-              Modifica los datos del testimonio.
-            </p>
+    <AdminPageShell>
+      <div className="testimonial-editor-shell">
+        <AdminPageHeader
+          breadcrumbs={[{ href: "/admin", label: "Admin" }, { href: "/admin/testimonios", label: "Testimonios" }, { label: testimonio.nombre }]}
+          eyebrow="Testimonios · Edición"
+          title={testimonio.nombre}
+          description="Actualiza el contenido, la imagen y la visibilidad sin perder el contexto editorial."
+          actions={<><Link href="/testimonios" target="_blank" className="btn-secondary">Ver en sitio</Link><Link href="/admin/testimonios" className="btn-secondary">Volver</Link></>}
+        >
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <StatusBadge variant={testimonio.activo ? "green" : "gray"}>{testimonio.activo ? "Publicado" : "Oculto"}</StatusBadge>
+            {testimonio.destacado ? <StatusBadge variant="gold">Destacado</StatusBadge> : null}
           </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Link href="/admin/testimonios" className="btn-secondary">
-              Volver a testimonios
-            </Link>
-          </div>
-        </div>
-
+        </AdminPageHeader>
         <EditarTestimonioForm testimonio={testimonio} />
-        <TranslationAdminPanel fields={translationFields} />
+        <TranslationAdminPanel fields={translationFields} showHistory={false} />
       </div>
-    </main>
+    </AdminPageShell>
   );
 }

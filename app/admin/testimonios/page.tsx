@@ -1,9 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Eye, ImageIcon, MapPin, Quote, Star } from "lucide-react";
 import AdminAlert from "@/components/admin/AdminAlert";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
-import { EmptyState } from "@/components/admin/AdminUI";
+import { EmptyState, SummaryCard } from "@/components/admin/AdminUI";
 import StatusBadge from "@/components/admin/StatusBadge";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import { getAdminTestimonios } from "@/lib/admin/testimonios-queries";
@@ -23,18 +24,21 @@ export default async function AdminTestimoniosPage({
 
   const params = await searchParams;
   const testimonios = await getAdminTestimonios(params.tipo);
+  const publicados = testimonios.filter((item) => item.activo).length;
+  const destacados = testimonios.filter((item) => item.destacado).length;
+  const conImagen = testimonios.filter((item) => item.foto_url).length;
 
   return (
     <AdminPageShell>
-      <div className="space-y-6">
+      <div className="space-y-5">
         <AdminPageHeader
           breadcrumbs={[
             { href: "/admin", label: "Admin" },
             { label: "Testimonios" },
           ]}
           eyebrow="Admin · Testimonios"
-          title="Listado de testimonios"
-          description="Administra los testimonios que fortalecen la confianza del website."
+          title="Testimonios"
+          description="Gestiona las opiniones publicadas y su presentación en el website."
           actions={
             <>
               <TestimonioTipoFilter currentTipo={params.tipo} />
@@ -53,133 +57,58 @@ export default async function AdminTestimoniosPage({
           </AdminAlert>
         )}
 
-        <div className="surface-card overflow-hidden">
+        <section className="testimonial-summary-grid" aria-label="Resumen de testimonios">
+          <SummaryCard label="Total" value={testimonios.length} detail="Testimonios en este filtro" />
+          <SummaryCard label="Publicados" value={publicados} detail="Visibles en el website" />
+          <SummaryCard label="Destacados" value={destacados} detail="Con mayor prioridad" />
+          <SummaryCard label="Con imagen" value={conImagen} detail="Listos para presentación" />
+        </section>
+
+        <div className="testimonial-directory-surface">
           {testimonios.length === 0 ? (
-            <EmptyState title="No hay testimonios creados" description="Cuando añadas testimonios, aparecerán aquí." action={<Link href="/admin/testimonios/nuevo" className="btn-primary">Crear primer testimonio</Link>} />
+            <EmptyState title="No hay testimonios todavía" description="Añade el primer testimonio para comenzar a mostrar la experiencia de tus clientes." action={<Link href="/admin/testimonios/nuevo" className="btn-primary">Nuevo testimonio</Link>} />
           ) : (
-            <>
-            <div className="hidden overflow-x-auto md:block">
-              <table className="admin-table min-w-full">
-                <thead className="bg-[#0d1b2a] text-left text-sm text-white">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold">Nombre</th>
-                    <th className="px-6 py-4 font-semibold">Tipo</th>
-                    <th className="px-6 py-4 font-semibold">Ubicación</th>
-                    <th className="px-6 py-4 font-semibold">Texto</th>
-                    <th className="px-6 py-4 font-semibold">Activo</th>
-                    <th className="px-6 py-4 font-semibold">Destacado</th>
-                    <th className="px-6 py-4 font-semibold">Orden</th>
-                    <th className="px-6 py-4 font-semibold">Acciones</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {testimonios.map((item) => (
-                    <tr
-                      key={item.id}
-                      className={`border-t border-[#ececec] align-top transition-all duration-700 ${
-                        params.id === item.id
-                          ? "bg-green-50 ring-2 ring-green-300"
-                          : "bg-white"
-                      }`}
-                    >
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-3">
-                          <div className="relative h-10 w-10 overflow-hidden rounded-full border border-[#e8e8e8] bg-[#f8f8f8]">
-                            {item.foto_url ? (
-                              <Image
-                                src={item.foto_url}
-                                alt={item.nombre}
-                                fill
-                                sizes="40px"
-                                className="object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center bg-[#11518b] text-xs font-bold text-white">
-                                {item.nombre.charAt(0)}
-                              </div>
-                            )}
-                          </div>
-                          <p className="font-semibold text-[#000000]">
-                            {item.nombre}
-                          </p>
-                        </div>
-                      </td>
-
-                      <td className="px-6 py-5">
-                        <StatusBadge
-                          variant={item.tipo === "comprador" ? "blue" : "gold"}
-                        >
-                          {item.tipo === "comprador" ? "Comprador" : "Vendedor"}
-                        </StatusBadge>
-                      </td>
-
-                      <td className="px-6 py-5 text-sm text-[#4d4d4d]">
-                        {item.ubicacion || "—"}
-                      </td>
-
-                      <td className="max-w-[420px] px-6 py-5 text-sm text-[#4d4d4d]">
-                        <p className="line-clamp-4">{item.texto}</p>
-                      </td>
-
-                      <td className="px-6 py-5">
-                        {item.activo ? (
-                          <StatusBadge variant="green">Activo</StatusBadge>
-                        ) : (
-                          <StatusBadge variant="gray">Inactivo</StatusBadge>
-                        )}
-                      </td>
-
-                      <td className="px-6 py-5">
-                        {item.destacado ? (
-                          <StatusBadge variant="green">Destacado</StatusBadge>
-                        ) : (
-                          <StatusBadge variant="outline">Normal</StatusBadge>
-                        )}
-                      </td>
-
-                      <td className="px-6 py-5 text-sm text-[#4d4d4d]">
-                        {item.orden}
-                      </td>
-
-                      <td className="px-6 py-5">
-                        <div className="mb-3 flex flex-wrap gap-3">
-                          <Link
-                            href={`/admin/testimonios/${item.id}/editar`}
-                            className="text-sm font-medium text-[#11518b] hover:text-[#0d406d]"
-                          >
-                            Editar
-                          </Link>
-                        </div>
-
-                        <TestimonioRowActions
-                          id={item.id}
-                          activoActual={item.activo}
-                          destacadoActual={item.destacado}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="divide-y divide-slate-100 md:hidden">
+            <div className="testimonial-directory-list">
               {testimonios.map((item) => (
-                <article className="space-y-4 p-4" key={item.id}>
-                  <div className="flex items-start gap-3">
-                    <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
-                      {item.foto_url ? <Image src={item.foto_url} alt="" fill sizes="40px" className="object-cover" /> : <div className="flex h-full items-center justify-center bg-[#11518b] text-xs font-bold text-white">{item.nombre.charAt(0)}</div>}
+                <article
+                  key={item.id}
+                  className={`testimonial-directory-row ${params.id === item.id ? "is-current" : ""}`}
+                >
+                  <div className="testimonial-directory-identity">
+                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
+                      {item.foto_url ? (
+                        <Image src={item.foto_url} alt={item.nombre} fill sizes="48px" className="object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-[#11518b] text-sm font-bold text-white">{item.nombre.charAt(0)}</div>
+                      )}
                     </div>
-                    <div className="min-w-0 flex-1"><h2 className="font-semibold">{item.nombre}</h2><p className="text-sm text-slate-500">{item.ubicacion || "Sin ubicación"}</p></div>
-                    <StatusBadge variant={item.activo ? "green" : "gray"}>{item.activo ? "Activo" : "Inactivo"}</StatusBadge>
+                    <div className="min-w-0">
+                      <h2 className="truncate font-semibold text-slate-950">{item.nombre}</h2>
+                      <p className="mt-1 flex items-center gap-1 text-sm text-slate-500"><MapPin aria-hidden="true" size={14} />{item.ubicacion || "Sin ubicación"}</p>
+                    </div>
                   </div>
-                  <p className="line-clamp-3 text-sm text-slate-600">{item.texto}</p>
-                  <div className="flex flex-wrap items-center gap-2"><StatusBadge variant={item.tipo === "comprador" ? "blue" : "gold"}>{item.tipo === "comprador" ? "Comprador" : "Vendedor"}</StatusBadge>{item.destacado && <StatusBadge variant="green">Destacado</StatusBadge>}</div>
-                  <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3"><Link href={`/admin/testimonios/${item.id}/editar`} className="btn-secondary">Editar</Link><TestimonioRowActions id={item.id} activoActual={item.activo} destacadoActual={item.destacado} /></div>
+
+                  <div className="testimonial-directory-content">
+                    <p className="line-clamp-2 text-sm leading-relaxed text-slate-700">{item.texto}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <StatusBadge variant={item.tipo === "comprador" ? "blue" : "gold"}>{item.tipo === "comprador" ? "Comprador" : "Vendedor"}</StatusBadge>
+                      <StatusBadge variant={item.activo ? "green" : "gray"}>{item.activo ? "Publicado" : "Oculto"}</StatusBadge>
+                      {item.destacado ? <StatusBadge variant="outline"><Star aria-hidden="true" size={12} className="mr-1 fill-current text-[#b68d13]" />Destacado</StatusBadge> : null}
+                    </div>
+                  </div>
+
+                  <div className="testimonial-directory-meta">
+                    <span><Quote aria-hidden="true" size={15} />Orden {item.orden}</span>
+                    <span>{item.foto_url ? <ImageIcon aria-hidden="true" size={15} /> : <Eye aria-hidden="true" size={15} />}{item.foto_url ? "Con imagen" : "Sin imagen"}</span>
+                  </div>
+
+                  <div className="testimonial-directory-actions">
+                    <Link href={`/admin/testimonios/${item.id}/editar`} className="btn-secondary">Editar</Link>
+                    <TestimonioRowActions id={item.id} activoActual={item.activo} destacadoActual={item.destacado} />
+                  </div>
                 </article>
               ))}
             </div>
-            </>
           )}
         </div>
       </div>
