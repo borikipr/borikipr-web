@@ -64,14 +64,17 @@ test("governance mobile styles contain controls at 360, 390 and 412 pixel layout
   assert.match(nav, /data-admin-drawer-backdrop/);
 });
 
-test("Admin UX translates readiness and explains retention without legal recommendations", async () => {
+test("Governance keeps daily status compact while management controls remain secondary", async () => {
   const [page, actions, forms] = await Promise.all([
     read("app/admin/signatures/gobernanza/page.tsx"), read("app/admin/signatures/actions.ts"),
     read("app/admin/signatures/gobernanza/GovernanceForms.tsx"),
   ]);
-  assert.match(page, /Readiness interno/);
-  assert.match(page, /Alcance bilingüe/);
-  assert.match(page, /READINESS_LABELS[\s\S]*Listo[\s\S]*Bloqueado/);
+  assert.match(page, /Estado y soporte/);
+  assert.match(page, /Firmas operando normalmente/);
+  assert.match(page, /Firmas requiere atención/);
+  assert.match(page, /Español e inglés listos/);
+  assert.match(page, /Administrar controles/);
+  assert.doesNotMatch(page, /Canary interno|Readiness interno|Auditoría y referencia/);
   assert.match(actions, /Falta configurar y activar la política de retención/);
   assert.doesNotMatch(page, />retention_policy_missing</);
   assert.doesNotMatch(page, />privacy_disclosure_missing</);

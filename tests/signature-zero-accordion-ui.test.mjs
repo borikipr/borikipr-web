@@ -11,6 +11,7 @@ test("Firmas Admin presents scoped operational content without accordions or det
     "app/admin/signatures/[id]/page.tsx",
     "app/admin/signatures/configuracion/page.tsx",
     "app/admin/signatures/gobernanza/page.tsx",
+    "app/admin/signatures/gobernanza/gestion/page.tsx",
     "app/admin/signatures/gobernanza/GovernanceForms.tsx",
     "components/admin/signatures/SignatureDraftEditor.tsx",
   ];

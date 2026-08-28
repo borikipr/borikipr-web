@@ -67,9 +67,9 @@ test("Governance remains a direct support route and its security logic is unchan
     source("app/admin/signatures/layout.tsx"),
   ]);
 
-  assert.match(governance, /Estado operativo/);
-  assert.match(governance, /Neon recovery/);
-  assert.match(governance, /R2 recovery/);
+  assert.match(governance, /Estado y soporte/);
+  assert.match(governance, /Recuperación/);
+  assert.match(governance, /inspectProductionPublicLaunchGate/);
   assert.match(settings, /redirect\("\/admin\/signatures"\)/);
   assert.match(layout, /href="\/admin\/signatures\/gobernanza"/);
 });
