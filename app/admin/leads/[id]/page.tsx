@@ -21,6 +21,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
+import CopyLeadValueButton from "@/components/admin/CopyLeadValueButton";
 import { DocumentAccessButtons } from "@/components/admin/DocumentAccessButtons";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import {
@@ -327,7 +328,7 @@ export default async function AdminLead360Page({
           { href: "/admin/leads", label: "Leads" },
           { label: detail.identity.name },
         ]}
-        description="Vista completa de identidad, interacciones, propiedades y seguimiento. Los contactos compartidos requieren revisión humana."
+        description="Contacto, interés y seguimiento en un solo espacio de trabajo."
         eyebrow="Lead 360"
         title={detail.identity.name}
         actions={<><Link className="btn-primary" href="/admin/leads/seguimientos">Seguimientos</Link><Link className="btn-secondary" href="/admin/leads">Volver al directorio</Link></>}
@@ -396,6 +397,21 @@ export default async function AdminLead360Page({
         </div>
       )}
 
+      <section className="lead-detail-overview" aria-labelledby="lead-overview-heading">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-semibold text-slate-950" id="lead-overview-heading">Resumen del lead</h2>
+            <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-800">{LEAD_STATUS_LABELS[detail.identity.status]}</span>
+            {detail.identity.nextFollowUpAt && <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900"><CalendarClock aria-hidden="true" size={14} />Seguimiento {formatDate(detail.identity.nextFollowUpAt)}</span>}
+          </div>
+          <p className="mt-2 text-sm text-slate-600">Última actividad: {formatDate(detail.identity.lastActivityAt)}</p>
+        </div>
+        <div className="lead-detail-contact-actions" aria-label="Acciones de contacto">
+          {detail.identity.email && <a href={`mailto:${detail.identity.email}`}><Mail aria-hidden="true" size={16} />Correo</a>}
+          {detail.identity.phone && <a href={`tel:${detail.identity.phone.replace(/[^+\d]/g, "")}`}><Phone aria-hidden="true" size={16} />Llamar</a>}
+        </div>
+      </section>
+
       {leadGroups.length > 0 && (
         <section className="rounded-[2rem] border border-blue-200 bg-blue-50 p-5 md:p-6" aria-labelledby="lead-groups-heading">
           <div className="flex items-center gap-3"><UsersRound className="h-6 w-6 text-[#11518b]" /><h2 className="text-lg font-semibold text-blue-950" id="lead-groups-heading">Casos compartidos</h2></div>
@@ -457,12 +473,12 @@ export default async function AdminLead360Page({
           <section className="surface-card p-5 md:p-6" aria-labelledby="identity-heading">
             <div className="flex items-center gap-3">
               <UsersRound aria-hidden="true" className="h-5 w-5 text-[#11518b]" />
-              <h2 className="text-xl font-semibold text-[#000000]" id="identity-heading">Identidad canónica</h2>
+              <h2 className="text-xl font-semibold text-[#000000]" id="identity-heading">Contacto e identidad</h2>
             </div>
             <dl className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6b7280]">Nombre</dt><dd className="mt-1 break-words font-semibold">{detail.identity.name}</dd></div>
-              <div><dt className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#6b7280]"><Mail className="h-3.5 w-3.5" />Correo</dt><dd className="mt-1 break-all text-sm">{detail.identity.email ?? "—"}</dd></div>
-              <div><dt className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#6b7280]"><Phone className="h-3.5 w-3.5" />Teléfono</dt><dd className="mt-1 text-sm">{detail.identity.phone ?? "—"}</dd></div>
+              <div><dt className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#6b7280]"><Mail className="h-3.5 w-3.5" />Correo</dt><dd className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 break-all text-sm">{detail.identity.email ? <><span>{detail.identity.email}</span><CopyLeadValueButton label="Copiar" value={detail.identity.email} /></> : "—"}</dd></div>
+              <div><dt className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#6b7280]"><Phone className="h-3.5 w-3.5" />Teléfono</dt><dd className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">{detail.identity.phone ? <><span>{detail.identity.phone}</span><CopyLeadValueButton label="Copiar" value={detail.identity.phone} /></> : "—"}</dd></div>
               <div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6b7280]">Creado</dt><dd className="mt-1 text-sm">{formatDate(detail.identity.createdAt)}</dd></div>
               <div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6b7280]">Última actividad</dt><dd className="mt-1 text-sm">{formatDate(detail.identity.lastActivityAt)}</dd></div>
               <div><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6b7280]">Estado</dt><dd className="mt-1"><span className="inline-flex rounded-full bg-[#11518b]/10 px-3 py-1 text-xs font-semibold text-[#11518b]">{LEAD_STATUS_LABELS[detail.identity.status]}</span></dd></div>

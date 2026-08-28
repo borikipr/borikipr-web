@@ -1225,6 +1225,80 @@ textarea {
 .property-row-actions {
   @apply flex items-center justify-end gap-2;
 }
+
+.lead-directory-summary {
+  @apply grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:grid-cols-2 xl:grid-cols-5;
+}
+.lead-directory-summary > div {
+  @apply min-w-0 border-b border-slate-100 px-4 py-4 last:border-b-0 sm:border-r sm:last:border-r-0 xl:border-b-0;
+}
+.lead-directory-summary p {
+  @apply text-xs font-semibold uppercase tracking-[0.12em] text-slate-500;
+}
+.lead-directory-summary strong {
+  @apply mt-1 block text-2xl font-bold text-slate-950;
+}
+.lead-directory-summary small {
+  @apply mt-1 block text-sm text-slate-600;
+}
+.lead-filter-bar,
+.lead-directory-surface {
+  @apply rounded-xl border border-slate-200 bg-white p-5 shadow-sm;
+}
+.lead-directory-surface {
+  @apply overflow-hidden p-0;
+}
+.lead-directory-list {
+  @apply divide-y divide-slate-100;
+}
+.lead-directory-row {
+  @apply grid min-w-0 gap-4 p-4 transition hover:bg-slate-50/80 lg:grid-cols-[minmax(230px,1.45fr)_minmax(160px,0.85fr)_minmax(190px,0.9fr)_auto] lg:items-center lg:px-5;
+}
+.lead-directory-row.is-case {
+  @apply bg-blue-50/40 hover:bg-blue-50/70;
+}
+.lead-directory-contact {
+  @apply mt-2 flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600;
+}
+.lead-directory-contact a {
+  @apply inline-flex min-w-0 items-center gap-1.5 break-all hover:text-[#11518b];
+}
+.lead-directory-context,
+.lead-directory-activity {
+  @apply grid gap-1.5 text-sm text-slate-600;
+}
+.lead-directory-context > p:first-child,
+.lead-directory-activity > p:first-child {
+  @apply text-slate-800;
+}
+.lead-directory-context svg,
+.lead-directory-activity svg {
+  @apply mt-0.5 shrink-0 text-[#11518b];
+}
+.lead-directory-actions {
+  @apply flex items-center gap-2 lg:justify-end;
+}
+.lead-detail-overview {
+  @apply grid min-w-0 gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center;
+}
+.lead-detail-contact-actions {
+  @apply flex flex-wrap gap-2;
+}
+.lead-detail-contact-actions a {
+  @apply inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 transition hover:border-[#11518b] hover:bg-[#11518b]/5 hover:text-[#11518b];
+}
+
+@media (max-width: 639px) {
+  .lead-directory-summary > div:nth-child(odd) {
+    @apply border-r border-slate-100;
+  }
+  .lead-directory-summary > div:last-child {
+    @apply col-span-2 border-r-0;
+  }
+  .lead-directory-row {
+    @apply gap-3;
+  }
+}
 .property-edit-action,
 .admin-actions-trigger {
   @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#11518b] bg-white px-3 text-sm font-semibold text-[#11518b] transition hover:bg-[#11518b]/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#11518b]/30;

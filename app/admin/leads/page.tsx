@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { UsersRound } from "lucide-react";
+import { Building2, CalendarClock, ExternalLink, Mail, Phone, UsersRound } from "lucide-react";
+import { AdminActionsMenu } from "@/components/admin/AdminActionsMenu";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import {
@@ -29,6 +30,17 @@ function SourceBadge({ source }: { source: CanonicalLeadSourceType }) {
   return <span className="inline-flex rounded-full border border-[#d9d9d9] bg-[#f8f8f8] px-2.5 py-1 text-xs font-semibold text-[#334155]">{CANONICAL_LEAD_SOURCE_LABELS[source]}</span>;
 }
 
+function statusClasses(status: string) {
+  return {
+    new: "border-sky-200 bg-sky-50 text-sky-800",
+    active: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    on_hold: "border-amber-200 bg-amber-50 text-amber-900",
+    closed: "border-slate-200 bg-slate-100 text-slate-700",
+    do_not_contact: "border-red-200 bg-red-50 text-red-800",
+    archived: "border-slate-200 bg-slate-100 text-slate-700",
+  }[status] ?? "border-slate-200 bg-slate-50 text-slate-700";
+}
+
 function directoryHref(filters: UnifiedDirectoryFilters, page: number) {
   const params = new URLSearchParams();
   if (filters.search) params.set("q", filters.search);
@@ -48,25 +60,38 @@ function LeadResultCard({ item }: { item: UnifiedDirectoryItem }) {
   const title = isCase ? item.memberNames.join(" + ") : item.name;
   const href = isCase ? `/admin/leads/casos/${item.id}` : `/admin/leads/${item.id}`;
   return (
-    <article className={`min-w-0 rounded-3xl border p-5 ${isCase ? "border-blue-200 bg-blue-50/60" : "border-[#e8e8e8] bg-white"}`}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="break-words text-lg font-semibold text-[#000000]">{title}</h3>
-          <p className="mt-1 text-sm font-semibold text-[#334155]">{isCase ? `Caso compartido · ${item.personCount} personas` : "1 persona"}</p>
+    <article className={`lead-directory-row ${isCase ? "is-case" : ""}`}>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="break-words text-base font-semibold text-slate-950">{title}</h3>
+          <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClasses(item.status)}`}>{UNIFIED_STATUS_LABELS[item.status as keyof typeof UNIFIED_STATUS_LABELS] ?? item.status}</span>
+          {isCase && <span className="inline-flex rounded-full border border-[#d4af37]/30 bg-[#d4af37]/15 px-2.5 py-1 text-xs font-semibold text-[#725900]">Caso · {item.personCount} personas</span>}
         </div>
-        <span className="rounded-full bg-[#11518b]/10 px-3 py-1 text-xs font-semibold text-[#11518b]">{UNIFIED_STATUS_LABELS[item.status as keyof typeof UNIFIED_STATUS_LABELS] ?? item.status}</span>
+        {isCase && <p className="mt-1 break-words text-sm text-slate-600">{item.name}</p>}
+        <div className="lead-directory-contact">
+          {item.email && <a href={`mailto:${item.email}`}><Mail aria-hidden="true" size={15} /><span>{item.email}</span></a>}
+          {item.phone && <a href={`tel:${item.phone.replace(/[^+\d]/g, "")}`}><Phone aria-hidden="true" size={15} /><span>{item.phone}</span></a>}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-1.5">{item.sourceTypes.map((source) => <SourceBadge key={source} source={source} />)}</div>
       </div>
-      {isCase && <p className="mt-3 break-words text-sm text-[#4d4d4d]">{item.name}</p>}
-      {(item.email || item.phone) && <div className="mt-3 grid gap-1 text-sm text-[#334155]">{item.email && <p className="break-all">{item.email}</p>}{item.phone && <p>{item.phone}</p>}</div>}
-      <div className="mt-4 flex flex-wrap gap-1.5">{item.sourceTypes.map((source) => <SourceBadge key={source} source={source} />)}</div>
-      {item.contextTitle && <p className="mt-4 break-words text-sm"><span className="font-semibold">Propiedad:</span> {item.contextTitle}</p>}
-      <div className="mt-4 grid gap-1 text-xs text-[#6b7280]">
+      <div className="lead-directory-context">
+        {item.contextTitle ? <p className="flex min-w-0 items-start gap-2"><Building2 aria-hidden="true" size={16} /><span className="min-w-0 break-words">{item.contextTitle}</span></p> : <p>Sin propiedad asociada</p>}
         <p>{item.sourceCount} interacción{item.sourceCount === 1 ? "" : "es"}</p>
-        <p>Última actividad: {formatDate(item.lastActivityAt)}</p>
-        {item.nextFollowUpAt && <p className="font-semibold text-[#8a5b00]">Seguimiento: {formatDate(item.nextFollowUpAt)}</p>}
-        {item.entityType === "lead" && item.sharedContact && <p className="font-semibold text-[#11518b]">Contacto compartido</p>}
+        {item.entityType === "lead" && item.sharedContact && <p className="font-semibold text-amber-800">Contacto compartido</p>}
       </div>
-      <Link aria-label={`Ver detalles de ${title}`} className="btn-secondary mt-5 w-full px-4 py-2.5 text-center text-sm" href={href}>Ver detalles</Link>
+      <div className="lead-directory-activity">
+        <p className="flex items-start gap-2"><CalendarClock aria-hidden="true" size={16} /><span><strong>Última actividad</strong><br />{formatDate(item.lastActivityAt)}</span></p>
+        {item.nextFollowUpAt ? <p className="font-semibold text-amber-800">Seguimiento<br />{formatDate(item.nextFollowUpAt)}</p> : <p>Sin seguimiento programado</p>}
+      </div>
+      <div className="lead-directory-actions">
+        <Link aria-label={`Abrir ${isCase ? "caso" : "lead"} de ${title}`} className="property-edit-action" href={href}>Ver detalles <ExternalLink aria-hidden="true" size={15} /></Link>
+        <AdminActionsMenu compact label={`Acciones de ${title}`}>
+          <Link role="menuitem" className="admin-actions-item" href={href}><span aria-hidden="true"><ExternalLink size={17} /></span><span>Ver detalle</span></Link>
+          {item.email && <a role="menuitem" className="admin-actions-item" href={`mailto:${item.email}`}><span aria-hidden="true"><Mail size={17} /></span><span>Enviar correo</span></a>}
+          {item.phone && <a role="menuitem" className="admin-actions-item" href={`tel:${item.phone.replace(/[^+\d]/g, "")}`}><span aria-hidden="true"><Phone size={17} /></span><span>Llamar</span></a>}
+          <Link role="menuitem" className="admin-actions-item" href="/admin/leads/seguimientos"><span aria-hidden="true"><CalendarClock size={17} /></span><span>Ver seguimientos</span></Link>
+        </AdminActionsMenu>
+      </div>
     </article>
   );
 }
@@ -125,10 +150,10 @@ export default async function AdminLeadsPage({ searchParams }: { searchParams: P
         eyebrow="Relaciones con clientes" title="Leads"
       />
       {failed ? <section className="surface-card border-l-4 border-red-500 p-6" role="alert"><h2 className="text-lg font-semibold">No se pudo cargar el directorio</h2><p className="mt-2 text-sm text-[#4d4d4d]">Intenta nuevamente. No se modificó ningún dato.</p></section> : <>
-        <section aria-label="Resumen de leads" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {[["Identidades", reference.summary.total, "Personas canónicas activas"], ["Nuevos hoy", reference.summary.newToday, "Creados hoy"], ["Últimos 7 días", reference.summary.newLast7Days, "Personas recientes"], ["Registro prioritario", reference.summary.withPriorityRegistration, "Con esta fuente"], ["Múltiples interacciones", reference.summary.withMultipleInteractions, "Más de un formulario"]].map(([label, value, detail]) => <div className="surface-card p-5" key={String(label)}><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d4af37]">{label}</p><p className="mt-3 text-3xl font-bold">{value}</p><p className="mt-2 text-sm text-[#4d4d4d]">{detail}</p></div>)}
+        <section aria-label="Resumen de leads" className="lead-directory-summary">
+          {[["Identidades", reference.summary.total, "Personas activas"], ["Nuevos hoy", reference.summary.newToday, "Ingresos recientes"], ["Últimos 7 días", reference.summary.newLast7Days, "Personas recientes"], ["Registro prioritario", reference.summary.withPriorityRegistration, "Con esta fuente"], ["Múltiples interacciones", reference.summary.withMultipleInteractions, "Más de un formulario"]].map(([label, value, detail]) => <div key={String(label)}><p>{label}</p><strong>{value}</strong><small>{detail}</small></div>)}
         </section>
-        <section className="surface-card p-5">
+        <section className="lead-filter-bar">
           {selectedProperty && (
             <div
               className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3"
@@ -169,9 +194,9 @@ export default async function AdminLeadsPage({ searchParams }: { searchParams: P
             <div className="flex flex-wrap items-end gap-3 lg:col-span-5"><button className="btn-primary" type="submit">Aplicar filtros</button><Link className="btn-secondary" href="/admin/leads">Limpiar</Link></div>
           </form>
         </section>
-        <section className="surface-card overflow-hidden">
+        <section className="lead-directory-surface">
           <header className="border-b border-[#eeeeee] px-5 py-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="eyebrow">{filters.showIndividuals ? "Vista de identidades" : "Vista operativa"}</p><h2 className="mt-2 text-2xl font-semibold">{filters.showIndividuals ? "Personas individuales" : "Personas y casos compartidos"}</h2></div><p className="text-sm text-[#4d4d4d]">{directory.total} resultado{directory.total === 1 ? "" : "s"} · {CANONICAL_LEAD_PAGE_SIZE} por página</p></div></header>
-          {directory.items.length ? <div className="grid min-w-0 gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">{directory.items.map((item) => <LeadResultCard item={item} key={`${item.entityType}-${item.id}`} />)}</div> : <div className="px-6 py-14 text-center"><UsersRound className="mx-auto h-8 w-8 text-[#11518b]" /><h3 className="mt-3 text-lg font-semibold">{hasFilters ? "No hay resultados" : "No hay leads todavía"}</h3><p className="mt-2 text-sm text-[#4d4d4d]">{propertyResolution.invalid ? "La propiedad seleccionada no está disponible para filtrar." : selectedProperty && propertyResolution.rawInteractionCount > 0 ? "Esta propiedad tiene actividad registrada, pero todavía no hay personas o casos identificados para mostrar." : selectedProperty ? "No hay personas o casos asociados con esta propiedad." : hasFilters ? "Ajusta o limpia los filtros." : "Las personas y casos aparecerán aquí."}</p></div>}
+          {directory.items.length ? <div className="lead-directory-list">{directory.items.map((item) => <LeadResultCard item={item} key={`${item.entityType}-${item.id}`} />)}</div> : <div className="px-6 py-14 text-center"><UsersRound className="mx-auto h-8 w-8 text-[#11518b]" /><h3 className="mt-3 text-lg font-semibold">{hasFilters ? "No hay resultados" : "No hay leads todavía"}</h3><p className="mt-2 text-sm text-[#4d4d4d]">{propertyResolution.invalid ? "La propiedad seleccionada no está disponible para filtrar." : selectedProperty && propertyResolution.rawInteractionCount > 0 ? "Esta propiedad tiene actividad registrada, pero todavía no hay personas o casos identificados para mostrar." : selectedProperty ? "No hay personas o casos asociados con esta propiedad." : hasFilters ? "Ajusta o limpia los filtros." : "Las personas y casos aparecerán aquí."}</p></div>}
           {directory.totalPages > 1 && <nav aria-label="Paginación de leads" className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eeeeee] px-5 py-4"><p className="text-sm">Página {filters.page} de {directory.totalPages}</p><div className="flex gap-2">{filters.page > 1 && <Link className="btn-secondary" href={directoryHref(filters, filters.page - 1)}>Anterior</Link>}{filters.page < directory.totalPages && <Link className="btn-secondary" href={directoryHref(filters, filters.page + 1)}>Siguiente</Link>}</div></nav>}
         </section>
       </>}
