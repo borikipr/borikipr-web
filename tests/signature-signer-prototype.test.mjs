@@ -102,8 +102,10 @@ const syntheticPrivacyEsPrText = "Aviso sintético de privacidad para pruebas ai
 const syntheticPrivacyEnUsText = "Synthetic privacy notice for isolated technical testing only.";
 const syntheticPrivacyEsPrSha = sha256SignatureValue(syntheticPrivacyEsPrText);
 const syntheticPrivacyEnUsSha = sha256SignatureValue(syntheticPrivacyEnUsText);
+const syntheticConsentEnUsText = "I consent to use Borikí Signing for this isolated technical signing test.";
+const syntheticConsentEnUsSha = sha256SignatureValue(syntheticConsentEnUsText);
 
-async function syntheticRequest({ participants = 1 } = {}) {
+async function syntheticRequest({ participants = 1, locale = "es-PR" } = {}) {
   const documentId = randomUUID(); const sourceSha256 = sha256SignatureValue(sourceBytes);
   const draft = await services.createDraftWithVersion({ documentId, title: "Synthetic Phase 2D signing request",
     documentType: "ordinary_brokerage_agreement", createdByAdminId: adminId, filename: "synthetic.pdf",
@@ -143,8 +145,11 @@ async function syntheticRequest({ participants = 1 } = {}) {
     RETURNING id::text`, [new Date("2031-01-01T00:00:00Z")])).rows[0];
   const consent = (await db.query(`INSERT INTO public.signature_consent_versions
     (version_identifier,locale,consent_text,consent_text_sha256,status,effective_from,approval_reference,created_by_admin_id,legacy_imported,approval_mode)
-    VALUES ('phase2d-synthetic-v1','es-PR',$1,$2,'approved',$3,'synthetic-test-only',$4::uuid,true,'internal_business') RETURNING id::text`,
-    [syntheticConsentText, syntheticConsentSha, new Date("2031-01-01T00:00:00Z"), adminId])).rows[0];
+    VALUES ($1,$2,$3,$4,'approved',$5,'synthetic-test-only',$6::uuid,true,'internal_business') RETURNING id::text`,
+    [locale === "en-US" ? "phase2d-synthetic-en-us-v1" : "phase2d-synthetic-v1", locale,
+      locale === "en-US" ? syntheticConsentEnUsText : syntheticConsentText,
+      locale === "en-US" ? syntheticConsentEnUsSha : syntheticConsentSha,
+      new Date("2031-01-01T00:00:00Z"), adminId])).rows[0];
   await db.query(`UPDATE public.signature_documents SET document_type_approval_reference='synthetic-test-only',
     document_type_approval_id=$2::uuid, consent_version_id=$3::uuid,
     privacy_disclosure_version=$5, privacy_disclosure_es_pr_sha256=$6,
@@ -510,4 +515,12 @@ test("signer routes enforce the server gate, same-origin POSTs, private headers,
   assert.equal(documentViewer.match(/<Image/g)?.length, 1);
   assert.match(documentViewer, /signer-document-scroll/);
   assert.match(await readFile(path.join(root, "app/globals.css"), "utf8"), /signer-document-scroll[\s\S]*max-h-\[(?:78vh|calc\(100vh-10rem\))\][\s\S]*overscroll-contain/);
+});
+
+test("an en-US signer context resolves the approved English consent without Spanish fallback", async () => {
+  const { session } = await sessionFixture({ locale: "en-US" });
+  const context = await services.getSessionContext({ sessionId: session.sessionId, sessionSecret: session.sessionSecret });
+  assert.equal(context.consentLocale, "en-US");
+  assert.equal(context.consentVersion, "phase2d-synthetic-en-us-v1");
+  assert.equal(context.consentTextSha256, syntheticConsentEnUsSha);
 });
