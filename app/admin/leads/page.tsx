@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Building2, CalendarClock, ExternalLink, Mail, Phone, UsersRound } from "lucide-react";
 import { AdminActionsMenu } from "@/components/admin/AdminActionsMenu";
+import { LeadsPagination } from "@/components/admin/LeadsPagination";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import {
@@ -197,7 +198,7 @@ export default async function AdminLeadsPage({ searchParams }: { searchParams: P
         <section className="lead-directory-surface">
           <header className="border-b border-[#eeeeee] px-5 py-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="eyebrow">{filters.showIndividuals ? "Vista de identidades" : "Vista operativa"}</p><h2 className="mt-2 text-2xl font-semibold">{filters.showIndividuals ? "Personas individuales" : "Personas y casos compartidos"}</h2></div><p className="text-sm text-[#4d4d4d]">{directory.total} resultado{directory.total === 1 ? "" : "s"} · {CANONICAL_LEAD_PAGE_SIZE} por página</p></div></header>
           {directory.items.length ? <div className="lead-directory-list">{directory.items.map((item) => <LeadResultCard item={item} key={`${item.entityType}-${item.id}`} />)}</div> : <div className="px-6 py-14 text-center"><UsersRound className="mx-auto h-8 w-8 text-[#11518b]" /><h3 className="mt-3 text-lg font-semibold">{hasFilters ? "No hay resultados" : "No hay leads todavía"}</h3><p className="mt-2 text-sm text-[#4d4d4d]">{propertyResolution.invalid ? "La propiedad seleccionada no está disponible para filtrar." : selectedProperty && propertyResolution.rawInteractionCount > 0 ? "Esta propiedad tiene actividad registrada, pero todavía no hay personas o casos identificados para mostrar." : selectedProperty ? "No hay personas o casos asociados con esta propiedad." : hasFilters ? "Ajusta o limpia los filtros." : "Las personas y casos aparecerán aquí."}</p></div>}
-          {directory.totalPages > 1 && <nav aria-label="Paginación de leads" className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eeeeee] px-5 py-4"><p className="text-sm">Página {filters.page} de {directory.totalPages}</p><div className="flex gap-2">{filters.page > 1 && <Link className="btn-secondary" href={directoryHref(filters, filters.page - 1)}>Anterior</Link>}{filters.page < directory.totalPages && <Link className="btn-secondary" href={directoryHref(filters, filters.page + 1)}>Siguiente</Link>}</div></nav>}
+          <LeadsPagination currentPage={filters.page} hrefForPage={(page) => directoryHref(filters, page)} totalPages={directory.totalPages} />
         </section>
       </>}
     </AdminPageShell>

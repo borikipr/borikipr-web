@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { Activity, BarChart3, ChartNoAxesCombined, MousePointer2, Users } from "lucide-react";
 import { AnalyticsRefreshControls } from "@/components/admin/analytics/AnalyticsRefreshControls";
@@ -19,12 +20,19 @@ type OverviewMetric = {
 };
 
 type ProviderLink = {
+ id: "ga4" | "clarity" | "vercel";
  eyebrow: string;
  title: string;
  description: string;
  href: string;
  buttonLabel: string;
 };
+
+const PROVIDER_BRANDING = {
+ ga4: { alt: "Google Analytics", src: "/providers/google-analytics.svg" },
+ clarity: { alt: "Microsoft Clarity", src: "/providers/microsoft-clarity.svg" },
+ vercel: { alt: "Vercel", src: "/providers/vercel-analytics.svg" },
+} as const;
 
 function formatMetric(value: number | undefined) {
  return typeof value === "number" ? value.toLocaleString("es-PR") : "Pendiente";
@@ -137,13 +145,16 @@ function ProviderStatusCard({
      >
       <div className="flex h-full flex-col justify-between gap-4">
        <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="flex min-w-0 items-start gap-2.5">
+         {PROVIDER_BRANDING[provider.id as keyof typeof PROVIDER_BRANDING] && <Image alt="" aria-hidden="true" className="analytics-provider-logo is-status" height={24} src={PROVIDER_BRANDING[provider.id as keyof typeof PROVIDER_BRANDING].src} width={24} />}
+         <div>
          <h3 className="text-base font-semibold text-[#000000]">
           {provider.name}
          </h3>
          <p className="mt-2 text-sm leading-relaxed text-[#4d4d4d]">
           {provider.description}
          </p>
+         </div>
         </div>
         <span
          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${statusStyles(
@@ -162,15 +173,17 @@ function ProviderStatusCard({
 }
 
 function ProviderLinkCard({
+ id,
  eyebrow,
  title,
  description,
  href,
  buttonLabel,
 }: ProviderLink) {
+ const brand = PROVIDER_BRANDING[id];
  return (
   <div className="analytics-provider-link">
-   <p>{eyebrow}</p><h2>{title}</h2><p>
+   <div className="analytics-provider-brand"><Image alt="" aria-hidden="true" className="analytics-provider-logo" height={28} src={brand.src} width={28} /><p>{eyebrow}</p></div><h2>{title}</h2><p>
     {description}
    </p>
    <div className="mt-auto pt-4">
@@ -230,6 +243,7 @@ export default async function AdminAnalyticsPage({
 
  const providerLinks: ProviderLink[] = [
   {
+   id: "ga4",
    eyebrow: "Google Analytics 4",
    title: "Tráfico y conversiones",
    description:
@@ -238,6 +252,7 @@ export default async function AdminAnalyticsPage({
    buttonLabel: "Ver GA4",
   },
   {
+   id: "clarity",
    eyebrow: "Microsoft Clarity",
    title: "Comportamiento del usuario",
    description:
@@ -246,6 +261,7 @@ export default async function AdminAnalyticsPage({
    buttonLabel: "Ver Clarity",
   },
   {
+   id: "vercel",
    eyebrow: "Vercel Analytics",
    title: "Web analytics técnico",
    description:

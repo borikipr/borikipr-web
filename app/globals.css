@@ -1750,9 +1750,25 @@ textarea {
 .analytics-kpi small { display:block; margin-top:.25rem; color:rgb(100 116 139); font-size:.75rem; line-height:1.35; }
 .analytics-provider-status { border-bottom:1px solid rgb(241 245 249); padding:.85rem 0; }
 .analytics-provider-link { min-height:11rem; border:1px solid rgb(226 232 240); border-radius:.75rem; background:#fff; padding:1rem; }
+.analytics-provider-brand { display:flex; align-items:center; gap:.55rem; }
+.analytics-provider-logo { display:block; flex:none; height:1.75rem; width:1.75rem; object-fit:contain; }
+.analytics-provider-logo.is-status { height:1.35rem; width:1.35rem; margin-top:.05rem; }
 .analytics-provider-link h2 { margin-top:.55rem; color:rgb(15 23 42); font-size:1.05rem; font-weight:700; }
 .analytics-provider-link>p:nth-child(3) { margin-top:.5rem; color:rgb(71 85 105); font-size:.875rem; line-height:1.45; }
 @media(max-width:639px){.analytics-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:.55rem}.analytics-kpi{display:block}.analytics-kpi-icon{margin-bottom:.55rem}.analytics-overview-header,.analytics-provider-health{padding:1rem}}
+
+/* Admin 2.0 — Leads pagination */
+.lead-pagination { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem; border-top:1px solid #eee; padding:1rem 1.25rem; }
+.lead-pagination-controls,.lead-pagination-pages { display:flex; align-items:center; gap:.25rem; }
+.lead-pagination-controls { min-width:0; }
+.lead-pagination-page,.lead-pagination-control { display:inline-flex; min-height:2.5rem; align-items:center; justify-content:center; gap:.25rem; border:1px solid rgb(203 213 225); border-radius:.5rem; padding:0 .7rem; color:rgb(30 41 59); font-size:.875rem; font-weight:650; }
+.lead-pagination-page { width:2.5rem; padding:0; }
+.lead-pagination-page:hover,.lead-pagination-control:hover { border-color:rgb(17 81 139); background:rgb(239 246 255); color:rgb(17 81 139); }
+.lead-pagination-page:focus-visible,.lead-pagination-control:focus-visible { outline:3px solid rgb(212 175 55 / .45); outline-offset:2px; }
+.lead-pagination-page.is-current { border-color:rgb(15 27 42); background:rgb(15 27 42); color:#fff; }
+.lead-pagination-control.is-disabled { border-color:rgb(226 232 240); color:rgb(148 163 184); cursor:not-allowed; }
+.lead-pagination-ellipsis { display:grid; width:1.25rem; height:2.5rem; place-items:center; color:rgb(100 116 139); }
+@media(max-width:639px){.lead-pagination{display:grid;padding:1rem}.lead-pagination-controls{width:100%;justify-content:space-between}.lead-pagination-pages{justify-content:center;min-width:0}.lead-pagination-control{width:2.5rem;padding:0}.lead-pagination-page{width:2.25rem;min-height:2.4rem}.lead-pagination-ellipsis{width:1rem;}}
 
 @media (max-width: 960px) {
   .testimonial-directory-row { grid-template-columns: minmax(12rem, 0.75fr) minmax(15rem, 1.4fr) auto; }
