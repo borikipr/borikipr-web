@@ -10,6 +10,8 @@ import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/databas
 import { getSignatureGovernanceReadiness } from "@/lib/signatures/governance-readiness";
 import { getSignatureOperationalSnapshot } from "@/lib/signatures/monitoring";
 import { getSignatureRetentionPreview } from "@/lib/signatures/governance-workflow";
+import { isProductionInternalCanaryCapabilityEnabled, isPublicSigningEnabled } from "@/lib/signatures/public-config";
+import { inspectProductionPublicLaunchGate } from "@/lib/signatures/public-launch";
 import { GovernanceForms } from "./GovernanceForms";
 
 export const dynamic = "force-dynamic";
@@ -54,16 +56,12 @@ const OPERATIONAL_CHECKS: ReadonlyArray<Readonly<{
 }>> = [
   { label: "DMARC del dominio remitente", state: "PASS", owner: "Operador DNS", evidence: "DMARC presente con p=none (monitoreo)." },
   { label: "Límites de cuenta de Resend", state: "WARNING", owner: "Operador Resend", evidence: "Cuenta Free verificada manualmente: 100/día y 3,000/mes; el API no expone el rate limit específico." },
-  { label: "Restauración aislada de Neon", state: "BLOCKED", owner: "Operador Neon", evidence: "Falta una restauración real en rama/base aislada; las pruebas de migración no sustituyen un restore." },
-  { label: "Recuperación de objetos R2", state: "WARNING", owner: "Operador Cloudflare", evidence: "Copia privada controlada y restauración byte por byte probadas con objeto sintético; falta respaldo independiente del mismo bucket/cuenta." },
   { label: "Simulacro habilitado de escritorio", state: "PASS", owner: "QA", evidence: "Flujo Chromium sintético habilitado completado en ambiente aislado." },
   { label: "Simulacro habilitado móvil/touch", state: "PASS", owner: "QA", evidence: "Touch real emulado, dibujo y finalización completados en ambiente aislado." },
   { label: "PDF máximo (25/8/100)", state: "PASS", owner: "Ingeniería", evidence: "Flujo real de navegador, finalización, PDF/certificado e integridad visual completados; interacción táctil genuina validada." },
   { label: "Retenciones legales persistentes", state: "PASS", owner: "Ingeniería / Admin", evidence: "Persistencia, prioridad sobre retención, liberación explícita e historial inmutable validados." },
   { label: "Puerta interna de canary", state: "PASS", owner: "Ingeniería / lanzamiento", evidence: "Separada de firma pública; exige bandera servidor, hash de readiness y autorización vigente con participante y clasificación exactos." },
   { label: "Flujo de mutación de gobernanza", state: "PASS", owner: "Ingeniería / Admin", evidence: "Borrador, revisión, aprobación interna normal, revisión externa opcional, confirmación fuerte e historial inmutable." },
-  { label: "Autorización de canary de producción", state: "BLOCKED", owner: "Propietario / operador", evidence: "Infraestructura de alcance y expiración disponible; no existe autorización de producción y no se creó en esta fase." },
-  { label: "Autorización de lanzamiento público", state: "BLOCKED", owner: "Propietario / legal", evidence: "READY no equivale a ENABLED; requiere autorización humana separada." },
 ];
 
 const SUPPORT = [
@@ -80,7 +78,7 @@ const SUPPORT = [
 export default async function SignatureGovernancePage() {
   if (!(await getAdminSession())) redirect("/admin/login");
   const database = createPostgresSignatureDatabase(sql);
-  const [readiness, monitoring, retentionPreview, classifications, consents, privacy, retention, documents, legalHolds, launchAuthorizations] = await Promise.all([
+  const [readiness, monitoring, retentionPreview, classifications, consents, privacy, retention, documents, legalHolds, launchAuthorizations, publicLaunchGate] = await Promise.all([
     getSignatureGovernanceReadiness(database),
     getSignatureOperationalSnapshot(database),
     getSignatureRetentionPreview(database),
@@ -91,7 +89,17 @@ export default async function SignatureGovernancePage() {
     database.unsafe<{id:string;title:string;status:string;document_type:string;participant_emails:string[]}>(`SELECT d.id::text,d.title,d.status,d.document_type,coalesce(array_agg(p.normalized_email ORDER BY p.normalized_email) FILTER (WHERE p.id IS NOT NULL),ARRAY[]::text[]) participant_emails FROM signature_documents d LEFT JOIN signature_document_versions v ON v.id=d.active_version_id LEFT JOIN signature_participants p ON p.document_version_id=v.id WHERE d.status='draft' GROUP BY d.id,d.title,d.status,d.document_type,d.created_at ORDER BY d.created_at DESC LIMIT 100`),
     database.unsafe<{id:string;reason_reference:string}>(`SELECT id::text,reason_reference FROM signature_legal_holds WHERE status='active' ORDER BY created_at DESC`),
     database.unsafe<{id:string;expires_at:Date}>(`SELECT id::text,expires_at FROM signature_launch_authorizations WHERE environment='production' AND authorization_type='internal_canary' AND status='active' AND expires_at>now() ORDER BY authorized_at DESC`),
+    inspectProductionPublicLaunchGate(database),
   ]);
+  const publicFlag = isPublicSigningEnabled();
+  const internalCanaryEnabled = isProductionInternalCanaryCapabilityEnabled();
+  const neonRecoveryProven = !publicLaunchGate.blockers.includes("neon_restore_unproven");
+  const r2RecoveryProven = !publicLaunchGate.blockers.includes("r2_independent_recovery_unproven");
+  const publicGateState: ReadinessState = publicLaunchGate.allowed ? "PASS" : "BLOCKED";
+  const recoveryChecks: ReadonlyArray<Readonly<{ label: string; state: ReadinessState; owner: string; evidence: string }>> = [
+    { label: "Restauración aislada de Neon", state: neonRecoveryProven ? "PASS" : "BLOCKED", owner: "Operador Neon", evidence: neonRecoveryProven ? "Prueba de recuperación registrada y aceptada por la puerta canónica." : "Falta evidencia de recuperación válida para la puerta pública." },
+    { label: "Recuperación independiente de objetos R2", state: r2RecoveryProven ? "PASS" : "BLOCKED", owner: "Operador Cloudflare", evidence: r2RecoveryProven ? "Prueba independiente registrada y aceptada por la puerta canónica." : "Falta evidencia independiente de recuperación válida para la puerta pública." },
+  ];
   const governanceDrafts = {
     classifications: classifications.map((row) => ({ id: row.id, label: `${row.document_type} v${row.version_number} · ${row.status}`, status: row.status })),
     consents: consents.map((row) => ({ id: row.id, label: `${row.locale} · ${row.version_identifier} · ${row.status}`, status: row.status,reviewText:row.consent_text,reviewHash:row.consent_text_sha256 })),
@@ -106,7 +114,8 @@ export default async function SignatureGovernancePage() {
     ...readiness.consentSlots.map((slot) => ({ label: `Consentimiento ${slot.locale}`, state: slot.approved ? "PASS" as const : "BLOCKED" as const, owner: "Erickson Real Estate / revisión externa opcional", evidence: slot.approved ? "Versión aprobada y vigente." : "Falta texto exacto, referencia, fecha efectiva y aprobación humana." })),
     ...readiness.privacySlots.map((slot) => ({ label: `Privacidad ${slot.locale}`, state: slot.approved ? "PASS" as const : "BLOCKED" as const, owner: "Privacidad / operador autorizado", evidence: slot.approved ? "Texto aprobado, vigente y ligado a un snapshot bilingüe inmutable." : "Falta una versión aprobada y vigente que incluya este locale." })),
     { label: "Política de retención", state: readiness.retention.configured ? "PASS" as const : "BLOCKED" as const, owner: "Legal / negocio / operador", evidence: readiness.retention.configured ? "Configuración validada; evidencia completada protegida según política." : "La ausencia mantiene toda limpieza desactivada y bloquea lanzamiento." },
-    { label: "Bandera de firma pública desactivada", state: readiness.publicSigningEnabled ? "WARNING" as const : "PASS" as const, owner: "Propietario / lanzamiento", evidence: readiness.publicSigningEnabled ? "Habilitada; revisar autorización inmediatamente." : "Desactivada. READY no equivale a ENABLED." },
+    ...recoveryChecks,
+    { label: "Lanzamiento público", state: publicGateState, owner: "Propietario / lanzamiento", evidence: publicLaunchGate.allowed ? "Bandera, autorización pública, hash de readiness y controles canónicos vigentes." : `Bloqueado por: ${publicLaunchGate.blockers.join(", ") || "un control canónico pendiente"}.` },
     ...OPERATIONAL_CHECKS,
   ];
   return <AdminPageShell>
@@ -136,9 +145,9 @@ export default async function SignatureGovernancePage() {
 
     <section className="scroll-mt-24 space-y-3" id="retencion"><SectionHeader title="Retención" description="La ausencia de una política válida mantiene toda limpieza desactivada."/><div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]"><div className="surface-card p-5">{readiness.retention.configured&&readiness.retention.policy?<><div className="flex items-center justify-between"><p className="font-semibold">Versión {readiness.retention.policy.version}</p><StatusBadge variant="green">Activa</StatusBadge></div><dl className="admin-meta-grid mt-4 text-sm"><div><dt>PDF completado</dt><dd>{readiness.retention.policy.completedCleanupEnabled?`${readiness.retention.policy.completedPdfDays} días`:"Preservación"}</dd></div><div><dt>Tokens</dt><dd>{readiness.retention.policy.tokenDays} días</dd></div><div><dt>Sesiones</dt><dd>{readiness.retention.policy.sessionHours} horas</dd></div></dl></>:<div className="flex items-center justify-between gap-4"><p className="text-sm text-slate-600">No hay política aprobada y activa.</p><StatusBadge variant="red">Bloqueado</StatusBadge></div>}</div><div className="surface-card p-5"><h3 className="font-semibold">Vista previa agregada</h3><p className="mt-1 text-xs text-slate-500">No elimina ni modifica registros.</p><dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5"><SummaryCard label="Borradores" value={retentionPreview.drafts}/><SummaryCard label="Sesiones" value={retentionPreview.sessions}/><SummaryCard label="Tokens" value={retentionPreview.tokens}/><SummaryCard label="Protegidos" value={retentionPreview.completed}/><SummaryCard label="Retenciones legales" value={retentionPreview.legal_holds}/></dl></div></div></section>
 
-    <section className="scroll-mt-24 space-y-3" id="recuperacion"><SectionHeader title="Recuperación" description="Evidencia operacional y decisiones de riesgo separadas de la activación."/><div className="grid gap-3 md:grid-cols-2">{OPERATIONAL_CHECKS.filter((item)=>item.label.includes("Neon")||item.label.includes("R2")).map((item)=><article className="surface-card p-5" key={item.label}><div className="flex items-start justify-between gap-3"><h3 className="font-semibold">{item.label}</h3><StatusBadge variant={readinessVariant(item.state)}>{READINESS_LABELS[item.state]}</StatusBadge></div><p className="mt-3 text-sm text-slate-600">{item.evidence}</p><p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Responsable: {item.owner}</p></article>)}</div></section>
+    <section className="scroll-mt-24 space-y-3" id="recuperacion"><SectionHeader title="Recuperación" description="Evidencia operacional verificada contra la puerta pública canónica."/><div className="grid gap-3 md:grid-cols-2">{recoveryChecks.map((item)=><article className="surface-card p-5" key={item.label}><div className="flex items-start justify-between gap-3"><h3 className="font-semibold">{item.label}</h3><StatusBadge variant={readinessVariant(item.state)}>{READINESS_LABELS[item.state]}</StatusBadge></div><p className="mt-3 text-sm text-slate-600">{item.evidence}</p><p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Responsable: {item.owner}</p></article>)}</div></section>
 
-    <section className="scroll-mt-24 space-y-3" id="activacion"><SectionHeader title="Activación" description="Canary interno y firma pública conservan autorizaciones independientes."/><div className="grid gap-4 md:grid-cols-2"><article className="surface-card border-l-4 border-amber-500 p-5"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Canary interno</h3><StatusBadge variant="red">Desactivado</StatusBadge></div><p className="mt-2 text-sm text-slate-600">Requiere autorización vigente, alcance exacto, readiness hash y bandera servidor.</p></article><article className="surface-card border-l-4 border-slate-400 p-5"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Firma pública</h3><StatusBadge variant="red">Desactivada</StatusBadge></div><p className="mt-2 text-sm text-slate-600">Requiere autorización humana separada. El canary nunca la habilita.</p></article></div></section>
+    <section className="scroll-mt-24 space-y-3" id="activacion"><SectionHeader title="Activación" description="Canary interno y firma pública conservan autorizaciones independientes."/><div className="grid gap-4 md:grid-cols-2"><article className="surface-card border-l-4 border-amber-500 p-5"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Canary interno</h3><StatusBadge variant={internalCanaryEnabled ? "amber" : "gray"}>{internalCanaryEnabled ? "Activo con validación" : "Desactivado"}</StatusBadge></div><p className="mt-2 text-sm text-slate-600">Requiere autorización vigente, alcance exacto, readiness hash y bandera servidor.</p></article><article className="surface-card border-l-4 border-slate-400 p-5"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Firma pública</h3><StatusBadge variant={readinessVariant(publicGateState)}>{publicLaunchGate.allowed ? "Activa" : publicFlag ? "Habilitada · bloqueada" : "Desactivada"}</StatusBadge></div><p className="mt-2 text-sm text-slate-600">{publicLaunchGate.allowed ? "La autorización pública y el readiness actual coinciden con la configuración de producción." : "La puerta pública permanece cerrada hasta que todos sus controles canónicos coincidan."}</p></article></div></section>
 
     <GovernanceForms drafts={governanceDrafts} />
 
