@@ -3,6 +3,7 @@ import * as bcrypt from "bcryptjs";
 import { Resend } from "resend";
 import { sql } from "@/lib/db";
 import type { AdminSessionUser } from "@/lib/admin/auth";
+import { deleteEligiblePublicMediaObject, extractManagedPublicObjectKey } from "@/lib/r2";
 import {
   hashOpaqueValue,
   hashPasswordResetToken,
@@ -64,15 +65,21 @@ export async function completeAuthAttempt(id: string, succeeded: boolean) {
 export async function updateOwnAdminProfile({
   admin,
   displayName,
+  professionalTitle,
+  profileImageUrl,
   email,
   currentPassword,
 }: {
   admin: AdminSessionUser;
   displayName: string;
+  professionalTitle: string;
+  profileImageUrl: string;
   email: string;
   currentPassword: string;
 }) {
   const cleanName = displayName.trim();
+  const cleanProfessionalTitle = professionalTitle.trim();
+  const cleanProfileImageUrl = profileImageUrl.trim();
   const cleanEmail = normalizeAdminEmail(email);
   if (!cleanName || cleanName.length > 100) {
     return { ok: false as const, error: "Ingresa un nombre visible válido." };
@@ -80,11 +87,18 @@ export async function updateOwnAdminProfile({
   if (!/^\S+@\S+\.\S+$/.test(cleanEmail) || cleanEmail.length > 254) {
     return { ok: false as const, error: "Ingresa un email válido." };
   }
+  if (cleanProfessionalTitle && (cleanProfessionalTitle.length < 2 || cleanProfessionalTitle.length > 120)) {
+    return { ok: false as const, error: "Ingresa un cargo profesional válido." };
+  }
+  const imageKey = cleanProfileImageUrl ? extractManagedPublicObjectKey(cleanProfileImageUrl) : null;
+  if (cleanProfileImageUrl && (!imageKey || !imageKey.startsWith("perfiles/"))) {
+    return { ok: false as const, error: "La foto de perfil no es válida." };
+  }
 
   try {
-    return await sql.begin(async (transaction) => {
-      const rows = await transaction.unsafe<{ password_hash: string }[]>(
-        `SELECT password_hash
+    const result = await sql.begin(async (transaction) => {
+      const rows = await transaction.unsafe<{ password_hash: string; profile_image_url: string | null }[]>(
+        `SELECT password_hash, profile_image_url
            FROM public.admin_users
           WHERE id = $1::uuid AND activo = true
           FOR UPDATE`,
@@ -95,12 +109,28 @@ export async function updateOwnAdminProfile({
       }
       await transaction.unsafe(
         `UPDATE public.admin_users
-            SET display_name = $2, email = $3
+            SET display_name = $2,
+                professional_title = NULLIF($3, ''),
+                profile_image_url = NULLIF($4, ''),
+                email = $5
           WHERE id = $1::uuid AND activo = true`,
-        [admin.id, cleanName, cleanEmail]
+        [admin.id, cleanName, cleanProfessionalTitle, cleanProfileImageUrl, cleanEmail]
       );
-      return { ok: true as const };
+      return { ok: true as const, previousProfileImageUrl: rows[0].profile_image_url };
     });
+    if (!result.ok) return result;
+
+    const previousKey = result.previousProfileImageUrl
+      ? extractManagedPublicObjectKey(result.previousProfileImageUrl)
+      : null;
+    if (previousKey && previousKey.startsWith("perfiles/") && previousKey !== imageKey) {
+      try {
+        await deleteEligiblePublicMediaObject(previousKey);
+      } catch {
+        return { ok: true as const, cleanupWarning: true };
+      }
+    }
+    return { ok: true as const, cleanupWarning: false };
   } catch (error) {
     if ((error as { code?: string }).code === "23505") {
       return { ok: false as const, error: "Ese email ya está asociado a otra cuenta." };
@@ -138,14 +168,14 @@ export async function changeOwnAdminPassword({
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
     const updated = await transaction.unsafe<
-      { id: string; username: string; display_name: string | null; email: string | null; session_version: number }[]
+      { id: string; username: string; display_name: string | null; email: string | null; professional_title: string | null; profile_image_url: string | null; session_version: number }[]
     >(
       `UPDATE public.admin_users
           SET password_hash = $2,
               password_changed_at = now(),
               session_version = session_version + 1
         WHERE id = $1::uuid
-        RETURNING id::text, username, display_name, email, session_version`,
+        RETURNING id::text, username, display_name, email, professional_title, profile_image_url, session_version`,
       [admin.id, passwordHash]
     );
     await transaction.unsafe(
@@ -162,6 +192,8 @@ export async function changeOwnAdminPassword({
         username: user.username,
         displayName: user.display_name?.trim() || user.username,
         email: user.email,
+        professionalTitle: user.professional_title?.trim() || null,
+        profileImageUrl: user.profile_image_url || null,
         sessionVersion: user.session_version,
       },
     };
@@ -266,14 +298,14 @@ export async function resetAdminPassword(token: string, newPassword: string) {
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
     const updated = await transaction.unsafe<
-      { id: string; username: string; display_name: string | null; email: string | null; session_version: number }[]
+      { id: string; username: string; display_name: string | null; email: string | null; professional_title: string | null; profile_image_url: string | null; session_version: number }[]
     >(
       `UPDATE public.admin_users
           SET password_hash = $2,
               password_changed_at = now(),
               session_version = session_version + 1
         WHERE id = $1::uuid
-        RETURNING id::text, username, display_name, email, session_version`,
+        RETURNING id::text, username, display_name, email, professional_title, profile_image_url, session_version`,
       [resetToken.admin_user_id, passwordHash]
     );
     await transaction.unsafe(
@@ -290,6 +322,8 @@ export async function resetAdminPassword(token: string, newPassword: string) {
         username: user.username,
         displayName: user.display_name?.trim() || user.username,
         email: user.email,
+        professionalTitle: user.professional_title?.trim() || null,
+        profileImageUrl: user.profile_image_url || null,
         sessionVersion: user.session_version,
       },
     };

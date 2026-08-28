@@ -87,9 +87,39 @@ test("admin proxy protects private routes while recovery routes remain public", 
 test("profile is self-service only and username is read-only", () => {
   assert.match(profileSource, /value=\{username\} readOnly/);
   assert.match(profileSource, /name="currentPassword"/);
-  assert.match(profileSource, /Guardar perfil/);
+  assert.match(profileSource, /Guardar cambios/);
   assert.match(profileSource, /Cambiar contraseña/);
   assert.doesNotMatch(profileSource, /crear administrador|invitar/i);
+});
+
+test("professional profile identity remains presentation-only and uses managed avatar media", async () => {
+  const [profilePage, profileActions, accountSource, uploadRoute, authSource, storageSource, migration, rollback, schemaAudit] = await Promise.all([
+    readFile(`${root}/app/admin/profile/page.tsx`, "utf8"),
+    readFile(`${root}/app/admin/profile/actions.ts`, "utf8"),
+    readFile(`${root}/lib/admin/account.ts`, "utf8"),
+    readFile(`${root}/app/api/admin/upload/route.ts`, "utf8"),
+    readFile(`${root}/lib/admin/auth.ts`, "utf8"),
+    readFile(`${root}/lib/r2.ts`, "utf8"),
+    readFile(`${root}/db/migrations/0043_add_admin_profile_identity.sql`, "utf8"),
+    readFile(`${root}/db/migrations/0043_add_admin_profile_identity.rollback.sql`, "utf8"),
+    readFile(`${root}/scripts/migrations/audit-schema-version.mjs`, "utf8"),
+  ]);
+  assert.match(profileSource, /Cargo profesional/);
+  assert.match(profileSource, /Foto profesional/);
+  assert.match(profileSource, /Rol del sistema:/);
+  assert.match(profilePage, /professionalTitle/);
+  assert.match(profileActions, /profileImageUrl/);
+  assert.match(accountSource, /professional_title = NULLIF/);
+  assert.match(accountSource, /startsWith\("perfiles\/"\)/);
+  assert.match(uploadRoute, /purpose !== "profile"/);
+  assert.match(uploadRoute, /"perfiles"/);
+  assert.match(storageSource, /key\.startsWith\("perfiles\/"\)/);
+  assert.match(authSource, /professionalTitle/);
+  assert.match(migration, /professional_title text NULL/);
+  assert.match(migration, /profile_image_url text NULL/);
+  assert.match(rollback, /rollback blocked: admin profile identity data exists/);
+  assert.match(schemaAudit, /AS v0043/);
+  assert.doesNotMatch(migration, /activo.*professional_title|professional_title.*activo/s);
 });
 
 test("authentication logs never include account identifiers or reset tokens", () => {

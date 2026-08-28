@@ -16,13 +16,15 @@ export async function updateProfile(
   const result = await updateOwnAdminProfile({
     admin,
     displayName: String(formData.get("displayName") || ""),
+    professionalTitle: String(formData.get("professionalTitle") || ""),
+    profileImageUrl: String(formData.get("profileImageUrl") || ""),
     email: String(formData.get("email") || ""),
     currentPassword: String(formData.get("currentPassword") || ""),
   });
   if (!result.ok) return { error: result.error, success: "" };
   revalidatePath("/admin", "layout");
   revalidatePath("/admin/profile");
-  return { error: "", success: "Perfil actualizado correctamente." };
+  return { error: "", success: result.cleanupWarning ? "Perfil actualizado. La limpieza de una foto anterior se completará de forma segura." : "Perfil actualizado correctamente." };
 }
 
 export async function changePassword(

@@ -281,7 +281,7 @@ export function isSafePrivateObjectKey(key: string) {
 export function isSafePublicMediaObjectKey(key: string) {
   return (
     isSafePrivateObjectKey(key) &&
-    (key.startsWith("propiedades/") || key.startsWith("testimonios/"))
+    (key.startsWith("propiedades/") || key.startsWith("testimonios/") || key.startsWith("perfiles/"))
   );
 }
 
@@ -289,6 +289,7 @@ function isSafeManagedPrefix(prefix: string) {
   return (
     prefix === "propiedades/" ||
     prefix === "testimonios/" ||
+    prefix === "perfiles/" ||
     prefix === "lead-documents/"
   );
 }

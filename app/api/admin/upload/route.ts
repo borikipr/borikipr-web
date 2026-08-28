@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     const purpose = String(formData.get("purpose") || "property");
     const files = formData.getAll("files").filter((item): item is File => item instanceof File);
 
-    if (purpose !== "property" && purpose !== "testimonial") {
+    if (purpose !== "property" && purpose !== "testimonial" && purpose !== "profile") {
       return NextResponse.json({ ok: false, error: "Destino de carga no válido." }, { status: 400 });
     }
 
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const maxFiles = purpose === "testimonial" ? 1 : MAX_FILES;
+    const maxFiles = purpose === "testimonial" || purpose === "profile" ? 1 : MAX_FILES;
     if (files.length > maxFiles) {
       return NextResponse.json(
         { ok: false, error: `Máximo ${maxFiles} archivos por subida.` },
@@ -87,10 +87,10 @@ export async function POST(request: Request) {
       }
 
       const isVideo = ALLOWED_VIDEO_TYPES.has(file.type);
-      if (purpose === "testimonial" && isVideo) {
-        return NextResponse.json({ ok: false, error: "Los testimonios solo aceptan imágenes." }, { status: 400 });
+      if ((purpose === "testimonial" || purpose === "profile") && isVideo) {
+        return NextResponse.json({ ok: false, error: purpose === "profile" ? "El perfil solo acepta imágenes." : "Los testimonios solo aceptan imágenes." }, { status: 400 });
       }
-      const maxSize = purpose === "testimonial" ? 5 : isVideo ? MAX_VIDEO_SIZE_MB : MAX_IMAGE_SIZE_MB;
+      const maxSize = purpose === "testimonial" || purpose === "profile" ? 5 : isVideo ? MAX_VIDEO_SIZE_MB : MAX_IMAGE_SIZE_MB;
       const sizeMb = file.size / (1024 * 1024);
       if (sizeMb > maxSize) {
         return NextResponse.json(
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
 
     for (const file of files) {
       const isVideo = ALLOWED_VIDEO_TYPES.has(file.type);
-      const folder = purpose === "testimonial" ? "testimonios" : isVideo ? "propiedades/videos" : "propiedades";
+      const folder = purpose === "testimonial" ? "testimonios" : purpose === "profile" ? "perfiles" : isVideo ? "propiedades/videos" : "propiedades";
       const url = await uploadImageToR2(file, folder);
       urls.push(url);
     }

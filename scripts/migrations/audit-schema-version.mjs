@@ -271,6 +271,17 @@ if (!process.env.DATABASE_URL) {
             WHERE p.proname='signature_enforce_template_immutability'
               AND pg_get_functiondef(p.oid) LIKE '%signature_test_cleanup_permitted%'
           ) AS v0042
+          ,EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='admin_users'
+              AND column_name='professional_title'
+              AND data_type='text'
+          ) AND EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='admin_users'
+              AND column_name='profile_image_url'
+              AND data_type='text'
+          ) AS v0043
       )
       SELECT * FROM facts
     `;

@@ -15,6 +15,8 @@ export type AdminSessionUser = {
   username: string;
   displayName: string;
   email: string | null;
+  professionalTitle: string | null;
+  profileImageUrl: string | null;
   sessionVersion: number;
 };
 
@@ -23,6 +25,8 @@ type AdminUserRow = {
   username: string;
   display_name: string | null;
   email: string | null;
+  professional_title: string | null;
+  profile_image_url: string | null;
   password_hash: string;
   activo: boolean;
   session_version: number;
@@ -44,13 +48,15 @@ function toSessionUser(row: AdminUserRow): AdminSessionUser {
     username: row.username,
     displayName: row.display_name?.trim() || row.username,
     email: row.email,
+    professionalTitle: row.professional_title?.trim() || null,
+    profileImageUrl: row.profile_image_url || null,
     sessionVersion: row.session_version,
   };
 }
 
 async function findActiveAdminByUsername(username: string) {
   const rows = await sql<AdminUserRow[]>`
-    SELECT id::text, username, display_name, email, password_hash, activo,
+    SELECT id::text, username, display_name, email, professional_title, profile_image_url, password_hash, activo,
            session_version, password_changed_at
     FROM public.admin_users
     WHERE username = ${username}
@@ -62,7 +68,7 @@ async function findActiveAdminByUsername(username: string) {
 
 async function findActiveAdminById(id: string) {
   const rows = await sql<AdminUserRow[]>`
-    SELECT id::text, username, display_name, email, password_hash, activo,
+    SELECT id::text, username, display_name, email, professional_title, profile_image_url, password_hash, activo,
            session_version, password_changed_at
     FROM public.admin_users
     WHERE id = ${id}::uuid

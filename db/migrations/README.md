@@ -153,3 +153,8 @@ and the system-bound signer name. Options and numeric limits remain part of the
 immutable field definition; submitted values remain immutable and bound to the
 signer session. Its rollback is blocked after any new field or identity evidence
 exists.
+
+Migration `0043` adds optional presentation-only identity fields to the
+existing `admin_users` table: a professional title and a managed profile-image
+reference. They do not participate in sessions, authorization, or permissions.
+Its rollback refuses to discard saved profile identity data.
