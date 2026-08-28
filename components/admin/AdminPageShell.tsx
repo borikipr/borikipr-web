@@ -23,7 +23,7 @@ export function AdminBreadcrumbs({ items }: { items: BreadcrumbItem[] }) {
 
           return (
             <li key={`${item.label}-${index}`} className="flex items-center gap-2">
-              {index > 0 && <span className="text-[#b5b5b5]">/</span>}
+              {index > 0 && <span aria-hidden="true" className="text-[#b5b5b5]">/</span>}
               {item.href && !isLast ? (
                 <Link
                   href={item.href}

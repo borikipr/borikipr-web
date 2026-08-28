@@ -12,6 +12,7 @@ import { getSignatureOperationalSnapshot } from "@/lib/signatures/monitoring";
 import { getSignatureRetentionPreview } from "@/lib/signatures/governance-workflow";
 import { isProductionInternalCanaryCapabilityEnabled, isPublicSigningEnabled } from "@/lib/signatures/public-config";
 import { inspectProductionPublicLaunchGate } from "@/lib/signatures/public-launch";
+import { formatPuertoRicoDate, formatPuertoRicoDateTimeShort } from "@/lib/puerto-rico-time";
 import { GovernanceForms } from "./GovernanceForms";
 
 export const dynamic = "force-dynamic";
@@ -107,7 +108,7 @@ export default async function SignatureGovernancePage() {
     retention: retention.map((row) => ({ id: row.id, label: `${row.version_identifier} · ${row.status}${row.policy_sha256?` · ${row.policy_sha256.slice(0,12)}…`:""}`, status: row.status })),
     documents: documents.map(row=>({id:row.id,label:`${row.title} · ${row.status}`,documentType:row.document_type,participantEmails:row.participant_emails})),
     legalHolds: legalHolds.map(row=>({id:row.id,label:row.reason_reference})),
-    launchAuthorizations:launchAuthorizations.map(row=>({id:row.id,label:`Canary · expira ${new Date(row.expires_at).toLocaleString("es-PR")}`})),
+    launchAuthorizations:launchAuthorizations.map(row=>({id:row.id,label:`Canary · expira ${formatPuertoRicoDateTimeShort(row.expires_at)}`})),
   };
   const launchChecks: ReadonlyArray<Readonly<{ label: string; state: ReadinessState; owner: string; evidence: string }>> = [
     { label: "Clasificaciones aprobadas para firma electrónica", state: readiness.activeApprovalCount > 0 ? "PASS" as const : "BLOCKED" as const, owner: "Erickson Real Estate / operador autorizado", evidence: readiness.activeApprovalCount > 0 ? `${readiness.activeApprovalCount} aprobación(es) vigente(s).` : "No existen aprobaciones vigentes. Los documentos ordinarios pueden seguir la aprobación interna; las formalidades externas se evalúan por documento." },
@@ -135,7 +136,7 @@ export default async function SignatureGovernancePage() {
 
     <section className="scroll-mt-24 space-y-4" id="documentos">
       <SectionHeader title="Documentos permitidos" description="Aprobación interna para documentos ordinarios; revisión externa sólo cuando corresponda." />
-      <div className="surface-card overflow-hidden"><div className="overflow-x-auto"><table className="admin-table min-w-[640px]"><thead><tr><th>Documento</th><th>Estado</th><th>Fuente de aprobación</th><th>Vigencia</th></tr></thead><tbody>{readiness.approvals.map((row,index)=>{const definition=getSignatureDocumentTypeDefinition(row.document_type);return <tr key={`${row.document_type}-${index}`}><td><span className="font-semibold">{definition?.label ?? "Clasificación de documento"}</span><details className="mt-1 text-xs text-slate-500"><summary className="cursor-pointer">Detalles avanzados</summary><code>{row.document_type}</code></details></td><td><StatusBadge variant={row.status === "approved" ? "green" : "gray"}>{recordStateLabel(row.status)}</StatusBadge></td><td>{row.approval_mode === "internal_business" ? "Aprobación interna" : row.approval_mode === "external_review" ? "Revisión externa" : "Fuera de alcance"}</td><td>{row.effective_from ? new Date(row.effective_from).toLocaleDateString("es-PR") : "No vigente"}</td></tr>})}{readiness.approvals.length===0&&<tr><td className="text-slate-500" colSpan={4}>No hay decisiones de clasificación registradas.</td></tr>}</tbody></table></div></div>
+      <div className="surface-card overflow-hidden"><div className="overflow-x-auto"><table className="admin-table min-w-[640px]"><thead><tr><th>Documento</th><th>Estado</th><th>Fuente de aprobación</th><th>Vigencia</th></tr></thead><tbody>{readiness.approvals.map((row,index)=>{const definition=getSignatureDocumentTypeDefinition(row.document_type);return <tr key={`${row.document_type}-${index}`}><td><span className="font-semibold">{definition?.label ?? "Clasificación de documento"}</span><details className="mt-1 text-xs text-slate-500"><summary className="cursor-pointer">Detalles avanzados</summary><code>{row.document_type}</code></details></td><td><StatusBadge variant={row.status === "approved" ? "green" : "gray"}>{recordStateLabel(row.status)}</StatusBadge></td><td>{row.approval_mode === "internal_business" ? "Aprobación interna" : row.approval_mode === "external_review" ? "Revisión externa" : "Fuera de alcance"}</td><td>{row.effective_from ? formatPuertoRicoDate(row.effective_from) : "No vigente"}</td></tr>})}{readiness.approvals.length===0&&<tr><td className="text-slate-500" colSpan={4}>No hay decisiones de clasificación registradas.</td></tr>}</tbody></table></div></div>
     </section>
 
     <div className="grid gap-5 xl:grid-cols-2">

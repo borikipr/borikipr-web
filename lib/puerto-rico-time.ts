@@ -1,4 +1,4 @@
-const PUERTO_RICO_TIME_ZONE = "America/Puerto_Rico";
+export const PUERTO_RICO_TIME_ZONE = "America/Puerto_Rico";
 
 export function formatPuertoRicoDate(value: string | Date) {
   return new Intl.DateTimeFormat("es-PR", {
@@ -18,5 +18,17 @@ export function formatPuertoRicoDateTime(value: string | Date) {
     hour: "numeric",
     minute: "2-digit",
     second: "2-digit",
+  }).format(new Date(value));
+}
+
+/**
+ * A compact, human-readable timestamp for operational surfaces. Storage stays
+ * in UTC; this only makes the presentation deterministic for Puerto Rico.
+ */
+export function formatPuertoRicoDateTimeShort(value: string | Date) {
+  return new Intl.DateTimeFormat("es-PR", {
+    timeZone: PUERTO_RICO_TIME_ZONE,
+    dateStyle: "medium",
+    timeStyle: "short",
   }).format(new Date(value));
 }

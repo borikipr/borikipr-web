@@ -51,7 +51,6 @@ function formatoPrecio(precio: string | number) {
 
 function formatoFechaOpenHouse(
   value: string | Date | null | undefined,
-  canonicalUtc = false,
   locale: AppLocale = DEFAULT_LOCALE
 ) {
   if (!value) return "";
@@ -61,7 +60,7 @@ function formatoFechaOpenHouse(
   return new Intl.DateTimeFormat(locale, {
     dateStyle: "full",
     timeStyle: "short",
-    ...(canonicalUtc ? { timeZone: "America/Puerto_Rico" } : {}),
+    timeZone: "America/Puerto_Rico",
   }).format(date);
 }
 
@@ -91,7 +90,6 @@ export async function renderOpenHouseRegistrationPage({
     Boolean(propiedad.fecha_showing);
   const fechaOpenHouse = formatoFechaOpenHouse(
     canonicalShowingAt || propiedad.fecha_showing,
-    Boolean(canonicalShowingAt),
     locale
   );
   const notasCompradores =

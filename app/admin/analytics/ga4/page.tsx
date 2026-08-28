@@ -8,6 +8,7 @@ import { AnalyticsRefreshControls } from "@/components/admin/analytics/Analytics
 import type { AnalyticsChartDatum } from "@/components/admin/analytics/chart-utils";
 import { AdminBreadcrumbs } from "@/components/admin/AdminPageShell";
 import { getAdminSessionUser } from "@/lib/admin/auth";
+import { formatPuertoRicoDateTimeShort } from "@/lib/puerto-rico-time";
 import {
  getAdminAnalyticsProviderDashboard,
  parseAnalyticsRange,
@@ -48,10 +49,7 @@ function rangeLabel(range: AnalyticsRange) {
 }
 
 function formatUpdatedAt(date: Date) {
- return new Intl.DateTimeFormat("es-PR", {
-  dateStyle: "medium",
-  timeStyle: "short",
- }).format(date);
+ return formatPuertoRicoDateTimeShort(date);
 }
 
 function MetricCard({ label, value, description }: MetricCard) {

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Activity, BarChart3, ChartNoAxesCombined, MousePointer2, Users } from "lucide-react";
 import { AnalyticsRefreshControls } from "@/components/admin/analytics/AnalyticsRefreshControls";
 import { getAdminSessionUser } from "@/lib/admin/auth";
+import { formatPuertoRicoDateTimeShort } from "@/lib/puerto-rico-time";
 import {
  getAdminAnalyticsDashboard,
  parseAnalyticsRange,
@@ -103,10 +104,7 @@ function statusStyles(status: AnalyticsProviderStatus["status"]) {
 }
 
 function formatUpdatedAt(date: Date) {
- return new Intl.DateTimeFormat("es-PR", {
-  dateStyle: "medium",
-  timeStyle: "short",
- }).format(date);
+ return formatPuertoRicoDateTimeShort(date);
 }
 
 function OverviewMetricCard({ label, value, description }: OverviewMetric) {
