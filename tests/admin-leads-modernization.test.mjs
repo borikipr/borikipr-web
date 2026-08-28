@@ -21,6 +21,8 @@ test("lead directory uses a compact operational layout with accessible actions",
   assert.match(page, /Acciones de \$\{title\}/);
   assert.match(page, /Última actividad/);
   assert.match(page, /Seguimiento/);
+  assert.match(page, /item\.sourceCount === 1 \? "interacción" : "interacciones"/);
+  assert.doesNotMatch(page, /interacciónes/);
   assert.match(menu, /role="menu"/);
   assert.match(menu, /ArrowDown/);
   assert.match(menu, /Escape/);

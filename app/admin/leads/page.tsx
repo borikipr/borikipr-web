@@ -77,7 +77,7 @@ function LeadResultCard({ item }: { item: UnifiedDirectoryItem }) {
       </div>
       <div className="lead-directory-context">
         {item.contextTitle ? <p className="flex min-w-0 items-start gap-2"><Building2 aria-hidden="true" size={16} /><span className="min-w-0 break-words">{item.contextTitle}</span></p> : <p>Sin propiedad asociada</p>}
-        <p>{item.sourceCount} interacción{item.sourceCount === 1 ? "" : "es"}</p>
+        <p>{item.sourceCount} {item.sourceCount === 1 ? "interacción" : "interacciones"}</p>
         {item.entityType === "lead" && item.sharedContact && <p className="font-semibold text-amber-800">Contacto compartido</p>}
       </div>
       <div className="lead-directory-activity">
