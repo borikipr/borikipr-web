@@ -64,7 +64,7 @@ export function signatureOperationalStatus(input: {
   if (waiting.length) {
     const order = Math.min(...waiting.map((participant) => participant.routingOrder ?? 1));
     const current = waiting.filter((participant) => (participant.routingOrder ?? 1) === order);
-    const label = current.length === 1 ? (current[0].isBrokerFinalSigner ? "Ivonne" : current[0].role || current[0].name) : current.map((item) => item.role || item.name).join(" y ");
+    const label = current.length === 1 ? (current[0].isBrokerFinalSigner ? "la corredora" : current[0].role || current[0].name) : current.map((item) => item.role || item.name).join(" y ");
     return `Esperando la firma de ${label}`;
   }
   if (participants.length) return `${completed} de ${participants.length} firmas completadas`;

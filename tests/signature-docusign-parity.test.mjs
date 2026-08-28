@@ -50,7 +50,7 @@ test("Date Signed preflight uses the final-render sizing model",()=>{
   assert.ok(tooNarrow.issues.some((issue)=>issue.id==="date-fit:narrow-date"&&issue.code==="field_too_small"));
 });
 
-test("routing summary preserves grouped stages and Ivonne as the final stage",()=>{
+test("routing summary preserves grouped stages and the configured broker as the final stage",()=>{
   const participants=[
     {id:"buyer",name:"Cedric",role:"Comprador",routingOrder:1,isBrokerFinalSigner:false},
     {id:"seller",name:"Vendedor",role:"Vendedor",routingOrder:1,isBrokerFinalSigner:false},
@@ -65,7 +65,7 @@ test("routing summary preserves grouped stages and Ivonne as the final stage",()
 
 test("waiting language is operational and ordinary waiting does not require attention",()=>{
   const participants=[{name:"Ivonne",role:"Corredora",routingOrder:2,status:"invited",isBrokerFinalSigner:true}];
-  assert.equal(signatureOperationalStatus({status:"partially_signed",participants}),"Esperando la firma de Ivonne");
+  assert.equal(signatureOperationalStatus({status:"partially_signed",participants}),"Esperando la firma de la corredora");
   assert.equal(signatureRequiresAttention({status:"partially_signed",deliveryStatus:"delivered"}),false);
   assert.equal(signatureRequiresAttention({status:"sent",deliveryStatus:"failed"}),true);
   assert.equal(signatureRequiresAttention({status:"expired"}),true);

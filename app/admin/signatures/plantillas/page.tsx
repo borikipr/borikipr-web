@@ -75,7 +75,7 @@ export default async function SignatureTemplatesPage() {
                 {template.requiresBrokerSignature ? (
                   <div className="col-span-2">
                     <dt>Firma final</dt>
-                    <dd>Ivonne · Corredora</dd>
+                    <dd>Corredora configurada · Firma final</dd>
                   </div>
                 ) : null}
               </dl>

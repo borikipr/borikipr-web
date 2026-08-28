@@ -24,7 +24,7 @@ test("Firmas keeps operational actions while condensing duplicate governance det
   assert.match(actionMenu, /aria-haspopup="menu"/);
   assert.match(actions, /Eliminar definitivamente/);
   assert.match(actionMenu, /onKeyDown/);
-  assert.match(settings, /Abrir Gobernanza/);
+  assert.match(settings, /Estado y soporte/);
   assert.doesNotMatch(settings, /id="avanzado"/);
   assert.match(governance, /Sin bloqueadores adicionales para este alcance/);
   assert.match(governance, /Estado operativo/);

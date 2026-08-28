@@ -40,7 +40,7 @@ function message(code: string) {
     signature_document_type_unknown: "Selecciona un tipo de documento válido.",
     signature_source_filename_invalid: "El nombre del archivo PDF no es válido.",
     signature_link_id_invalid: "El enlace opcional seleccionado no es válido.",
-    signature_broker_not_configured: "Configura primero a Ivonne como corredora en Configuración de Firmas.",
+    signature_broker_not_configured: "Configura primero una corredora final en Configuración de Firmas.",
   };
   return messages[code] ?? "No se pudo crear el borrador de firma.";
 }

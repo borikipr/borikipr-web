@@ -273,9 +273,9 @@ export default function NewSignatureDraftForm({
             <span>
               <strong>Requiere firma de la corredora</strong>
               <span className="mt-1 block text-sm text-slate-600">
-                Añade automáticamente a Ivonne como última firmante. Si el PDF
-                no tiene un lugar apropiado, tendrás que decidir dónde colocar
-                su firma.
+                Añade automáticamente a la corredora configurada como última
+                firmante. Si el PDF no tiene un lugar apropiado, tendrás que
+                decidir dónde colocar su firma.
               </span>
             </span>
           </label>

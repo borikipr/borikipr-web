@@ -110,7 +110,7 @@ const READINESS_LABELS: Record<string, string> = {
   field_definition_hash_stale:
     "Los campos cambiaron y deben revisarse nuevamente.",
   broker_final_signer_invalid:
-    "Configura a Ivonne como corredora y colócala en el último grupo.",
+    "Configura la corredora final y colócala en el último grupo.",
   correction_source_still_active:
     "Cancela la solicitud original antes de enviar esta corrección.",
 };
@@ -486,7 +486,7 @@ export default function SignatureDraftEditor({
                     ? "Cada persona firma después de que termine la anterior."
                     : "Quienes están en la misma etapa firman a la vez; la etapa siguiente espera."}{" "}
                 {detail.requiresBrokerSignature &&
-                  "Ivonne aparece como corredora y firma al final."}
+                  "La corredora configurada firma al final."}
               </p>
             </div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">

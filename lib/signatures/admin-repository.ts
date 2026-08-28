@@ -112,7 +112,7 @@ export function createSignatureAdminRepository(database: SignatureQueryExecutor)
                 count(p.id) FILTER (WHERE p.status='completed')::integer AS completed_participant_count,
                 (SELECT di.status FROM public.signature_delivery_intents di
                   WHERE di.document_version_id=v.id ORDER BY di.created_at DESC LIMIT 1) AS last_delivery_status,
-                (SELECT string_agg(CASE WHEN current_p.is_broker_final_signer THEN 'Ivonne' ELSE current_p.role END, ' y ' ORDER BY current_p.created_at)
+                (SELECT string_agg(CASE WHEN current_p.is_broker_final_signer THEN 'Corredora' ELSE current_p.role END, ' y ' ORDER BY current_p.created_at)
                    FROM public.signature_participants current_p
                   WHERE current_p.document_version_id=v.id AND current_p.removed_at IS NULL
                     AND current_p.status NOT IN ('completed','revoked','expired','declined')
