@@ -69,7 +69,7 @@ test("Admin UX translates readiness and explains retention without legal recomme
     read("app/admin/signatures/gobernanza/page.tsx"), read("app/admin/signatures/actions.ts"),
     read("app/admin/signatures/gobernanza/GovernanceForms.tsx"),
   ]);
-  assert.match(page, /Preparación para canary interno/);
+  assert.match(page, /Readiness interno/);
   assert.match(page, /Alcance bilingüe/);
   assert.match(page, /READINESS_LABELS[\s\S]*Listo[\s\S]*Bloqueado/);
   assert.match(actions, /Falta configurar y activar la política de retención/);

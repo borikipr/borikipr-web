@@ -27,9 +27,18 @@ test("Firmas keeps operational actions while condensing duplicate governance det
   assert.match(settings, /Abrir Gobernanza/);
   assert.doesNotMatch(settings, /id="avanzado"/);
   assert.match(governance, /Sin bloqueadores adicionales para este alcance/);
+  assert.match(governance, /Estado operativo/);
+  assert.match(governance, /Firma pública/);
+  assert.match(governance, /Neon recovery/);
+  assert.match(governance, /R2 recovery/);
+  assert.match(governance, /Auditoría y referencia/);
   assert.doesNotMatch(governance, /row&&<details/);
   assert.doesNotMatch(governance, /<summary>Detalles avanzados<\/summary>/);
   assert.doesNotMatch(forms, /Autorización futura de canary interno/);
   assert.match(forms, /Autorización — LANZAMIENTO PÚBLICO/);
   assert.match(forms, /Decisiones de recuperación/);
+  assert.match(forms, /Versiones y políticas/);
+  assert.match(forms, /Acciones sensibles/);
+  assert.equal((forms.match(/<details/g) ?? []).length, 2);
+  assert.doesNotMatch(forms, /<summary className="font-semibold">Clasificaciones de documentos/);
 });
