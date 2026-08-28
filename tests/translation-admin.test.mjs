@@ -384,6 +384,8 @@ test("Admin action boundary derives actor from the authenticated session and UI 
   assert.match(presentation, /Regeneración automática autorizada/);
   assert.match(panel, /Confirmar que todavía aplica/);
   assert.match(panel, /Restaurar versión/);
+  assert.match(panel, /showHistory = true/);
+  assert.match(panel, /showHistory && field\.events\.length/);
   assert.match(panel, /break-words/);
   assert.match(panel, /type="hidden" name="expectedSourceHash" value=\{field\.sourceHash\}/);
   assert.match(panel, /disabled=\{disabled \|\| editPending\}/);
@@ -391,6 +393,13 @@ test("Admin action boundary derives actor from the authenticated session and UI 
   assert.doesNotMatch(panel, />\s*\{field\.sourceHash\}\s*</);
   assert.doesNotMatch(panel, /console\.(?:log|info|debug)\([^\n]*sourceHash/);
   assert.doesNotMatch(panel, /(?:analytics|track)\([^\n]*sourceHash/i);
+});
+
+test("property editing hides translation history without changing the shared history capability", async () => {
+  const propertyEditPage = await readFile(fileURLToPath(new URL("../app/admin/propiedades/[id]/editar/page.tsx", import.meta.url)), "utf8");
+  const testimonialEditPage = await readFile(fileURLToPath(new URL("../app/admin/testimonios/[id]/editar/page.tsx", import.meta.url)), "utf8");
+  assert.match(propertyEditPage, /<TranslationAdminPanel fields=\{translationFields\} showHistory=\{false\} \/>/);
+  assert.match(testimonialEditPage, /<TranslationAdminPanel fields=\{translationFields\} \/>/);
 });
 
 test("Admin usage panel exposes aggregate limits and sanitized budget states only", async () => {

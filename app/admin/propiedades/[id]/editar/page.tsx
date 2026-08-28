@@ -56,7 +56,7 @@ export default async function EditarPropiedadPage({
         />
 
         <EditarPropiedadForm propiedad={propiedad} />
-        <TranslationAdminPanel fields={translationFields} />
+        <TranslationAdminPanel fields={translationFields} showHistory={false} />
       </div>
     </AdminPageShell>
   );

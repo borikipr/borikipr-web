@@ -55,7 +55,7 @@ function Feedback({ state }: { state: { ok: boolean; message: string } }) {
   );
 }
 
-function TranslationFieldPanel({ field }: { field: TranslationAdminField }) {
+function TranslationFieldPanel({ field, showHistory }: { field: TranslationAdminField; showHistory: boolean }) {
   const [editState, editAction, editPending] = useActionState(saveManualTranslation, initialTranslationAdminActionState);
   const [reviewState, reviewAction, reviewPending] = useActionState(markTranslationReviewed, initialTranslationAdminActionState);
   const [confirmState, confirmAction, confirmPending] = useActionState(confirmTranslationStillApplies, initialTranslationAdminActionState);
@@ -143,7 +143,7 @@ function TranslationFieldPanel({ field }: { field: TranslationAdminField }) {
       ) : null}
       <Feedback state={reviewState} /><Feedback state={confirmState} /><Feedback state={regenState} />
 
-      {field.events.length ? (
+      {showHistory && field.events.length ? (
         <details className="mt-6 border-t border-black/10 pt-5">
           <summary className="cursor-pointer font-bold text-black">Historial ({field.events.length})</summary>
           <ol className="mt-4 space-y-3">
@@ -175,7 +175,7 @@ function TranslationFieldPanel({ field }: { field: TranslationAdminField }) {
   );
 }
 
-export default function TranslationAdminPanel({ fields }: { fields: TranslationAdminField[] }) {
+export default function TranslationAdminPanel({ fields, showHistory = true }: { fields: TranslationAdminField[]; showHistory?: boolean }) {
   return (
     <section className="mt-10 min-w-0" aria-labelledby="english-translations-heading">
       <div className="mb-5">
@@ -183,7 +183,7 @@ export default function TranslationAdminPanel({ fields }: { fields: TranslationA
         <h2 id="english-translations-heading" className="mt-2 text-2xl font-bold text-black">Traducciones al inglés</h2>
         <p className="body-base mt-2">Revisa o corrige el inglés sin modificar la fuente en español.</p>
       </div>
-      <div className="grid min-w-0 gap-5">{fields.map((field) => <TranslationFieldPanel key={field.fieldKey} field={field} />)}</div>
+      <div className="grid min-w-0 gap-5">{fields.map((field) => <TranslationFieldPanel key={field.fieldKey} field={field} showHistory={showHistory} />)}</div>
     </section>
   );
 }
