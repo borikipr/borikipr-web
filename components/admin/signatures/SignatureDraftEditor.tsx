@@ -45,7 +45,6 @@ import SignatureStepProgress from "./SignatureStepProgress";
 import SignatureRoutingSummary from "./SignatureRoutingSummary";
 import type { SignatureDraftDetail } from "@/lib/signatures/admin-repository";
 import type { SignatureSendReadiness } from "@/lib/signatures/send-readiness";
-import type { SignaturePreflightResult } from "@/lib/signatures/preflight";
 import {
   evaluateSignatureVisualPreflight,
   type SignatureVisualPreflightIssue,
@@ -338,12 +337,10 @@ function FieldOverlay({
 export default function SignatureDraftEditor({
   detail,
   readiness,
-  preflight,
   activationMode,
 }: {
   detail: SignatureDraftDetail;
   readiness: SignatureSendReadiness;
-  preflight: SignaturePreflightResult;
   activationMode: "public" | "internal_canary" | "disabled";
 }) {
   const editable = detail.status === "draft" && !detail.version.locked;

@@ -36,7 +36,6 @@ import {
   loadActivePrivacyDisclosure,
   loadActiveRetentionPolicy,
 } from "@/lib/signatures/governance-config";
-import { evaluateSignaturePreflight } from "@/lib/signatures/preflight";
 import { formatPuertoRicoDate, formatPuertoRicoDateTime } from "@/lib/puerto-rico-time";
 import { buildSignatureRoutingStages } from "@/lib/signatures/routing-ux";
 import { inspectSignatureDeletionEligibility } from "@/lib/signatures/draft-lifecycle";
@@ -64,15 +63,11 @@ export default async function SignatureDraftPage({
   } catch {
     keysConfigured = false;
   }
-  const [{ preflight_expiration: preflightExpiration }] = await sql<
-    { preflight_expiration: Date }[]
-  >`SELECT now()+interval '1 hour' preflight_expiration`;
   const [
     durableRetention,
     durablePrivacy,
     participantAuthorizations,
     publicLaunchGate,
-    preflight,
   ] = await Promise.all([
     loadActiveRetentionPolicy(database),
     loadActivePrivacyDisclosure(database),
@@ -85,16 +80,6 @@ export default async function SignatureDraftPage({
       ),
     ) : Promise.resolve([]),
     inspectProductionPublicLaunchGate(database),
-    evaluateSignaturePreflight({
-      database,
-      documentId: id,
-      locales: ["es-PR"],
-      participantEmails: detail.participants.map((p) => p.email),
-      documentTypes: [detail.documentType],
-      environment: "production",
-      authorizationType: "internal_canary",
-      authorizationExpiresAt: preflightExpiration,
-    }),
   ]);
   const scoped =
     detail.participants.length > 0 && participantAuthorizations.length === detail.participants.length &&
@@ -335,7 +320,6 @@ export default async function SignatureDraftPage({
         <div id="preparacion"><SignatureDraftEditor
           detail={detail}
           readiness={readiness}
-          preflight={preflight}
           activationMode={activationMode}
         /></div>
       ) : null}
