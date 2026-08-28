@@ -98,12 +98,9 @@ export default async function SignatureDocumentsPage({
             </Link>
           ))}
         </nav>
-        <details className="signature-lifecycle-mobile-menu md:col-span-4">
-          <summary>
-            <span>Vista</span>
-            <strong>{VIEWS.find((item) => item.id === view)?.label}</strong>
-          </summary>
-          <nav aria-label="Cambiar vista de solicitudes">
+        <nav className="signature-lifecycle-mobile-menu md:col-span-4" aria-label="Cambiar vista de solicitudes">
+          <p><span>Vista</span><strong>{VIEWS.find((item) => item.id === view)?.label}</strong></p>
+          <div>
             {VIEWS.map((item) => (
               <Link
                 key={item.id}
@@ -114,8 +111,8 @@ export default async function SignatureDocumentsPage({
                 {item.label}
               </Link>
             ))}
-          </nav>
-        </details>
+          </div>
+        </nav>
         <form className="contents" method="get">
           <input name="view" type="hidden" value={view} />
           <label className="md:col-span-2">

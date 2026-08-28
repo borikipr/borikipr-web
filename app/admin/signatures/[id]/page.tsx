@@ -349,16 +349,16 @@ export default async function SignatureDraftPage({
         deletionMode={deletionEligibility.mode}
       />
 
-      <details className="signature-activity-panel" id="historial">
-        <summary>
-          <span>
-            <strong>Actividad</strong>
-            <small>Historial inmutable de la solicitud</small>
+      <section className="signature-activity-panel" id="historial" aria-labelledby="actividad-heading">
+        <header className="flex items-center justify-between gap-3 px-5 py-4">
+          <span className="flex flex-col">
+            <strong id="actividad-heading">Actividad</strong>
+            <small className="mt-1 text-sm font-normal text-slate-600">Historial inmutable de la solicitud</small>
           </span>
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
             {detail.events.length} eventos
           </span>
-        </summary>
+        </header>
         <ol className="divide-y divide-slate-100 px-5">
           {detail.events.map((event) => (
             <li
@@ -382,65 +382,16 @@ export default async function SignatureDraftPage({
             No hay actividad registrada.
           </p>
         )}
-      </details>
+      </section>
 
-      <details className="surface-card p-5" id="detalles-avanzados">
-        <summary className="cursor-pointer font-semibold">
-          Detalles avanzados
-        </summary>
-        <p className="mt-2 text-sm text-slate-600">
-          Evidencia técnica para auditoría. No es necesaria para la operación
-          diaria.
-        </p>
-        <dl className="mt-4 grid min-w-0 gap-4 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="font-semibold">Clasificación</dt>
-            <dd>
-              {definition?.label ?? "Desconocida"} ·{" "}
-              {detail.documentTypeApprovalReference ? "Aprobada" : "Pendiente"}
-            </dd>
-          </div>
-          <div>
-            <dt className="font-semibold">Versión</dt>
-            <dd>{detail.version.number}</dd>
-          </div>
-          <div className="min-w-0">
-            <dt className="font-semibold">SHA-256 fuente</dt>
-            <dd
-              className="truncate font-mono text-xs"
-              title={detail.version.sourceSha256}
-            >
-              {detail.version.sourceSha256}
-            </dd>
-          </div>
-          <div className="min-w-0">
-            <dt className="font-semibold">SHA-256 de campos</dt>
-            <dd
-              className="truncate font-mono text-xs"
-              title={detail.currentFieldDefinitionSha256}
-            >
-              {detail.currentFieldDefinitionSha256}
-            </dd>
-          </div>
-          <div className="min-w-0 sm:col-span-2">
-            <dt className="font-semibold">Readiness snapshot</dt>
-            <dd
-              className="truncate font-mono text-xs"
-              title={preflight.readinessHash}
-            >
-              {preflight.readinessHash}
-            </dd>
-          </div>
-        </dl>
-        {detail.status === "completed" ? (
-          <Link
-            className="mt-5 inline-flex font-semibold text-[#11518b] hover:underline"
-            href={`/admin/signatures/${detail.id}/evidence`}
-          >
+      {detail.status === "completed" ? (
+        <p className="text-sm text-slate-600">
+          {/* Detalles avanzados moved out of the operational detail view; protected evidence remains available here. */}
+          <Link className="font-semibold text-[#11518b] hover:underline" href={`/admin/signatures/${detail.id}/evidence`}>
             Abrir evidencia técnica
           </Link>
-        ) : null}
-      </details>
+        </p>
+      ) : null}
     </AdminPageShell>
   );
 }

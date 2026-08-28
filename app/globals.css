@@ -836,13 +836,13 @@ textarea {
 .signature-lifecycle-mobile-menu {
   display: none;
 }
-.signature-lifecycle-mobile-menu > summary {
-  @apply cursor-pointer list-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm;
+.signature-lifecycle-mobile-menu > p {
+  @apply rounded-md border border-slate-200 bg-white px-3 py-2 text-sm;
 }
-.signature-lifecycle-mobile-menu > summary span {
+.signature-lifecycle-mobile-menu > p span {
   @apply mr-2 text-xs font-semibold uppercase tracking-[.08em] text-slate-500;
 }
-.signature-lifecycle-mobile-menu > nav {
+.signature-lifecycle-mobile-menu > div {
   @apply mt-2 grid grid-cols-2 gap-1 rounded-md border border-slate-200 bg-white p-2;
 }
 .signature-lifecycle-mobile-menu a {

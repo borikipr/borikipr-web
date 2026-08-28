@@ -39,6 +39,6 @@ test("Firmas keeps operational actions while condensing duplicate governance det
   assert.match(forms, /Decisiones de recuperación/);
   assert.match(forms, /Versiones y políticas/);
   assert.match(forms, /Acciones sensibles/);
-  assert.equal((forms.match(/<details/g) ?? []).length, 2);
+  assert.doesNotMatch(forms, /<details|<summary/);
   assert.doesNotMatch(forms, /<summary className="font-semibold">Clasificaciones de documentos/);
 });

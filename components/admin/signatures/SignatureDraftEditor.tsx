@@ -865,11 +865,11 @@ export default function SignatureDraftEditor({
                 )}
               </div>
             </section>
-            <details className="signature-properties-section group">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold">
-                <span>Todos los campos ({detail.fields.length})</span>
-                <IconPlus aria-hidden="true" className="text-slate-400 transition group-open:rotate-45" size={17} />
-              </summary>
+            <section className="signature-properties-section" aria-labelledby="todos-los-campos">
+              <div className="flex items-center justify-between gap-2 text-sm font-semibold">
+                <span id="todos-los-campos">Todos los campos ({detail.fields.length})</span>
+                <IconPlus aria-hidden="true" className="text-slate-400" size={17} />
+              </div>
               <div className="mt-3 space-y-2">
                 {detail.fields.map((field) => (
                   <button
@@ -889,7 +889,7 @@ export default function SignatureDraftEditor({
                   <p className="text-sm text-slate-500">Aún no hay campos.</p>
                 ) : null}
               </div>
-            </details>
+            </section>
             <VisualPreflightPanel
               preflight={visualPreflight}
               onIssue={jumpToIssue}
@@ -955,7 +955,7 @@ export default function SignatureDraftEditor({
               preflight={visualPreflight}
               onIssue={jumpToIssue}
             />
-            <ReadinessCard readiness={readiness} preflight={preflight} />
+            <ReadinessCard readiness={readiness} />
           </div>
         </section>
       )}
@@ -1045,16 +1045,14 @@ export default function SignatureDraftEditor({
               preflight={visualPreflight}
               onIssue={jumpToIssue}
             />
-            <ReadinessCard readiness={readiness} preflight={preflight} />
+            <ReadinessCard readiness={readiness} />
           </div>
         </section>
       )}
 
       {detail.participants.length > 0 && detail.fields.length > 0 && (
-        <details className="surface-card p-5">
-          <summary className="cursor-pointer font-semibold">
-            Guardar como plantilla
-          </summary>
+        <section className="surface-card p-5" aria-labelledby="guardar-plantilla">
+          <h2 id="guardar-plantilla" className="font-semibold">Guardar como plantilla</h2>
           <p className="mt-2 text-sm text-slate-600">
             Conserva el PDF, roles, campos y ruta. Nunca copia personas, firmas,
             valores, tokens ni sesiones.
@@ -1111,14 +1109,11 @@ export default function SignatureDraftEditor({
             </button>
             <Feedback state={templateState} />
           </form>
-        </details>
+        </section>
       )}
 
-      <section className="surface-card border border-red-200 p-5">
-        <details>
-          <summary className="cursor-pointer font-semibold text-red-800">
-            Eliminar solicitud
-          </summary>
+      <section className="surface-card border border-red-200 p-5" aria-labelledby="eliminar-solicitud">
+          <h2 id="eliminar-solicitud" className="font-semibold text-red-800">Eliminar solicitud</h2>
           <p className="mt-3 text-sm text-slate-600">
             Borikí decidirá el tratamiento seguro. Si existe actividad, la
             solicitud saldrá de tu lista activa pero la evidencia necesaria
@@ -1156,7 +1151,6 @@ export default function SignatureDraftEditor({
             </button>
             <Feedback state={removeState} />
           </form>
-        </details>
       </section>
 
       <div
@@ -1263,10 +1257,8 @@ function VisualPreflightPanel({
 }
 function ReadinessCard({
   readiness,
-  preflight,
 }: {
   readiness: SignatureSendReadiness;
-  preflight: SignaturePreflightResult;
 }) {
   return (
     <section className="surface-card p-5">
@@ -1299,14 +1291,6 @@ function ReadinessCard({
           </Link>
         </>
       )}
-      <details className="mt-5 border-t pt-4">
-        <summary className="cursor-pointer text-sm font-semibold">
-          Detalles avanzados
-        </summary>
-        <p className="mt-2 break-all font-mono text-xs text-slate-500">
-          Readiness SHA-256: {preflight.readinessHash}
-        </p>
-      </details>
     </section>
   );
 }
@@ -1450,10 +1434,8 @@ function RecipientCard({
         </form>
       )}
       {["invited", "viewed", "consented"].includes(participant.status) && (
-        <details className="mt-4 border-t border-slate-200 pt-3">
-          <summary className="cursor-pointer text-sm font-semibold text-[#11518b]">
-            Opciones de contacto
-          </summary>
+        <section className="mt-4 border-t border-slate-200 pt-3" aria-labelledby={`opciones-contacto-${participant.id}`}>
+          <h3 id={`opciones-contacto-${participant.id}`} className="text-sm font-semibold text-[#11518b]">Opciones de contacto</h3>
           <div className="mt-3 grid gap-3">
             <div>
               <p className="text-sm font-semibold">Reenviar invitación</p>
@@ -1486,7 +1468,7 @@ function RecipientCard({
               </p>
             </div>
           </div>
-        </details>
+        </section>
       )}
     </article>
   );

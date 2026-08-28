@@ -11,49 +11,7 @@ import {
   BROKER_SETTINGS_CONFIRMATION,
   createSignatureProductRepository,
 } from "@/lib/signatures/productization";
-import { saveBrokerSettingsAction } from "./actions";
-
-function BrokerSettingsForm({
-  admins,
-  brokerAdminUserId,
-}: {
-  admins: readonly { id: string; name: string; email: string | null }[];
-  brokerAdminUserId: string;
-}) {
-  return (
-    <form action={saveBrokerSettingsAction} className="grid max-w-xl gap-4">
-      <label className="text-sm font-semibold">
-        Cuenta Admin de la corredora
-        <select
-          className="mt-1 w-full rounded-lg border px-3 py-3 font-normal"
-          defaultValue={brokerAdminUserId}
-          name="brokerAdminUserId"
-          required
-        >
-          <option value="">Selecciona</option>
-          {admins
-            .filter((admin) => admin.email)
-            .map((admin) => (
-              <option key={admin.id} value={admin.id}>
-                {admin.name}
-              </option>
-            ))}
-        </select>
-      </label>
-      <label className="text-sm font-semibold">
-        Escribe <code>{BROKER_SETTINGS_CONFIRMATION}</code>
-        <input
-          className="mt-1 w-full rounded-lg border px-3 py-3 font-normal"
-          name="confirmationPhrase"
-          required
-        />
-      </label>
-      <button className="btn-primary justify-self-start" type="submit">
-        Guardar corredora final
-      </button>
-    </form>
-  );
-}
+import { BrokerSettingsControl } from "./BrokerSettingsControl";
 
 export default async function SignatureSettingsPage() {
   if (!(await getAdminSessionUser())) redirect("/admin/login");
@@ -99,21 +57,11 @@ export default async function SignatureSettingsPage() {
                 <dd>Firma final automática</dd>
               </div>
             </dl>
-            <details className="mt-5 border-t border-slate-100 pt-4">
-              <summary className="cursor-pointer font-semibold text-slate-800">
-                Cambiar corredora final
-              </summary>
-              <p className="mt-2 text-sm text-slate-600">
-                Esta acción afecta los documentos nuevos que requieran su
-                firma. Confirma el cambio antes de guardarlo.
-              </p>
-              <div className="mt-4">
-                <BrokerSettingsForm
-                  admins={data.admins}
-                  brokerAdminUserId={data.settings?.broker_admin_user_id ?? ""}
-                />
-              </div>
-            </details>
+            <BrokerSettingsControl
+              admins={data.admins}
+              brokerAdminUserId={data.settings?.broker_admin_user_id ?? ""}
+              confirmationPhrase={BROKER_SETTINGS_CONFIRMATION}
+            />
           </>
         ) : (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
@@ -123,7 +71,12 @@ export default async function SignatureSettingsPage() {
               firma.
             </p>
             <div className="mt-4">
-              <BrokerSettingsForm admins={data.admins} brokerAdminUserId="" />
+              <BrokerSettingsControl
+                admins={data.admins}
+                brokerAdminUserId=""
+                confirmationPhrase={BROKER_SETTINGS_CONFIRMATION}
+                initialSetup
+              />
             </div>
           </div>
         )}

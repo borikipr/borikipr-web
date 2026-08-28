@@ -23,11 +23,15 @@ test("healthy signing infrastructure is quiet on daily Firmas surfaces", async (
 });
 
 test("settings keeps configured broker as the single operational choice", async () => {
-  const settings = await source("app/admin/signatures/configuracion/page.tsx");
+  const [settings, brokerControl] = await Promise.all([
+    source("app/admin/signatures/configuracion/page.tsx"),
+    source("app/admin/signatures/configuracion/BrokerSettingsControl.tsx"),
+  ]);
 
   assert.match(settings, /Corredora final/);
   assert.match(settings, /Firma final automática/);
-  assert.match(settings, /Cambiar corredora final/);
+  assert.match(brokerControl, /Cambiar corredora final/);
+  assert.match(brokerControl, /SignatureActionDialog/);
   assert.match(settings, /Estado y soporte/);
   assert.doesNotMatch(settings, /Cuenta Admin de Ivonne/);
   assert.doesNotMatch(settings, /Privacidad y conservación/);
