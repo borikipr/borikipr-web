@@ -27,7 +27,8 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
     const bytes=await runtime.storage.getSource({key:source.source_r2_key,byteCount:source.byte_count,sourceSha256:source.source_sha256});
     const created=await runtime.drafts.createDraft({title:String(form.get("title")??template.name),documentType:template.documentType,
       createdByAdminId:session.id,expiresAt:expiration(String(form.get("expiresAt")??"")),filename:source.filename_snapshot,
-      mimeType:"application/pdf",bytes,routingMode:template.routingMode,requiresBrokerSignature:template.requiresBrokerSignature});
+      mimeType:"application/pdf",bytes,routingMode:template.routingMode,requiresBrokerSignature:template.requiresBrokerSignature,
+      brokerCandidateId:String(form.get("brokerCandidateId")??"")||null});
     await runtime.database.unsafe(`UPDATE signature_documents SET source_template_id=$2::uuid WHERE id=$1::uuid AND status='draft'`,[created.documentId,template.id]);
     const roleParticipants=new Map<string,string>();
     for(const item of roleInputs){const added=await runtime.domain.addParticipant({documentVersionId:created.documentVersionId,

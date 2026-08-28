@@ -132,7 +132,7 @@ export async function updateSignatureParticipantAction(
   if(!current) return {ok:false,message:"Borrador no disponible."};
   const participant=current.detail.participants.find((item)=>item.id===value(formData,"participantId"));
   if(!participant) return {ok:false,message:"Destinatario no encontrado."};
-  if(participant.isBrokerFinalSigner) return {ok:false,message:"La corredora configurada firma al final y no puede editarse desde este borrador."};
+  if(participant.isBrokerFinalSigner) return {ok:false,message:"El corredor(a) asignado firma al final y no puede editarse desde este borrador."};
   try {
     const parsed=parseSignatureParticipantDraft({name:value(formData,"name"),email:value(formData,"email"),role:value(formData,"role"),routingOrder:value(formData,"routingOrder")});
     await current.runtime.domain.updateParticipant({participantId:participant.id,nameSnapshot:parsed.name,emailSnapshot:parsed.email,
@@ -155,7 +155,7 @@ export async function removeSignatureParticipantAction(
   if(!current) return {ok:false,message:"Borrador no disponible."};
   const participantId=value(formData,"participantId");
   const participant=current.detail.participants.find((item)=>item.id===participantId);
-  if(participant?.isBrokerFinalSigner) return {ok:false,message:"La corredora configurada no puede eliminarse de un documento que requiere su firma final."};
+  if(participant?.isBrokerFinalSigner) return {ok:false,message:"El corredor(a) asignado no puede eliminarse de un documento que requiere su firma final."};
   const reason=value(formData,"reason") || "Eliminado durante la preparación";
   try {
     await current.runtime.database.begin(async(tx)=>{

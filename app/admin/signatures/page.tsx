@@ -69,12 +69,6 @@ export default async function SignatureDocumentsPage({
             <Link className="btn-secondary" href="/admin/signatures/plantillas">
               Plantillas
             </Link>
-            <Link
-              className="btn-secondary"
-              href="/admin/signatures/configuracion"
-            >
-              Configuración
-            </Link>
             <Link className="btn-primary" href="/admin/signatures/nuevo">
               Nuevo documento
             </Link>

@@ -12,6 +12,7 @@ import {
   MAX_SIGNATURE_SOURCE_BYTES,
   sanitizeSignatureFilename,
 } from "./storage";
+import { resolveSignatureBrokerCandidate } from "./broker-candidates";
 
 const MAX_SIGNATURE_PAGES = 25;
 
@@ -57,6 +58,7 @@ export function createSignatureDraftApplicationService({
       bytes: Uint8Array;
       routingMode?: "parallel" | "sequential" | "grouped";
       requiresBrokerSignature?: boolean;
+      brokerCandidateId?: string | null;
     }) {
       const title = input.title.trim();
       if (title.length < 1 || title.length > 200) {
@@ -65,14 +67,11 @@ export function createSignatureDraftApplicationService({
       if (!getSignatureDocumentTypeDefinition(input.documentType)) {
         throw new SignatureDraftValidationError("signature_document_type_unknown");
       }
-      const brokerSettings = input.requiresBrokerSignature
-        ? (await database.unsafe<{ broker_name_snapshot:string;broker_email_snapshot:string }>(
-            `SELECT broker_name_snapshot,broker_email_snapshot FROM signature_signing_settings
-              WHERE singleton=true AND broker_admin_user_id IS NOT NULL`
-          ))[0]
+      const broker = input.requiresBrokerSignature
+        ? await resolveSignatureBrokerCandidate(database, input.brokerCandidateId)
         : null;
-      if (input.requiresBrokerSignature && !brokerSettings) {
-        throw new SignatureDraftValidationError("signature_broker_not_configured");
+      if (input.requiresBrokerSignature && !broker) {
+        throw new SignatureDraftValidationError("signature_broker_unavailable");
       }
       const filename = sanitizeSignatureFilename(input.filename);
       let report;
@@ -126,8 +125,8 @@ export function createSignatureDraftApplicationService({
         });
         if (input.requiresBrokerSignature) {
           await domain.addParticipant({
-            documentVersionId:created.documentVersionId,nameSnapshot:brokerSettings!.broker_name_snapshot,
-            emailSnapshot:brokerSettings!.broker_email_snapshot,role:"Corredora",routingOrder:8,
+            documentVersionId:created.documentVersionId,nameSnapshot:broker!.name,
+            emailSnapshot:broker!.email,role:"Corredor(a)",routingOrder:8,
             isBrokerFinalSigner:true,actorAdminId:input.createdByAdminId,idempotencyKey:randomUUID(),
           });
         }

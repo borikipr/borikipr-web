@@ -119,7 +119,7 @@ export async function evaluateSignaturePreflight(input: {
     items.push(item("participant_email_invalid","preparation","blocked","Hay un correo inválido o con comodín.","Usa correos exactos; no se permiten dominios o destinatarios comodín."));
   }
   if(document?.requires_broker_signature){const brokers=participants.filter((participant)=>participant.is_broker_final_signer);const parties=participants.filter((participant)=>!participant.is_broker_final_signer);const brokerOrder=brokers[0]?.routing_order??1;
-    if(brokers.length!==1||parties.some((participant)=>(participant.routing_order??1)>=brokerOrder))items.push(item("broker_final_signer_invalid","preparation","blocked","La corredora final no está configurada después de todos los demás grupos.","Configura la corredora final en Configuración de Firmas y conserva su ruta final."));}
+    if(brokers.length!==1||parties.some((participant)=>(participant.routing_order??1)>=brokerOrder))items.push(item("broker_final_signer_invalid","preparation","blocked","El corredor(a) final debe estar después de todos los demás grupos.","Revisa la asignación de corredor(a) de este documento y conserva su ruta final."));}
   if(document?.corrects_document_id&&!['voided','expired'].includes(document.corrected_status??""))items.push(item("correction_source_still_active","preparation","blocked","La solicitud original de esta corrección sigue activa.","Cancela explícitamente la solicitud original antes de enviar la corrección."));
   if(input.authorizationType==="internal_canary"&&participantEmails.length){
     const [leadMatch]=await input.database.unsafe<{count:number}>(`SELECT count(*)::integer count FROM leads WHERE email_normalized=ANY($1::text[]) AND status<>'merged'`,[participantEmails]);

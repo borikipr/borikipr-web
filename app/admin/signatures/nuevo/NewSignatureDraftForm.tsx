@@ -13,14 +13,17 @@ import { FormSection } from "@/components/admin/AdminUI";
 
 type Option = Readonly<{ id: string; label: string }>;
 type DocumentType = Readonly<{ id: string; label: string; scope: string }>;
+type BrokerCandidate = Readonly<{ id: string; name: string }>;
 
 export default function NewSignatureDraftForm({
   documentTypes,
+  brokerCandidates,
   leads,
   groups,
   minimumExpirationDate,
 }: {
   documentTypes: readonly DocumentType[];
+  brokerCandidates: readonly BrokerCandidate[];
   leads: readonly Option[];
   groups: readonly Option[];
   minimumExpirationDate: string;
@@ -31,6 +34,7 @@ export default function NewSignatureDraftForm({
   const [message, setMessage] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [requiresBrokerSignature, setRequiresBrokerSignature] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => setHydrated(true), []);
@@ -266,19 +270,40 @@ export default function NewSignatureDraftForm({
           <label className="mt-4 flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <input
               className="mt-1"
+              aria-describedby="broker-signature-help"
+              checked={requiresBrokerSignature}
+              disabled={brokerCandidates.length === 0}
               name="requiresBrokerSignature"
+              onChange={(event) => setRequiresBrokerSignature(event.target.checked)}
               type="checkbox"
               value="true"
             />
             <span>
-              <strong>Requiere firma de la corredora</strong>
-              <span className="mt-1 block text-sm text-slate-600">
-                Añade automáticamente a la corredora configurada como última
-                firmante. Si el PDF no tiene un lugar apropiado, tendrás que
-                decidir dónde colocar su firma.
+              <strong>¿Requiere firma de corredor(a)?</strong>
+              <span className="mt-1 block text-sm text-slate-600" id="broker-signature-help">
+                Si aplica, el corredor(a) se añadirá como firmante final.
               </span>
             </span>
           </label>
+          {requiresBrokerSignature && brokerCandidates.length === 1 ? (
+            <p aria-live="polite" className="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+              <strong>Firmará al final:</strong> {brokerCandidates[0].name}
+            </p>
+          ) : null}
+          {requiresBrokerSignature && brokerCandidates.length > 1 ? (
+            <label className="mt-3 block">
+              <span className="text-sm font-semibold">Corredor(a) firmante</span>
+              <select className="mt-2 w-full rounded-xl border border-[#d9d9d9] px-4 py-3" name="brokerCandidateId" required>
+                <option value="">Selecciona un corredor(a)</option>
+                {brokerCandidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
+              </select>
+            </label>
+          ) : null}
+          {brokerCandidates.length === 0 ? (
+            <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+              No hay un corredor autorizado disponible para este documento.
+            </p>
+          ) : null}
         </FormSection>
       </div>
       {message && (

@@ -22,17 +22,16 @@ test("healthy signing infrastructure is quiet on daily Firmas surfaces", async (
   assert.doesNotMatch(settings, /Canary interno|Firma pública|READY no equivale a ENABLED/);
 });
 
-test("settings keeps configured broker as the single operational choice", async () => {
+test("legacy broker settings remain internal compatibility rather than daily signing UX", async () => {
   const [settings, brokerControl] = await Promise.all([
     source("app/admin/signatures/configuracion/page.tsx"),
     source("app/admin/signatures/configuracion/BrokerSettingsControl.tsx"),
   ]);
 
-  assert.match(settings, /Corredora final/);
-  assert.match(settings, /Firma final automática/);
+  assert.match(settings, /redirect\("\/admin\/signatures"\)/);
   assert.match(brokerControl, /Cambiar corredora final/);
   assert.match(brokerControl, /SignatureActionDialog/);
-  assert.match(settings, /Estado y soporte/);
+  assert.doesNotMatch(settings, /Corredora final/);
   assert.doesNotMatch(settings, /Cuenta Admin de Ivonne/);
   assert.doesNotMatch(settings, /Privacidad y conservación/);
 });
@@ -50,13 +49,13 @@ test("broker signature UX resolves the configured broker without identity hardco
   ]);
 
   assert.match(draftForm, /requiresBrokerSignature/);
-  assert.match(draftForm, /corredora configurada como última/);
-  assert.match(templateList, /Corredora configurada · Firma final/);
-  assert.match(templateUse, /corredora configurada se añadirá automáticamente/);
-  assert.match(draftRoute, /Configura primero una corredora final/);
-  assert.match(editor, /La corredora configurada firma al final/);
-  assert.match(preflight, /Configura la corredora final en Configuración de Firmas/);
-  assert.match(directory, /broker_name_snapshot/);
+  assert.match(draftForm, /Firmará al final:/);
+  assert.match(templateList, /Corredor\(a\) asignado al crear · Firma final/);
+  assert.match(templateUse, /Firmará al final:/);
+  assert.match(draftRoute, /No hay un corredor autorizado disponible/);
+  assert.match(editor, /El corredor\(a\) asignado firma al final/);
+  assert.match(preflight, /asignación de corredor\(a\) de este documento/);
+  assert.match(directory, /resolveSignatureBrokerCandidate/);
   assert.match(directory, /routingOrder:8/);
   assert.match(ux, /isBrokerFinalSigner \? "la corredora"/);
 });
@@ -71,6 +70,6 @@ test("Governance remains a direct support route and its security logic is unchan
   assert.match(governance, /Estado operativo/);
   assert.match(governance, /Neon recovery/);
   assert.match(governance, /R2 recovery/);
-  assert.match(settings, /href="\/admin\/signatures\/gobernanza"/);
+  assert.match(settings, /redirect\("\/admin\/signatures"\)/);
   assert.match(layout, /href="\/admin\/signatures\/gobernanza"/);
 });

@@ -483,7 +483,7 @@ export default function SignatureDraftEditor({
                     ? "Cada persona firma después de que termine la anterior."
                     : "Quienes están en la misma etapa firman a la vez; la etapa siguiente espera."}{" "}
                 {detail.requiresBrokerSignature &&
-                  "La corredora configurada firma al final."}
+                  "El corredor(a) asignado firma al final."}
               </p>
             </div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
@@ -1282,9 +1282,9 @@ function ReadinessCard({
           </ul>
           <Link
             className="mt-4 inline-flex font-semibold text-[#11518b] hover:underline"
-            href="/admin/signatures/configuracion"
+            href="/admin/signatures/gobernanza"
           >
-            Abrir Configuración de Firmas
+            Ver estado y soporte
           </Link>
         </>
       )}

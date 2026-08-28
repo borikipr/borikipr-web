@@ -40,7 +40,7 @@ function message(code: string) {
     signature_document_type_unknown: "Selecciona un tipo de documento válido.",
     signature_source_filename_invalid: "El nombre del archivo PDF no es válido.",
     signature_link_id_invalid: "El enlace opcional seleccionado no es válido.",
-    signature_broker_not_configured: "Configura primero una corredora final en Configuración de Firmas.",
+    signature_broker_unavailable: "No hay un corredor autorizado disponible para este documento.",
   };
   return messages[code] ?? "No se pudo crear el borrador de firma.";
 }
@@ -93,6 +93,7 @@ export async function POST(request: Request) {
       routingMode: (["parallel","sequential","grouped"] as const).includes(String(formData?.get("routingMode")) as never)
         ? String(formData?.get("routingMode")) as "parallel"|"sequential"|"grouped" : "parallel",
       requiresBrokerSignature: String(formData?.get("requiresBrokerSignature") ?? "") === "true",
+      brokerCandidateId: String(formData?.get("brokerCandidateId") ?? "") || null,
     });
     return response(
       {
