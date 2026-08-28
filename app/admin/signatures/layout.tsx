@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { connection } from "next/server";
 import { sql } from "@/lib/db";
 import { isProductionInternalCanaryCapabilityEnabled, isPublicSigningEnabled } from "@/lib/signatures/public-config";
 import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/database";
@@ -8,6 +9,9 @@ import { inspectProductionPublicLaunchGate } from "@/lib/signatures/public-launc
 export const metadata:Metadata={robots:{index:false,follow:false,nocache:true}};
 
 export default async function SignatureAdminLayout({children}:{children:ReactNode}){
+  // The activation banner is derived from the live, fail-closed launch gate.
+  // It must not make a database connection while Next is building static output.
+  await connection();
   const publicFlag=isPublicSigningEnabled(),canaryFlag=isProductionInternalCanaryCapabilityEnabled();let canaryAuthorization=false,publicLaunchAllowed=false;
   try{publicLaunchAllowed=(await inspectProductionPublicLaunchGate(createPostgresSignatureDatabase(sql))).allowed}catch{publicLaunchAllowed=false}
   try{const rows=await sql<{authorized:boolean}[]>`SELECT EXISTS(SELECT 1 FROM signature_launch_authorizations WHERE environment='production' AND authorization_type='internal_canary' AND status='active' AND expires_at>now()) authorized`;canaryAuthorization=rows[0]?.authorized===true}catch{canaryAuthorization=false}
