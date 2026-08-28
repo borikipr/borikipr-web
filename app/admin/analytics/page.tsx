@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Activity, BarChart3, ChartNoAxesCombined, MousePointer2, Users } from "lucide-react";
 import { AnalyticsRefreshControls } from "@/components/admin/analytics/AnalyticsRefreshControls";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import {
@@ -101,18 +102,11 @@ function formatUpdatedAt(date: Date) {
 }
 
 function OverviewMetricCard({ label, value, description }: OverviewMetric) {
+ const Icon = label === "Visitantes" ? Users : label === "Páginas vistas" ? BarChart3 : label === "Conversiones" ? MousePointer2 : Activity;
  return (
-  <div className="surface-card overflow-hidden p-0">
-   <div className="h-1 bg-[#11518b]" />
-   <div className="p-5">
-    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d4af37]">
-     {label}
-    </p>
-    <p className="mt-2 text-2xl font-bold text-[#000000]">{value}</p>
-    <p className="mt-2 text-xs leading-relaxed text-[#4d4d4d]">
-     {description}
-    </p>
-   </div>
+  <div className="analytics-kpi">
+   <div className="analytics-kpi-icon"><Icon aria-hidden="true" size={18} /></div>
+   <div><p>{label}</p><strong>{value}</strong><small>{description}</small></div>
   </div>
  );
 }
@@ -123,14 +117,11 @@ function ProviderStatusCard({
  providers: AnalyticsProviderStatus[];
 }) {
  return (
-  <section className="surface-card p-5">
+  <section className="analytics-provider-health">
    <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
     <div>
-     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-      Estado de integraciones
-     </p>
      <h2 className="mt-2 text-xl font-semibold text-[#000000]">
-      Estado de integraciones
+      Salud de las fuentes
      </h2>
     </div>
     <p className="max-w-xl text-sm leading-relaxed text-[#4d4d4d]">
@@ -138,11 +129,11 @@ function ProviderStatusCard({
     </p>
    </div>
 
-   <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+   <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
     {providers.map((provider) => (
      <div
       key={provider.id}
-      className="rounded-2xl border border-[#e8e8e8] bg-[#fafafa] p-4"
+      className="analytics-provider-status"
      >
       <div className="flex h-full flex-col justify-between gap-4">
        <div className="flex items-start justify-between gap-4">
@@ -162,15 +153,6 @@ function ProviderStatusCard({
          {statusLabel(provider.status)}
         </span>
        </div>
-       <div className="h-2 overflow-hidden rounded-full bg-[#e8e8e8]">
-        <div
-         className={`h-full rounded-full ${
-          provider.status === "connected"
-           ? "w-full bg-[#11518b]"
-           : "w-1/3 bg-[#d4af37]"
-         }`}
-        />
-       </div>
       </div>
      </div>
     ))}
@@ -187,16 +169,12 @@ function ProviderLinkCard({
  buttonLabel,
 }: ProviderLink) {
  return (
-  <div className="surface-card flex h-full flex-col p-5">
-   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-    {eyebrow}
-   </p>
-   <h2 className="mt-3 text-xl font-semibold text-[#000000]">{title}</h2>
-   <p className="mt-3 text-sm leading-relaxed text-[#4d4d4d]">
+  <div className="analytics-provider-link">
+   <p>{eyebrow}</p><h2>{title}</h2><p>
     {description}
    </p>
    <div className="mt-auto pt-4">
-    <Link href={href} className="btn-primary">
+    <Link href={href} className="btn-secondary">
      {buttonLabel}
     </Link>
    </div>
@@ -278,25 +256,24 @@ export default async function AdminAnalyticsPage({
  ];
 
  return (
-  <main className="px-4 py-8 md:px-6">
-   <div className="mx-auto w-full max-w-[1600px] space-y-6">
-    <div className="surface-card p-6 md:p-8">
+  <main className="px-4 py-5 sm:py-6 md:px-6 lg:px-8">
+   <div className="mx-auto w-full max-w-[1480px] space-y-5">
+    <div className="analytics-overview-header">
      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
       <div>
        <p className="eyebrow">Admin · Analytics</p>
-       <h1 className="mt-3 text-3xl font-bold text-[#000000]">
-        Dashboard de analytics
+       <h1 className="mt-2 text-2xl font-bold tracking-[-0.02em] text-[#111827] md:text-[1.75rem]">
+        Rendimiento del website
        </h1>
        <p className="body-base mt-3 max-w-3xl">
-        Hub ejecutivo para revisar el rendimiento del website sin
-        mezclar datos entre proveedores.
+        Una lectura ejecutiva de tráfico, interés y salud de medición.
        </p>
        <p className="mt-3 text-sm font-semibold text-[#11518b]">
         Rango actual: {rangeLabel(currentRange)}
        </p>
       </div>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-2">
        <Link href="/admin" className="btn-secondary">
         Volver al dashboard
        </Link>
@@ -306,6 +283,8 @@ export default async function AdminAnalyticsPage({
       </div>
      </div>
     </div>
+
+    <nav className="analytics-subnav" aria-label="Secciones de analytics"><Link href="/admin/analytics" aria-current="page"><ChartNoAxesCombined aria-hidden="true" size={16} />Resumen</Link><Link href="/admin/analytics/ga4">Tráfico y conversión</Link><Link href="/admin/analytics/clarity">Experiencia</Link><Link href="/admin/analytics/vercel">Salud técnica</Link></nav>
 
     <AnalyticsRefreshControls lastUpdated={lastUpdated} mode="manual" />
 
@@ -323,7 +302,7 @@ export default async function AdminAnalyticsPage({
        Fuente principal: Google Analytics 4
       </p>
      </div>
-     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+     <div className="analytics-kpi-grid">
       {overviewMetrics.map((metric) => (
        <OverviewMetricCard key={metric.label} {...metric} />
       ))}
@@ -334,18 +313,14 @@ export default async function AdminAnalyticsPage({
 
     <section>
      <div className="mb-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
-       Dashboards por proveedor
-      </p>
       <h2 className="mt-2 text-2xl font-semibold text-[#000000]">
-       Análisis por proveedor
+       Explorar por contexto
       </h2>
       <p className="body-base mt-2 max-w-3xl">
-       Cada proveedor tendra su propia vista para evitar duplicados y
-       mantener lecturas claras.
+      Profundiza sin perder de vista la pregunta de negocio que cada fuente responde.
       </p>
      </div>
-     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {providerLinks.map((provider) => (
        <ProviderLinkCard key={provider.href} {...provider} />
       ))}
