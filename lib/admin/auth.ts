@@ -8,6 +8,7 @@ import {
   verifyLegacyAdminSession,
 } from "@/lib/admin/auth-core";
 import { parseProfessionalRoles, type ProfessionalRoleId } from "@/lib/admin/professional-profile";
+import type { AccountState, SystemRole } from "@/lib/admin/access-types";
 
 export const SESSION_COOKIE = "boriki_admin_session";
 
@@ -21,6 +22,8 @@ export type AdminSessionUser = {
   professionalLicenseNumber: string | null;
   profileImageUrl: string | null;
   sessionVersion: number;
+  accountState: AccountState;
+  systemRole: SystemRole;
 };
 
 type AdminUserRow = {
@@ -34,6 +37,8 @@ type AdminUserRow = {
   profile_image_url: string | null;
   password_hash: string;
   activo: boolean;
+  account_state: AccountState;
+  system_role: SystemRole;
   session_version: number;
   password_changed_at: Date | null;
 };
@@ -58,16 +63,19 @@ function toSessionUser(row: AdminUserRow): AdminSessionUser {
     professionalLicenseNumber: row.professional_license_number?.trim() || null,
     profileImageUrl: row.profile_image_url || null,
     sessionVersion: row.session_version,
+    accountState: row.account_state,
+    systemRole: row.system_role,
   };
 }
 
 async function findActiveAdminByUsername(username: string) {
   const rows = await sql<AdminUserRow[]>`
     SELECT id::text, username, display_name, email, professional_title, professional_roles, professional_license_number, profile_image_url, password_hash, activo,
-           session_version, password_changed_at
+           account_state, system_role, session_version, password_changed_at
     FROM public.admin_users
     WHERE username = ${username}
       AND activo = true
+      AND account_state = 'active'
     LIMIT 1
   `;
   return rows[0] || null;
@@ -76,10 +84,11 @@ async function findActiveAdminByUsername(username: string) {
 async function findActiveAdminById(id: string) {
   const rows = await sql<AdminUserRow[]>`
     SELECT id::text, username, display_name, email, professional_title, professional_roles, professional_license_number, profile_image_url, password_hash, activo,
-           session_version, password_changed_at
+           account_state, system_role, session_version, password_changed_at
     FROM public.admin_users
     WHERE id = ${id}::uuid
       AND activo = true
+      AND account_state = 'active'
     LIMIT 1
   `;
   return rows[0] || null;

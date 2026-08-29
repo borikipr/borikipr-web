@@ -11,6 +11,7 @@ import {
   PASSWORD_RESET_TTL_MINUTES,
 } from "@/lib/admin/auth-core";
 import { normalizeProfessionalProfile, type ProfessionalRoleId } from "@/lib/admin/professional-profile";
+import type { AccountState, PasswordTokenPurpose, SystemRole } from "@/lib/admin/access-types";
 
 export type AuthAttemptType = "login" | "password_reset_request";
 
@@ -177,14 +178,14 @@ export async function changeOwnAdminPassword({
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
     const updated = await transaction.unsafe<
-      { id: string; username: string; display_name: string | null; email: string | null; professional_title: string | null; professional_roles: ProfessionalRoleId[]; professional_license_number: string | null; profile_image_url: string | null; session_version: number }[]
+      { id: string; username: string; display_name: string | null; email: string | null; professional_title: string | null; professional_roles: ProfessionalRoleId[]; professional_license_number: string | null; profile_image_url: string | null; session_version: number; account_state: AccountState; system_role: SystemRole }[]
     >(
       `UPDATE public.admin_users
           SET password_hash = $2,
               password_changed_at = now(),
               session_version = session_version + 1
         WHERE id = $1::uuid
-        RETURNING id::text, username, display_name, email, professional_title, professional_roles, professional_license_number, profile_image_url, session_version`,
+        RETURNING id::text, username, display_name, email, professional_title, professional_roles, professional_license_number, profile_image_url, session_version, account_state, system_role`,
       [admin.id, passwordHash]
     );
     await transaction.unsafe(
@@ -206,6 +207,8 @@ export async function changeOwnAdminPassword({
         professionalLicenseNumber: user.professional_license_number?.trim() || null,
         profileImageUrl: user.profile_image_url || null,
         sessionVersion: user.session_version,
+        accountState: user.account_state,
+        systemRole: user.system_role,
       },
     };
   });
@@ -229,6 +232,7 @@ export async function requestAdminPasswordReset(email: string) {
     FROM public.admin_users
     WHERE lower(email) = ${cleanEmail}
       AND activo = true
+      AND account_state = 'active'
     LIMIT 1
   `;
   const user = rows[0];
@@ -245,8 +249,8 @@ export async function requestAdminPasswordReset(email: string) {
     );
     const result = await transaction.unsafe<{ id: string }[]>(
       `INSERT INTO public.admin_password_reset_tokens (
-         admin_user_id, token_hash, expires_at
-       ) VALUES ($1::uuid, $2, now() + ($3::int * interval '1 minute'))
+          admin_user_id, token_hash, expires_at, purpose
+       ) VALUES ($1::uuid, $2, now() + ($3::int * interval '1 minute'), 'password_reset')
        RETURNING id::text`,
       [user.id, tokenHash, PASSWORD_RESET_TTL_MINUTES]
     );
@@ -291,16 +295,19 @@ export async function resetAdminPassword(token: string, newPassword: string) {
   const tokenHash = hashPasswordResetToken(token);
   return sql.begin(async (transaction) => {
     const tokens = await transaction.unsafe<
-      { id: string; admin_user_id: string }[]
+      { id: string; admin_user_id: string; purpose: PasswordTokenPurpose }[]
     >(
-      `SELECT token.id::text, token.admin_user_id::text
+      `SELECT token.id::text, token.admin_user_id::text, token.purpose
          FROM public.admin_password_reset_tokens token
          JOIN public.admin_users admin ON admin.id = token.admin_user_id
         WHERE token.token_hash = $1
           AND token.used_at IS NULL
           AND token.email_sent_at IS NOT NULL
           AND token.expires_at > now()
-          AND admin.activo = true
+          AND (
+            (token.purpose = 'password_reset' AND admin.activo = true AND admin.account_state = 'active')
+            OR (token.purpose = 'account_setup' AND admin.activo = false AND admin.account_state = 'pending_setup')
+          )
         FOR UPDATE OF token, admin`,
       [tokenHash]
     );
@@ -309,22 +316,34 @@ export async function resetAdminPassword(token: string, newPassword: string) {
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
     const updated = await transaction.unsafe<
-      { id: string; username: string; display_name: string | null; email: string | null; professional_title: string | null; professional_roles: ProfessionalRoleId[]; professional_license_number: string | null; profile_image_url: string | null; session_version: number }[]
+      { id: string; username: string; display_name: string | null; email: string | null; professional_title: string | null; professional_roles: ProfessionalRoleId[]; professional_license_number: string | null; profile_image_url: string | null; session_version: number; account_state: AccountState; system_role: SystemRole }[]
     >(
       `UPDATE public.admin_users
           SET password_hash = $2,
               password_changed_at = now(),
-              session_version = session_version + 1
+              session_version = session_version + 1,
+              account_state = CASE WHEN $3 = 'account_setup' THEN 'active' ELSE account_state END,
+              activo = CASE WHEN $3 = 'account_setup' THEN true ELSE activo END,
+              setup_completed_at = CASE WHEN $3 = 'account_setup' THEN now() ELSE setup_completed_at END
         WHERE id = $1::uuid
-        RETURNING id::text, username, display_name, email, professional_title, professional_roles, professional_license_number, profile_image_url, session_version`,
-      [resetToken.admin_user_id, passwordHash]
+        RETURNING id::text, username, display_name, email, professional_title, professional_roles, professional_license_number, profile_image_url, session_version, account_state, system_role`,
+      [resetToken.admin_user_id, passwordHash, resetToken.purpose]
     );
-    await transaction.unsafe(
+      await transaction.unsafe(
       `UPDATE public.admin_password_reset_tokens
           SET used_at = now()
         WHERE admin_user_id = $1::uuid AND used_at IS NULL`,
       [resetToken.admin_user_id]
-    );
+      );
+    if (resetToken.purpose === "account_setup") {
+      const user = updated[0];
+      await transaction.unsafe(
+        `INSERT INTO public.admin_access_events (
+           event_type, actor_admin_user_id, target_admin_user_id, metadata
+         ) VALUES ('account_activated', NULL, $1::uuid, '{"source":"account_setup"}'::jsonb)`,
+        [user.id],
+      );
+    }
     const user = updated[0];
     return {
       ok: true as const,
@@ -338,6 +357,8 @@ export async function resetAdminPassword(token: string, newPassword: string) {
         professionalLicenseNumber: user.professional_license_number?.trim() || null,
         profileImageUrl: user.profile_image_url || null,
         sessionVersion: user.session_version,
+        accountState: user.account_state,
+        systemRole: user.system_role,
       },
     };
   });

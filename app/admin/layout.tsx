@@ -2,15 +2,16 @@ import { ReactNode } from "react";
 import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
 import AdminFooter from "@/components/admin/AdminFooter";
-import { getAdminSession } from "@/lib/admin/auth";
+import { getAdminAccessContext } from "@/lib/admin/access-context";
 
 export default async function AdminLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  const user = await getAdminSession();
-  const isLoggedIn = Boolean(user);
+  const access = await getAdminAccessContext();
+  const user = access?.user;
+  const isLoggedIn = Boolean(access);
 
   return (
     <div className="admin-app flex min-h-screen flex-col bg-[#f4f6f8]">

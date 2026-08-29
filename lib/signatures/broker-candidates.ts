@@ -31,6 +31,7 @@ export async function listSignatureBrokerCandidates(
        JOIN admin_users admin ON admin.id=settings.broker_admin_user_id
       WHERE settings.singleton=true
         AND admin.activo=true
+        AND admin.account_state='active'
         AND admin.email IS NOT NULL
       LIMIT 2`,
   );

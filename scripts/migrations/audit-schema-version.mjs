@@ -293,6 +293,25 @@ if (!process.env.DATABASE_URL) {
               AND column_name='professional_license_number'
               AND data_type='text'
           ) AS v0044
+          ,EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='admin_users'
+              AND column_name='account_state' AND column_default IS NOT NULL
+          ) AND EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='admin_users'
+              AND column_name='system_role'
+          ) AND EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='admin_password_reset_tokens'
+              AND column_name='purpose'
+          ) AS v0045
+          ,to_regclass('public.admin_module_access') IS NOT NULL AS v0046
+          ,to_regclass('public.admin_access_events') IS NOT NULL
+            AND EXISTS (
+              SELECT 1 FROM pg_trigger
+              WHERE tgname='admin_access_events_immutable_trigger' AND NOT tgisinternal
+            ) AS v0047
       )
       SELECT * FROM facts
     `;
