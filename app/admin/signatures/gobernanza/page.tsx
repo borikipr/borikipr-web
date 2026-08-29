@@ -45,6 +45,10 @@ export default async function SignatureGovernancePage() {
   const recoveryReady = neonRecoveryReady && r2RecoveryReady;
   const healthy = publicLaunchGate.allowed && languagesReady && recoveryReady;
   const blockers = uniqueMessages(publicLaunchGate.blockers.map((blocker) => BLOCKER_LABELS[blocker] ?? "Firmas requiere una revisión del equipo autorizado."));
+  const recoveryBlockers = uniqueMessages(publicLaunchGate.blockers
+    .filter((blocker) => blocker === "neon_restore_unproven" || blocker === "r2_independent_recovery_unproven")
+    .map((blocker) => BLOCKER_LABELS[blocker] ?? "La recuperación requiere atención."));
+  const operationalBlockers = blockers.filter((blocker) => !recoveryBlockers.includes(blocker));
 
   return <AdminPageShell>
     <AdminPageHeader
@@ -64,7 +68,7 @@ export default async function SignatureGovernancePage() {
         <StatusBadge variant={healthy ? "green" : "red"}>{healthy ? "Operativo" : "Revisión necesaria"}</StatusBadge>
       </div>
 
-      <dl className="grid border-t border-slate-100 sm:grid-cols-3 sm:divide-x sm:divide-slate-100">
+      <dl className="grid border-t border-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-slate-100">
         <div className="p-4">
           <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Firma pública</dt>
           <dd className="mt-2 font-semibold text-slate-950">{publicLaunchGate.allowed ? "Activa" : "Requiere atención"}</dd>
@@ -73,26 +77,30 @@ export default async function SignatureGovernancePage() {
           <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Idiomas</dt>
           <dd className="mt-2 font-semibold text-slate-950">{languagesReady ? "Español e inglés listos" : "Revisión necesaria"}</dd>
         </div>
-        <div className="border-t border-slate-100 p-4 sm:border-t-0">
-          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Recuperación</dt>
-          <dd className="mt-2 font-semibold text-slate-950">{recoveryReady ? "Neon y R2 listos" : "Revisión necesaria"}</dd>
-        </div>
       </dl>
 
-      {!healthy && <div className="border-t border-red-100 bg-red-50 px-5 py-4" role="alert">
+      {!healthy && operationalBlockers.length > 0 && <div className="border-t border-red-100 bg-red-50 px-5 py-4" role="alert">
         <p className="font-semibold text-red-950">Acción requerida</p>
         <ul className="mt-2 space-y-1 text-sm text-red-900">
-          {blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
+          {operationalBlockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
         </ul>
       </div>}
     </section>
 
-    <section className="surface-card flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between" aria-labelledby="administracion-interna">
-      <div>
-        <h2 id="administracion-interna" className="font-semibold text-slate-950">Administración interna</h2>
-        <p className="mt-1 text-sm text-slate-600">Use estos controles sólo para cambios aprobados de políticas, versiones o registros legales.</p>
+    <section className="surface-card overflow-hidden" aria-labelledby="recuperacion">
+      <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 id="recuperacion" className="text-lg font-semibold text-slate-950">Recuperación</h2>
+          <p className="mt-1 text-sm text-slate-600">{recoveryReady ? "Lista para incidentes excepcionales de infraestructura." : "La recuperación de archivos requiere atención."}</p>
+        </div>
+        <StatusBadge variant={recoveryReady ? "green" : "red"}>{recoveryReady ? "Lista" : "Revisión necesaria"}</StatusBadge>
       </div>
-      <Link className="btn-secondary shrink-0" href="/admin/signatures/gobernanza/gestion">Administrar controles</Link>
+      <dl className="grid border-t border-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-slate-100">
+        <div className="p-4"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Neon</dt><dd className="mt-2 font-semibold text-slate-950">{neonRecoveryReady ? "Listo" : "Requiere atención"}</dd></div>
+        <div className="border-t border-slate-100 p-4 sm:border-t-0"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">R2</dt><dd className="mt-2 font-semibold text-slate-950">{r2RecoveryReady ? "Listo" : "Requiere atención"}</dd></div>
+      </dl>
+      {!recoveryReady && <div className="border-t border-red-100 bg-red-50 px-5 py-4" role="alert"><p className="font-semibold text-red-950">Recuperación requiere atención</p><ul className="mt-2 space-y-1 text-sm text-red-900">{recoveryBlockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul></div>}
+      <p className="border-t border-slate-100 px-5 py-3 text-sm text-slate-600">La recuperación se usa ante incidentes de infraestructura; no es una papelera para documentos eliminados.</p>
     </section>
   </AdminPageShell>;
 }

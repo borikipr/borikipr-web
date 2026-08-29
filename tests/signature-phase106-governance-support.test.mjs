@@ -13,21 +13,23 @@ test("Estado y soporte keeps healthy governance quiet and direct", async () => {
   assert.match(page, /Firmas requiere atención/);
   assert.match(page, /Firma pública/);
   assert.match(page, /Español e inglés listos/);
-  assert.match(page, /Neon y R2 listos/);
+  assert.match(page, /Recuperación/);
+  assert.match(page, /Neon/);
+  assert.match(page, /R2/);
   assert.match(page, /role="alert"/);
   assert.doesNotMatch(page, /Canary interno|Readiness interno|Matriz de preparación|Monitoreo agregado|Auditoría y referencia/);
   assert.doesNotMatch(page, /getSignatureOperationalSnapshot|getSignatureRetentionPreview|GovernanceForms|<details|<summary/);
 });
 
-test("exceptional governance controls move to a deliberate, authenticated route", async () => {
+test("the former management route is authenticated and returns to concise support", async () => {
   const [page, management] = await Promise.all([
     source("app/admin/signatures/gobernanza/page.tsx"),
     source("app/admin/signatures/gobernanza/gestion/page.tsx"),
   ]);
 
-  assert.match(page, /href="\/admin\/signatures\/gobernanza\/gestion"/);
+  assert.doesNotMatch(page, /gobernanza\/gestion|Administrar controles/);
   assert.match(management, /getAdminSession/);
-  assert.match(management, /GovernanceForms/);
-  assert.match(management, /Cambios extraordinarios de versiones, políticas y registros legales/);
+  assert.match(management, /redirect\("\/admin\/signatures\/gobernanza"\)/);
+  assert.doesNotMatch(management, /GovernanceForms|Cambios extraordinarios/);
   assert.doesNotMatch(management, /<details|<summary/);
 });

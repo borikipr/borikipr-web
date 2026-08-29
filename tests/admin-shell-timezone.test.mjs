@@ -62,18 +62,16 @@ test("shared Admin shell provides a skip target and consistent navigation semant
 });
 
 test("operational surfaces use the shared Puerto Rico formatter instead of runtime defaults", async () => {
-  const [overview, ga4, clarity, vercel, governanceManagement, publicOpenHouse] = await Promise.all([
+  const [overview, ga4, clarity, vercel, publicOpenHouse] = await Promise.all([
     source("app/admin/analytics/page.tsx"),
     source("app/admin/analytics/ga4/page.tsx"),
     source("app/admin/analytics/clarity/page.tsx"),
     source("app/admin/analytics/vercel/page.tsx"),
-    source("app/admin/signatures/gobernanza/gestion/page.tsx"),
     source("app/(public)/listados/[slug]/registro-openhouse/page.tsx"),
   ]);
 
   for (const page of [overview, ga4, clarity, vercel]) {
     assert.match(page, /formatPuertoRicoDateTimeShort/);
   }
-  assert.match(governanceManagement, /formatPuertoRicoDateTimeShort/);
   assert.match(publicOpenHouse, /timeZone: "America\/Puerto_Rico"/);
 });

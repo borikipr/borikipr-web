@@ -44,19 +44,16 @@ test("natural Spanish participant roles remain valid while flags stay unrelated"
   }
 });
 
-test("governance mobile styles contain controls at 360, 390 and 412 pixel layouts", async () => {
-  const [styles, forms, layout, nav] = await Promise.all([
-    read("app/globals.css"), read("app/admin/signatures/gobernanza/GovernanceForms.tsx"),
+test("governance mobile styles contain direct support status at 360, 390 and 412 pixel layouts", async () => {
+  const [styles, page, layout, nav] = await Promise.all([
+    read("app/globals.css"), read("app/admin/signatures/gobernanza/page.tsx"),
     read("app/admin/layout.tsx"), read("components/admin/AdminNav.tsx"),
   ]);
   assert.match(styles, /\.signature-governance[\s\S]*overflow-x:\s*(?:clip|hidden)/);
   assert.match(styles, /\.signature-governance input:not[\s\S]*max-width:\s*100%/);
   assert.match(styles, /box-sizing:\s*border-box/);
-  assert.match(forms, /signature-governance min-w-0 max-w-full/);
-  assert.match(forms, /grid-cols-1/);
-  assert.match(forms, /1\. Crear borrador/);
-  assert.match(forms, /2\. Enviar a revisión/);
-  assert.match(forms, /3\. Registrar decisión/);
+  assert.match(page, /flex flex-col gap-3/);
+  assert.match(page, /sm:grid-cols-2/);
   assert.match(layout, /min-w-0 max-w-\[1480px\]/);
   assert.match(nav, /flex min-w-0 flex-1 items-center justify-end/);
   assert.match(nav, /w-\[88vw\] max-w-\[380px\]/);
@@ -64,20 +61,19 @@ test("governance mobile styles contain controls at 360, 390 and 412 pixel layout
   assert.match(nav, /data-admin-drawer-backdrop/);
 });
 
-test("Governance keeps daily status compact while management controls remain secondary", async () => {
-  const [page, actions, forms] = await Promise.all([
+test("Governance keeps daily and recovery status compact without a management console", async () => {
+  const [page, actions] = await Promise.all([
     read("app/admin/signatures/gobernanza/page.tsx"), read("app/admin/signatures/actions.ts"),
-    read("app/admin/signatures/gobernanza/GovernanceForms.tsx"),
   ]);
   assert.match(page, /Estado y soporte/);
   assert.match(page, /Firmas operando normalmente/);
   assert.match(page, /Firmas requiere atención/);
   assert.match(page, /Español e inglés listos/);
-  assert.match(page, /Administrar controles/);
+  assert.match(page, /La recuperación se usa ante incidentes de infraestructura/);
+  assert.doesNotMatch(page, /Administrar controles|gobernanza\/gestion/);
   assert.doesNotMatch(page, /Canary interno|Readiness interno|Auditoría y referencia/);
   assert.match(actions, /Falta configurar y activar la política de retención/);
   assert.doesNotMatch(page, />retention_policy_missing</);
   assert.doesNotMatch(page, />privacy_disclosure_missing</);
-  for (const label of ["Documento fuente", "PDF final", "Certificado", "Manifest\/evidencia", "Tokens\/digests", "Sesiones", "Eventos de auditoría", "Borradores abandonados", "Network digests"]) assert.match(forms, new RegExp(label));
-  assert.match(forms, /Canary interno: Desactivado/);
+  assert.doesNotMatch(page, /Canary interno|Tokens\/digests|Sesiones|Eventos de auditoría/);
 });
