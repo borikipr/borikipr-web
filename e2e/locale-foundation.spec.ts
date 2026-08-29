@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const multilingualEnabled =
-  process.env.MULTILINGUAL_ENABLED?.trim().toLowerCase() !== "false";
+  process.env.MULTILINGUAL_ENABLED?.trim().toLowerCase() === "true";
 
 test.describe.configure({ timeout: 90_000 });
 
@@ -11,8 +11,8 @@ test("disabled multilingual mode preserves the Spanish production shell", async 
   test.skip(multilingualEnabled, "This assertion covers the disabled mode.");
 
   const response = await page.goto("/about");
-  expect(await response?.text()).toContain('<html lang="es-PR"');
-  await expect(page.locator("html")).toHaveAttribute("lang", "es-PR");
+  expect(await response?.text()).toContain('<html lang="es"');
+  await expect(page.locator("html")).toHaveAttribute("lang", "es");
   await expect(page.locator("[data-language-selector]")).toHaveCount(0);
 
   await expect(
@@ -56,12 +56,10 @@ test("enabled preview switches static routes and updates the document language",
   await expect(selector).toBeVisible();
   await expect(selector.locator('img[src*="puerto-rico.svg"]')).toBeVisible();
   await expect(selector.locator('img[src*="united-states.svg"]')).toBeVisible();
-  if ((viewport?.width ?? 1280) >= 1024) {
-    await expect(selector.getByRole("link", { name: /Español/ })).toHaveAttribute(
-      "href",
-      "/about"
-    );
-  }
+  await expect(selector.getByRole("link", { name: "Español" })).toHaveAttribute(
+    "href",
+    "/about"
+  );
 
   await page.goto("/en/contact?q=Ponce&page=2");
   await expect(page.locator("html")).toHaveAttribute("lang", "en-US");

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const multilingualEnabled =
-  process.env.MULTILINGUAL_ENABLED?.trim().toLowerCase() !== "false";
+  process.env.MULTILINGUAL_ENABLED?.trim().toLowerCase() === "true";
 const completePropertySlug = process.env.E2E_PHASE5_COMPLETE_PROPERTY_SLUG;
 const incompletePropertySlug = process.env.E2E_PHASE5_INCOMPLETE_PROPERTY_SLUG;
 const stalePropertySlug = process.env.E2E_PHASE5_STALE_PROPERTY_SLUG;
@@ -57,7 +57,7 @@ test("disabled mode renders Spanish SEO without English discovery signals", asyn
 
   const response = await page.goto("/about");
   expect(response?.status()).toBe(200);
-  await expect(page.locator("html")).toHaveAttribute("lang", "es-PR");
+  await expect(page.locator("html")).toHaveAttribute("lang", "es");
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
     "https://borikipr.com/about"
@@ -81,7 +81,7 @@ test("disabled isolated dynamic property remains Spanish-only and translation-qu
 
   const response = await page.goto(`/listados/${spanishControlSlug}`);
   expect(response?.status()).toBe(200);
-  await expect(page.locator("html")).toHaveAttribute("lang", "es-PR");
+  await expect(page.locator("html")).toHaveAttribute("lang", "es");
   await expect(page.locator("h1")).toContainText("Casa Control en Espa\u00f1ol");
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `https://borikipr.com/listados/${spanishControlSlug}`);
   await expect(page.locator('link[rel="alternate"][hreflang="en-US"]')).toHaveCount(0);
@@ -172,11 +172,7 @@ test("enabled sitemap exposes the approved English static routes", async ({
     "/en/privacy",
   ];
   for (const pathname of approvedStatic) expect(english).toContain(pathname);
-  if (!fixtureDatabaseUrl) {
-    for (const pathname of english) {
-      expect(approvedStatic.includes(pathname) || pathname.startsWith("/en/listings/")).toBe(true);
-    }
-  }
+  if (!fixtureDatabaseUrl) expect(english.sort()).toEqual(approvedStatic.sort());
 });
 
 test("isolated complete and incomplete English properties render the approved indexability policy", async ({
