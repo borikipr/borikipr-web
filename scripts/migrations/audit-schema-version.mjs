@@ -312,6 +312,19 @@ if (!process.env.DATABASE_URL) {
               SELECT 1 FROM pg_trigger
               WHERE tgname='admin_access_events_immutable_trigger' AND NOT tgisinternal
             ) AS v0047
+          ,EXISTS (
+            SELECT 1 FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='admin_users'
+               AND column_name='signing_broker_authorized_at'
+          ) AND EXISTS (
+            SELECT 1 FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='admin_users'
+               AND column_name='assigned_broker_user_id'
+          ) AND EXISTS (
+            SELECT 1 FROM pg_constraint
+             WHERE conrelid='public.admin_access_events'::regclass
+               AND pg_get_constraintdef(oid) LIKE '%broker_authorization_granted%'
+          ) AS v0048
       )
       SELECT * FROM facts
     `;

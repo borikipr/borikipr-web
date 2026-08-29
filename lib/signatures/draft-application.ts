@@ -68,7 +68,7 @@ export function createSignatureDraftApplicationService({
         throw new SignatureDraftValidationError("signature_document_type_unknown");
       }
       const broker = input.requiresBrokerSignature
-        ? await resolveSignatureBrokerCandidate(database, input.brokerCandidateId)
+        ? await resolveSignatureBrokerCandidate(database, input.brokerCandidateId, input.createdByAdminId)
         : null;
       if (input.requiresBrokerSignature && !broker) {
         throw new SignatureDraftValidationError("signature_broker_unavailable");

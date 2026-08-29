@@ -11,6 +11,8 @@ import {
   resendTeamSetupInvitation,
   updateTeamManagedProfessionalProfile,
   setAdminModuleAccess,
+  setSigningBrokerAuthorization,
+  setAssignedSigningBroker,
 } from "@/lib/admin/team-access";
 
 export type TeamActionState = Readonly<{ error: string; success: string }>;
@@ -32,8 +34,34 @@ function messageFor(error: unknown) {
     admin_access_already_disabled: "Esta cuenta ya está desactivada.",
     admin_access_module_target_invalid: "Los accesos por módulo solo aplican a cuentas miembro.",
     admin_access_module_invalid: "El acceso seleccionado no es válido.",
+    admin_access_broker_account_inactive: "La cuenta debe estar activa para autorizarla como corredor(a).",
+    admin_access_broker_role_required: "La cuenta debe tener el rol profesional de Corredor(a) de Bienes Raíces.",
+    admin_access_broker_license_required: "La cuenta necesita un número de licencia para autorizarse como corredor(a).",
+    admin_access_assigned_broker_self_forbidden: "Una cuenta no puede asignarse a sí misma como corredor(a).",
+    admin_access_assigned_broker_invalid: "El corredor(a) seleccionado no está disponible.",
+    admin_access_assigned_broker_unauthorized: "El corredor(a) seleccionado no está autorizado para Firmas.",
   };
   return messages[code] ?? "No fue posible completar esta acción. Inténtalo nuevamente.";
+}
+
+export async function setSigningBrokerAuthorizationAction(_previous: TeamActionState, formData: FormData): Promise<TeamActionState> {
+  const targetId = String(formData.get("targetId") || "");
+  const authorized = String(formData.get("authorized") || "") === "true";
+  try {
+    await setSigningBrokerAuthorization(await actorId(), targetId, authorized);
+    invalidateTeamPaths(targetId);
+    return { error: "", success: authorized ? "Corredor autorizado para Firmas." : "Autorización de corredor eliminada." };
+  } catch (error) { return { error: messageFor(error), success: "" }; }
+}
+
+export async function setAssignedSigningBrokerAction(_previous: TeamActionState, formData: FormData): Promise<TeamActionState> {
+  const targetId = String(formData.get("targetId") || "");
+  const rawBrokerId = String(formData.get("brokerAdminId") || "").trim();
+  try {
+    await setAssignedSigningBroker(await actorId(), targetId, rawBrokerId || null);
+    invalidateTeamPaths(targetId);
+    return { error: "", success: rawBrokerId ? "Corredor asignado para futuras solicitudes." : "Corredor asignado eliminado." };
+  } catch (error) { return { error: messageFor(error), success: "" }; }
 }
 
 async function actorId() {

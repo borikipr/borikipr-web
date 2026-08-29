@@ -25,6 +25,9 @@ export const ADMIN_ACCESS_EVENT_TYPES = [
   "system_role_changed",
   "module_access_granted",
   "module_access_revoked",
+  "broker_authorization_granted",
+  "broker_authorization_revoked",
+  "assigned_broker_changed",
 ] as const;
 export type AdminAccessEventType = (typeof ADMIN_ACCESS_EVENT_TYPES)[number];
 

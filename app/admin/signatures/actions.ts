@@ -36,6 +36,7 @@ export type SignatureAdminActionState = Readonly<{
 
 const INITIAL_ERROR = "No se pudo guardar el cambio.";
 const SEND_BLOCKER_MESSAGES: Record<string,string> = {
+  broker_final_signer_ineligible: "El corredor(a) asignado ya no está autorizado o activo. Actualiza el borrador antes de enviarlo.",
   document_not_draft: "El documento ya no está en borrador.",
   active_version_missing: "Falta la versión activa del documento.",
   source_pdf_incompatible: "El PDF fuente no pasó la validación.",

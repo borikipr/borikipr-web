@@ -13,7 +13,7 @@ import { FormSection } from "@/components/admin/AdminUI";
 
 type Option = Readonly<{ id: string; label: string }>;
 type DocumentType = Readonly<{ id: string; label: string; scope: string }>;
-type BrokerCandidate = Readonly<{ id: string; name: string }>;
+type BrokerCandidate = Readonly<{ id: string; name: string; licenseNumber: string }>;
 
 export default function NewSignatureDraftForm({
   documentTypes,
@@ -295,7 +295,7 @@ export default function NewSignatureDraftForm({
               <span className="text-sm font-semibold">Corredor(a) firmante</span>
               <select className="mt-2 w-full rounded-xl border border-[#d9d9d9] px-4 py-3" name="brokerCandidateId" required>
                 <option value="">Selecciona un corredor(a)</option>
-                {brokerCandidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
+                {brokerCandidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name} · Lic. {candidate.licenseNumber}</option>)}
               </select>
             </label>
           ) : null}

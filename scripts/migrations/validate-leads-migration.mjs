@@ -2418,3 +2418,30 @@ try {
   await assert.rejects(adminProfessionalRolesDb.exec(adminProfessionalRolesRollbackSql), /0044 rollback blocked/);
   console.log("Validated professional profile roles migration 0044 and guarded rollback.");
 } finally { await adminProfessionalRolesDb.close(); }
+
+const teamBrokerMigrationSql = await readMigration("0048_add_team_signing_brokers.sql");
+const teamBrokerRollbackSql = await readMigration("0048_add_team_signing_brokers.rollback.sql");
+const teamBrokerDb = new PGlite();
+try {
+  await teamBrokerDb.exec(`
+    CREATE TABLE public.admin_users (
+      id uuid PRIMARY KEY, username text NOT NULL, activo boolean NOT NULL DEFAULT true,
+      account_state text NOT NULL DEFAULT 'active', professional_roles text[] NOT NULL DEFAULT ARRAY['administrator'],
+      professional_license_number text NULL, system_role text NOT NULL DEFAULT 'member'
+    );
+    CREATE TABLE public.admin_access_events (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(), occurred_at timestamptz NOT NULL DEFAULT now(),
+      event_type text NOT NULL, actor_admin_user_id uuid NULL REFERENCES public.admin_users(id),
+      target_admin_user_id uuid NOT NULL REFERENCES public.admin_users(id), metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT admin_access_events_type_check CHECK (event_type IN ('user_created','setup_issued','account_activated','account_disabled','account_reactivated','system_role_changed','module_access_granted','module_access_revoked'))
+    );
+    INSERT INTO public.admin_users(id,username,professional_roles,professional_license_number,system_role) VALUES
+      ('3cefce78-7d62-485d-9faa-6fed1b6ae377','cedric',ARRAY['administrator'],NULL,'super_admin'),
+      ('837a7fca-c067-4878-a4eb-01c12a4cf7ba','ivonne',ARRAY['real_estate_broker'],'C-1','admin');
+  `);
+  await teamBrokerDb.exec(teamBrokerMigrationSql);
+  const broker = await teamBrokerDb.query(`SELECT signing_broker_authorized_at IS NOT NULL AS authorized, assigned_broker_user_id IS NULL AS assignment_empty FROM public.admin_users WHERE username='ivonne'`);
+  assert.deepEqual(broker.rows, [{ authorized: true, assignment_empty: true }]);
+  await assert.rejects(teamBrokerDb.exec(teamBrokerRollbackSql), /0048 rollback blocked/);
+  console.log("Validated Team-backed Signing broker migration 0048 and guarded rollback.");
+} finally { await teamBrokerDb.close(); }

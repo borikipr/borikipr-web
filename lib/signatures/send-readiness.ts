@@ -1,4 +1,5 @@
 import { hashSignatureFieldDefinition } from "./field-definition";
+import { isPersistedBrokerParticipantEligible } from "./broker-candidates";
 import type { SignatureQueryExecutor } from "./domain/types";
 
 export type SignatureSendReadiness = Readonly<{
@@ -92,7 +93,8 @@ export async function evaluateSignatureSendReadiness(input: {
       reasons.push("participant_email_invalid");
     }
     if(row.requires_broker_signature){const brokers=participants.filter((participant)=>participant.is_broker_final_signer);const parties=participants.filter((participant)=>!participant.is_broker_final_signer);const brokerOrder=brokers[0]?.routing_order??1;
-      if(brokers.length!==1||parties.some((participant)=>(participant.routing_order??1)>=brokerOrder))reasons.push("broker_final_signer_invalid");}
+      if(brokers.length!==1||parties.some((participant)=>(participant.routing_order??1)>=brokerOrder))reasons.push("broker_final_signer_invalid");
+      if(brokers[0] && !await isPersistedBrokerParticipantEligible(input.database, brokers[0].normalized_email)) reasons.push("broker_final_signer_ineligible");}
     if(row.corrects_document_id&&!['voided','expired'].includes(row.corrected_status??""))reasons.push("correction_source_still_active");
     const fields = await input.database.unsafe<{
       participant_id: string; field_type: "signature" | "initials" | "date" | "date_signed" | "text";

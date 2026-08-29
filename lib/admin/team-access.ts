@@ -23,6 +23,10 @@ type TargetAccount = {
   system_role: SystemRole;
   account_state: "pending_setup" | "active" | "disabled";
   activo: boolean;
+  professional_roles?: string[];
+  professional_license_number?: string | null;
+  signing_broker_authorized_at?: string | Date | null;
+  assigned_broker_user_id?: string | null;
 };
 
 type TeamManagedRole = "admin" | "member";
@@ -77,7 +81,8 @@ async function assertTargetCanLoseSuperAdmin(
 
 async function loadTargetForUpdate(database: TeamDatabase, targetAdminId: string) {
   const rows = await database.unsafe<TargetAccount[]>(
-    `SELECT id::text, email, display_name, username, system_role, account_state, activo
+    `SELECT id::text, email, display_name, username, system_role, account_state, activo,
+            assigned_broker_user_id::text
        FROM public.admin_users
       WHERE id = $1::uuid
       FOR UPDATE`,
@@ -231,6 +236,49 @@ export async function setAdminModuleAccess(
       );
       if (removed[0]) await writeAdminAccessEvent(tx, { eventType: "module_access_revoked", actorAdminUserId: actorAdminId, targetAdminUserId: targetAdminId, metadata: { module: moduleKey, before: existing[0]?.access_level ?? null, after: null } });
     }
+  });
+}
+
+function assertBrokerEligible(target: TargetAccount) {
+  if (!target.activo || target.account_state !== "active") throw new Error("admin_access_broker_account_inactive");
+  if (!target.professional_roles?.includes("real_estate_broker")) throw new Error("admin_access_broker_role_required");
+  if (!target.professional_license_number?.trim()) throw new Error("admin_access_broker_license_required");
+}
+
+export async function setSigningBrokerAuthorization(actorAdminId: string, targetAdminId: string, authorized: boolean, database: TeamDatabase = sql) {
+  assertDifferentActor(actorAdminId, targetAdminId);
+  return database.begin(async (transaction) => {
+    const tx = transaction as unknown as TeamDatabase;
+    await lockAuthorityMutation(tx); await assertActorIsSuperAdmin(tx, actorAdminId);
+    const rows = await tx.unsafe<TargetAccount[]>(`SELECT id::text,email,display_name,username,system_role,account_state,activo,professional_roles,professional_license_number,signing_broker_authorized_at FROM admin_users WHERE id=$1::uuid FOR UPDATE`, [targetAdminId]);
+    const target = rows[0]; if (!target) throw new Error("admin_access_target_not_found");
+    if (authorized) {
+      assertBrokerEligible(target);
+      if (target.signing_broker_authorized_at) return;
+      await tx.unsafe(`UPDATE admin_users SET signing_broker_authorized_at=now(), signing_broker_authorized_by_admin_id=$2::uuid WHERE id=$1::uuid`, [targetAdminId, actorAdminId]);
+      await writeAdminAccessEvent(tx, { eventType:"broker_authorization_granted", actorAdminUserId:actorAdminId,targetAdminUserId:targetAdminId,metadata:{source:"team_access"} });
+    } else {
+      if (!target.signing_broker_authorized_at) return;
+      await tx.unsafe(`UPDATE admin_users SET signing_broker_authorized_at=NULL, signing_broker_authorized_by_admin_id=NULL WHERE id=$1::uuid`, [targetAdminId]);
+      await writeAdminAccessEvent(tx, { eventType:"broker_authorization_revoked", actorAdminUserId:actorAdminId,targetAdminUserId:targetAdminId,metadata:{source:"team_access"} });
+    }
+  });
+}
+
+export async function setAssignedSigningBroker(actorAdminId: string, targetAdminId: string, brokerAdminId: string | null, database: TeamDatabase = sql) {
+  assertDifferentActor(actorAdminId, targetAdminId);
+  return database.begin(async (transaction) => {
+    const tx = transaction as unknown as TeamDatabase;
+    await lockAuthorityMutation(tx); await assertActorIsSuperAdmin(tx, actorAdminId);
+    const target = await loadTargetForUpdate(tx, targetAdminId);
+    if (brokerAdminId === targetAdminId) throw new Error("admin_access_assigned_broker_self_forbidden");
+    if (brokerAdminId) {
+      const rows = await tx.unsafe<TargetAccount[]>(`SELECT id::text,email,display_name,username,system_role,account_state,activo,professional_roles,professional_license_number,signing_broker_authorized_at FROM admin_users WHERE id=$1::uuid FOR UPDATE`, [brokerAdminId]);
+      const broker=rows[0]; if(!broker) throw new Error("admin_access_assigned_broker_invalid"); assertBrokerEligible(broker); if(!broker.signing_broker_authorized_at) throw new Error("admin_access_assigned_broker_unauthorized");
+    }
+    if ((target.assigned_broker_user_id ?? null) === brokerAdminId) return;
+    await tx.unsafe(`UPDATE admin_users SET assigned_broker_user_id=$2::uuid WHERE id=$1::uuid`, [targetAdminId, brokerAdminId]);
+    await writeAdminAccessEvent(tx, { eventType:"assigned_broker_changed",actorAdminUserId:actorAdminId,targetAdminUserId:targetAdminId,metadata:{before:target.assigned_broker_user_id ? "assigned" : null,after:brokerAdminId ? "assigned" : null} });
   });
 }
 

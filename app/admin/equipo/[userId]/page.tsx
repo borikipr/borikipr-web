@@ -5,9 +5,11 @@ import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShe
 import TeamMemberAvatar from "@/components/admin/TeamMemberAvatar";
 import { AccountLifecycleBadge, ProfessionalIdentity, SystemRoleBadge, TeamIdentityEmail } from "@/components/admin/TeamMemberMeta";
 import { AdminAccessError, requireSuperAdmin } from "@/lib/admin/access-context";
-import { getTeamDirectoryMember } from "@/lib/admin/team-directory";
+import { getTeamDirectoryMember, listTeamSigningBrokerOptions } from "@/lib/admin/team-directory";
 import TeamMemberActions from "../TeamMemberActions";
 import ModuleAccessControls from "../ModuleAccessControls";
+import SigningBrokerAuthorization from "../SigningBrokerAuthorization";
+import AssignedSigningBroker from "../AssignedSigningBroker";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -29,6 +31,7 @@ export default async function TeamMemberDetailPage({ params, searchParams }: { p
   if (!member) notFound();
   const isSelf = access.user.id === member.id;
   const canManage = !isSelf && member.systemRole !== "super_admin";
+  const signingBrokers = canManage && member.systemRole === "member" ? await listTeamSigningBrokerOptions() : [];
 
   return (
     <AdminPageShell>
@@ -44,6 +47,8 @@ export default async function TeamMemberDetailPage({ params, searchParams }: { p
         <aside className="surface-card p-5 md:p-6" aria-labelledby="account-context-heading"><h2 id="account-context-heading" className="flex items-center gap-2 text-base font-bold text-slate-900"><Building2 aria-hidden="true" size={18} className="text-[#11518b]" />Cuenta interna</h2><dl className="mt-4 space-y-4 text-sm"><div><dt className="font-medium text-slate-500">Organización</dt><dd className="mt-1 font-semibold text-slate-800">Erickson Real Estate · Borikí</dd></div><div><dt className="font-medium text-slate-500">Usuario de acceso</dt><dd className="mt-1 font-semibold text-slate-800">{member.username}</dd></div><div><dt className="font-medium text-slate-500">Estado de la cuenta</dt><dd className="mt-2"><AccountLifecycleBadge state={member.accountState} /></dd></div><div><dt className="font-medium text-slate-500">Rol del sistema</dt><dd className="mt-2"><SystemRoleBadge role={member.systemRole} /></dd></div></dl></aside>
       </div>
       {member.systemRole === "member" && !isSelf ? <ModuleAccessControls targetId={member.id} access={member.moduleAccess} /> : <section className="surface-card px-5 py-4 text-sm text-slate-600"><strong className="text-slate-900">Acceso a módulos</strong><p className="mt-1">{member.systemRole === "member" ? "Los módulos se asignan de forma explícita por una superadministración." : member.systemRole === "super_admin" ? "Acceso completo + administración de plataforma." : "Acceso completo por rol del sistema."}</p></section>}
+      {!isSelf && member.systemRole !== "super_admin" ? <SigningBrokerAuthorization targetId={member.id} authorized={member.signingBrokerAuthorized} eligible={member.accountState === "active" && member.professionalRoles.includes("real_estate_broker") && Boolean(member.professionalLicenseNumber)} /> : null}
+      {canManage && member.systemRole === "member" ? <AssignedSigningBroker targetId={member.id} assignedBrokerUserId={member.assignedBrokerUserId} assignedBrokerName={member.assignedBrokerName} brokers={signingBrokers} /> : null}
       {isSelf ? <p className="surface-card px-5 py-4 text-sm text-slate-600">Gestiona tu identidad profesional desde <Link href="/admin/profile" className="font-semibold text-[#11518b]">Mi perfil</Link>.</p> : canManage ? <TeamMemberActions targetId={member.id} displayName={member.displayName} accountState={member.accountState} systemRole={member.systemRole} /> : <p className="surface-card px-5 py-4 text-sm text-slate-600">La autoridad de superadministración se administra por separado.</p>}
     </AdminPageShell>
   );

@@ -39,6 +39,22 @@ test("0045–0047 establish constrained lifecycle, grants, and append-only audit
   await db.close();
 });
 
+test("Phase 14 keeps signing broker authority explicit and separate", async () => {
+  const migration = await read("0048_add_team_signing_brokers.sql");
+  assert.match(migration, /signing_broker_authorized_at/);
+  assert.match(migration, /assigned_broker_user_id/);
+  assert.match(migration, /837a7fca-c067-4878-a4eb-01c12a4cf7ba/);
+  assert.match(migration, /broker_authorization_granted/);
+  assert.match(teamAccess, /setSigningBrokerAuthorization/);
+  assert.match(teamAccess, /setAssignedSigningBroker/);
+  assert.match(teamAccess, /assigned_broker_changed/);
+  assert.match(teamAccess, /real_estate_broker/);
+  assert.match(teamAccess, /professional_license_number/);
+  assert.match(brokerCandidates, /signing_broker_authorized_at IS NOT NULL/);
+  assert.match(brokerCandidates, /module_key='signatures'/);
+  assert.match(brokerCandidates, /isPersistedBrokerParticipantEligible/);
+});
+
 test("foundation retains compatibility and keeps access authority server-side", () => {
   assert.match(m0045, /account_state IN \('pending_setup', 'active', 'disabled'\)/);
   assert.match(m0045, /system_role IN \('super_admin', 'admin', 'member'\)/);

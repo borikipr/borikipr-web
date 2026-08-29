@@ -16,7 +16,16 @@ export type TeamDirectoryMember = Readonly<{
   professionalTitle: string | null;
   professionalLicenseNumber: string | null;
   profileImageUrl: string | null;
+  signingBrokerAuthorized: boolean;
+  assignedBrokerUserId: string | null;
+  assignedBrokerName: string | null;
   moduleAccess: ReadonlyMap<ModuleKey, AccessLevel>;
+}>;
+
+export type TeamSigningBrokerOption = Readonly<{
+  id: string;
+  displayName: string;
+  licenseNumber: string;
 }>;
 
 type TeamDirectoryRow = {
@@ -30,6 +39,9 @@ type TeamDirectoryRow = {
   professional_title: string | null;
   professional_license_number: string | null;
   profile_image_url: string | null;
+  signing_broker_authorized_at: string | Date | null;
+  assigned_broker_user_id: string | null;
+  assigned_broker_name: string | null;
 };
 
 function toTeamDirectoryMember(row: TeamDirectoryRow, moduleAccess = new Map<ModuleKey, AccessLevel>()): TeamDirectoryMember {
@@ -44,26 +56,58 @@ function toTeamDirectoryMember(row: TeamDirectoryRow, moduleAccess = new Map<Mod
     professionalTitle: row.professional_title?.trim() || null,
     professionalLicenseNumber: row.professional_license_number?.trim() || null,
     profileImageUrl: row.profile_image_url || null,
+    signingBrokerAuthorized: Boolean(row.signing_broker_authorized_at),
+    assignedBrokerUserId: row.assigned_broker_user_id,
+    assignedBrokerName: row.assigned_broker_name?.trim() || null,
     moduleAccess,
   };
 }
 
 export const listTeamDirectoryMembers = cache(async (): Promise<TeamDirectoryMember[]> => {
   const rows = await sql<TeamDirectoryRow[]>`
-    SELECT id::text, display_name, username, email, system_role, account_state,
-           professional_roles, professional_title, professional_license_number, profile_image_url
-      FROM public.admin_users
-     ORDER BY lower(COALESCE(NULLIF(trim(display_name), ''), username)), id
+    SELECT admin.id::text, admin.display_name, admin.username, admin.email, admin.system_role, admin.account_state,
+           admin.professional_roles, admin.professional_title, admin.professional_license_number, admin.profile_image_url,
+           admin.signing_broker_authorized_at, admin.assigned_broker_user_id::text,
+           coalesce(nullif(btrim(broker.display_name),''), broker.username) as assigned_broker_name
+      FROM public.admin_users admin
+      LEFT JOIN public.admin_users broker ON broker.id=admin.assigned_broker_user_id
+     ORDER BY lower(COALESCE(NULLIF(trim(admin.display_name), ''), admin.username)), admin.id
   `;
   return rows.map((row) => toTeamDirectoryMember(row));
 });
 
+/** Bounded, authorized-only options for assigning a member's signing broker. */
+export const listTeamSigningBrokerOptions = cache(async (): Promise<TeamSigningBrokerOption[]> => {
+  const rows = await sql<{ id: string; display_name: string | null; username: string; professional_license_number: string }[]>`
+    SELECT admin.id::text, admin.display_name, admin.username,
+           btrim(admin.professional_license_number) AS professional_license_number
+      FROM public.admin_users admin
+      LEFT JOIN public.admin_module_access signing_access
+        ON signing_access.admin_user_id = admin.id
+       AND signing_access.module_key = 'signatures'
+     WHERE admin.activo = true
+       AND admin.account_state = 'active'
+       AND admin.signing_broker_authorized_at IS NOT NULL
+       AND 'real_estate_broker' = ANY(admin.professional_roles)
+       AND nullif(btrim(admin.professional_license_number), '') IS NOT NULL
+       AND (admin.system_role IN ('super_admin', 'admin') OR signing_access.access_level = 'manage')
+     ORDER BY lower(coalesce(nullif(btrim(admin.display_name), ''), admin.username)), admin.id
+  `;
+  return rows.map((row) => ({
+    id: row.id,
+    displayName: row.display_name?.trim() || row.username,
+    licenseNumber: row.professional_license_number,
+  }));
+});
+
 export const getTeamDirectoryMember = cache(async (id: string): Promise<TeamDirectoryMember | null> => {
   const rows = await sql<TeamDirectoryRow[]>`
-    SELECT id::text, display_name, username, email, system_role, account_state,
-           professional_roles, professional_title, professional_license_number, profile_image_url
-      FROM public.admin_users
-     WHERE id = ${id}::uuid
+    SELECT admin.id::text, admin.display_name, admin.username, admin.email, admin.system_role, admin.account_state,
+           admin.professional_roles, admin.professional_title, admin.professional_license_number, admin.profile_image_url,
+           admin.signing_broker_authorized_at, admin.assigned_broker_user_id::text,
+           coalesce(nullif(btrim(broker.display_name),''), broker.username) as assigned_broker_name
+      FROM public.admin_users admin LEFT JOIN public.admin_users broker ON broker.id=admin.assigned_broker_user_id
+     WHERE admin.id = ${id}::uuid
      LIMIT 1
   `;
   if (!rows[0]) return null;

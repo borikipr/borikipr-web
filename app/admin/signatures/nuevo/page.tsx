@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
 import SignatureStepProgress from "@/components/admin/signatures/SignatureStepProgress";
-import { getAdminSessionUser } from "@/lib/admin/auth";
+import { getAdminSession } from "@/lib/admin/auth";
+import { requireModuleAccess } from "@/lib/admin/access-context";
 import { sql } from "@/lib/db";
 import { createSignatureAdminRepository } from "@/lib/signatures/admin-repository";
 import { SIGNATURE_DOCUMENT_TYPES } from "@/lib/signatures/document-classification";
@@ -11,10 +12,12 @@ import { listSignatureBrokerCandidates } from "@/lib/signatures/broker-candidate
 import NewSignatureDraftForm from "./NewSignatureDraftForm";
 
 export default async function NewSignatureDraftPage() {
-  if (!(await getAdminSessionUser())) redirect("/admin/login");
+  const session = await getAdminSession();
+  if (!session) redirect("/admin/login");
+  await requireModuleAccess("signatures", "manage");
   const repository=createSignatureAdminRepository(createPostgresSignatureDatabase(sql));
   const options=await repository.linkageOptions();
-  const brokerCandidates=await listSignatureBrokerCandidates(createPostgresSignatureDatabase(sql));
+  const brokerCandidates=await listSignatureBrokerCandidates(createPostgresSignatureDatabase(sql), session.id);
   const minimumExpirationDate = new Date().toISOString().slice(0, 10);
   return <AdminPageShell>
     <div className="signature-new-document-page">
