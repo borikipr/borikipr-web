@@ -186,8 +186,9 @@ test("isolated delivery UI and invitation reissue remain server-gated", async ()
   assert.match(isolatedPage, /NODE_ENV === "production"/);
   assert.match(isolatedPage, /SIGNING_ISOLATED_ENVIRONMENT/);
   assert.match(isolatedPage, /SIGNING_ISOLATED_EMAIL_SINK/);
-  assert.match(isolatedPage, /getAdminSession/);
+  assert.match(isolatedPage, /requireSuperAdmin/);
   assert.match(isolatedControl, /\/api\/admin\/signatures\/isolated-sink/);
   assert.doesNotMatch(isolatedControl, /localStorage|sessionStorage|console\./);
   assert.match(isolatedRoute, /sameOrigin/);
+  assert.match(isolatedRoute, /requireSuperAdmin/);
 });
