@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-const navItems = [
+const baseNavItems = [
   { href: "/admin", label: "Dashboard", match: (path: string) => path === "/admin" },
   { href: "/admin/propiedades", label: "Propiedades", match: (path: string) => path.startsWith("/admin/propiedades") },
   { href: "/admin/leads", label: "Leads", match: (path: string) => path.startsWith("/admin/leads") },
@@ -17,8 +17,14 @@ const navItems = [
   { href: "/", label: "Ver website", match: () => false },
 ] as const;
 
-function NavLinks({ pathname, onNavigate, mobile = false }: { pathname: string; onNavigate?: () => void; mobile?: boolean }) {
-  return navItems.map((item) => {
+const teamNavItem = { href: "/admin/equipo", label: "Equipo", match: (path: string) => path.startsWith("/admin/equipo") } as const;
+
+function getNavItems(showTeam: boolean) {
+  return showTeam ? [...baseNavItems.slice(0, -2), teamNavItem, ...baseNavItems.slice(-2)] : baseNavItems;
+}
+
+function NavLinks({ pathname, onNavigate, mobile = false, showTeam }: { pathname: string; onNavigate?: () => void; mobile?: boolean; showTeam: boolean }) {
+  return getNavItems(showTeam).map((item) => {
     const active = item.match(pathname);
     return (
       <Link
@@ -41,12 +47,12 @@ function NavLinks({ pathname, onNavigate, mobile = false }: { pathname: string; 
   });
 }
 
-export default function AdminNav({ displayName }: { displayName: string }) {
+export default function AdminNav({ displayName, showTeam = false }: { displayName: string; showTeam?: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const section = navItems.find((item) => item.match(pathname))?.label ?? "Panel interno";
+  const section = getNavItems(showTeam).find((item) => item.match(pathname))?.label ?? "Panel interno";
 
   useEffect(() => {
     if (!open) return;
@@ -85,7 +91,7 @@ export default function AdminNav({ displayName }: { displayName: string }) {
       </div>
 
       <nav className="hidden min-w-0 flex-wrap gap-2 lg:flex lg:justify-center" aria-label="Navegación admin">
-        <NavLinks pathname={pathname} />
+        <NavLinks pathname={pathname} showTeam={showTeam} />
       </nav>
 
       {open && typeof document !== "undefined" && createPortal(
@@ -103,7 +109,7 @@ export default function AdminNav({ displayName }: { displayName: string }) {
               <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#d4af37]">Borikí Admin</p><p className="mt-1 truncate text-sm text-white/75">{displayName}</p></div>
               <button ref={closeRef} aria-label="Cerrar menú de administración" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-[#d4af37]" onClick={() => setOpen(false)} type="button"><X aria-hidden size={22} /></button>
             </div>
-            <nav aria-label="Navegación admin móvil" className="grid min-h-0 flex-1 gap-2 overflow-y-auto overscroll-contain p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"><NavLinks pathname={pathname} mobile onNavigate={() => setOpen(false)} /></nav>
+            <nav aria-label="Navegación admin móvil" className="grid min-h-0 flex-1 gap-2 overflow-y-auto overscroll-contain p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"><NavLinks pathname={pathname} showTeam={showTeam} mobile onNavigate={() => setOpen(false)} /></nav>
           </aside>
         </div>,
         document.body,

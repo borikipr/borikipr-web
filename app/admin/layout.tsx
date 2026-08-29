@@ -35,7 +35,7 @@ export default async function AdminLayout({
               </p>
             </Link>
 
-            <AdminNav displayName={user?.displayName ?? "Admin"} />
+            <AdminNav displayName={user?.displayName ?? "Admin"} showTeam={access?.isSuperAdmin ?? false} />
 
             <Link href="/admin/profile" className="hidden max-w-full break-words text-sm text-white/70 transition hover:text-[#d4af37] xl:block">
               Sesión: <span className="font-semibold text-white">{user?.displayName}</span>
