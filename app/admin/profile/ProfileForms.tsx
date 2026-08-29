@@ -84,7 +84,7 @@ function ProfilePhotoControl({ imageUrl, onChange, displayName, username }: { im
   </div>;
 }
 
-function RolePicker({ roles, onChange, customTitle, onCustomTitleChange }: {
+export function RolePicker({ roles, onChange, customTitle, onCustomTitleChange }: {
   roles: ProfessionalRoleId[]; onChange: (roles: ProfessionalRoleId[]) => void; customTitle: string; onCustomTitleChange: (title: string) => void;
 }) {
   const [open, setOpen] = useState(false); const [query, setQuery] = useState(""); const [activeIndex, setActiveIndex] = useState(0);

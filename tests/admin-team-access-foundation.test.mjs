@@ -59,5 +59,6 @@ test("foundation retains compatibility and keeps access authority server-side", 
   assert.match(teamAccess, /INITIAL_SUPER_ADMIN_ID/);
   assert.match(profilePage, /systemRoleLabels/);
   assert.match(brokerCandidates, /admin\.account_state='active'/);
-  assert.doesNotMatch(teamAccess, /professional_roles|professional_license_number/);
+  assert.match(teamAccess, /normalizeProfessionalProfile/);
+  assert.match(teamAccess, /updateTeamManagedProfessionalProfile/);
 });

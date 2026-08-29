@@ -1,10 +1,12 @@
 import "server-only";
 
 import { randomBytes } from "node:crypto";
+import * as bcrypt from "bcryptjs";
 import { Resend } from "resend";
 import { sql } from "@/lib/db";
-import { hashPasswordResetToken, PASSWORD_RESET_TTL_MINUTES } from "@/lib/admin/auth-core";
+import { hashPasswordResetToken, normalizeAdminEmail, PASSWORD_RESET_TTL_MINUTES } from "@/lib/admin/auth-core";
 import { writeAdminAccessEvent } from "@/lib/admin/access-audit";
+import { normalizeProfessionalProfile } from "@/lib/admin/professional-profile";
 import type { AccessLevel, ModuleKey, SystemRole } from "@/lib/admin/access-types";
 
 export const INITIAL_SUPER_ADMIN_ID = "3cefce78-7d62-485d-9faa-6fed1b6ae377";
@@ -21,6 +23,24 @@ type TargetAccount = {
   account_state: "pending_setup" | "active" | "disabled";
   activo: boolean;
 };
+
+type TeamManagedRole = "admin" | "member";
+
+export type CreateTeamMemberInput = Readonly<{
+  displayName: string;
+  email: string;
+  username: string;
+  professionalRoles: string;
+  professionalCustomTitle: string;
+  professionalLicenseNumber: string;
+  systemRole: TeamManagedRole;
+}>;
+
+function cleanUsername(value: string) {
+  const username = value.trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9._-]{2,59}$/.test(username)) return null;
+  return username;
+}
 
 function assertDifferentActor(actorAdminId: string, targetAdminId: string) {
   if (actorAdminId === targetAdminId) throw new Error("admin_access_self_mutation_forbidden");
@@ -235,18 +255,161 @@ export async function reactivateAdminAccount(
     await writeAdminAccessEvent(tx, { eventType: "account_reactivated", actorAdminUserId: actorAdminId, targetAdminUserId: targetAdminId, metadata: { next_state: "pending_setup" } });
     return account;
   });
-  return issueAccountSetupToken(actorAdminId, target, database);
+  try {
+    await issueAccountSetupToken(actorAdminId, target, database);
+    return { invitationSent: true as const };
+  } catch (error) {
+    if (error instanceof Error && /^admin_access_setup_delivery_/.test(error.message)) {
+      return { invitationSent: false as const };
+    }
+    throw error;
+  }
+}
+
+export async function createTeamMember(
+  actorAdminId: string,
+  input: CreateTeamMemberInput,
+  database: TeamDatabase = sql,
+) {
+  const displayName = input.displayName.trim();
+  const email = normalizeAdminEmail(input.email);
+  const username = cleanUsername(input.username);
+  const professionalProfile = normalizeProfessionalProfile({
+    roles: input.professionalRoles,
+    customTitle: input.professionalCustomTitle,
+    licenseNumber: input.professionalLicenseNumber,
+  });
+  if (!displayName || displayName.length > 100) return { ok: false as const, error: "Ingresa un nombre visible válido." };
+  if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 254) return { ok: false as const, error: "Ingresa un email válido." };
+  if (!username) return { ok: false as const, error: "Usa un usuario de 3 a 60 caracteres: letras, números, punto, guion o guion bajo." };
+  if (!professionalProfile.ok) return professionalProfile;
+  if (input.systemRole !== "admin" && input.systemRole !== "member") return { ok: false as const, error: "Selecciona un acceso del sistema válido." };
+
+  try {
+    const target = await database.begin(async (transaction) => {
+      const tx = transaction as unknown as TeamDatabase;
+      await lockAuthorityMutation(tx);
+      await assertActorIsSuperAdmin(tx, actorAdminId);
+      const placeholderPasswordHash = await bcrypt.hash(randomBytes(32).toString("base64url"), 12);
+      const inserted = await tx.unsafe<TargetAccount[]>(
+        `INSERT INTO public.admin_users (
+           username, password_hash, display_name, email, professional_title,
+           professional_roles, professional_license_number, system_role, account_state, activo
+         ) VALUES ($1, $2, $3, $4, $5, $6::text[], NULLIF($7, ''), $8, 'pending_setup', false)
+         RETURNING id::text, email, display_name, username, system_role, account_state, activo`,
+        [username, placeholderPasswordHash, displayName, email, professionalProfile.displayTitle, professionalProfile.roles, professionalProfile.licenseNumber, input.systemRole],
+      );
+      const created = inserted[0];
+      if (!created) throw new Error("admin_access_member_create_failed");
+      await writeAdminAccessEvent(tx, {
+        eventType: "user_created", actorAdminUserId: actorAdminId, targetAdminUserId: created.id,
+        metadata: { system_role: input.systemRole, source: "team_management" },
+      });
+      return created;
+    });
+    try {
+      await issueAccountSetupToken(actorAdminId, target, database, true);
+      return { ok: true as const, id: target.id, invitationSent: true };
+    } catch (error) {
+      if (error instanceof Error && /^admin_access_setup_delivery_/.test(error.message)) {
+        return { ok: true as const, id: target.id, invitationSent: false };
+      }
+      throw error;
+    }
+  } catch (error) {
+    if ((error as { code?: string }).code === "23505") {
+      return { ok: false as const, error: "El email o usuario ya está asociado a una cuenta interna." };
+    }
+    throw error;
+  }
+}
+
+export async function resendTeamSetupInvitation(
+  actorAdminId: string,
+  targetAdminId: string,
+  database: TeamDatabase = sql,
+) {
+  assertDifferentActor(actorAdminId, targetAdminId);
+  const target = await database.begin(async (transaction) => {
+    const tx = transaction as unknown as TeamDatabase;
+    await lockAuthorityMutation(tx);
+    await assertActorIsSuperAdmin(tx, actorAdminId);
+    const account = await loadTargetForUpdate(tx, targetAdminId);
+    if (account.account_state !== "pending_setup" || account.activo) throw new Error("admin_access_setup_resend_state_invalid");
+    if (!account.email) throw new Error("admin_access_setup_email_missing");
+    return account;
+  });
+  return issueAccountSetupToken(actorAdminId, target, database, true);
+}
+
+export async function updateTeamManagedProfessionalProfile(
+  actorAdminId: string,
+  targetAdminId: string,
+  input: Pick<CreateTeamMemberInput, "displayName" | "professionalRoles" | "professionalCustomTitle" | "professionalLicenseNumber">,
+  database: TeamDatabase = sql,
+) {
+  assertDifferentActor(actorAdminId, targetAdminId);
+  const displayName = input.displayName.trim();
+  const professionalProfile = normalizeProfessionalProfile({ roles: input.professionalRoles, customTitle: input.professionalCustomTitle, licenseNumber: input.professionalLicenseNumber });
+  if (!displayName || displayName.length > 100) return { ok: false as const, error: "Ingresa un nombre visible válido." };
+  if (!professionalProfile.ok) return professionalProfile;
+  await database.begin(async (transaction) => {
+    const tx = transaction as unknown as TeamDatabase;
+    await assertActorIsSuperAdmin(tx, actorAdminId);
+    const target = await loadTargetForUpdate(tx, targetAdminId);
+    if (target.system_role === "super_admin") throw new Error("admin_access_team_super_admin_mutation_forbidden");
+    await tx.unsafe(
+      `UPDATE public.admin_users SET display_name = $2, professional_title = $3,
+          professional_roles = $4::text[], professional_license_number = NULLIF($5, '')
+        WHERE id = $1::uuid`,
+      [targetAdminId, displayName, professionalProfile.displayTitle, professionalProfile.roles, professionalProfile.licenseNumber],
+    );
+  });
+  return { ok: true as const };
+}
+
+export async function changeTeamManagedSystemRole(
+  actorAdminId: string,
+  targetAdminId: string,
+  nextRole: TeamManagedRole,
+  database: TeamDatabase = sql,
+) {
+  assertDifferentActor(actorAdminId, targetAdminId);
+  if (nextRole !== "admin" && nextRole !== "member") throw new Error("admin_access_team_role_invalid");
+  return database.begin(async (transaction) => {
+    const tx = transaction as unknown as TeamDatabase;
+    await lockAuthorityMutation(tx);
+    await assertActorIsSuperAdmin(tx, actorAdminId);
+    const target = await loadTargetForUpdate(tx, targetAdminId);
+    if (target.account_state === "disabled") throw new Error("admin_access_team_role_state_invalid");
+    if (target.system_role === nextRole) return;
+    if (target.system_role === "super_admin") throw new Error("admin_access_team_super_admin_mutation_forbidden");
+    await tx.unsafe(`UPDATE public.admin_users SET system_role = $2 WHERE id = $1::uuid`, [targetAdminId, nextRole]);
+    await writeAdminAccessEvent(tx, { eventType: "system_role_changed", actorAdminUserId: actorAdminId, targetAdminUserId: targetAdminId, metadata: { before: target.system_role, after: nextRole } });
+  });
 }
 
 async function issueAccountSetupToken(
   actorAdminId: string,
   target: TargetAccount,
   database: TeamDatabase,
+  revokeExisting = false,
 ) {
   const token = randomBytes(32).toString("base64url");
   const tokenHash = hashPasswordResetToken(token);
   const tokenRow = await database.begin(async (transaction) => {
     const tx = transaction as unknown as TeamDatabase;
+    if (revokeExisting) {
+      await lockAuthorityMutation(tx);
+      const recent = await tx.unsafe<{ count: number }[]>(
+        `SELECT count(*)::int AS count FROM public.admin_password_reset_tokens
+          WHERE admin_user_id = $1::uuid AND purpose = 'account_setup'
+            AND created_at > now() - interval '1 minute'`,
+        [target.id],
+      );
+      if ((recent[0]?.count ?? 0) > 0) throw new Error("admin_access_setup_resend_rate_limited");
+      await tx.unsafe(`UPDATE public.admin_password_reset_tokens SET used_at = COALESCE(used_at, now()) WHERE admin_user_id = $1::uuid AND used_at IS NULL`, [target.id]);
+    }
     const inserted = await tx.unsafe<{ id: string }[]>(
       `INSERT INTO public.admin_password_reset_tokens (admin_user_id, token_hash, expires_at, purpose)
        VALUES ($1::uuid, $2, now() + ($3::int * interval '1 minute'), 'account_setup')

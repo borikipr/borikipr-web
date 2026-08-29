@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { UsersRound } from "lucide-react";
+import { UserPlus, UsersRound } from "lucide-react";
 import { redirect } from "next/navigation";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
 import TeamMemberAvatar from "@/components/admin/TeamMemberAvatar";
@@ -22,7 +22,7 @@ export default async function TeamDirectoryPage() {
 
   return (
     <AdminPageShell>
-      <AdminPageHeader breadcrumbs={[{ href: "/admin", label: "Admin" }, { label: "Equipo" }]} eyebrow="Administración interna" title="Equipo" description="Consulta las cuentas internas, su identidad profesional y su estado de acceso." />
+      <AdminPageHeader breadcrumbs={[{ href: "/admin", label: "Admin" }, { label: "Equipo" }]} eyebrow="Administración interna" title="Equipo" description="Consulta las cuentas internas, su identidad profesional y su estado de acceso." actions={<Link href="/admin/equipo/nuevo" className="btn-primary"><UserPlus aria-hidden="true" size={17} />Añadir miembro</Link>} />
       {members.length ? (
         <section aria-labelledby="team-directory-heading" className="surface-card overflow-hidden">
           <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-4 md:px-6"><UsersRound aria-hidden="true" size={20} className="text-[#11518b]" /><div><h2 id="team-directory-heading" className="text-base font-bold text-slate-900">Directorio interno</h2><p className="mt-0.5 text-sm text-slate-600">{members.length} {members.length === 1 ? "cuenta registrada" : "cuentas registradas"}</p></div></div>
