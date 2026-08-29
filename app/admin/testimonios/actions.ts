@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { sql } from "@/lib/db";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { PUBLIC_TESTIMONIALS_CACHE_TAG } from "@/lib/queries/testimonios";
-import { getAdminSessionUser } from "@/lib/admin/auth";
+import { requireModuleAccess } from "@/lib/admin/access-context";
 import { syncTestimonialTranslationIntent } from "@/lib/i18n/translations/source-intents";
 import { invalidateEnglishPublicTranslationPaths } from "@/lib/i18n/translations/public-revalidation";
 
@@ -43,10 +43,7 @@ function parseOrden(value: string) {
 }
 
 async function requireAdminSession() {
-  const user = await getAdminSessionUser();
-  if (!user) {
-    throw new Error("No autorizado.");
-  }
+  await requireModuleAccess("testimonials", "manage");
 }
 
 export async function createTestimonioAction(

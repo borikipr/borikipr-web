@@ -1,4 +1,5 @@
 import { getAdminSession } from "@/lib/admin/auth";
+import { requireModuleAccess } from "@/lib/admin/access-context";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import {
   SignatureDraftValidationError,
@@ -60,6 +61,7 @@ function puertoRicoExpiration(value: FormDataEntryValue | null) {
 export async function POST(request: Request) {
   const session = await getAdminSession();
   if (!session) return response({ ok: false }, 401);
+  try { await requireModuleAccess("signatures", "manage"); } catch { return response({ ok: false }, 403); }
   if (!sameOrigin(request)) return response({ ok: false }, 403);
 
   const rateLimit = await checkRateLimit({

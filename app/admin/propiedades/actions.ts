@@ -5,7 +5,7 @@ import { sql } from "@/lib/db";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { PUBLIC_PROPERTIES_CACHE_TAG } from "@/lib/queries/propiedades";
 import { municipiosPR } from "@/data/municipios";
-import { getAdminSessionUser } from "@/lib/admin/auth";
+import { requireModuleAccess } from "@/lib/admin/access-context";
 import { normalizeSectorForMunicipio } from "@/lib/puerto-rico-sectores";
 import {
   collectAvailabilityRegistrationsInTransaction,
@@ -123,10 +123,7 @@ function buildShowingDateTime(dateValue: string, timeValue: string) {
 }
 
 async function requireAdminSession() {
-  const user = await getAdminSessionUser();
-  if (!user) {
-    throw new Error("No autorizado.");
-  }
+  await requireModuleAccess("properties", "manage");
 }
 
 export async function createPropiedadAction(

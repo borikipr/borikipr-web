@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getAdminSession } from "@/lib/admin/auth";
+import { requireModuleAccess } from "@/lib/admin/access-context";
 import { sql } from "@/lib/db";
 import {
   createTranslationAdminService,
@@ -53,6 +54,7 @@ async function execute(
   if (!session) return { ok: false, message: "Tu sesión de administrador expiró." };
   try {
     const common = parseCommon(formData);
+    await requireModuleAccess(common.entityType === "property" ? "properties" : "testimonials", "manage");
     const service = createTranslationAdminService(
       createPostgresTranslationDatabase(sql)
     );

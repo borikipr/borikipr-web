@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
-import { getAdminSession } from "@/lib/admin/auth";
+import { requireAdminBaseline } from "@/lib/admin/access-context";
 
 export const dynamic = "force-dynamic";
 
 export default async function SignatureGovernanceManagementPage() {
-  if (!(await getAdminSession())) redirect("/admin/login");
+  try { await requireAdminBaseline(); } catch { redirect("/admin/sin-acceso"); }
   redirect("/admin/signatures/gobernanza");
 }

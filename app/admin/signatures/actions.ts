@@ -4,6 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAdminSession } from "@/lib/admin/auth";
+import { requireModuleAccess } from "@/lib/admin/access-context";
 import {
   createSignatureAdminRepository,
   type SignatureDraftDetail,
@@ -71,8 +72,13 @@ function optionalNumberValue(formData: FormData, key: string) {
   return parsed;
 }
 
+async function requireSignatureManager() {
+  await requireModuleAccess("signatures", "manage");
+  return getAdminSession();
+}
+
 async function context(documentId: string) {
-  const session = await getAdminSession();
+  const session = await requireSignatureManager();
   if (!session) return null;
   const runtime = createSignatureDomainRuntime();
   const repository = createSignatureAdminRepository(runtime.database);
@@ -297,7 +303,7 @@ export async function prepareSignatureSendAction(
   formData: FormData
 ): Promise<SignatureAdminActionState> {
   const documentId = value(formData, "documentId");
-  const session = await getAdminSession();
+  const session = await requireSignatureManager();
   if (!session) return { ok: false, message: "Sesión expirada." };
   try {
     const runtime = createSignatureDeliveryRuntime();
@@ -385,7 +391,7 @@ export async function resendSignatureInvitationAction(
   _state: SignatureAdminActionState,
   formData: FormData
 ): Promise<SignatureAdminActionState> {
-  const session = await getAdminSession();
+  const session = await requireSignatureManager();
   if (!session || !isSignerRuntimeEnabled()) return { ok: false, message: "El reenvío permanece desactivado." };
   const documentId = value(formData, "documentId");
   try {
@@ -415,7 +421,7 @@ export async function expireSignatureDocumentAction(
   _state: SignatureAdminActionState,
   formData: FormData
 ): Promise<SignatureAdminActionState> {
-  const session = await getAdminSession();
+  const session = await requireSignatureManager();
   if (!session) return { ok: false, message: "Sesión expirada." };
   const documentId = value(formData, "documentId");
   try {
@@ -431,7 +437,7 @@ export async function voidSignatureDocumentAction(
   _state: SignatureAdminActionState,
   formData: FormData
 ): Promise<SignatureAdminActionState> {
-  const session = await getAdminSession();
+  const session = await requireSignatureManager();
   if (!session) return { ok: false, message: "Sesión expirada." };
   const documentId = value(formData, "documentId");
   try {
@@ -450,7 +456,7 @@ export async function deleteSignatureDraftAction(
   _state: SignatureAdminActionState,
   formData: FormData
 ): Promise<SignatureAdminActionState> {
-  const session = await getAdminSession();
+  const session = await requireSignatureManager();
   if (!session) return { ok:false, message:"Sesión expirada." };
   const documentId = value(formData,"documentId");
   try {
@@ -476,7 +482,7 @@ export async function archiveSignatureDraftAction(
   _state: SignatureAdminActionState,
   formData: FormData
 ): Promise<SignatureAdminActionState> {
-  const session = await getAdminSession();
+  const session = await requireSignatureManager();
   if (!session) return { ok:false, message:"Sesión expirada." };
   const documentId = value(formData,"documentId");
   try {
@@ -495,7 +501,7 @@ export async function removeSignatureRequestAction(
   _state: SignatureAdminActionState,
   formData: FormData
 ): Promise<SignatureAdminActionState> {
-  const session=await getAdminSession();
+  const session=await requireSignatureManager();
   if(!session) return {ok:false,message:"Sesión expirada."};
   const documentId=value(formData,"documentId");
   const reason=value(formData,"reason");
@@ -534,7 +540,7 @@ export async function restoreSignatureRequestAction(
   _state: SignatureAdminActionState,
   formData: FormData
 ): Promise<SignatureAdminActionState> {
-  const session = await getAdminSession();
+  const session = await requireSignatureManager();
   if (!session) return { ok:false, message:"Sesión expirada." };
   const documentId = value(formData,"documentId");
   try {
@@ -555,7 +561,7 @@ export async function restoreSignatureRequestAction(
 export async function saveSignatureTemplateAction(
   _state:SignatureAdminActionState,formData:FormData
 ):Promise<SignatureAdminActionState>{
-  const session=await getAdminSession();if(!session)return{ok:false,message:"Sesión expirada."};
+  const session=await requireSignatureManager();if(!session)return{ok:false,message:"Sesión expirada."};
   const documentId=value(formData,"documentId");
   try{
     const runtime=createSignatureRuntime();const detail=await createSignatureAdminRepository(runtime.database).detail(documentId);
@@ -574,7 +580,7 @@ export async function saveSignatureTemplateAction(
 function puertoRicoExpiry(value:string){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))throw new Error("expiration_invalid");const date=new Date(`${value}T23:59:59-04:00`);if(date.getTime()<=Date.now())throw new Error("expiration_invalid");return date;}
 
 async function cloneSignatureRequest(formData:FormData,mode:"duplicate"|"correct"){
-  const session=await getAdminSession();if(!session)throw new Error("unauthorized");
+  const session=await requireSignatureManager();if(!session)throw new Error("unauthorized");
   const sourceId=value(formData,"documentId");const runtime=createSignatureRuntime();const repository=createSignatureAdminRepository(runtime.database);
   const detail=await repository.detail(sourceId);const descriptor=await repository.sourceDescriptor(sourceId);
   if(!detail||!descriptor||detail.version.sourceDeleted)throw new Error("signature_source_unavailable");

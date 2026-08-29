@@ -1,4 +1,5 @@
 import { getAdminSession } from "@/lib/admin/auth";
+import { requireModuleAccess } from "@/lib/admin/access-context";
 import {
   getAdminPrivateShowingLink,
   regenerateAdminPrivateShowingLink,
@@ -14,6 +15,8 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!(await getAdminSession())) {
     return Response.json({ ok: false }, { status: 401 });
   }
+  try { await requireModuleAccess("properties", "view"); }
+  catch { return Response.json({ ok: false }, { status: 403 }); }
   const { id } = await context.params;
   if (!isUuid(id)) return Response.json({ ok: false }, { status: 404 });
   const url = await getAdminPrivateShowingLink(id);
@@ -25,6 +28,8 @@ export async function GET(_request: Request, context: RouteContext) {
 export async function POST(request: Request, context: RouteContext) {
   const session = await getAdminSession();
   if (!session) return Response.json({ ok: false }, { status: 401 });
+  try { await requireModuleAccess("properties", "manage"); }
+  catch { return Response.json({ ok: false }, { status: 403 }); }
   if (!isSameOrigin(request)) {
     return Response.json({ ok: false }, { status: 403 });
   }

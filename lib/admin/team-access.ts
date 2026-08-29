@@ -8,6 +8,7 @@ import { hashPasswordResetToken, normalizeAdminEmail, PASSWORD_RESET_TTL_MINUTES
 import { writeAdminAccessEvent } from "@/lib/admin/access-audit";
 import { normalizeProfessionalProfile } from "@/lib/admin/professional-profile";
 import type { AccessLevel, ModuleKey, SystemRole } from "@/lib/admin/access-types";
+import { ACCESS_LEVELS, MODULE_KEYS } from "@/lib/admin/access-types";
 
 export const INITIAL_SUPER_ADMIN_ID = "3cefce78-7d62-485d-9faa-6fed1b6ae377";
 export const INITIAL_ADMIN_ID = "837a7fca-c067-4878-a4eb-01c12a4cf7ba";
@@ -207,7 +208,13 @@ export async function setAdminModuleAccess(
   return database.begin(async (transaction) => {
     const tx = transaction as unknown as TeamDatabase;
     await assertActorIsSuperAdmin(tx, actorAdminId);
-    await loadTargetForUpdate(tx, targetAdminId);
+    const target = await loadTargetForUpdate(tx, targetAdminId);
+    if (target.system_role !== "member") throw new Error("admin_access_module_target_invalid");
+    if (!MODULE_KEYS.includes(moduleKey) || (accessLevel !== null && !ACCESS_LEVELS.includes(accessLevel))) throw new Error("admin_access_module_invalid");
+    const existing = await tx.unsafe<{ access_level: AccessLevel }[]>(
+      `SELECT access_level FROM public.admin_module_access WHERE admin_user_id = $1::uuid AND module_key = $2 FOR UPDATE`,
+      [targetAdminId, moduleKey],
+    );
     if (accessLevel) {
       await tx.unsafe(
         `INSERT INTO public.admin_module_access (admin_user_id, module_key, access_level, granted_by_admin_user_id)
@@ -216,13 +223,13 @@ export async function setAdminModuleAccess(
          DO UPDATE SET access_level = EXCLUDED.access_level, granted_by_admin_user_id = EXCLUDED.granted_by_admin_user_id, updated_at = now()`,
         [targetAdminId, moduleKey, accessLevel, actorAdminId],
       );
-      await writeAdminAccessEvent(tx, { eventType: "module_access_granted", actorAdminUserId: actorAdminId, targetAdminUserId: targetAdminId, metadata: { module: moduleKey, level: accessLevel } });
+      await writeAdminAccessEvent(tx, { eventType: "module_access_granted", actorAdminUserId: actorAdminId, targetAdminUserId: targetAdminId, metadata: { module: moduleKey, before: existing[0]?.access_level ?? null, after: accessLevel } });
     } else {
       const removed = await tx.unsafe<{ admin_user_id: string }[]>(
         `DELETE FROM public.admin_module_access WHERE admin_user_id = $1::uuid AND module_key = $2 RETURNING admin_user_id::text`,
         [targetAdminId, moduleKey],
       );
-      if (removed[0]) await writeAdminAccessEvent(tx, { eventType: "module_access_revoked", actorAdminUserId: actorAdminId, targetAdminUserId: targetAdminId, metadata: { module: moduleKey } });
+      if (removed[0]) await writeAdminAccessEvent(tx, { eventType: "module_access_revoked", actorAdminUserId: actorAdminId, targetAdminUserId: targetAdminId, metadata: { module: moduleKey, before: existing[0]?.access_level ?? null, after: null } });
     }
   });
 }

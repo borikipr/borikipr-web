@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getAdminSession } from "@/lib/admin/auth";
+import { requireModuleAccess } from "@/lib/admin/access-context";
 import { createSignatureAdminRepository } from "@/lib/signatures/admin-repository";
 import { parseSignatureParticipantDraft } from "@/lib/signatures/admin-participant";
 import { createSignatureProductRepository } from "@/lib/signatures/productization";
@@ -12,6 +13,7 @@ function expiration(value:string){if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(val
 
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){
   const session=await getAdminSession();if(!session||!sameSignerOrigin(request))return new Response(null,{status:404});
+  try { await requireModuleAccess("signatures", "manage"); } catch { return new Response(null,{status:404}); }
   const browserOrigin=request.headers.get("origin")??request.url;
   try{
     const {id}=await params;const form=await request.formData();const runtime=createSignatureDraftRuntime();

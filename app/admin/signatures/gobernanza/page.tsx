@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
 import StatusBadge from "@/components/admin/StatusBadge";
-import { getAdminSession } from "@/lib/admin/auth";
+import { requireAdminBaseline } from "@/lib/admin/access-context";
 import { sql } from "@/lib/db";
 import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/database";
 import { getSignatureGovernanceReadiness } from "@/lib/signatures/governance-readiness";
@@ -30,7 +30,7 @@ function uniqueMessages(messages: readonly string[]) {
 }
 
 export default async function SignatureGovernancePage() {
-  if (!(await getAdminSession())) redirect("/admin/login");
+  try { await requireAdminBaseline(); } catch { redirect("/admin/sin-acceso"); }
 
   const database = createPostgresSignatureDatabase(sql);
   const [readiness, publicLaunchGate] = await Promise.all([

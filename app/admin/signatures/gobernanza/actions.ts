@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { getAdminSession } from "@/lib/admin/auth";
+import { requireSuperAdmin } from "@/lib/admin/access-context";
 import { createSignatureDomainRuntime } from "@/lib/signatures/runtime";
 import { createSignatureGovernanceWorkflow } from "@/lib/signatures/governance-workflow";
 import { parseSignatureRetentionPolicy } from "@/lib/signatures/retention-policy";
@@ -41,6 +42,7 @@ function numberOrNull(data: FormData, name: string) {
   return result;
 }
 async function context() {
+  await requireSuperAdmin();
   const session = await getAdminSession();
   if (!session) throw new Error("signature_governance_unauthorized");
   return { session, workflow: createSignatureGovernanceWorkflow(createSignatureDomainRuntime().database) };

@@ -1,4 +1,4 @@
-import { getAdminSession } from "@/lib/admin/auth";
+import { requireSuperAdmin } from "@/lib/admin/access-context";
 import { consumeIsolatedSignatureDelivery } from "@/lib/signatures/isolated-test-sink";
 import { createSignatureDeliveryRuntime } from "@/lib/signatures/runtime";
 
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     process.env.SIGNING_ISOLATED_ENVIRONMENT !== "true" ||
     process.env.SIGNING_ISOLATED_EMAIL_SINK !== "memory" ||
     !sameOrigin(request) ||
-    !(await getAdminSession())
+    !(await requireSuperAdmin().then(() => true).catch(() => false))
   ) return unavailable();
 
   const result = await createSignatureDeliveryRuntime().delivery.processPending(1);

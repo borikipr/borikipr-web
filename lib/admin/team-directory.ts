@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { sql } from "@/lib/db";
 import { parseProfessionalRoles, type ProfessionalRoleId } from "@/lib/admin/professional-profile";
-import type { AccountState, SystemRole } from "@/lib/admin/access-types";
+import type { AccessLevel, AccountState, ModuleKey, SystemRole } from "@/lib/admin/access-types";
 
 export type TeamDirectoryMember = Readonly<{
   id: string;
@@ -16,6 +16,7 @@ export type TeamDirectoryMember = Readonly<{
   professionalTitle: string | null;
   professionalLicenseNumber: string | null;
   profileImageUrl: string | null;
+  moduleAccess: ReadonlyMap<ModuleKey, AccessLevel>;
 }>;
 
 type TeamDirectoryRow = {
@@ -31,7 +32,7 @@ type TeamDirectoryRow = {
   profile_image_url: string | null;
 };
 
-function toTeamDirectoryMember(row: TeamDirectoryRow): TeamDirectoryMember {
+function toTeamDirectoryMember(row: TeamDirectoryRow, moduleAccess = new Map<ModuleKey, AccessLevel>()): TeamDirectoryMember {
   return {
     id: row.id,
     displayName: row.display_name?.trim() || row.username,
@@ -43,6 +44,7 @@ function toTeamDirectoryMember(row: TeamDirectoryRow): TeamDirectoryMember {
     professionalTitle: row.professional_title?.trim() || null,
     professionalLicenseNumber: row.professional_license_number?.trim() || null,
     profileImageUrl: row.profile_image_url || null,
+    moduleAccess,
   };
 }
 
@@ -53,7 +55,7 @@ export const listTeamDirectoryMembers = cache(async (): Promise<TeamDirectoryMem
       FROM public.admin_users
      ORDER BY lower(COALESCE(NULLIF(trim(display_name), ''), username)), id
   `;
-  return rows.map(toTeamDirectoryMember);
+  return rows.map((row) => toTeamDirectoryMember(row));
 });
 
 export const getTeamDirectoryMember = cache(async (id: string): Promise<TeamDirectoryMember | null> => {
@@ -64,5 +66,9 @@ export const getTeamDirectoryMember = cache(async (id: string): Promise<TeamDire
      WHERE id = ${id}::uuid
      LIMIT 1
   `;
-  return rows[0] ? toTeamDirectoryMember(rows[0]) : null;
+  if (!rows[0]) return null;
+  const grants = await sql<{ module_key: ModuleKey; access_level: AccessLevel }[]>`
+    SELECT module_key, access_level FROM public.admin_module_access WHERE admin_user_id = ${id}::uuid
+  `;
+  return toTeamDirectoryMember(rows[0], new Map(grants.map((grant) => [grant.module_key, grant.access_level])));
 });

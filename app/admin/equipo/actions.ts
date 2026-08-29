@@ -10,6 +10,7 @@ import {
   reactivateAdminAccount,
   resendTeamSetupInvitation,
   updateTeamManagedProfessionalProfile,
+  setAdminModuleAccess,
 } from "@/lib/admin/team-access";
 
 export type TeamActionState = Readonly<{ error: string; success: string }>;
@@ -29,6 +30,8 @@ function messageFor(error: unknown) {
     admin_access_team_role_state_invalid: "Reactiva la cuenta antes de cambiar su acceso.",
     admin_access_team_super_admin_mutation_forbidden: "La autoridad de superadministración se administra por separado.",
     admin_access_already_disabled: "Esta cuenta ya está desactivada.",
+    admin_access_module_target_invalid: "Los accesos por módulo solo aplican a cuentas miembro.",
+    admin_access_module_invalid: "El acceso seleccionado no es válido.",
   };
   return messages[code] ?? "No fue posible completar esta acción. Inténtalo nuevamente.";
 }
@@ -109,5 +112,17 @@ export async function reactivateMemberAction(_previous: TeamActionState, formDat
     return result.invitationSent
       ? { error: "", success: "Cuenta reactivada; se envió una nueva invitación." }
       : { error: "La cuenta fue reactivada y quedó pendiente de configuración, pero no se pudo enviar la invitación. Reenvíala desde esta cuenta.", success: "" };
+  } catch (error) { return { error: messageFor(error), success: "" }; }
+}
+
+export async function setMemberModuleAccessAction(_previous: TeamActionState, formData: FormData): Promise<TeamActionState> {
+  const targetId = String(formData.get("targetId") || "");
+  const moduleKey = String(formData.get("moduleKey") || "") as import("@/lib/admin/access-types").ModuleKey;
+  const rawLevel = String(formData.get("accessLevel") || "");
+  const accessLevel = rawLevel === "view" || rawLevel === "manage" ? rawLevel : null;
+  try {
+    await setAdminModuleAccess(await actorId(), targetId, moduleKey, accessLevel);
+    invalidateTeamPaths(targetId);
+    return { error: "", success: "Acceso actualizado." };
   } catch (error) { return { error: messageFor(error), success: "" }; }
 }

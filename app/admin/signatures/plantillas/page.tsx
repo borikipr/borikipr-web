@@ -5,14 +5,16 @@ import {
   AdminPageShell,
 } from "@/components/admin/AdminPageShell";
 import { EmptyState } from "@/components/admin/AdminUI";
-import { getAdminSessionUser } from "@/lib/admin/auth";
+import { getAdminAccessContext } from "@/lib/admin/access-context";
 import { sql } from "@/lib/db";
 import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/database";
 import { createSignatureProductRepository } from "@/lib/signatures/productization";
 import { signatureRoutingModeLabel } from "@/lib/signatures/routing-ux";
 
 export default async function SignatureTemplatesPage() {
-  if (!(await getAdminSessionUser())) redirect("/admin/login");
+  const access = await getAdminAccessContext();
+  if (!access) redirect("/admin/login");
+  const canManage = access.isAdminBaseline || access.moduleAccess.get("signatures") === "manage";
   const templates = await createSignatureProductRepository(
     createPostgresSignatureDatabase(sql),
   ).templates();
@@ -37,11 +39,10 @@ export default async function SignatureTemplatesPage() {
         <EmptyState
           title="Aún no hay plantillas"
           description="Abre un borrador preparado y elige Guardar como plantilla. Los destinatarios reales se solicitan cada vez."
-          action={
+          action={canManage ?
             <Link className="btn-primary" href="/admin/signatures/nuevo">
               Subir PDF
-            </Link>
-          }
+            </Link> : undefined}
         />
       ) : (
         <section className="signature-template-grid">
@@ -79,12 +80,12 @@ export default async function SignatureTemplatesPage() {
                   </div>
                 ) : null}
               </dl>
-              <Link
+              {canManage ? <Link
                 className="btn-primary mt-5 w-full sm:w-auto"
                 href={`/admin/signatures/plantillas/${template.id}/usar`}
               >
                 Usar plantilla
-              </Link>
+              </Link> : null}
             </article>
           ))}
         </section>

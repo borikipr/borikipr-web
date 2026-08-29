@@ -6,7 +6,7 @@ import AdminAlert from "@/components/admin/AdminAlert";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
 import { EmptyState, SummaryCard } from "@/components/admin/AdminUI";
 import StatusBadge from "@/components/admin/StatusBadge";
-import { getAdminSessionUser } from "@/lib/admin/auth";
+import { getAdminAccessContext } from "@/lib/admin/access-context";
 import { getAdminTestimonios } from "@/lib/admin/testimonios-queries";
 import TestimonioRowActions from "./TestimonioRowActions";
 import TestimonioTipoFilter from "./TestimonioTipoFilter";
@@ -16,11 +16,11 @@ export default async function AdminTestimoniosPage({
 }: {
   searchParams: Promise<{ ok?: string; id?: string; tipo?: string }>;
 }) {
-  const user = await getAdminSessionUser();
-
-  if (!user) {
+  const access = await getAdminAccessContext();
+  if (!access) {
     redirect("/admin/login");
   }
+  const canManage = access.isAdminBaseline || access.moduleAccess.get("testimonials") === "manage";
 
   const params = await searchParams;
   const testimonios = await getAdminTestimonios(params.tipo);
@@ -42,9 +42,9 @@ export default async function AdminTestimoniosPage({
           actions={
             <>
               <TestimonioTipoFilter currentTipo={params.tipo} />
-              <Link href="/admin/testimonios/nuevo" className="btn-primary">
+              {canManage ? <Link href="/admin/testimonios/nuevo" className="btn-primary">
                 Nuevo testimonio
-              </Link>
+              </Link> : null}
             </>
           }
         />
@@ -66,7 +66,7 @@ export default async function AdminTestimoniosPage({
 
         <div className="testimonial-directory-surface">
           {testimonios.length === 0 ? (
-            <EmptyState title="No hay testimonios todavía" description="Añade el primer testimonio para comenzar a mostrar la experiencia de tus clientes." action={<Link href="/admin/testimonios/nuevo" className="btn-primary">Nuevo testimonio</Link>} />
+            <EmptyState title="No hay testimonios todavía" description={canManage ? "Añade el primer testimonio para comenzar a mostrar la experiencia de tus clientes." : "No hay testimonios disponibles para consultar."} action={canManage ? <Link href="/admin/testimonios/nuevo" className="btn-primary">Nuevo testimonio</Link> : undefined} />
           ) : (
             <div className="testimonial-directory-list">
               {testimonios.map((item) => (
@@ -102,10 +102,10 @@ export default async function AdminTestimoniosPage({
                     <span>{item.foto_url ? <ImageIcon aria-hidden="true" size={15} /> : <Eye aria-hidden="true" size={15} />}{item.foto_url ? "Con imagen" : "Sin imagen"}</span>
                   </div>
 
-                  <div className="testimonial-directory-actions">
+                  {canManage ? <div className="testimonial-directory-actions">
                     <Link href={`/admin/testimonios/${item.id}/editar`} className="btn-secondary">Editar</Link>
                     <TestimonioRowActions id={item.id} activoActual={item.activo} destacadoActual={item.destacado} />
-                  </div>
+                  </div> : null}
                 </article>
               ))}
             </div>

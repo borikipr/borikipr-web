@@ -5,26 +5,28 @@ import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import type { ModuleKey } from "@/lib/admin/access-types";
 
-const baseNavItems = [
+const baseNavItems: Array<{ href: string; label: string; module?: ModuleKey; match: (path: string) => boolean }> = [
   { href: "/admin", label: "Dashboard", match: (path: string) => path === "/admin" },
-  { href: "/admin/propiedades", label: "Propiedades", match: (path: string) => path.startsWith("/admin/propiedades") },
-  { href: "/admin/leads", label: "Leads", match: (path: string) => path.startsWith("/admin/leads") },
-  { href: "/admin/signatures", label: "Firmas", match: (path: string) => path.startsWith("/admin/signatures") },
-  { href: "/admin/testimonios", label: "Testimonios", match: (path: string) => path.startsWith("/admin/testimonios") },
-  { href: "/admin/analytics", label: "Analytics", match: (path: string) => path.startsWith("/admin/analytics") },
+  { href: "/admin/propiedades", label: "Propiedades", module: "properties", match: (path: string) => path.startsWith("/admin/propiedades") },
+  { href: "/admin/leads", label: "Leads", module: "leads", match: (path: string) => path.startsWith("/admin/leads") },
+  { href: "/admin/signatures", label: "Firmas", module: "signatures", match: (path: string) => path.startsWith("/admin/signatures") },
+  { href: "/admin/testimonios", label: "Testimonios", module: "testimonials", match: (path: string) => path.startsWith("/admin/testimonios") },
+  { href: "/admin/analytics", label: "Analytics", module: "analytics", match: (path: string) => path.startsWith("/admin/analytics") },
   { href: "/admin/profile", label: "Mi perfil", match: (path: string) => path.startsWith("/admin/profile") },
   { href: "/", label: "Ver website", match: () => false },
 ] as const;
 
 const teamNavItem = { href: "/admin/equipo", label: "Equipo", match: (path: string) => path.startsWith("/admin/equipo") } as const;
 
-function getNavItems(showTeam: boolean) {
-  return showTeam ? [...baseNavItems.slice(0, -2), teamNavItem, ...baseNavItems.slice(-2)] : baseNavItems;
+function getNavItems(showTeam: boolean, allowedModules: ModuleKey[]) {
+  const filtered = baseNavItems.filter((item) => !item.module || allowedModules.includes(item.module));
+  return showTeam ? [...filtered.slice(0, -2), teamNavItem, ...filtered.slice(-2)] : filtered;
 }
 
-function NavLinks({ pathname, onNavigate, mobile = false, showTeam }: { pathname: string; onNavigate?: () => void; mobile?: boolean; showTeam: boolean }) {
-  return getNavItems(showTeam).map((item) => {
+function NavLinks({ pathname, onNavigate, mobile = false, showTeam, allowedModules }: { pathname: string; onNavigate?: () => void; mobile?: boolean; showTeam: boolean; allowedModules: ModuleKey[] }) {
+  return getNavItems(showTeam, allowedModules).map((item) => {
     const active = item.match(pathname);
     return (
       <Link
@@ -47,12 +49,12 @@ function NavLinks({ pathname, onNavigate, mobile = false, showTeam }: { pathname
   });
 }
 
-export default function AdminNav({ displayName, showTeam = false }: { displayName: string; showTeam?: boolean }) {
+export default function AdminNav({ displayName, showTeam = false, allowedModules = [] }: { displayName: string; showTeam?: boolean; allowedModules?: ModuleKey[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const section = getNavItems(showTeam).find((item) => item.match(pathname))?.label ?? "Panel interno";
+  const section = getNavItems(showTeam, allowedModules).find((item) => item.match(pathname))?.label ?? "Panel interno";
 
   useEffect(() => {
     if (!open) return;
@@ -91,7 +93,7 @@ export default function AdminNav({ displayName, showTeam = false }: { displayNam
       </div>
 
       <nav className="hidden min-w-0 flex-wrap gap-2 lg:flex lg:justify-center" aria-label="Navegación admin">
-        <NavLinks pathname={pathname} showTeam={showTeam} />
+        <NavLinks pathname={pathname} showTeam={showTeam} allowedModules={allowedModules} />
       </nav>
 
       {open && typeof document !== "undefined" && createPortal(
@@ -109,7 +111,7 @@ export default function AdminNav({ displayName, showTeam = false }: { displayNam
               <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#d4af37]">Borikí Admin</p><p className="mt-1 truncate text-sm text-white/75">{displayName}</p></div>
               <button ref={closeRef} aria-label="Cerrar menú de administración" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-[#d4af37]" onClick={() => setOpen(false)} type="button"><X aria-hidden size={22} /></button>
             </div>
-            <nav aria-label="Navegación admin móvil" className="grid min-h-0 flex-1 gap-2 overflow-y-auto overscroll-contain p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"><NavLinks pathname={pathname} showTeam={showTeam} mobile onNavigate={() => setOpen(false)} /></nav>
+            <nav aria-label="Navegación admin móvil" className="grid min-h-0 flex-1 gap-2 overflow-y-auto overscroll-contain p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"><NavLinks pathname={pathname} showTeam={showTeam} allowedModules={allowedModules} mobile onNavigate={() => setOpen(false)} /></nav>
           </aside>
         </div>,
         document.body,

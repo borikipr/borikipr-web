@@ -74,6 +74,12 @@ export async function requireSuperAdmin() {
   return context;
 }
 
+export async function requireAdminBaseline() {
+  const context = await requireAdminAccess();
+  if (!context.isAdminBaseline) throw new AdminAccessError("forbidden");
+  return context;
+}
+
 export async function requireModuleAccess(
   moduleKey: ModuleKey,
   minimumLevel: AccessLevel = "view",

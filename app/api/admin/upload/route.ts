@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { uploadImageToR2 } from "@/lib/r2";
 import { SESSION_COOKIE, verifyAdminSessionValue } from "@/lib/admin/auth";
 import { sameSignerOrigin } from "@/lib/signatures/signer/origin";
+import { requireAdminAccess, requireModuleAccess } from "@/lib/admin/access-context";
 
 export const runtime = "nodejs";
 
@@ -54,6 +55,8 @@ export async function POST(request: Request) {
         { status: 401 }
       );
     }
+    try { await requireAdminAccess(); }
+    catch { return NextResponse.json({ ok: false, error: "No autorizado." }, { status: 401 }); }
 
     const formData = await request.formData();
     const purpose = String(formData.get("purpose") || "property");
@@ -61,6 +64,10 @@ export async function POST(request: Request) {
 
     if (purpose !== "property" && purpose !== "testimonial" && purpose !== "profile") {
       return NextResponse.json({ ok: false, error: "Destino de carga no válido." }, { status: 400 });
+    }
+    if (purpose !== "profile") {
+      try { await requireModuleAccess(purpose === "property" ? "properties" : "testimonials", "manage"); }
+      catch { return NextResponse.json({ ok: false, error: "No tienes acceso para esta carga." }, { status: 403 }); }
     }
 
     if (files.length === 0) {

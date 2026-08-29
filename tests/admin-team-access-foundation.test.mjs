@@ -62,3 +62,22 @@ test("foundation retains compatibility and keeps access authority server-side", 
   assert.match(teamAccess, /normalizeProfessionalProfile/);
   assert.match(teamAccess, /updateTeamManagedProfessionalProfile/);
 });
+
+test("Phase 13 keeps module grants explicit and server-authoritative", async () => {
+  const [teamActions, pageAccess, nav, dashboard, signatures] = await Promise.all([
+    readFile(`${root}/app/admin/equipo/actions.ts`, "utf8"),
+    readFile(`${root}/lib/admin/page-access.ts`, "utf8"),
+    readFile(`${root}/components/admin/AdminNav.tsx`, "utf8"),
+    readFile(`${root}/app/admin/page.tsx`, "utf8"),
+    readFile(`${root}/app/admin/signatures/actions.ts`, "utf8"),
+  ]);
+  assert.match(teamAccess, /target\.system_role !== "member"/);
+  assert.match(teamAccess, /module_access_granted/);
+  assert.match(teamAccess, /module_access_revoked/);
+  assert.match(teamActions, /requireSuperAdmin/);
+  assert.match(teamActions, /setAdminModuleAccess/);
+  assert.match(pageAccess, /requireModuleAccess/);
+  assert.match(nav, /allowedModules/);
+  assert.match(dashboard, /moduleAccess/);
+  assert.match(signatures, /requireModuleAccess\("signatures", "manage"\)/);
+});

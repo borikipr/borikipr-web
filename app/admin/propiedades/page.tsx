@@ -13,7 +13,7 @@ import {
 import AdminAlert from "@/components/admin/AdminAlert";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
 import StatusBadge from "@/components/admin/StatusBadge";
-import { getAdminSessionUser } from "@/lib/admin/auth";
+import { getAdminAccessContext } from "@/lib/admin/access-context";
 import { getAdminPropiedades, type AdminPropiedadRow } from "@/lib/admin/queries";
 import PropiedadRowActions from "./PropiedadRowActions";
 
@@ -60,8 +60,9 @@ export default async function AdminPropiedadesPage({
     tipo?: string;
   }>;
 }) {
-  const user = await getAdminSessionUser();
-  if (!user) redirect("/admin/login");
+  const access = await getAdminAccessContext();
+  if (!access) redirect("/admin/login");
+  const canManage = access.isAdminBaseline || access.moduleAccess.get("properties") === "manage";
 
   const params = await searchParams;
   const allProperties = await getAdminPropiedades();
@@ -84,11 +85,11 @@ export default async function AdminPropiedadesPage({
           eyebrow="Inventario"
           title="Propiedades"
           description="Consulta el inventario, actualiza su publicación y administra cada listado desde un solo lugar."
-          actions={
+          actions={canManage ? (
             <Link href="/admin/propiedades/nueva" className="btn-primary">
               <Plus aria-hidden="true" size={17} /> Nueva propiedad
             </Link>
-          }
+          ) : null}
         />
 
         {params.ok && (
@@ -158,9 +159,7 @@ export default async function AdminPropiedadesPage({
             <span aria-hidden="true"><Building2 size={24} /></span>
             <h2>{hasFilters ? "No encontramos propiedades" : "No hay propiedades todavía"}</h2>
             <p>{hasFilters ? "Ajusta los filtros para ver otros resultados." : "Crea la primera propiedad para comenzar a publicar inventario."}</p>
-            <Link href={hasFilters ? "/admin/propiedades" : "/admin/propiedades/nueva"} className="btn-primary">
-              {hasFilters ? "Limpiar filtros" : "Nueva propiedad"}
-            </Link>
+            {hasFilters ? <Link href="/admin/propiedades" className="btn-primary">Limpiar filtros</Link> : canManage ? <Link href="/admin/propiedades/nueva" className="btn-primary">Nueva propiedad</Link> : null}
           </section>
         ) : (
           <section className="property-inventory-list" aria-label="Listado de propiedades">
@@ -200,7 +199,7 @@ export default async function AdminPropiedadesPage({
                   </Link>
                 </div>
 
-                <PropiedadRowActions id={item.id} slug={item.slug} titulo={item.titulo} estadoActual={item.estado} destacadoActual={item.destacado} />
+                {canManage ? <PropiedadRowActions id={item.id} slug={item.slug} titulo={item.titulo} estadoActual={item.estado} destacadoActual={item.destacado} /> : null}
               </article>
             ))}
           </section>

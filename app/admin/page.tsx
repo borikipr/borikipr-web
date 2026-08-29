@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { AdminPageShell } from "@/components/admin/AdminPageShell";
 import TranslationUsageStatusPanel from "@/components/admin/TranslationUsageStatus";
-import { getAdminSession } from "@/lib/admin/auth";
+import { getAdminAccessContext } from "@/lib/admin/access-context";
 import { getAdminDashboardStats } from "@/lib/admin/queries";
 import { sql } from "@/lib/db";
 import { createPostgresTranslationDatabase } from "@/lib/i18n/translations/repository";
@@ -55,27 +55,32 @@ function ToolLink({ description, href, icon: Icon, label }: DashboardTool) {
 }
 
 export default async function AdminPage() {
-  const user = await getAdminSession();
-  if (!user) redirect("/admin/login");
+  const access = await getAdminAccessContext();
+  if (!access) redirect("/admin/login");
+  const user = access.user;
+  const canAccess = (module: "properties" | "leads" | "signatures" | "testimonials" | "analytics") => access.isAdminBaseline || access.moduleAccess.has(module);
+  const canManage = (module: "properties" | "leads" | "signatures" | "testimonials" | "analytics") => access.isAdminBaseline || access.moduleAccess.get(module) === "manage";
 
   const [stats, translationUsage] = await Promise.all([
-    getAdminDashboardStats(),
-    getTranslationUsageStatus(createPostgresTranslationDatabase(sql)).catch(() => null),
+    canAccess("properties") ? getAdminDashboardStats() : Promise.resolve(null),
+    access.isAdminBaseline ? getTranslationUsageStatus(createPostgresTranslationDatabase(sql)).catch(() => null) : Promise.resolve(null),
   ]);
 
   const metrics: Metric[] = [
-    { label: "Total", value: stats.total, description: "Propiedades registradas", icon: Building2 },
-    { label: "Disponibles", value: stats.disponibles, description: "Listas para promoción", icon: CheckCircle2 },
-    { label: "Bajo contrato", value: stats.bajoContrato, description: "En proceso de cierre", icon: Handshake },
-    { label: "Cerradas", value: stats.cerradas, description: "Vendidas o alquiladas", icon: KeyRound },
-    { label: "Destacadas", value: stats.destacadas, description: "Con prioridad visual", icon: Star },
+    ...(stats ? [
+      { label: "Total", value: stats.total, description: "Propiedades registradas", icon: Building2 },
+      { label: "Disponibles", value: stats.disponibles, description: "Listas para promoción", icon: CheckCircle2 },
+      { label: "Bajo contrato", value: stats.bajoContrato, description: "En proceso de cierre", icon: Handshake },
+      { label: "Cerradas", value: stats.cerradas, description: "Vendidas o alquiladas", icon: KeyRound },
+      { label: "Destacadas", value: stats.destacadas, description: "Con prioridad visual", icon: Star },
+    ] : []),
   ];
-  const tools: DashboardTool[] = [
-    { label: "Propiedades", description: "Inventario y publicación", href: "/admin/propiedades", icon: Building2 },
-    { label: "Firmas", description: "Documentos y solicitudes", href: "/admin/signatures", icon: FileSignature },
-    { label: "Leads", description: "Contactos y seguimiento", href: "/admin/leads", icon: UsersRound },
-    { label: "Testimonios", description: "Experiencias de clientes", href: "/admin/testimonios", icon: MessageSquareQuote },
-    { label: "Analytics", description: "Tráfico y comportamiento", href: "/admin/analytics", icon: BarChart3 },
+  const tools: Array<DashboardTool & { module?: "properties" | "leads" | "signatures" | "testimonials" | "analytics" }> = [
+    { label: "Propiedades", description: "Inventario y publicación", href: "/admin/propiedades", icon: Building2, module: "properties" },
+    { label: "Firmas", description: "Documentos y solicitudes", href: "/admin/signatures", icon: FileSignature, module: "signatures" },
+    { label: "Leads", description: "Contactos y seguimiento", href: "/admin/leads", icon: UsersRound, module: "leads" },
+    { label: "Testimonios", description: "Experiencias de clientes", href: "/admin/testimonios", icon: MessageSquareQuote, module: "testimonials" },
+    { label: "Analytics", description: "Tráfico y comportamiento", href: "/admin/analytics", icon: BarChart3, module: "analytics" },
     { label: "Sitio web", description: "Revisar experiencia pública", href: "/", icon: Globe2 },
   ];
 
@@ -89,25 +94,25 @@ export default async function AdminPage() {
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-600 md:text-[0.95rem]">Revisa el estado del negocio y entra directamente a las herramientas de trabajo.</p>
           </div>
           <div className="dashboard-welcome-actions">
-            <Link href="/admin/propiedades/nueva" className="btn-primary gap-2"><Plus size={17} aria-hidden="true" />Nueva propiedad</Link>
+            {canManage("properties") && <Link href="/admin/propiedades/nueva" className="btn-primary gap-2"><Plus size={17} aria-hidden="true" />Nueva propiedad</Link>}
             <form action={logoutAdmin}><button type="submit" className="btn-secondary gap-2"><LogOut size={16} aria-hidden="true" />Cerrar sesión</button></form>
           </div>
         </header>
 
-        <section className="dashboard-metrics-panel surface-card" aria-labelledby="dashboard-inventory-title">
+        {stats && <section className="dashboard-metrics-panel surface-card" aria-labelledby="dashboard-inventory-title">
           <div className="dashboard-section-heading">
             <div><p className="eyebrow">Estado del negocio</p><h2 id="dashboard-inventory-title" className="mt-1 text-lg font-semibold tracking-[-0.02em] text-slate-950">Inventario de propiedades</h2></div>
             <Link href="/admin/propiedades" className="dashboard-section-link">Ver inventario <ArrowUpRight size={15} aria-hidden="true" /></Link>
           </div>
           <div className="dashboard-metric-grid">{metrics.map((metric) => <MetricTile key={metric.label} {...metric} />)}</div>
-        </section>
+        </section>}
 
         <div className="dashboard-workspace-grid">
           <section className="surface-card overflow-hidden" aria-labelledby="dashboard-tools-title">
             <div className="dashboard-section-heading"><div><p className="eyebrow">Navegación directa</p><h2 id="dashboard-tools-title" className="mt-1 text-lg font-semibold tracking-[-0.02em] text-slate-950">Accesos rápidos</h2></div></div>
-            <div className="dashboard-tools-grid">{tools.map((tool) => <ToolLink key={tool.label} {...tool} />)}</div>
+            {tools.some((tool) => !tool.module || canAccess(tool.module)) ? <div className="dashboard-tools-grid">{tools.filter((tool) => !tool.module || canAccess(tool.module)).map((tool) => <ToolLink key={tool.label} {...tool} />)}</div> : <p className="px-5 pb-5 text-sm text-slate-600">No tienes módulos asignados todavía. Tu perfil sigue disponible.</p>}
           </section>
-          <TranslationUsageStatusPanel status={translationUsage} workerEnabled={process.env.TRANSLATION_WORKER_ENABLED === "true"} provider={process.env.TRANSLATION_PROVIDER?.trim() || null} />
+          {translationUsage ? <TranslationUsageStatusPanel status={translationUsage} workerEnabled={process.env.TRANSLATION_WORKER_ENABLED === "true"} provider={process.env.TRANSLATION_PROVIDER?.trim() || null} /> : null}
         </div>
 
       </div>

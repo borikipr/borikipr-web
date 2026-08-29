@@ -5,7 +5,7 @@ import {
   AdminPageShell,
 } from "@/components/admin/AdminPageShell";
 import { EmptyState, FilterBar } from "@/components/admin/AdminUI";
-import { getAdminSessionUser } from "@/lib/admin/auth";
+import { getAdminAccessContext } from "@/lib/admin/access-context";
 import { sql } from "@/lib/db";
 import { createSignatureAdminRepository } from "@/lib/signatures/admin-repository";
 import {
@@ -42,7 +42,9 @@ export default async function SignatureDocumentsPage({
     view?: string;
   }>;
 }) {
-  if (!(await getAdminSessionUser())) redirect("/admin/login");
+  const access = await getAdminAccessContext();
+  if (!access) redirect("/admin/login");
+  const canManage = access.isAdminBaseline || access.moduleAccess.get("signatures") === "manage";
   const params = await searchParams;
   const view = VIEWS.some((item) => item.id === params.view)
     ? params.view!
@@ -50,12 +52,12 @@ export default async function SignatureDocumentsPage({
   const database = createPostgresSignatureDatabase(sql);
   const repository = createSignatureAdminRepository(database);
   const rows = await repository.list({ ...params, view });
-  const deletionEligibilityByDocument = new Map(
+  const deletionEligibilityByDocument = canManage ? new Map(
     await Promise.all(rows.map(async (row) => [
       row.id,
       await inspectSignatureDeletionEligibility(database, row.id),
     ] as const)),
-  );
+  ) : new Map();
 
   return (
     <AdminPageShell>
@@ -69,9 +71,9 @@ export default async function SignatureDocumentsPage({
             <Link className="btn-secondary" href="/admin/signatures/plantillas">
               Plantillas
             </Link>
-            <Link className="btn-primary" href="/admin/signatures/nuevo">
+            {canManage ? <Link className="btn-primary" href="/admin/signatures/nuevo">
               Nuevo documento
-            </Link>
+            </Link> : null}
           </div>
         }
       />
@@ -173,7 +175,7 @@ export default async function SignatureDocumentsPage({
                 : "Comienza con un PDF y añade quién debe firmar."
             }
             action={
-              view === "active" ? (
+              canManage && view === "active" ? (
                 <Link className="btn-primary" href="/admin/signatures/nuevo">
                   Nuevo documento
                 </Link>
@@ -247,11 +249,11 @@ export default async function SignatureDocumentsPage({
                   </dl>
                 </div>
                 <div className="grid gap-2 justify-self-start md:justify-self-end">
-                  {row.status === "completed" && <div className="flex flex-wrap gap-2">
+                  {canManage && row.status === "completed" && <div className="flex flex-wrap gap-2">
                     <Link className="btn-primary" href={`/admin/signatures/${row.id}/final`}>Descargar documento firmado</Link>
                     <Link className="btn-secondary" href={`/admin/signatures/${row.id}/certificate`}>Descargar certificado</Link>
                   </div>}
-                  <SignatureDocumentActions
+                  {canManage ? <SignatureDocumentActions
                     documentId={row.id}
                     title={row.title}
                     status={row.status}
@@ -260,7 +262,7 @@ export default async function SignatureDocumentsPage({
                     deletionEligible={Boolean(deletionEligibility?.eligible)}
                     deletionMode={deletionEligibility?.mode ?? null}
                     detailHref={`/admin/signatures/${row.id}`}
-                  />
+                  /> : null}
                 </div>
               </article>
             );
