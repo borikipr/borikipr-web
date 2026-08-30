@@ -40,5 +40,8 @@ test("Team read model is bounded and reuses existing professional identity data"
   assert.match(repository, /professional_license_number/);
   assert.match(repository, /profile_image_url/);
   assert.match(repository, /parseProfessionalRoles/);
-  assert.doesNotMatch(repository, /admin_module_access|admin_access_events|password_hash|token_hash/);
+  const professionalEditorQuery = repository.match(/export const getTeamProfessionalEditorTarget[\s\S]*/)?.[0] ?? "";
+  assert.match(professionalEditorQuery, /professional_email/);
+  assert.match(professionalEditorQuery, /professional_phone_e164/);
+  assert.doesNotMatch(professionalEditorQuery, /admin_module_access|admin_access_events|password_hash|token_hash|system_role|assigned_broker/);
 });

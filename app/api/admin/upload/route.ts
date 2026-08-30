@@ -3,6 +3,8 @@ import { uploadImageToR2 } from "@/lib/r2";
 import { SESSION_COOKIE, verifyAdminSessionValue } from "@/lib/admin/auth";
 import { sameSignerOrigin } from "@/lib/signatures/signer/origin";
 import { requireAdminAccess, requireModuleAccess } from "@/lib/admin/access-context";
+import { requireSuperAdmin } from "@/lib/admin/access-context";
+import { sql } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -21,6 +23,7 @@ const ALLOWED_VIDEO_TYPES = new Set([
   "video/quicktime",
 ]);
 const ALL_ALLOWED_TYPES = new Set([...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES]);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function matchesDeclaredType(type: string, bytes: Uint8Array) {
   const ascii = (start: number, length: number) => String.fromCharCode(...bytes.slice(start, start + length));
@@ -62,10 +65,22 @@ export async function POST(request: Request) {
     const purpose = String(formData.get("purpose") || "property");
     const files = formData.getAll("files").filter((item): item is File => item instanceof File);
 
-    if (purpose !== "property" && purpose !== "testimonial" && purpose !== "profile") {
+    if (purpose !== "property" && purpose !== "testimonial" && purpose !== "profile" && purpose !== "team-profile") {
       return NextResponse.json({ ok: false, error: "Destino de carga no válido." }, { status: 400 });
     }
-    if (purpose !== "profile") {
+    if (purpose === "team-profile") {
+      const targetId = String(formData.get("targetId") || "");
+      if (!UUID_PATTERN.test(targetId)) return NextResponse.json({ ok: false, error: "Destino de perfil no válido." }, { status: 400 });
+      let actor;
+      try { actor = await requireSuperAdmin(); }
+      catch { return NextResponse.json({ ok: false, error: "No tienes acceso para esta carga." }, { status: 403 }); }
+      if (actor.user.id === targetId) return NextResponse.json({ ok: false, error: "Usa Mi perfil para actualizar tu propia foto." }, { status: 403 });
+      const target = await sql<{ account_state: "pending_setup" | "active" | "disabled" }[]>`
+        SELECT account_state FROM public.admin_users WHERE id=${targetId}::uuid LIMIT 1
+      `;
+      if (!target[0]) return NextResponse.json({ ok: false, error: "Destino de perfil no encontrado." }, { status: 404 });
+      if (target[0].account_state === "disabled") return NextResponse.json({ ok: false, error: "Esta cuenta está deshabilitada." }, { status: 403 });
+    } else if (purpose !== "profile") {
       try { await requireModuleAccess(purpose === "property" ? "properties" : "testimonials", "manage"); }
       catch { return NextResponse.json({ ok: false, error: "No tienes acceso para esta carga." }, { status: 403 }); }
     }
@@ -77,7 +92,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const maxFiles = purpose === "testimonial" || purpose === "profile" ? 1 : MAX_FILES;
+    const maxFiles = purpose === "testimonial" || purpose === "profile" || purpose === "team-profile" ? 1 : MAX_FILES;
     if (files.length > maxFiles) {
       return NextResponse.json(
         { ok: false, error: `Máximo ${maxFiles} archivos por subida.` },
@@ -94,10 +109,10 @@ export async function POST(request: Request) {
       }
 
       const isVideo = ALLOWED_VIDEO_TYPES.has(file.type);
-      if ((purpose === "testimonial" || purpose === "profile") && isVideo) {
-        return NextResponse.json({ ok: false, error: purpose === "profile" ? "El perfil solo acepta imágenes." : "Los testimonios solo aceptan imágenes." }, { status: 400 });
+      if ((purpose === "testimonial" || purpose === "profile" || purpose === "team-profile") && isVideo) {
+        return NextResponse.json({ ok: false, error: purpose === "testimonial" ? "Los testimonios solo aceptan imágenes." : "El perfil solo acepta imágenes." }, { status: 400 });
       }
-      const maxSize = purpose === "testimonial" || purpose === "profile" ? 5 : isVideo ? MAX_VIDEO_SIZE_MB : MAX_IMAGE_SIZE_MB;
+      const maxSize = purpose === "testimonial" || purpose === "profile" || purpose === "team-profile" ? 5 : isVideo ? MAX_VIDEO_SIZE_MB : MAX_IMAGE_SIZE_MB;
       const sizeMb = file.size / (1024 * 1024);
       if (sizeMb > maxSize) {
         return NextResponse.json(
@@ -116,7 +131,7 @@ export async function POST(request: Request) {
 
     for (const file of files) {
       const isVideo = ALLOWED_VIDEO_TYPES.has(file.type);
-      const folder = purpose === "testimonial" ? "testimonios" : purpose === "profile" ? "perfiles" : isVideo ? "propiedades/videos" : "propiedades";
+      const folder = purpose === "testimonial" ? "testimonios" : purpose === "profile" || purpose === "team-profile" ? "perfiles" : isVideo ? "propiedades/videos" : "propiedades";
       const url = await uploadImageToR2(file, folder);
       urls.push(url);
     }

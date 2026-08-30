@@ -65,20 +65,18 @@ export async function completeAuthAttempt(id: string, succeeded: boolean) {
   `;
 }
 
-export async function updateOwnAdminProfile({
+export async function updateOwnProfessionalProfile({
   admin,
   displayName,
   professionalRoles,
   professionalCustomTitle,
   professionalLicenseNumber,
   profileImageUrl,
-  email,
   professionalEmail,
   professionalPhone,
   professionalPhoneWhatsappEnabled,
   professionalBio,
   publicProfileEnabled,
-  currentPassword,
 }: {
   admin: AdminSessionUser;
   displayName: string;
@@ -86,13 +84,11 @@ export async function updateOwnAdminProfile({
   professionalCustomTitle: string;
   professionalLicenseNumber: string;
   profileImageUrl: string;
-  email: string;
   professionalEmail: string;
   professionalPhone: string;
   professionalPhoneWhatsappEnabled: boolean;
   professionalBio: string;
   publicProfileEnabled: boolean;
-  currentPassword: string;
 }) {
   const cleanName = displayName.trim();
   const professionalProfile = normalizeProfessionalProfile({
@@ -101,15 +97,11 @@ export async function updateOwnAdminProfile({
     licenseNumber: professionalLicenseNumber,
   });
   const cleanProfileImageUrl = profileImageUrl.trim();
-  const cleanEmail = normalizeAdminEmail(email);
   const normalizedProfessionalEmail = normalizeProfessionalEmail(professionalEmail);
   const normalizedProfessionalPhone = normalizeProfessionalPhone(professionalPhone);
   const normalizedProfessionalBio = normalizeProfessionalBio(professionalBio);
   if (!cleanName || cleanName.length > 100) {
     return { ok: false as const, error: "Ingresa un nombre visible válido." };
-  }
-  if (!/^\S+@\S+\.\S+$/.test(cleanEmail) || cleanEmail.length > 254) {
-    return { ok: false as const, error: "Ingresa un email válido." };
   }
   if (!professionalProfile.ok) return professionalProfile;
   if (!normalizedProfessionalEmail.ok) return normalizedProfessionalEmail;
@@ -123,16 +115,14 @@ export async function updateOwnAdminProfile({
 
   try {
     const result = await sql.begin(async (transaction) => {
-      const rows = await transaction.unsafe<{ password_hash: string; profile_image_url: string | null; professional_roles: ProfessionalRoleId[]; professional_license_number: string | null; public_profile_approval_state: string }[]>(
-        `SELECT password_hash, profile_image_url, professional_roles, professional_license_number, public_profile_approval_state
+      const rows = await transaction.unsafe<{ profile_image_url: string | null; professional_roles: ProfessionalRoleId[]; professional_license_number: string | null; public_profile_approval_state: string }[]>(
+        `SELECT profile_image_url, professional_roles, professional_license_number, public_profile_approval_state
            FROM public.admin_users
-          WHERE id = $1::uuid AND activo = true
+          WHERE id = $1::uuid AND activo = true AND account_state = 'active'
           FOR UPDATE`,
         [admin.id]
       );
-      if (!rows[0] || !(await bcrypt.compare(currentPassword, rows[0].password_hash))) {
-        return { ok: false as const, error: "La contraseña actual no es correcta." };
-      }
+      if (!rows[0]) return { ok: false as const, error: "Tu sesión venció. Vuelve a iniciar sesión." };
       const materialChange = JSON.stringify(rows[0].professional_roles || []) !== JSON.stringify(professionalProfile.roles)
         || (rows[0].professional_license_number?.trim() || "") !== professionalProfile.licenseNumber;
       const invalidatesApproval = materialChange && rows[0].public_profile_approval_state === "approved";
@@ -146,17 +136,16 @@ export async function updateOwnAdminProfile({
                 professional_roles = $4::text[],
                 professional_license_number = NULLIF($5, ''),
                 profile_image_url = NULLIF($6, ''),
-                email = $7,
-                professional_email = $8,
-                professional_phone_e164 = $9,
-                professional_phone_whatsapp_enabled = $10,
-                professional_bio = $11,
-                public_profile_enabled = $12,
-                public_profile_approval_state = $13,
-                public_profile_approved_at = CASE WHEN $13 = 'approved' THEN public_profile_approved_at ELSE NULL END,
-                public_profile_approved_by_admin_id = CASE WHEN $13 = 'approved' THEN public_profile_approved_by_admin_id ELSE NULL END
+                professional_email = $7,
+                professional_phone_e164 = $8,
+                professional_phone_whatsapp_enabled = $9,
+                professional_bio = $10,
+                public_profile_enabled = $11,
+                public_profile_approval_state = $12,
+                public_profile_approved_at = CASE WHEN $12 = 'approved' THEN public_profile_approved_at ELSE NULL END,
+                public_profile_approved_by_admin_id = CASE WHEN $12 = 'approved' THEN public_profile_approved_by_admin_id ELSE NULL END
           WHERE id = $1::uuid AND activo = true`,
-        [admin.id, cleanName, professionalProfile.displayTitle, professionalProfile.roles, professionalProfile.licenseNumber, cleanProfileImageUrl, cleanEmail, normalizedProfessionalEmail.value, normalizedProfessionalPhone.value, Boolean(professionalPhoneWhatsappEnabled && normalizedProfessionalPhone.value), normalizedProfessionalBio.value, publicProfileEnabled, nextPublicState]
+        [admin.id, cleanName, professionalProfile.displayTitle, professionalProfile.roles, professionalProfile.licenseNumber, cleanProfileImageUrl, normalizedProfessionalEmail.value, normalizedProfessionalPhone.value, Boolean(professionalPhoneWhatsappEnabled && normalizedProfessionalPhone.value), normalizedProfessionalBio.value, publicProfileEnabled, nextPublicState]
       );
       if (invalidatesApproval) await writeAdminAccessEvent(transaction, { eventType: "public_profile_review_invalidated", actorAdminUserId: admin.id, targetAdminUserId: admin.id, metadata: { source: "self_profile", previousState: "approved", nextState: "pending_review" } });
       return { ok: true as const, previousProfileImageUrl: rows[0].profile_image_url, pendingReview: nextPublicState === "pending_review" };
@@ -180,6 +169,42 @@ export async function updateOwnAdminProfile({
     }
     throw error;
   }
+}
+
+export async function updateOwnAdminEmail({
+  admin,
+  email,
+  currentPassword,
+}: {
+  admin: AdminSessionUser;
+  email: string;
+  currentPassword: string;
+}) {
+  const cleanEmail = normalizeAdminEmail(email);
+  if (!/^\S+@\S+\.\S+$/.test(cleanEmail) || cleanEmail.length > 254) {
+    return { ok: false as const, error: "Ingresa un email válido." };
+  }
+  return sql.begin(async (transaction) => {
+    const rows = await transaction.unsafe<{ password_hash: string }[]>(
+      `SELECT password_hash FROM public.admin_users
+        WHERE id = $1::uuid AND activo = true AND account_state = 'active'
+        FOR UPDATE`,
+      [admin.id],
+    );
+    if (!rows[0] || !(await bcrypt.compare(currentPassword, rows[0].password_hash))) {
+      return { ok: false as const, error: "La contraseña actual no es correcta." };
+    }
+    try {
+      await transaction.unsafe(
+        `UPDATE public.admin_users SET email = $2 WHERE id = $1::uuid`,
+        [admin.id, cleanEmail],
+      );
+      return { ok: true as const };
+    } catch (error) {
+      if ((error as { code?: string }).code === "23505") return { ok: false as const, error: "Ese email ya está asociado a otra cuenta." };
+      throw error;
+    }
+  });
 }
 
 export async function changeOwnAdminPassword({

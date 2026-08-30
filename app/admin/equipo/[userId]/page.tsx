@@ -32,14 +32,17 @@ export default async function TeamMemberDetailPage({ params, searchParams }: { p
   if (!member) notFound();
   const isSelf = access.user.id === member.id;
   const canManage = !isSelf && member.systemRole !== "super_admin";
+  const canEditProfessional = !isSelf;
   const signingBrokers = canManage && member.systemRole === "member" ? await listTeamSigningBrokerOptions() : [];
 
   return (
     <AdminPageShell>
-      <AdminPageHeader breadcrumbs={[{ href: "/admin", label: "Admin" }, { href: "/admin/equipo", label: "Equipo" }, { label: member.displayName }]} eyebrow="Cuenta interna" title={member.displayName} description="Resumen de identidad profesional y acceso de esta cuenta." actions={canManage ? <Link href={`/admin/equipo/${member.id}/editar`} className="btn-secondary"><Pencil aria-hidden="true" size={16} />Editar miembro</Link> : undefined} />
+      <AdminPageHeader breadcrumbs={[{ href: "/admin", label: "Admin" }, { href: "/admin/equipo", label: "Equipo" }, { label: member.displayName }]} eyebrow="Cuenta interna" title={member.displayName} description="Resumen de identidad profesional y acceso de esta cuenta." actions={canEditProfessional ? <Link href={`/admin/equipo/${member.id}/perfil-profesional`} className="btn-secondary"><Pencil aria-hidden="true" size={16} />Editar perfil profesional</Link> : undefined} />
       {notice === "created" && <p role="status" className="surface-card border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-medium text-emerald-800">Miembro añadido. Se envió una invitación segura para configurar la cuenta.</p>}
       {notice === "created_delivery_failed" && <p role="alert" className="surface-card border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-medium text-amber-900">La cuenta fue creada, pero no se pudo enviar la invitación. Reenvíala desde esta cuenta.</p>}
       {notice === "updated" && <p role="status" className="surface-card border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-medium text-emerald-800">Perfil actualizado.</p>}
+      {notice === "professional_updated" && <p role="status" className="surface-card border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-medium text-emerald-800">Perfil profesional actualizado.</p>}
+      {notice === "professional_review_pending" && <p role="status" className="surface-card border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-medium text-amber-900">Perfil profesional actualizado. El cambio requiere una nueva revisión pública.</p>}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,.85fr)]">
         <section className="surface-card p-5 md:p-6" aria-labelledby="member-summary-heading">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center"><TeamMemberAvatar imageUrl={member.profileImageUrl} name={member.displayName} size="large" /><div className="min-w-0"><h2 id="member-summary-heading" className="text-xl font-bold text-slate-900">{member.displayName}</h2><div className="mt-2"><TeamIdentityEmail member={member} /></div><div className="mt-4 flex flex-wrap gap-2"><SystemRoleBadge role={member.systemRole} /><AccountLifecycleBadge state={member.accountState} /></div></div></div>

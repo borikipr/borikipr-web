@@ -31,6 +31,7 @@ export const ADMIN_ACCESS_EVENT_TYPES = [
   "public_profile_approved",
   "public_profile_approval_withdrawn",
   "public_profile_review_invalidated",
+  "professional_profile_updated_by_admin",
 ] as const;
 export type AdminAccessEventType = (typeof ADMIN_ACCESS_EVENT_TYPES)[number];
 

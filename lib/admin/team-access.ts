@@ -6,7 +6,8 @@ import { Resend } from "resend";
 import { sql } from "@/lib/db";
 import { hashPasswordResetToken, normalizeAdminEmail, PASSWORD_RESET_TTL_MINUTES } from "@/lib/admin/auth-core";
 import { writeAdminAccessEvent } from "@/lib/admin/access-audit";
-import { normalizeProfessionalProfile } from "@/lib/admin/professional-profile";
+import { normalizeProfessionalBio, normalizeProfessionalEmail, normalizeProfessionalPhone, normalizeProfessionalProfile } from "@/lib/admin/professional-profile";
+import { extractManagedPublicObjectKey } from "@/lib/r2";
 import type { AccessLevel, ModuleKey, SystemRole } from "@/lib/admin/access-types";
 import { ACCESS_LEVELS, MODULE_KEYS } from "@/lib/admin/access-types";
 
@@ -42,6 +43,31 @@ export type CreateTeamMemberInput = Readonly<{
   professionalLicenseNumber: string;
   systemRole: TeamManagedRole;
 }>;
+
+export type TeamProfessionalProfileInput = Readonly<{
+  displayName: string;
+  professionalRoles: string;
+  professionalCustomTitle: string;
+  professionalLicenseNumber: string;
+  profileImageUrl: string;
+  professionalEmail: string;
+  professionalPhone: string;
+  professionalPhoneWhatsappEnabled: boolean;
+  professionalBio: string;
+}>;
+
+type TeamProfessionalProfileRow = {
+  display_name: string | null;
+  profile_image_url: string | null;
+  professional_title: string | null;
+  professional_roles: string[];
+  professional_license_number: string | null;
+  professional_email: string | null;
+  professional_phone_e164: string | null;
+  professional_phone_whatsapp_enabled: boolean;
+  professional_bio: string | null;
+  public_profile_approval_state: "draft" | "pending_review" | "approved" | "disabled";
+};
 
 function cleanUsername(value: string) {
   const username = value.trim().toLowerCase();
@@ -431,6 +457,74 @@ export async function updateTeamManagedProfessionalProfile(
     if (invalidatesApproval) await writeAdminAccessEvent(tx, { eventType: "public_profile_review_invalidated", actorAdminUserId: actorAdminId, targetAdminUserId: targetAdminId, metadata: { source: "team_profile", previousState: "approved", nextState: "pending_review" } });
   });
   return { ok: true as const };
+}
+
+export async function updateTeamProfessionalProfileByAdmin(
+  actorAdminId: string,
+  targetAdminId: string,
+  input: TeamProfessionalProfileInput,
+  database: TeamDatabase = sql,
+) {
+  assertDifferentActor(actorAdminId, targetAdminId);
+  const displayName = input.displayName.trim();
+  const professionalProfile = normalizeProfessionalProfile({ roles: input.professionalRoles, customTitle: input.professionalCustomTitle, licenseNumber: input.professionalLicenseNumber });
+  const professionalEmail = normalizeProfessionalEmail(input.professionalEmail);
+  const professionalPhone = normalizeProfessionalPhone(input.professionalPhone);
+  const professionalBio = normalizeProfessionalBio(input.professionalBio);
+  const profileImageUrl = input.profileImageUrl.trim();
+  if (!displayName || displayName.length > 100) return { ok: false as const, error: "Ingresa un nombre visible válido.", field: "displayName" };
+  if (!professionalProfile.ok) return { ok: false as const, error: professionalProfile.error, field: /licencia/i.test(professionalProfile.error) ? "professionalLicenseNumber" : "professionalRoles" };
+  if (!professionalEmail.ok) return { ok: false as const, error: professionalEmail.error, field: "professionalEmail" };
+  if (!professionalPhone.ok) return { ok: false as const, error: professionalPhone.error, field: "professionalPhone" };
+  if (!professionalBio.ok) return { ok: false as const, error: professionalBio.error, field: "professionalBio" };
+  if (input.professionalPhoneWhatsappEnabled && !professionalPhone.value) return { ok: false as const, error: "Añade un teléfono profesional antes de activar WhatsApp.", field: "professionalPhone" };
+  const imageKey = profileImageUrl ? extractManagedPublicObjectKey(profileImageUrl) : null;
+  if (profileImageUrl && (!imageKey || !imageKey.startsWith("perfiles/"))) return { ok: false as const, error: "La foto de perfil no es válida.", field: "profileImageUrl" };
+
+  return database.begin(async (transaction) => {
+    const tx = transaction as unknown as TeamDatabase;
+    await assertActorIsSuperAdmin(tx, actorAdminId);
+    const target = await loadTargetForUpdate(tx, targetAdminId);
+    if (target.account_state === "disabled") throw new Error("admin_access_professional_target_disabled");
+    const rows = await tx.unsafe<TeamProfessionalProfileRow[]>(
+      `SELECT display_name, profile_image_url, professional_title, professional_roles,
+              professional_license_number, professional_email, professional_phone_e164,
+              professional_phone_whatsapp_enabled, professional_bio, public_profile_approval_state
+         FROM public.admin_users WHERE id=$1::uuid FOR UPDATE`,
+      [targetAdminId],
+    );
+    const current = rows[0];
+    if (!current) throw new Error("admin_access_target_not_found");
+    const nextWhatsapp = Boolean(input.professionalPhoneWhatsappEnabled && professionalPhone.value);
+    const changedFields: string[] = [];
+    if ((current.display_name ?? "") !== displayName) changedFields.push("display_name");
+    if ((current.profile_image_url ?? "") !== profileImageUrl) changedFields.push("profile_image");
+    if (JSON.stringify(current.professional_roles ?? []) !== JSON.stringify(professionalProfile.roles)) changedFields.push("professional_roles");
+    if ((current.professional_title ?? "") !== professionalProfile.displayTitle) changedFields.push("professional_title");
+    if ((current.professional_license_number ?? "") !== professionalProfile.licenseNumber) changedFields.push("professional_license");
+    if ((current.professional_email ?? "") !== (professionalEmail.value ?? "")) changedFields.push("professional_email");
+    if ((current.professional_phone_e164 ?? "") !== (professionalPhone.value ?? "")) changedFields.push("professional_phone");
+    if (current.professional_phone_whatsapp_enabled !== nextWhatsapp) changedFields.push("whatsapp_setting");
+    if ((current.professional_bio ?? "") !== (professionalBio.value ?? "")) changedFields.push("professional_bio");
+    if (!changedFields.length) return { ok: true as const, changed: false, pendingReview: false };
+    const credentialChange = changedFields.includes("professional_roles") || changedFields.includes("professional_license");
+    const invalidatesApproval = credentialChange && current.public_profile_approval_state === "approved";
+    await tx.unsafe(
+      `UPDATE public.admin_users
+          SET display_name=$2, profile_image_url=NULLIF($3,''), professional_title=$4,
+              professional_roles=$5::text[], professional_license_number=NULLIF($6,''),
+              professional_email=$7, professional_phone_e164=$8,
+              professional_phone_whatsapp_enabled=$9, professional_bio=$10,
+              public_profile_approval_state=CASE WHEN $11 THEN 'pending_review' ELSE public_profile_approval_state END,
+              public_profile_approved_at=CASE WHEN $11 THEN NULL ELSE public_profile_approved_at END,
+              public_profile_approved_by_admin_id=CASE WHEN $11 THEN NULL ELSE public_profile_approved_by_admin_id END
+        WHERE id=$1::uuid`,
+      [targetAdminId, displayName, profileImageUrl, professionalProfile.displayTitle, professionalProfile.roles, professionalProfile.licenseNumber, professionalEmail.value, professionalPhone.value, nextWhatsapp, professionalBio.value, invalidatesApproval],
+    );
+    await writeAdminAccessEvent(tx, { eventType: "professional_profile_updated_by_admin", actorAdminUserId: actorAdminId, targetAdminUserId: targetAdminId, metadata: { changedFields } });
+    if (invalidatesApproval) await writeAdminAccessEvent(tx, { eventType: "public_profile_review_invalidated", actorAdminUserId: actorAdminId, targetAdminUserId: targetAdminId, metadata: { source: "team_professional_profile", previousState: "approved", nextState: "pending_review" } });
+    return { ok: true as const, changed: true, pendingReview: invalidatesApproval };
+  });
 }
 
 export async function approvePublicProfessionalProfile(actorAdminId: string, targetAdminId: string, database: TeamDatabase = sql) {

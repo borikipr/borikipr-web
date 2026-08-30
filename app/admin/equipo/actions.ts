@@ -10,6 +10,7 @@ import {
   reactivateAdminAccount,
   resendTeamSetupInvitation,
   updateTeamManagedProfessionalProfile,
+  updateTeamProfessionalProfileByAdmin,
   setAdminModuleAccess,
   setSigningBrokerAuthorization,
   setAssignedSigningBroker,
@@ -17,7 +18,7 @@ import {
   withdrawPublicProfessionalProfileApproval,
 } from "@/lib/admin/team-access";
 
-export type TeamActionState = Readonly<{ error: string; success: string }>;
+export type TeamActionState = Readonly<{ error: string; success: string; field?: string }>;
 export const initialTeamActionState: TeamActionState = { error: "", success: "" };
 
 function messageFor(error: unknown) {
@@ -41,6 +42,7 @@ function messageFor(error: unknown) {
     admin_access_module_target_invalid: "Los accesos por módulo solo aplican a cuentas miembro.",
     admin_access_module_invalid: "El acceso seleccionado no es válido.",
     admin_access_broker_account_inactive: "La cuenta debe estar activa para autorizarla como corredor(a).",
+    admin_access_professional_target_disabled: "Esta cuenta está deshabilitada. El perfil profesional es solo de lectura.",
     admin_access_broker_role_required: "La cuenta debe tener el rol profesional de Corredor(a) de Bienes Raíces.",
     admin_access_broker_license_required: "La cuenta necesita un número de licencia para autorizarse como corredor(a).",
     admin_access_assigned_broker_self_forbidden: "Una cuenta no puede asignarse a sí misma como corredor(a).",
@@ -117,6 +119,28 @@ export async function updateMemberProfileAction(_previous: TeamActionState, form
     if (!result.ok) return { error: result.error, success: "" };
     invalidateTeamPaths(targetId);
     redirect(`/admin/equipo/${targetId}?notice=updated`);
+  } catch (error) {
+    return { error: messageFor(error), success: "" };
+  }
+}
+
+export async function updateTeamProfessionalProfileAction(_previous: TeamActionState, formData: FormData): Promise<TeamActionState> {
+  const targetId = String(formData.get("targetId") || "");
+  try {
+    const result = await updateTeamProfessionalProfileByAdmin(await actorId(), targetId, {
+      displayName: String(formData.get("displayName") || ""),
+      profileImageUrl: String(formData.get("profileImageUrl") || ""),
+      professionalRoles: String(formData.get("professionalRoles") || ""),
+      professionalCustomTitle: String(formData.get("professionalCustomTitle") || ""),
+      professionalLicenseNumber: String(formData.get("professionalLicenseNumber") || ""),
+      professionalEmail: String(formData.get("professionalEmail") || ""),
+      professionalPhone: String(formData.get("professionalPhone") || ""),
+      professionalPhoneWhatsappEnabled: String(formData.get("professionalPhoneWhatsappEnabled") || "") === "true",
+      professionalBio: String(formData.get("professionalBio") || ""),
+    });
+    if (!result.ok) return { error: result.error, success: "", field: result.field };
+    invalidateTeamPaths(targetId);
+    redirect(`/admin/equipo/${targetId}?notice=${result.pendingReview ? "professional_review_pending" : "professional_updated"}`);
   } catch (error) {
     return { error: messageFor(error), success: "" };
   }

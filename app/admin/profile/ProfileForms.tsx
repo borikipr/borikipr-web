@@ -2,7 +2,7 @@
 
 import { ChangeEvent, DragEvent, KeyboardEvent, type CSSProperties, useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { BadgeCheck, Building2, Camera, ChevronDown, ChevronUp, Eye, EyeOff, ImagePlus, KeyRound, Mail, ShieldCheck, Trash2, Upload, UserRound, X } from "lucide-react";
-import { changePassword, updateProfile, type ProfileState } from "./actions";
+import { changePassword, updateAccountEmail, updateProfessionalProfile, type ProfileState } from "./actions";
 import { PROFESSIONAL_ROLE_OPTIONS, professionalRoleLabels, professionalRoleTitle, rolesRequireLicense, type ProfessionalRoleId } from "@/lib/admin/professional-profile";
 import type { PublicProfileApprovalState } from "@/lib/admin/professional-profile";
 import PublicProfileStatusBadge from "@/components/admin/PublicProfileStatusBadge";
@@ -16,6 +16,10 @@ function Feedback({ state }: { state: ProfileState }) {
   if (state.error) return <p role="alert" className="profile-feedback is-error">{state.error}</p>;
   if (state.success) return <p role="status" className="profile-feedback is-success">{state.success}</p>;
   return null;
+}
+
+function FieldError({ state, field }: { state: ProfileState; field: string }) {
+  return state.error && state.field === field ? <p role="alert" className="profile-feedback is-error">{state.error}</p> : null;
 }
 
 function PasswordField({ id, name, label, autoComplete, minLength }: {
@@ -45,7 +49,7 @@ function Avatar({ imageUrl, name, username, size = "default" }: { imageUrl: stri
   </div>;
 }
 
-function ProfilePhotoControl({ imageUrl, onChange, displayName, username }: { imageUrl: string; onChange: (url: string) => void; displayName: string; username: string }) {
+export function ProfilePhotoControl({ imageUrl, onChange, displayName, username, uploadPurpose = "profile", targetId }: { imageUrl: string; onChange: (url: string) => void; displayName: string; username: string; uploadPurpose?: "profile" | "team-profile"; targetId?: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -57,7 +61,7 @@ function ProfilePhotoControl({ imageUrl, onChange, displayName, username }: { im
     if (file.size > 5 * 1024 * 1024) { setError("La foto debe pesar menos de 5 MB."); return; }
     setUploading(true); setError("");
     try {
-      const data = new FormData(); data.append("purpose", "profile"); data.append("files", file);
+      const data = new FormData(); data.append("purpose", uploadPurpose); if (targetId) data.append("targetId", targetId); data.append("files", file);
       const response = await fetch("/api/admin/upload", { method: "POST", body: data });
       const result = await response.json() as { ok?: boolean; urls?: string[]; error?: string };
       if (!response.ok || !result.ok || !result.urls?.[0]) throw new Error(result.error || "No se pudo subir la foto.");
@@ -134,7 +138,8 @@ export function RolePicker({ roles, onChange, customTitle, onCustomTitleChange }
 export default function ProfileForms({ displayName, professionalTitle, professionalRoles, professionalLicenseNumber, profileImageUrl, email, username, roleLabel, professionalEmail, professionalPhone, whatsappEnabled, professionalBio, publicProfileEnabled, publicProfileApprovalState }: {
   displayName: string; professionalTitle: string; professionalRoles: ProfessionalRoleId[]; professionalLicenseNumber: string; profileImageUrl: string; email: string; username: string; roleLabel: string; professionalEmail: string; professionalPhone: string; whatsappEnabled: boolean; professionalBio: string; publicProfileEnabled: boolean; publicProfileApprovalState: PublicProfileApprovalState;
 }) {
-  const [profileState, profileAction, profilePending] = useActionState(updateProfile, initial);
+  const [profileState, profileAction, profilePending] = useActionState(updateProfessionalProfile, initial);
+  const [emailState, emailAction, emailPending] = useActionState(updateAccountEmail, initial);
   const [passwordState, passwordAction, passwordPending] = useActionState(changePassword, initial);
   const [imageUrl, setImageUrl] = useState(profileImageUrl);
   const initialRoles = professionalRoles.length ? professionalRoles : professionalTitle ? ["other"] as ProfessionalRoleId[] : [];
@@ -178,6 +183,10 @@ export default function ProfileForms({ displayName, professionalTitle, professio
           <div className="rounded-xl border border-slate-200 px-4 py-3"><div className="flex flex-wrap items-center justify-between gap-3"><label htmlFor="publicProfileEnabled" className="font-semibold text-slate-900">Habilitar perfil profesional para futuras áreas públicas</label><input id="publicProfileEnabled" name="publicProfileEnabled" type="checkbox" value="true" checked={publicEnabled} onChange={(event) => { if (!event.target.checked && publicProfileApprovalState === "approved") { setConfirmOptOut(true); return; } setPublicEnabled(event.target.checked); }} className="h-4 w-4" /></div><p className="mt-1 text-xs leading-5 text-slate-500">Requiere revisión antes de estar disponible.</p><div className="mt-2"><PublicProfileStatusBadge state={publicProfileApprovalState} /></div></div>
           <AdminActionDialog open={confirmOptOut} onClose={() => setConfirmOptOut(false)} danger title="Deshabilitar perfil profesional" description="El perfil dejará de estar disponible para futuras áreas públicas hasta que lo habilites nuevamente."><div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" className="btn-secondary" onClick={() => setConfirmOptOut(false)}>Cancelar</button><button type="button" className="admin-danger-button" onClick={() => { setPublicEnabled(false); setConfirmOptOut(false); }}>Deshabilitar perfil</button></div></AdminActionDialog>
           <div className="profile-account-context"><span><Building2 aria-hidden="true" size={16}/>Organización</span><strong>Erickson Real Estate · Borikí</strong></div>
+          <FieldError state={profileState} field="professionalRoles" /><FieldError state={profileState} field="professionalLicenseNumber" /><FieldError state={profileState} field="professionalEmail" /><FieldError state={profileState} field="professionalPhone" /><FieldError state={profileState} field="professionalBio" /><FieldError state={profileState} field="profileImageUrl" />
+          <div className="profile-form-actions"><button type="submit" disabled={profilePending} className="btn-primary disabled:opacity-60">{profilePending ? "Guardando…" : "Guardar cambios"}</button><Feedback state={profileState}/></div>
+        </form>
+        <form action={emailAction} className="profile-settings-form">
           <div className="profile-section-divider" />
           <div className="profile-inline-heading"><Mail aria-hidden="true" size={18}/><div><h3>Correo y recuperación</h3><p>Se usa para acceso y recuperación segura de la cuenta.</p></div></div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -185,8 +194,8 @@ export default function ProfileForms({ displayName, professionalTitle, professio
             <div className="space-y-1.5"><label htmlFor="username" className="text-sm font-semibold text-slate-800">Usuario</label><input id="username" className="input-premium bg-slate-50 text-slate-600" value={username} readOnly aria-readonly="true" /></div>
           </div>
           <PasswordField id="profileCurrentPassword" name="currentPassword" label="Confirma tu contraseña actual" autoComplete="current-password" />
-          <p className="text-xs leading-5 text-slate-500">Borikí solicita tu contraseña antes de guardar cambios de identidad o recuperación.</p>
-          <div className="profile-form-actions"><button type="submit" disabled={profilePending} className="btn-primary disabled:opacity-60">{profilePending ? "Guardando…" : "Guardar cambios"}</button><Feedback state={profileState}/></div>
+          <p className="text-xs leading-5 text-slate-500">Confirma tu contraseña para cambiar el correo de acceso.</p>
+          <div className="profile-form-actions"><button type="submit" disabled={emailPending} className="btn-primary disabled:opacity-60">{emailPending ? "Actualizando…" : "Actualizar correo de acceso"}</button><Feedback state={emailState}/></div>
         </form>
       </section>
 

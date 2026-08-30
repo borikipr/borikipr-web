@@ -2471,3 +2471,35 @@ try {
   await professionalProfileDb.exec(professionalProfileRollbackSql);
   console.log("Validated professional profile foundation migration 0049 and guarded rollback.");
 } finally { await professionalProfileDb.close(); }
+
+const professionalProfileAuditMigrationSql = await readMigration("0051_add_professional_profile_update_audit_event.sql");
+const professionalProfileAuditRollbackSql = await readMigration("0051_add_professional_profile_update_audit_event.rollback.sql");
+const professionalProfileAuditBaseSchema = `
+  CREATE TABLE public.admin_users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), username text NOT NULL);
+  CREATE TABLE public.admin_access_events (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(), occurred_at timestamptz NOT NULL DEFAULT now(),
+    event_type text NOT NULL, actor_admin_user_id uuid NULL REFERENCES public.admin_users(id),
+    target_admin_user_id uuid NOT NULL REFERENCES public.admin_users(id), metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+    CONSTRAINT admin_access_events_type_check CHECK (event_type IN ('user_created','setup_issued','account_activated','account_disabled','account_reactivated','system_role_changed','module_access_granted','module_access_revoked','broker_authorization_granted','broker_authorization_revoked','assigned_broker_changed','public_profile_approved','public_profile_approval_withdrawn','public_profile_review_invalidated'))
+  );
+  INSERT INTO public.admin_users(username) VALUES ('actor'), ('target');
+`;
+const professionalProfileAuditDb = new PGlite();
+try {
+  await professionalProfileAuditDb.exec(professionalProfileAuditBaseSchema);
+  await professionalProfileAuditDb.exec(professionalProfileAuditMigrationSql);
+  await assert.rejects(professionalProfileAuditDb.exec(`INSERT INTO public.admin_access_events(event_type,target_admin_user_id) VALUES ('not_an_event',(SELECT id FROM public.admin_users WHERE username='target'))`));
+  await professionalProfileAuditDb.exec(`INSERT INTO public.admin_access_events(event_type,target_admin_user_id) VALUES ('professional_profile_updated_by_admin',(SELECT id FROM public.admin_users WHERE username='target'))`);
+  await assert.rejects(professionalProfileAuditDb.exec(professionalProfileAuditRollbackSql), /0051 rollback blocked/);
+  console.log("Validated professional profile update audit migration 0051 and guarded rollback.");
+} finally { await professionalProfileAuditDb.close(); }
+
+const unusedProfessionalProfileAuditDb = new PGlite();
+try {
+  await unusedProfessionalProfileAuditDb.exec(professionalProfileAuditBaseSchema);
+  await unusedProfessionalProfileAuditDb.exec(professionalProfileAuditMigrationSql);
+  await unusedProfessionalProfileAuditDb.exec(professionalProfileAuditRollbackSql);
+  await unusedProfessionalProfileAuditDb.exec(`INSERT INTO public.admin_access_events(event_type,target_admin_user_id) VALUES ('public_profile_review_invalidated',(SELECT id FROM public.admin_users WHERE username='target'))`);
+  await assert.rejects(unusedProfessionalProfileAuditDb.exec(`INSERT INTO public.admin_access_events(event_type,target_admin_user_id) VALUES ('professional_profile_updated_by_admin',(SELECT id FROM public.admin_users WHERE username='target'))`));
+  console.log("Validated unused 0051 rollback restores the exact 0050 audit allowlist.");
+} finally { await unusedProfessionalProfileAuditDb.close(); }

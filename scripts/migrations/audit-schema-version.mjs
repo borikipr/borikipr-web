@@ -346,6 +346,11 @@ if (!process.env.DATABASE_URL) {
             ) AND to_regclass('public.property_listing_responsibility_events') IS NOT NULL
               AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='property_listing_responsibility_events_immutable_trigger' AND NOT tgisinternal)
           ) AS v0050
+          ,EXISTS (
+            SELECT 1 FROM pg_constraint
+             WHERE conrelid='public.admin_access_events'::regclass
+               AND pg_get_constraintdef(oid) LIKE '%professional_profile_updated_by_admin%'
+          ) AS v0051
       )
       SELECT * FROM facts
     `;

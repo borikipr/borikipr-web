@@ -31,6 +31,23 @@ export type TeamSigningBrokerOption = Readonly<{
   licenseNumber: string;
 }>;
 
+export type TeamProfessionalEditorTarget = Readonly<{
+  id: string;
+  displayName: string;
+  username: string;
+  accountState: AccountState;
+  professionalRoles: ProfessionalRoleId[];
+  professionalTitle: string | null;
+  professionalLicenseNumber: string | null;
+  profileImageUrl: string | null;
+  professionalEmail: string | null;
+  professionalPhone: string | null;
+  whatsappEnabled: boolean;
+  professionalBio: string | null;
+  publicProfileEnabled: boolean;
+  publicProfileApprovalState: PublicProfileApprovalState;
+}>;
+
 type TeamDirectoryRow = {
   id: string;
   display_name: string | null;
@@ -124,4 +141,31 @@ export const getTeamDirectoryMember = cache(async (id: string): Promise<TeamDire
     SELECT module_key, access_level FROM public.admin_module_access WHERE admin_user_id = ${id}::uuid
   `;
   return toTeamDirectoryMember(rows[0], new Map(grants.map((grant) => [grant.module_key, grant.access_level])));
+});
+
+export const getTeamProfessionalEditorTarget = cache(async (id: string): Promise<TeamProfessionalEditorTarget | null> => {
+  const rows = await sql<{
+    id: string; display_name: string | null; username: string; account_state: AccountState;
+    professional_roles: unknown; professional_title: string | null; professional_license_number: string | null;
+    profile_image_url: string | null; professional_email: string | null; professional_phone_e164: string | null;
+    professional_phone_whatsapp_enabled: boolean; professional_bio: string | null;
+    public_profile_enabled: boolean; public_profile_approval_state: PublicProfileApprovalState;
+  }[]>`
+    SELECT id::text, display_name, username, account_state, professional_roles, professional_title,
+           professional_license_number, profile_image_url, professional_email, professional_phone_e164,
+           professional_phone_whatsapp_enabled, professional_bio, public_profile_enabled,
+           public_profile_approval_state
+      FROM public.admin_users WHERE id=${id}::uuid LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: row.id, displayName: row.display_name?.trim() || row.username, username: row.username,
+    accountState: row.account_state, professionalRoles: parseProfessionalRoles(row.professional_roles) ?? [],
+    professionalTitle: row.professional_title?.trim() || null, professionalLicenseNumber: row.professional_license_number?.trim() || null,
+    profileImageUrl: row.profile_image_url, professionalEmail: row.professional_email?.trim() || null,
+    professionalPhone: row.professional_phone_e164?.trim() || null, whatsappEnabled: row.professional_phone_whatsapp_enabled,
+    professionalBio: row.professional_bio?.trim() || null, publicProfileEnabled: row.public_profile_enabled,
+    publicProfileApprovalState: row.public_profile_approval_state,
+  };
 });
