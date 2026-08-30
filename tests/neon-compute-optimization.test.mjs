@@ -36,6 +36,7 @@ test("public property cache projections keep heavy form configuration and full g
   const featuredQuery = properties.match(/const getCachedPropiedadesDestacadas = unstable_cache\(async \(limit: number\) => \{([\s\S]*?)\n\}, \["public-properties-featured"\]/)?.[1] ?? "";
   const paginatedQuery = properties.match(/const getCachedPropiedadesPaginadas = unstable_cache\(async \(([\s\S]*?)\n\}, \["public-properties-paginated"\]/)?.[1] ?? "";
   const detailQuery = properties.match(/const getCachedPropiedadBySlug = unstable_cache\(async \(slug: string\) => \{([\s\S]*?)\n\}, \["public-property-by-slug"\]/)?.[1] ?? "";
+  const similarQuery = properties.match(/const getCachedPropiedadesSimilares = unstable_cache\(async \(([\s\S]*?)\n\}, \["public-properties-similar"\]/)?.[1] ?? "";
 
   assert.match(indexQuery, /p\.id,[\s\S]*p\.slug,[\s\S]*p\.destacado/);
   assert.doesNotMatch(indexQuery, /configuracion_formulario|propiedad_imagenes|json_agg/);
@@ -45,6 +46,14 @@ test("public property cache projections keep heavy form configuration and full g
   }
   assert.match(detailQuery, /configuracion_formulario->>'notas_compradores'/);
   assert.doesNotMatch(detailQuery, /p\.configuracion_formulario,/);
+  assert.match(detailQuery, /p\.fecha_showing AT TIME ZONE 'America\/Puerto_Rico' AS fecha_showing/);
+  assert.doesNotMatch(similarQuery, /p\.descripcion/);
+});
+
+test("public open-house rendering reuses its cached property showing time", async () => {
+  const openHouse = await source("app/(public)/listados/[slug]/registro-openhouse/page.tsx");
+  assert.doesNotMatch(openHouse, /getCanonicalOpenHouseShowingAt/);
+  assert.match(openHouse, /formatoFechaOpenHouse\(\s*propiedad\.fecha_showing/);
 });
 
 test("production builds do not query Neon for the public home page or sitemap", async () => {

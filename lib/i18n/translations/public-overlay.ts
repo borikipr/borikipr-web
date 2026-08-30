@@ -114,10 +114,13 @@ export async function overlayPropertyTranslations<
   }
 
   const reader = input.reader ?? (await defaultReader());
+  const fieldKeys = input.properties.some((property) => "descripcion" in property)
+    ? ["title", "description"] as const
+    : ["title"] as const;
   const translations = await reader.fetchPropertyTranslations(
     uniqueIds(input.properties),
     "en-US",
-    ["title", "description"]
+    fieldKeys
   );
   return applyPropertyTranslationOverlay(input.properties, translations);
 }

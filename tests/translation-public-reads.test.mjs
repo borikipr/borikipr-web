@@ -79,6 +79,26 @@ test("Spanish overlays issue zero translation reads; English uses one allowliste
   ]);
 });
 
+test("card-only property overlays request titles without description translations", async () => {
+  const calls = [];
+  const reader = {
+    async fetchPropertyTranslations(ids, locale, fields) {
+      calls.push([ids, locale, fields]);
+      return [row("title")];
+    },
+    async fetchTestimonialTranslations() {
+      return [];
+    },
+  };
+  const cards = await overlayPropertyTranslations({
+    properties: [{ id: property.id, titulo: "Casa", precio: 10 }],
+    locale: "en-US",
+    reader,
+  });
+  assert.equal(cards[0].titulo, "House");
+  assert.deepEqual(calls, [[[property.id], "en-US", ["title"]]]);
+});
+
 test("English public invalidation is entity-aware, feature-gated, and propagates failures", async () => {
   assert.deepEqual(getEnglishPublicTranslationPaths({ entityType: "property", ownerId: property.id, propertySlug: "casa" }), ["/en", "/en/listings", "/sitemap.xml", "/en/listings/casa"]);
   assert.deepEqual(getEnglishPublicTranslationPaths({ entityType: "testimonial", ownerId: property.id }), ["/en", "/en/testimonials"]);

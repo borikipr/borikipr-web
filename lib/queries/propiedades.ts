@@ -170,7 +170,7 @@ const getCachedPropiedadBySlug = unstable_cache(async (slug: string) => {
       p.destacado,
       ${publicOriginExpression()} AS origen_listado,
       p.requiere_precalificacion,
-      p.fecha_showing,
+      p.fecha_showing AT TIME ZONE 'America/Puerto_Rico' AS fecha_showing,
       p.configuracion_formulario->>'notas_compradores' AS notas_compradores,
       p.formulario_showing_activo,
       p.placas_en_lease,
@@ -201,12 +201,11 @@ const getCachedPropiedadesSimilares = unstable_cache(async (
   tipoPropiedad: string,
   limit = 3
 ) => {
-  const rows = await sql<PropiedadQueryRow[]>`
+  const rows = await sql<PropiedadHomeDestacada[]>`
     SELECT
       p.id,
       p.slug,
       p.titulo,
-      p.descripcion,
       p.municipio,
       to_jsonb(p)->>'sector_comunidad' AS sector_comunidad,
       p.precio,

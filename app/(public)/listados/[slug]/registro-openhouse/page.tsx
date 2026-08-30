@@ -7,7 +7,6 @@ import { getPropiedadBySlug } from "@/lib/queries/propiedades";
 import { isPrivateR2Configured } from "@/lib/r2";
 import PerfilCompradorPropiedadForm from "@/components/PerfilCompradorPropiedadForm";
 import { formatPropertyLocation } from "@/lib/puerto-rico-sectores";
-import { getCanonicalOpenHouseShowingAt } from "@/lib/leads/postgres-open-house-registration";
 import { DEFAULT_LOCALE, ENGLISH_LOCALE, type AppLocale } from "@/lib/i18n/locales";
 import { getEquivalentRoute } from "@/lib/i18n/routing";
 import { getPublicFormText } from "@/lib/i18n/public-form-copy";
@@ -79,8 +78,6 @@ export async function renderOpenHouseRegistrationPage({
     : source;
   const t = (value: string) => getPublicFormText(locale, value);
 
-  const canonicalShowingAt = await getCanonicalOpenHouseShowingAt(propiedad.id);
-
   const imagenPrincipal =
     Array.isArray(propiedad.imagenes) && propiedad.imagenes.length > 0
       ? propiedad.imagenes[0]
@@ -88,8 +85,11 @@ export async function renderOpenHouseRegistrationPage({
   const openHouseActivo =
     Boolean(propiedad.formulario_showing_activo) &&
     Boolean(propiedad.fecha_showing);
+  const canonicalShowingAt = propiedad.fecha_showing
+    ? new Date(propiedad.fecha_showing).toISOString()
+    : null;
   const fechaOpenHouse = formatoFechaOpenHouse(
-    canonicalShowingAt || propiedad.fecha_showing,
+    propiedad.fecha_showing,
     locale
   );
   const notasCompradores = propiedad.notas_compradores ?? "";
