@@ -20,7 +20,7 @@ export function AccountLifecycleBadge({ state }: { state: TeamDirectoryMember["a
 }
 
 export function SystemRoleBadge({ role }: { role: TeamDirectoryMember["systemRole"] }) {
-  return <span className="inline-flex min-h-7 items-center rounded-full border border-[#c8d9e8] bg-[#eef6fb] px-2.5 py-1 text-xs font-semibold text-[#0d406d]"><KeyRound aria-hidden="true" size={14} className="mr-1.5" />{systemRoleLabels[role]}</span>;
+  return <span className="inline-flex min-h-7 items-center rounded-full border border-[#e8e8e8] bg-[#f8f8f8] px-2.5 py-1 text-xs font-semibold text-[#0d406d]"><KeyRound aria-hidden="true" size={14} className="mr-1.5" />{systemRoleLabels[role]}</span>;
 }
 
 export function ProfessionalIdentity({ member, compact = false }: { member: TeamDirectoryMember; compact?: boolean }) {

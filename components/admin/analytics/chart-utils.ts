@@ -13,9 +13,9 @@ export type AnalyticsLineChartDatum = {
 export const analyticsChartColors = {
   blue: "#11518B",
   gold: "#D4AF37",
-  lightBlue: "#6EA7D4",
-  neutral: "#9CA3AF",
-  darkNeutral: "#4B5563",
+  lightBlue: "#0D406D",
+  neutral: "#4D4D4D",
+  darkNeutral: "#0D1B2A",
   grid: "#E8E8E8",
 };
 
@@ -39,4 +39,3 @@ export function chartTooltipStyle() {
     fontSize: 12,
   };
 }
-
