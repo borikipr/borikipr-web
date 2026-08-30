@@ -7,7 +7,7 @@ import {
   signAdminSessionPayload,
   verifyLegacyAdminSession,
 } from "@/lib/admin/auth-core";
-import { parseProfessionalRoles, type ProfessionalRoleId } from "@/lib/admin/professional-profile";
+import { parseProfessionalRoles, type ProfessionalRoleId, type PublicProfileApprovalState } from "@/lib/admin/professional-profile";
 import type { AccountState, SystemRole } from "@/lib/admin/access-types";
 
 export const SESSION_COOKIE = "boriki_admin_session";
@@ -21,6 +21,12 @@ export type AdminSessionUser = {
   professionalRoles: ProfessionalRoleId[];
   professionalLicenseNumber: string | null;
   profileImageUrl: string | null;
+  professionalEmail: string | null;
+  professionalPhoneE164: string | null;
+  professionalPhoneWhatsappEnabled: boolean;
+  professionalBio: string | null;
+  publicProfileEnabled: boolean;
+  publicProfileApprovalState: PublicProfileApprovalState;
   sessionVersion: number;
   accountState: AccountState;
   systemRole: SystemRole;
@@ -35,6 +41,12 @@ type AdminUserRow = {
   professional_roles: unknown;
   professional_license_number: string | null;
   profile_image_url: string | null;
+  professional_email: string | null;
+  professional_phone_e164: string | null;
+  professional_phone_whatsapp_enabled: boolean;
+  professional_bio: string | null;
+  public_profile_enabled: boolean;
+  public_profile_approval_state: PublicProfileApprovalState;
   password_hash: string;
   activo: boolean;
   account_state: AccountState;
@@ -62,6 +74,12 @@ function toSessionUser(row: AdminUserRow): AdminSessionUser {
     professionalRoles: parseProfessionalRoles(row.professional_roles) ?? [],
     professionalLicenseNumber: row.professional_license_number?.trim() || null,
     profileImageUrl: row.profile_image_url || null,
+    professionalEmail: row.professional_email?.trim() || null,
+    professionalPhoneE164: row.professional_phone_e164?.trim() || null,
+    professionalPhoneWhatsappEnabled: row.professional_phone_whatsapp_enabled,
+    professionalBio: row.professional_bio?.trim() || null,
+    publicProfileEnabled: row.public_profile_enabled,
+    publicProfileApprovalState: row.public_profile_approval_state,
     sessionVersion: row.session_version,
     accountState: row.account_state,
     systemRole: row.system_role,
@@ -70,7 +88,7 @@ function toSessionUser(row: AdminUserRow): AdminSessionUser {
 
 async function findActiveAdminByUsername(username: string) {
   const rows = await sql<AdminUserRow[]>`
-    SELECT id::text, username, display_name, email, professional_title, professional_roles, professional_license_number, profile_image_url, password_hash, activo,
+    SELECT id::text, username, display_name, email, professional_title, professional_roles, professional_license_number, profile_image_url, professional_email, professional_phone_e164, professional_phone_whatsapp_enabled, professional_bio, public_profile_enabled, public_profile_approval_state, password_hash, activo,
            account_state, system_role, session_version, password_changed_at
     FROM public.admin_users
     WHERE username = ${username}
@@ -83,7 +101,7 @@ async function findActiveAdminByUsername(username: string) {
 
 async function findActiveAdminById(id: string) {
   const rows = await sql<AdminUserRow[]>`
-    SELECT id::text, username, display_name, email, professional_title, professional_roles, professional_license_number, profile_image_url, password_hash, activo,
+    SELECT id::text, username, display_name, email, professional_title, professional_roles, professional_license_number, profile_image_url, professional_email, professional_phone_e164, professional_phone_whatsapp_enabled, professional_bio, public_profile_enabled, public_profile_approval_state, password_hash, activo,
            account_state, system_role, session_version, password_changed_at
     FROM public.admin_users
     WHERE id = ${id}::uuid

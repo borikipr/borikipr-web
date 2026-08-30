@@ -27,6 +27,8 @@ type TargetAccount = {
   professional_license_number?: string | null;
   signing_broker_authorized_at?: string | Date | null;
   assigned_broker_user_id?: string | null;
+  public_profile_enabled?: boolean;
+  public_profile_approval_state?: "draft" | "pending_review" | "approved" | "disabled";
 };
 
 type TeamManagedRole = "admin" | "member";
@@ -413,14 +415,51 @@ export async function updateTeamManagedProfessionalProfile(
     await assertActorIsSuperAdmin(tx, actorAdminId);
     const target = await loadTargetForUpdate(tx, targetAdminId);
     if (target.system_role === "super_admin") throw new Error("admin_access_team_super_admin_mutation_forbidden");
+    const current = await tx.unsafe<{ professional_roles: string[]; professional_license_number: string | null; public_profile_approval_state: string }[]>(`SELECT professional_roles, professional_license_number, public_profile_approval_state FROM admin_users WHERE id=$1::uuid FOR UPDATE`, [targetAdminId]);
+    const materialChange = JSON.stringify(current[0]?.professional_roles || []) !== JSON.stringify(professionalProfile.roles)
+      || (current[0]?.professional_license_number?.trim() || "") !== professionalProfile.licenseNumber;
+    const invalidatesApproval = materialChange && current[0]?.public_profile_approval_state === "approved";
     await tx.unsafe(
       `UPDATE public.admin_users SET display_name = $2, professional_title = $3,
-          professional_roles = $4::text[], professional_license_number = NULLIF($5, '')
+          professional_roles = $4::text[], professional_license_number = NULLIF($5, ''),
+          public_profile_approval_state = CASE WHEN $6 THEN 'pending_review' ELSE public_profile_approval_state END,
+          public_profile_approved_at = CASE WHEN $6 THEN NULL ELSE public_profile_approved_at END,
+          public_profile_approved_by_admin_id = CASE WHEN $6 THEN NULL ELSE public_profile_approved_by_admin_id END
         WHERE id = $1::uuid`,
-      [targetAdminId, displayName, professionalProfile.displayTitle, professionalProfile.roles, professionalProfile.licenseNumber],
+      [targetAdminId, displayName, professionalProfile.displayTitle, professionalProfile.roles, professionalProfile.licenseNumber, invalidatesApproval],
     );
+    if (invalidatesApproval) await writeAdminAccessEvent(tx, { eventType: "public_profile_review_invalidated", actorAdminUserId: actorAdminId, targetAdminUserId: targetAdminId, metadata: { source: "team_profile", previousState: "approved", nextState: "pending_review" } });
   });
   return { ok: true as const };
+}
+
+export async function approvePublicProfessionalProfile(actorAdminId: string, targetAdminId: string, database: TeamDatabase = sql) {
+  assertDifferentActor(actorAdminId, targetAdminId);
+  return database.begin(async (transaction) => {
+    const tx = transaction as unknown as TeamDatabase;
+    await lockAuthorityMutation(tx); await assertActorIsSuperAdmin(tx, actorAdminId);
+    const rows = await tx.unsafe<TargetAccount[]>(`SELECT id::text,email,display_name,username,system_role,account_state,activo,public_profile_enabled,public_profile_approval_state FROM admin_users WHERE id=$1::uuid FOR UPDATE`, [targetAdminId]);
+    const target = rows[0];
+    if (!target) throw new Error("admin_access_target_not_found");
+    if (!target.activo || target.account_state !== "active") throw new Error("admin_access_public_profile_target_inactive");
+    if (!target.public_profile_enabled || target.public_profile_approval_state !== "pending_review") throw new Error("admin_access_public_profile_approval_state_invalid");
+    await tx.unsafe(`UPDATE admin_users SET public_profile_approval_state='approved', public_profile_approved_at=now(), public_profile_approved_by_admin_id=$2::uuid WHERE id=$1::uuid`, [targetAdminId, actorAdminId]);
+    await writeAdminAccessEvent(tx, { eventType: "public_profile_approved", actorAdminUserId: actorAdminId, targetAdminUserId: targetAdminId, metadata: { source: "team_access", previousState: "pending_review", nextState: "approved" } });
+  });
+}
+
+export async function withdrawPublicProfessionalProfileApproval(actorAdminId: string, targetAdminId: string, database: TeamDatabase = sql) {
+  assertDifferentActor(actorAdminId, targetAdminId);
+  return database.begin(async (transaction) => {
+    const tx = transaction as unknown as TeamDatabase;
+    await lockAuthorityMutation(tx); await assertActorIsSuperAdmin(tx, actorAdminId);
+    const rows = await tx.unsafe<TargetAccount[]>(`SELECT id::text,email,display_name,username,system_role,account_state,activo,public_profile_enabled,public_profile_approval_state FROM admin_users WHERE id=$1::uuid FOR UPDATE`, [targetAdminId]);
+    const target = rows[0];
+    if (!target) throw new Error("admin_access_target_not_found");
+    if (target.public_profile_approval_state !== "approved") throw new Error("admin_access_public_profile_withdrawal_state_invalid");
+    await tx.unsafe(`UPDATE admin_users SET public_profile_enabled=false, public_profile_approval_state='disabled', public_profile_approved_at=NULL, public_profile_approved_by_admin_id=NULL WHERE id=$1::uuid`, [targetAdminId]);
+    await writeAdminAccessEvent(tx, { eventType: "public_profile_approval_withdrawn", actorAdminUserId: actorAdminId, targetAdminUserId: targetAdminId, metadata: { source: "team_access", previousState: "approved", nextState: "disabled" } });
+  });
 }
 
 export async function changeTeamManagedSystemRole(

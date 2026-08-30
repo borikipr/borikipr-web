@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { sql } from "@/lib/db";
 import { parseProfessionalRoles, type ProfessionalRoleId } from "@/lib/admin/professional-profile";
+import type { PublicProfileApprovalState } from "@/lib/admin/professional-profile";
 import type { AccessLevel, AccountState, ModuleKey, SystemRole } from "@/lib/admin/access-types";
 
 export type TeamDirectoryMember = Readonly<{
@@ -19,6 +20,8 @@ export type TeamDirectoryMember = Readonly<{
   signingBrokerAuthorized: boolean;
   assignedBrokerUserId: string | null;
   assignedBrokerName: string | null;
+  publicProfileEnabled: boolean;
+  publicProfileApprovalState: PublicProfileApprovalState;
   moduleAccess: ReadonlyMap<ModuleKey, AccessLevel>;
 }>;
 
@@ -42,6 +45,8 @@ type TeamDirectoryRow = {
   signing_broker_authorized_at: string | Date | null;
   assigned_broker_user_id: string | null;
   assigned_broker_name: string | null;
+  public_profile_enabled: boolean;
+  public_profile_approval_state: PublicProfileApprovalState;
 };
 
 function toTeamDirectoryMember(row: TeamDirectoryRow, moduleAccess = new Map<ModuleKey, AccessLevel>()): TeamDirectoryMember {
@@ -59,6 +64,8 @@ function toTeamDirectoryMember(row: TeamDirectoryRow, moduleAccess = new Map<Mod
     signingBrokerAuthorized: Boolean(row.signing_broker_authorized_at),
     assignedBrokerUserId: row.assigned_broker_user_id,
     assignedBrokerName: row.assigned_broker_name?.trim() || null,
+    publicProfileEnabled: row.public_profile_enabled,
+    publicProfileApprovalState: row.public_profile_approval_state,
     moduleAccess,
   };
 }
@@ -68,7 +75,8 @@ export const listTeamDirectoryMembers = cache(async (): Promise<TeamDirectoryMem
     SELECT admin.id::text, admin.display_name, admin.username, admin.email, admin.system_role, admin.account_state,
            admin.professional_roles, admin.professional_title, admin.professional_license_number, admin.profile_image_url,
            admin.signing_broker_authorized_at, admin.assigned_broker_user_id::text,
-           coalesce(nullif(btrim(broker.display_name),''), broker.username) as assigned_broker_name
+           coalesce(nullif(btrim(broker.display_name),''), broker.username) as assigned_broker_name,
+           admin.public_profile_enabled, admin.public_profile_approval_state
       FROM public.admin_users admin
       LEFT JOIN public.admin_users broker ON broker.id=admin.assigned_broker_user_id
      ORDER BY lower(COALESCE(NULLIF(trim(admin.display_name), ''), admin.username)), admin.id
@@ -105,7 +113,8 @@ export const getTeamDirectoryMember = cache(async (id: string): Promise<TeamDire
     SELECT admin.id::text, admin.display_name, admin.username, admin.email, admin.system_role, admin.account_state,
            admin.professional_roles, admin.professional_title, admin.professional_license_number, admin.profile_image_url,
            admin.signing_broker_authorized_at, admin.assigned_broker_user_id::text,
-           coalesce(nullif(btrim(broker.display_name),''), broker.username) as assigned_broker_name
+           coalesce(nullif(btrim(broker.display_name),''), broker.username) as assigned_broker_name,
+           admin.public_profile_enabled, admin.public_profile_approval_state
       FROM public.admin_users admin LEFT JOIN public.admin_users broker ON broker.id=admin.assigned_broker_user_id
      WHERE admin.id = ${id}::uuid
      LIMIT 1

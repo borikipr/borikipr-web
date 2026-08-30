@@ -10,7 +10,8 @@ import {
   normalizeAdminEmail,
   PASSWORD_RESET_TTL_MINUTES,
 } from "@/lib/admin/auth-core";
-import { normalizeProfessionalProfile, type ProfessionalRoleId } from "@/lib/admin/professional-profile";
+import { normalizeProfessionalBio, normalizeProfessionalEmail, normalizeProfessionalPhone, normalizeProfessionalProfile, type ProfessionalRoleId } from "@/lib/admin/professional-profile";
+import { writeAdminAccessEvent } from "@/lib/admin/access-audit";
 import type { AccountState, PasswordTokenPurpose, SystemRole } from "@/lib/admin/access-types";
 
 export type AuthAttemptType = "login" | "password_reset_request";
@@ -72,6 +73,11 @@ export async function updateOwnAdminProfile({
   professionalLicenseNumber,
   profileImageUrl,
   email,
+  professionalEmail,
+  professionalPhone,
+  professionalPhoneWhatsappEnabled,
+  professionalBio,
+  publicProfileEnabled,
   currentPassword,
 }: {
   admin: AdminSessionUser;
@@ -81,6 +87,11 @@ export async function updateOwnAdminProfile({
   professionalLicenseNumber: string;
   profileImageUrl: string;
   email: string;
+  professionalEmail: string;
+  professionalPhone: string;
+  professionalPhoneWhatsappEnabled: boolean;
+  professionalBio: string;
+  publicProfileEnabled: boolean;
   currentPassword: string;
 }) {
   const cleanName = displayName.trim();
@@ -91,6 +102,9 @@ export async function updateOwnAdminProfile({
   });
   const cleanProfileImageUrl = profileImageUrl.trim();
   const cleanEmail = normalizeAdminEmail(email);
+  const normalizedProfessionalEmail = normalizeProfessionalEmail(professionalEmail);
+  const normalizedProfessionalPhone = normalizeProfessionalPhone(professionalPhone);
+  const normalizedProfessionalBio = normalizeProfessionalBio(professionalBio);
   if (!cleanName || cleanName.length > 100) {
     return { ok: false as const, error: "Ingresa un nombre visible válido." };
   }
@@ -98,6 +112,10 @@ export async function updateOwnAdminProfile({
     return { ok: false as const, error: "Ingresa un email válido." };
   }
   if (!professionalProfile.ok) return professionalProfile;
+  if (!normalizedProfessionalEmail.ok) return normalizedProfessionalEmail;
+  if (!normalizedProfessionalPhone.ok) return normalizedProfessionalPhone;
+  if (!normalizedProfessionalBio.ok) return normalizedProfessionalBio;
+  if (professionalPhoneWhatsappEnabled && !normalizedProfessionalPhone.value) return { ok: false as const, error: "Añade un teléfono profesional antes de activar WhatsApp." };
   const imageKey = cleanProfileImageUrl ? extractManagedPublicObjectKey(cleanProfileImageUrl) : null;
   if (cleanProfileImageUrl && (!imageKey || !imageKey.startsWith("perfiles/"))) {
     return { ok: false as const, error: "La foto de perfil no es válida." };
@@ -105,8 +123,8 @@ export async function updateOwnAdminProfile({
 
   try {
     const result = await sql.begin(async (transaction) => {
-      const rows = await transaction.unsafe<{ password_hash: string; profile_image_url: string | null }[]>(
-        `SELECT password_hash, profile_image_url
+      const rows = await transaction.unsafe<{ password_hash: string; profile_image_url: string | null; professional_roles: ProfessionalRoleId[]; professional_license_number: string | null; public_profile_approval_state: string }[]>(
+        `SELECT password_hash, profile_image_url, professional_roles, professional_license_number, public_profile_approval_state
            FROM public.admin_users
           WHERE id = $1::uuid AND activo = true
           FOR UPDATE`,
@@ -115,6 +133,12 @@ export async function updateOwnAdminProfile({
       if (!rows[0] || !(await bcrypt.compare(currentPassword, rows[0].password_hash))) {
         return { ok: false as const, error: "La contraseña actual no es correcta." };
       }
+      const materialChange = JSON.stringify(rows[0].professional_roles || []) !== JSON.stringify(professionalProfile.roles)
+        || (rows[0].professional_license_number?.trim() || "") !== professionalProfile.licenseNumber;
+      const invalidatesApproval = materialChange && rows[0].public_profile_approval_state === "approved";
+      const nextPublicState = publicProfileEnabled
+        ? (invalidatesApproval || rows[0].public_profile_approval_state === "draft" || rows[0].public_profile_approval_state === "disabled" ? "pending_review" : rows[0].public_profile_approval_state)
+        : "disabled";
       await transaction.unsafe(
         `UPDATE public.admin_users
             SET display_name = $2,
@@ -122,11 +146,20 @@ export async function updateOwnAdminProfile({
                 professional_roles = $4::text[],
                 professional_license_number = NULLIF($5, ''),
                 profile_image_url = NULLIF($6, ''),
-                email = $7
+                email = $7,
+                professional_email = $8,
+                professional_phone_e164 = $9,
+                professional_phone_whatsapp_enabled = $10,
+                professional_bio = $11,
+                public_profile_enabled = $12,
+                public_profile_approval_state = $13,
+                public_profile_approved_at = CASE WHEN $13 = 'approved' THEN public_profile_approved_at ELSE NULL END,
+                public_profile_approved_by_admin_id = CASE WHEN $13 = 'approved' THEN public_profile_approved_by_admin_id ELSE NULL END
           WHERE id = $1::uuid AND activo = true`,
-        [admin.id, cleanName, professionalProfile.displayTitle, professionalProfile.roles, professionalProfile.licenseNumber, cleanProfileImageUrl, cleanEmail]
+        [admin.id, cleanName, professionalProfile.displayTitle, professionalProfile.roles, professionalProfile.licenseNumber, cleanProfileImageUrl, cleanEmail, normalizedProfessionalEmail.value, normalizedProfessionalPhone.value, Boolean(professionalPhoneWhatsappEnabled && normalizedProfessionalPhone.value), normalizedProfessionalBio.value, publicProfileEnabled, nextPublicState]
       );
-      return { ok: true as const, previousProfileImageUrl: rows[0].profile_image_url };
+      if (invalidatesApproval) await writeAdminAccessEvent(transaction, { eventType: "public_profile_review_invalidated", actorAdminUserId: admin.id, targetAdminUserId: admin.id, metadata: { source: "self_profile", previousState: "approved", nextState: "pending_review" } });
+      return { ok: true as const, previousProfileImageUrl: rows[0].profile_image_url, pendingReview: nextPublicState === "pending_review" };
     });
     if (!result.ok) return result;
 
@@ -140,7 +173,7 @@ export async function updateOwnAdminProfile({
         return { ok: true as const, cleanupWarning: true };
       }
     }
-    return { ok: true as const, cleanupWarning: false };
+    return { ok: true as const, cleanupWarning: false, pendingReview: result.pendingReview };
   } catch (error) {
     if ((error as { code?: string }).code === "23505") {
       return { ok: false as const, error: "Ese email ya está asociado a otra cuenta." };
@@ -206,6 +239,12 @@ export async function changeOwnAdminPassword({
         professionalRoles: user.professional_roles || [],
         professionalLicenseNumber: user.professional_license_number?.trim() || null,
         profileImageUrl: user.profile_image_url || null,
+        professionalEmail: null,
+        professionalPhoneE164: null,
+        professionalPhoneWhatsappEnabled: false,
+        professionalBio: null,
+        publicProfileEnabled: false,
+        publicProfileApprovalState: "draft" as const,
         sessionVersion: user.session_version,
         accountState: user.account_state,
         systemRole: user.system_role,
@@ -356,6 +395,12 @@ export async function resetAdminPassword(token: string, newPassword: string) {
         professionalRoles: user.professional_roles || [],
         professionalLicenseNumber: user.professional_license_number?.trim() || null,
         profileImageUrl: user.profile_image_url || null,
+        professionalEmail: null,
+        professionalPhoneE164: null,
+        professionalPhoneWhatsappEnabled: false,
+        professionalBio: null,
+        publicProfileEnabled: false,
+        publicProfileApprovalState: "draft" as const,
         sessionVersion: user.session_version,
         accountState: user.account_state,
         systemRole: user.system_role,

@@ -21,12 +21,17 @@ export async function updateProfile(
     professionalLicenseNumber: String(formData.get("professionalLicenseNumber") || ""),
     profileImageUrl: String(formData.get("profileImageUrl") || ""),
     email: String(formData.get("email") || ""),
+    professionalEmail: String(formData.get("professionalEmail") || ""),
+    professionalPhone: String(formData.get("professionalPhone") || ""),
+    professionalPhoneWhatsappEnabled: String(formData.get("professionalPhoneWhatsappEnabled") || "") === "true",
+    professionalBio: String(formData.get("professionalBio") || ""),
+    publicProfileEnabled: String(formData.get("publicProfileEnabled") || "") === "true",
     currentPassword: String(formData.get("currentPassword") || ""),
   });
   if (!result.ok) return { error: result.error, success: "" };
   revalidatePath("/admin", "layout");
   revalidatePath("/admin/profile");
-  return { error: "", success: result.cleanupWarning ? "Perfil actualizado. La limpieza de una foto anterior se completará de forma segura." : "Perfil actualizado correctamente." };
+  return { error: "", success: result.pendingReview ? "Tus datos profesionales cambiaron. El perfil requiere una nueva revisión." : result.cleanupWarning ? "Perfil actualizado. La limpieza de una foto anterior se completará de forma segura." : "Perfil actualizado correctamente." };
 }
 
 export async function changePassword(

@@ -13,6 +13,8 @@ import {
   setAdminModuleAccess,
   setSigningBrokerAuthorization,
   setAssignedSigningBroker,
+  approvePublicProfessionalProfile,
+  withdrawPublicProfessionalProfileApproval,
 } from "@/lib/admin/team-access";
 
 export type TeamActionState = Readonly<{ error: string; success: string }>;
@@ -22,6 +24,10 @@ function messageFor(error: unknown) {
   const code = error instanceof Error ? error.message : "";
   const messages: Record<string, string> = {
     admin_access_self_mutation_forbidden: "No puedes modificar tu propia cuenta desde Equipo.",
+    admin_access_owns_target: "No puedes realizar esta acción sobre tu propia cuenta.",
+    admin_access_public_profile_target_inactive: "El perfil debe pertenecer a una cuenta activa.",
+    admin_access_public_profile_approval_state_invalid: "El perfil no está listo para esa revisión.",
+    admin_access_public_profile_withdrawal_state_invalid: "El perfil no tiene una aprobación activa para retirar.",
     admin_access_last_super_admin_forbidden: "No se puede retirar la última cuenta de superadministración activa.",
     admin_access_setup_resend_state_invalid: "La invitación solo puede reenviarse a una cuenta pendiente de configuración.",
     admin_access_setup_resend_rate_limited: "Espera un minuto antes de reenviar otra invitación.",
@@ -62,6 +68,18 @@ export async function setAssignedSigningBrokerAction(_previous: TeamActionState,
     invalidateTeamPaths(targetId);
     return { error: "", success: rawBrokerId ? "Corredor asignado para futuras solicitudes." : "Corredor asignado eliminado." };
   } catch (error) { return { error: messageFor(error), success: "" }; }
+}
+
+export async function approvePublicProfessionalProfileAction(_previous: TeamActionState, formData: FormData): Promise<TeamActionState> {
+  const targetId = String(formData.get("targetId") || "");
+  try { await approvePublicProfessionalProfile(await actorId(), targetId); invalidateTeamPaths(targetId); return { error: "", success: "Perfil aprobado." }; }
+  catch (error) { return { error: messageFor(error), success: "" }; }
+}
+
+export async function withdrawPublicProfessionalProfileApprovalAction(_previous: TeamActionState, formData: FormData): Promise<TeamActionState> {
+  const targetId = String(formData.get("targetId") || "");
+  try { await withdrawPublicProfessionalProfileApproval(await actorId(), targetId); invalidateTeamPaths(targetId); return { error: "", success: "Aprobación retirada." }; }
+  catch (error) { return { error: messageFor(error), success: "" }; }
 }
 
 async function actorId() {

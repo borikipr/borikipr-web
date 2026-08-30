@@ -325,6 +325,19 @@ if (!process.env.DATABASE_URL) {
              WHERE conrelid='public.admin_access_events'::regclass
                AND pg_get_constraintdef(oid) LIKE '%broker_authorization_granted%'
           ) AS v0048
+          ,EXISTS (
+            SELECT 1 FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='admin_users'
+               AND column_name='professional_email'
+          ) AND EXISTS (
+            SELECT 1 FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='admin_users'
+               AND column_name='public_profile_approval_state'
+          ) AND EXISTS (
+            SELECT 1 FROM pg_constraint
+             WHERE conrelid='public.admin_access_events'::regclass
+               AND pg_get_constraintdef(oid) LIKE '%public_profile_approved%'
+          ) AS v0049
       )
       SELECT * FROM facts
     `;

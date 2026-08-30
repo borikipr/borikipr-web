@@ -28,6 +28,9 @@ export const ADMIN_ACCESS_EVENT_TYPES = [
   "broker_authorization_granted",
   "broker_authorization_revoked",
   "assigned_broker_changed",
+  "public_profile_approved",
+  "public_profile_approval_withdrawn",
+  "public_profile_review_invalidated",
 ] as const;
 export type AdminAccessEventType = (typeof ADMIN_ACCESS_EVENT_TYPES)[number];
 

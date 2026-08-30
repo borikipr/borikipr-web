@@ -2445,3 +2445,29 @@ try {
   await assert.rejects(teamBrokerDb.exec(teamBrokerRollbackSql), /0048 rollback blocked/);
   console.log("Validated Team-backed Signing broker migration 0048 and guarded rollback.");
 } finally { await teamBrokerDb.close(); }
+
+const professionalProfileMigrationSql = await readMigration("0049_add_professional_profile_foundation.sql");
+const professionalProfileRollbackSql = await readMigration("0049_add_professional_profile_foundation.rollback.sql");
+const professionalProfileDb = new PGlite();
+try {
+  await professionalProfileDb.exec(`
+    CREATE TABLE public.admin_users (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(), username text NOT NULL UNIQUE,
+      activo boolean NOT NULL DEFAULT true, account_state text NOT NULL DEFAULT 'active'
+    );
+    CREATE TABLE public.admin_access_events (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(), occurred_at timestamptz NOT NULL DEFAULT now(),
+      event_type text NOT NULL, actor_admin_user_id uuid NULL REFERENCES public.admin_users(id),
+      target_admin_user_id uuid NOT NULL REFERENCES public.admin_users(id), metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT admin_access_events_type_check CHECK (event_type IN ('user_created','setup_issued','account_activated','account_disabled','account_reactivated','system_role_changed','module_access_granted','module_access_revoked','broker_authorization_granted','broker_authorization_revoked','assigned_broker_changed'))
+    );
+    INSERT INTO public.admin_users(username) VALUES ('existing-private');
+  `);
+  await professionalProfileDb.exec(professionalProfileMigrationSql);
+  const defaults = await professionalProfileDb.query(`SELECT professional_email IS NULL AS email_empty, professional_phone_e164 IS NULL AS phone_empty, professional_phone_whatsapp_enabled AS whatsapp, professional_bio IS NULL AS bio_empty, public_profile_enabled AS public_enabled, public_profile_slug IS NULL AS slug_empty, public_profile_approval_state AS state, public_profile_approved_at IS NULL AS approval_empty FROM public.admin_users WHERE username='existing-private'`);
+  assert.deepEqual(defaults.rows, [{ email_empty: true, phone_empty: true, whatsapp: false, bio_empty: true, public_enabled: false, slug_empty: true, state: 'draft', approval_empty: true }]);
+  await assert.rejects(professionalProfileDb.exec(`UPDATE public.admin_users SET professional_phone_whatsapp_enabled=true WHERE username='existing-private'`));
+  await assert.rejects(professionalProfileDb.exec(`UPDATE public.admin_users SET public_profile_approval_state='approved', public_profile_enabled=true WHERE username='existing-private'`));
+  await professionalProfileDb.exec(professionalProfileRollbackSql);
+  console.log("Validated professional profile foundation migration 0049 and guarded rollback.");
+} finally { await professionalProfileDb.close(); }

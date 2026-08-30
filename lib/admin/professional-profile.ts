@@ -12,6 +12,24 @@ export const PROFESSIONAL_ROLE_OPTIONS = [
 ] as const;
 
 export type ProfessionalRoleId = (typeof PROFESSIONAL_ROLE_OPTIONS)[number]["id"];
+export const PUBLIC_PROFILE_APPROVAL_STATES = ["draft", "pending_review", "approved", "disabled"] as const;
+export type PublicProfileApprovalState = (typeof PUBLIC_PROFILE_APPROVAL_STATES)[number];
+
+export type ProfessionalProfile = Readonly<{
+  displayName: string;
+  avatarUrl: string | null;
+  roles: readonly ProfessionalRoleId[];
+  primaryRole: string | null;
+  licenseNumber: string | null;
+  organizationName: string;
+  bio: string | null;
+  professionalEmail: string | null;
+  professionalPhoneE164: string | null;
+  whatsappEnabled: boolean;
+  publicProfileEnabled: boolean;
+  approvalState: PublicProfileApprovalState;
+  publicProfileSlug: string | null;
+}>;
 const roleById = new Map(PROFESSIONAL_ROLE_OPTIONS.map((role) => [role.id, role]));
 const MAX_PROFESSIONAL_ROLES = 2;
 
@@ -57,4 +75,31 @@ export function normalizeProfessionalProfile(input: { roles: unknown; customTitl
     licenseNumber: rolesRequireLicense(roles) ? licenseNumber : "",
     displayTitle: professionalRoleTitle(roles, customTitle),
   };
+}
+
+export function normalizeProfessionalEmail(value: string) {
+  const email = value.normalize("NFC").trim().toLowerCase();
+  if (!email) return { ok: true as const, value: null };
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false as const, error: "Ingresa un correo profesional válido." };
+  return { ok: true as const, value: email };
+}
+
+export function normalizeProfessionalPhone(value: string) {
+  const raw = value.normalize("NFC").trim();
+  if (!raw) return { ok: true as const, value: null };
+  const compact = raw.replace(/[\s().-]/g, "");
+  const normalized = /^\d{10}$/.test(compact) ? `+1${compact}` : /^\+\d{8,15}$/.test(compact) ? compact : null;
+  if (!normalized || !/^\+[1-9]\d{7,14}$/.test(normalized)) return { ok: false as const, error: "Ingresa un teléfono profesional válido." };
+  return { ok: true as const, value: normalized };
+}
+
+export function normalizeProfessionalBio(value: string) {
+  const bio = value.normalize("NFC").trim();
+  if (!bio) return { ok: true as const, value: null };
+  if (bio.length > 2000) return { ok: false as const, error: "La biografía profesional no puede exceder 2,000 caracteres." };
+  return { ok: true as const, value: bio };
+}
+
+export function isPublicProfessionalProfileEligible(input: { activo: boolean; accountState: string; publicProfileEnabled: boolean; approvalState: PublicProfileApprovalState }) {
+  return input.activo && input.accountState === "active" && input.publicProfileEnabled && input.approvalState === "approved";
 }

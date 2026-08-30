@@ -4,6 +4,9 @@ import { ChangeEvent, DragEvent, KeyboardEvent, type CSSProperties, useActionSta
 import { BadgeCheck, Building2, Camera, ChevronDown, ChevronUp, Eye, EyeOff, ImagePlus, KeyRound, Mail, ShieldCheck, Trash2, Upload, UserRound, X } from "lucide-react";
 import { changePassword, updateProfile, type ProfileState } from "./actions";
 import { PROFESSIONAL_ROLE_OPTIONS, professionalRoleLabels, professionalRoleTitle, rolesRequireLicense, type ProfessionalRoleId } from "@/lib/admin/professional-profile";
+import type { PublicProfileApprovalState } from "@/lib/admin/professional-profile";
+import PublicProfileStatusBadge from "@/components/admin/PublicProfileStatusBadge";
+import { AdminActionDialog } from "@/components/admin/AdminActionsMenu";
 
 const initial: ProfileState = { error: "", success: "" };
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
@@ -128,8 +131,8 @@ export function RolePicker({ roles, onChange, customTitle, onCustomTitleChange }
   </div>;
 }
 
-export default function ProfileForms({ displayName, professionalTitle, professionalRoles, professionalLicenseNumber, profileImageUrl, email, username, roleLabel }: {
-  displayName: string; professionalTitle: string; professionalRoles: ProfessionalRoleId[]; professionalLicenseNumber: string; profileImageUrl: string; email: string; username: string; roleLabel: string;
+export default function ProfileForms({ displayName, professionalTitle, professionalRoles, professionalLicenseNumber, profileImageUrl, email, username, roleLabel, professionalEmail, professionalPhone, whatsappEnabled, professionalBio, publicProfileEnabled, publicProfileApprovalState }: {
+  displayName: string; professionalTitle: string; professionalRoles: ProfessionalRoleId[]; professionalLicenseNumber: string; profileImageUrl: string; email: string; username: string; roleLabel: string; professionalEmail: string; professionalPhone: string; whatsappEnabled: boolean; professionalBio: string; publicProfileEnabled: boolean; publicProfileApprovalState: PublicProfileApprovalState;
 }) {
   const [profileState, profileAction, profilePending] = useActionState(updateProfile, initial);
   const [passwordState, passwordAction, passwordPending] = useActionState(changePassword, initial);
@@ -138,6 +141,10 @@ export default function ProfileForms({ displayName, professionalTitle, professio
   const [roles, setRoles] = useState<ProfessionalRoleId[]>(initialRoles);
   const [customTitle, setCustomTitle] = useState(initialRoles.includes("other") ? professionalTitle : "");
   const [licenseNumber, setLicenseNumber] = useState(professionalLicenseNumber);
+  const [hasProfessionalPhone, setHasProfessionalPhone] = useState(Boolean(professionalPhone));
+  const [whatsappEnabledState, setWhatsappEnabledState] = useState(whatsappEnabled);
+  const [publicEnabled, setPublicEnabled] = useState(publicProfileEnabled);
+  const [confirmOptOut, setConfirmOptOut] = useState(false);
   const effectiveTitle = roles.length ? professionalRoleTitle(roles, customTitle) : "Cargo profesional pendiente";
   const needsLicense = rolesRequireLicense(roles);
   return <div className="profile-settings-layout">
@@ -163,6 +170,13 @@ export default function ProfileForms({ displayName, professionalTitle, professio
           <RolePicker roles={roles} onChange={setRoles} customTitle={customTitle} onCustomTitleChange={setCustomTitle} />
           {needsLicense && <div className="space-y-1.5"><label htmlFor="professionalLicenseNumber" className="text-sm font-semibold text-slate-800">Número de licencia</label><input id="professionalLicenseNumber" name="professionalLicenseNumber" className="input-premium" value={licenseNumber} onChange={(event) => setLicenseNumber(event.target.value)} maxLength={80} required placeholder="Lic. C-XXXXX" /><p className="text-xs leading-5 text-slate-500">Se muestra solo como información profesional; no modifica permisos.</p></div>}
           {!needsLicense && <input type="hidden" name="professionalLicenseNumber" value="" />}
+          <div className="profile-section-divider" />
+          <div className="profile-inline-heading"><UserRound aria-hidden="true" size={18}/><div><h3>Perfil profesional</h3><p>Información preparada para futuras áreas públicas de Borikí.</p></div></div>
+          <div className="space-y-1.5"><label htmlFor="professionalBio" className="text-sm font-semibold text-slate-800">Biografía profesional</label><textarea id="professionalBio" name="professionalBio" className="input-premium min-h-28" defaultValue={professionalBio} maxLength={2000} aria-describedby="professionalBioHelp" /><p id="professionalBioHelp" className="text-xs leading-5 text-slate-500">Breve descripción de tu experiencia y servicios.</p></div>
+          <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-1.5"><label htmlFor="professionalEmail" className="text-sm font-semibold text-slate-800">Correo profesional</label><input id="professionalEmail" name="professionalEmail" type="email" className="input-premium" defaultValue={professionalEmail} maxLength={254} /><p className="text-xs leading-5 text-slate-500">Puede usarse como contacto profesional. No cambia tu correo de acceso.</p></div><div className="space-y-1.5"><label htmlFor="professionalPhone" className="text-sm font-semibold text-slate-800">Teléfono profesional</label><input id="professionalPhone" name="professionalPhone" type="tel" className="input-premium" defaultValue={professionalPhone} placeholder="(787) 555-1234" onChange={(event) => { const hasPhone = Boolean(event.target.value.trim()); setHasProfessionalPhone(hasPhone); if (!hasPhone) setWhatsappEnabledState(false); }} /></div></div>
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"><input type="checkbox" name="professionalPhoneWhatsappEnabled" value="true" checked={whatsappEnabledState} onChange={(event) => setWhatsappEnabledState(event.target.checked)} disabled={!hasProfessionalPhone} className="mt-0.5 h-4 w-4" /><span><strong className="block text-slate-900">Usar este número para WhatsApp</strong>{!hasProfessionalPhone && <span className="mt-1 block text-xs text-slate-500">Añade un teléfono profesional para habilitar WhatsApp.</span>}</span></label>
+          <div className="rounded-xl border border-slate-200 px-4 py-3"><div className="flex flex-wrap items-center justify-between gap-3"><label htmlFor="publicProfileEnabled" className="font-semibold text-slate-900">Habilitar perfil profesional para futuras áreas públicas</label><input id="publicProfileEnabled" name="publicProfileEnabled" type="checkbox" value="true" checked={publicEnabled} onChange={(event) => { if (!event.target.checked && publicProfileApprovalState === "approved") { setConfirmOptOut(true); return; } setPublicEnabled(event.target.checked); }} className="h-4 w-4" /></div><p className="mt-1 text-xs leading-5 text-slate-500">Requiere revisión antes de estar disponible.</p><div className="mt-2"><PublicProfileStatusBadge state={publicProfileApprovalState} /></div></div>
+          <AdminActionDialog open={confirmOptOut} onClose={() => setConfirmOptOut(false)} danger title="Deshabilitar perfil profesional" description="El perfil dejará de estar disponible para futuras áreas públicas hasta que lo habilites nuevamente."><div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" className="btn-secondary" onClick={() => setConfirmOptOut(false)}>Cancelar</button><button type="button" className="admin-danger-button" onClick={() => { setPublicEnabled(false); setConfirmOptOut(false); }}>Deshabilitar perfil</button></div></AdminActionDialog>
           <div className="profile-account-context"><span><Building2 aria-hidden="true" size={16}/>Organización</span><strong>Erickson Real Estate · Borikí</strong></div>
           <div className="profile-section-divider" />
           <div className="profile-inline-heading"><Mail aria-hidden="true" size={18}/><div><h3>Correo y recuperación</h3><p>Se usa para acceso y recuperación segura de la cuenta.</p></div></div>
