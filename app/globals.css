@@ -287,11 +287,16 @@ textarea {
 /* Authenticated Admin application language. These scoped overrides keep the
    public marketing surfaces unchanged. */
 .admin-app {
+  /* Public Erickson / Borikí brand primitives, scoped to the approved Admin UI. */
   --admin-navy: #0d1b2a;
-  --admin-blue: #11518b;
-  --admin-border: #dfe4ea;
-  --admin-muted: #64748b;
-  --admin-surface: #ffffff;
+  --admin-blue: var(--color-navy);
+  --admin-blue-hover: var(--color-navy-dark);
+  --admin-gold: var(--color-gold);
+  --admin-gold-text: #765f12;
+  --admin-border: var(--color-gray-border);
+  --admin-muted: var(--color-gray-text);
+  --admin-surface: var(--color-white);
+  --admin-surface-muted: var(--color-gray-light);
 }
 
 .admin-app .surface-card,
@@ -303,6 +308,14 @@ textarea {
 
 .admin-app .eyebrow {
   @apply text-xs tracking-[0.18em];
+  color: var(--admin-gold-text);
+}
+
+/* The brand gold remains the accent on dark surfaces. On the Admin's light
+   content canvas, use the established public dark-gold variant for readable
+   small labels and selected text. */
+.admin-app main .text-\[\#d4af37\] {
+  color: var(--admin-gold-text);
 }
 
 .admin-app .btn-primary,

@@ -14,7 +14,7 @@ export default async function AdminLayout({
   const isLoggedIn = Boolean(access);
 
   return (
-    <div className="admin-app flex min-h-screen flex-col bg-[#f4f6f8]">
+    <div className="admin-app flex min-h-screen flex-col bg-[#f8f8f8]">
       {isLoggedIn && (
         <a
           className="sr-only fixed left-4 top-4 z-[60] rounded-lg bg-white px-4 py-3 text-sm font-semibold text-[#0d1b2a] shadow-lg outline-none focus:not-sr-only focus:ring-2 focus:ring-[#d4af37]"
