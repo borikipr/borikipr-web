@@ -29,6 +29,24 @@ test("public catalog reads are cached and invalidated by their Admin mutations",
   assert.match(testimonialActions, /revalidateTag\(PUBLIC_TESTIMONIALS_CACHE_TAG,\s*"max"\)/);
 });
 
+test("public property cache projections keep heavy form configuration and full galleries out of catalog entries", async () => {
+  const properties = await source("lib/queries/propiedades.ts");
+
+  const indexQuery = properties.match(/const getCachedPropiedades = unstable_cache\(async \(\) => \{([\s\S]*?)\n\}, \["public-properties-all"\]/)?.[1] ?? "";
+  const featuredQuery = properties.match(/const getCachedPropiedadesDestacadas = unstable_cache\(async \(limit: number\) => \{([\s\S]*?)\n\}, \["public-properties-featured"\]/)?.[1] ?? "";
+  const paginatedQuery = properties.match(/const getCachedPropiedadesPaginadas = unstable_cache\(async \(([\s\S]*?)\n\}, \["public-properties-paginated"\]/)?.[1] ?? "";
+  const detailQuery = properties.match(/const getCachedPropiedadBySlug = unstable_cache\(async \(slug: string\) => \{([\s\S]*?)\n\}, \["public-property-by-slug"\]/)?.[1] ?? "";
+
+  assert.match(indexQuery, /p\.id,[\s\S]*p\.slug,[\s\S]*p\.destacado/);
+  assert.doesNotMatch(indexQuery, /configuracion_formulario|propiedad_imagenes|json_agg/);
+  for (const catalogQuery of [featuredQuery, paginatedQuery]) {
+    assert.match(catalogQuery, /ARRAY\([\s\S]*LIMIT 1/);
+    assert.doesNotMatch(catalogQuery, /configuracion_formulario|json_agg/);
+  }
+  assert.match(detailQuery, /configuracion_formulario->>'notas_compradores'/);
+  assert.doesNotMatch(detailQuery, /p\.configuracion_formulario,/);
+});
+
 test("production builds do not query Neon for the public home page or sitemap", async () => {
   const [home, sitemap] = await Promise.all([
     source("app/(public)/page.tsx"),

@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { connection } from "next/server";
-import type { PropiedadQueryRow } from "@/lib/queries/propiedades";
+import type { PublicPropertyIndexRow } from "@/lib/queries/propiedades";
 import { isMultilingualEnabled } from "@/lib/i18n/locales";
 import { getLocalizedSeoUrls, isCompleteEnglishPropertyTranslation, STATIC_SEO_COPY } from "@/lib/i18n/seo";
 import { isPublishableTranslation } from "@/lib/i18n/translations/publishable";
@@ -48,7 +48,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
-  let propiedades: PropiedadQueryRow[] = [];
+  let propiedades: PublicPropertyIndexRow[] = [];
   try {
     const { getPropiedades } = await import("@/lib/queries/propiedades");
     propiedades = await getPropiedades();

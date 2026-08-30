@@ -92,10 +92,7 @@ export async function renderOpenHouseRegistrationPage({
     canonicalShowingAt || propiedad.fecha_showing,
     locale
   );
-  const notasCompradores =
-    typeof propiedad.configuracion_formulario?.notas_compradores === "string"
-      ? propiedad.configuracion_formulario.notas_compradores
-      : "";
+  const notasCompradores = propiedad.notas_compradores ?? "";
 
   return (
     <>

@@ -54,15 +54,19 @@ export type PropiedadQueryRow = {
   destacado: boolean;
   imagenes: string[];
   origen_listado: "propio" | "co_broke" | "externo";
-  configuracion_formulario?: Record<string, unknown> | null;
   requiere_precalificacion?: boolean | null;
   fecha_showing?: string | Date | null;
-  pregunta_personalizada?: string | null;
+  notas_compradores?: string | null;
   formulario_showing_activo?: boolean;
   placas_en_lease?: boolean | null;
   open_house_solar_question_enabled?: boolean;
   content_updated_at?: string | Date | null;
 };
+
+export type PublicPropertyIndexRow = Pick<
+  PropiedadQueryRow,
+  "id" | "slug" | "destacado" | "content_updated_at"
+>;
 
 export type PropiedadHomeDestacada = {
   id: string;
@@ -79,11 +83,6 @@ export type PropiedadHomeDestacada = {
   destacado: boolean;
   imagenes: string[];
   origen_listado: "propio" | "co_broke" | "externo";
-  configuracion_formulario?: Record<string, unknown> | null;
-  requiere_precalificacion?: boolean | null;
-  fecha_showing?: string | Date | null;
-  pregunta_personalizada?: string | null;
-  formulario_showing_activo?: boolean;
 };
 
 const getCachedPropiedadesDestacadas = unstable_cache(async (limit: number) => {
@@ -102,25 +101,21 @@ const getCachedPropiedadesDestacadas = unstable_cache(async (limit: number) => {
       p.estado,
       p.destacado,
       ${publicOriginExpression()} AS origen_listado,
-      p.configuracion_formulario,
-      p.requiere_precalificacion,
-      p.fecha_showing,
-      p.pregunta_personalizada,
-      p.formulario_showing_activo,
       COALESCE(
-        (to_jsonb(p)->>'updated_at')::timestamptz,
-        p.created_at
-      ) AS content_updated_at,
-      COALESCE(
-        json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
-        '[]'
+        ARRAY(
+          SELECT cover.url
+          FROM propiedad_imagenes cover
+          WHERE cover.propiedad_id = p.id
+            AND cover.url IS NOT NULL
+          ORDER BY cover.orden
+          LIMIT 1
+        ),
+        ARRAY[]::text[]
       ) AS imagenes
     FROM propiedades p
-    LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
     WHERE p.destacado = true
       AND p.estado IN ('disponible', 'coming_soon', 'bajo_contrato')
       AND ${publicVisibilityCondition()}
-    GROUP BY p.id
     ORDER BY p.created_at DESC
     LIMIT ${limit}
   `;
@@ -133,49 +128,25 @@ export async function getPropiedadesDestacadas(limit = 3) {
 }
 
 const getCachedPropiedades = unstable_cache(async () => {
-  const rows = await sql<PropiedadQueryRow[]>`
+  const rows = await sql<PublicPropertyIndexRow[]>`
     SELECT
       p.id,
       p.slug,
-      p.titulo,
-      p.descripcion,
-      p.municipio,
-      to_jsonb(p)->>'sector_comunidad' AS sector_comunidad,
-      p.precio,
-      p.tipo_negocio,
-      p.tipo_propiedad,
-      p.habitaciones,
-      p.banos,
-      p.estacionamientos,
-      p.metros_cuadrados,
-      p.estado,
       p.destacado,
-      ${publicOriginExpression()} AS origen_listado,
-      p.configuracion_formulario,
-      p.requiere_precalificacion,
-      p.fecha_showing,
-      p.pregunta_personalizada,
-      p.formulario_showing_activo,
       COALESCE(
         (to_jsonb(p)->>'updated_at')::timestamptz,
         p.created_at
-      ) AS content_updated_at,
-      COALESCE(
-        json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
-        '[]'
-      ) AS imagenes
+      ) AS content_updated_at
     FROM propiedades p
-    LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
     WHERE p.estado IN ('disponible', 'coming_soon', 'bajo_contrato')
       AND ${publicVisibilityCondition()}
-    GROUP BY p.id
     ORDER BY p.created_at DESC
   `;
 
   return rows;
 }, ["public-properties-all"], { tags: [PUBLIC_PROPERTIES_CACHE_TAG], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS });
 
-export async function getPropiedades() {
+export async function getPropiedades(): Promise<PublicPropertyIndexRow[]> {
   return getCachedPropiedades();
 }
 
@@ -198,10 +169,9 @@ const getCachedPropiedadBySlug = unstable_cache(async (slug: string) => {
       p.estado,
       p.destacado,
       ${publicOriginExpression()} AS origen_listado,
-      p.configuracion_formulario,
       p.requiere_precalificacion,
       p.fecha_showing,
-      p.pregunta_personalizada,
+      p.configuracion_formulario->>'notas_compradores' AS notas_compradores,
       p.formulario_showing_activo,
       p.placas_en_lease,
       p.open_house_solar_question_enabled,
@@ -249,17 +219,18 @@ const getCachedPropiedadesSimilares = unstable_cache(async (
       p.estado,
       p.destacado,
       ${publicOriginExpression()} AS origen_listado,
-      p.configuracion_formulario,
-      p.requiere_precalificacion,
-      p.fecha_showing,
-      p.pregunta_personalizada,
-      p.formulario_showing_activo,
       COALESCE(
-        json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
-        '[]'
+        ARRAY(
+          SELECT cover.url
+          FROM propiedad_imagenes cover
+          WHERE cover.propiedad_id = p.id
+            AND cover.url IS NOT NULL
+          ORDER BY cover.orden
+          LIMIT 1
+        ),
+        ARRAY[]::text[]
       ) AS imagenes
     FROM propiedades p
-    LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
     WHERE p.slug <> ${slug}
       AND p.tipo_negocio = ${tipoNegocio}
       AND p.estado IN ('disponible', 'coming_soon', 'bajo_contrato')
@@ -268,7 +239,6 @@ const getCachedPropiedadesSimilares = unstable_cache(async (
         p.municipio = ${municipio}
         OR p.tipo_propiedad = ${tipoPropiedad}
       )
-    GROUP BY p.id
     ORDER BY
       CASE
         WHEN p.municipio = ${municipio} THEN 0
@@ -415,19 +385,19 @@ const getCachedPropiedadesPaginadas = unstable_cache(async (
       p.estado,
       p.destacado,
       ${publicOriginExpression()} AS origen_listado,
-      p.configuracion_formulario,
-      p.requiere_precalificacion,
-      p.fecha_showing,
-      p.pregunta_personalizada,
-      p.formulario_showing_activo,
       COALESCE(
-        json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
-        '[]'
+        ARRAY(
+          SELECT cover.url
+          FROM propiedad_imagenes cover
+          WHERE cover.propiedad_id = p.id
+            AND cover.url IS NOT NULL
+          ORDER BY cover.orden
+          LIMIT 1
+        ),
+        ARRAY[]::text[]
       ) AS imagenes
     FROM propiedades p
-    LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
     WHERE ${whereClause}
-    GROUP BY p.id
     ORDER BY ${orderClause}
     LIMIT ${itemsPerPage} OFFSET ${offset}
   `;
