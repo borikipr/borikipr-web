@@ -23,23 +23,17 @@ function row(fieldKey, overrides = {}) {
   return {
     ownerId: property.id,
     fieldKey,
-    status: "ready",
     translatedValue: fieldKey === "title" ? "House" : "Description",
-    sourceHash: HASH,
-    translatedSourceHash: HASH,
+    publishable: true,
     ...overrides,
   };
 }
 
 test("public property overlay publishes only current, non-empty ready values field by field", () => {
-  const states = ["pending", "processing", "stale", "failed"];
-  for (const status of states) {
-    assert.equal(applyPropertyTranslationOverlay([property], [row("title", { status })])[0].titulo, "Casa");
-  }
+  assert.equal(applyPropertyTranslationOverlay([property], [row("title", { publishable: false })])[0].titulo, "Casa");
   assert.equal(applyPropertyTranslationOverlay([property], [])[0].titulo, "Casa");
   assert.equal(applyPropertyTranslationOverlay([property], [row("title", { translatedValue: "  " })])[0].titulo, "Casa");
-  assert.equal(applyPropertyTranslationOverlay([property], [row("title", { translatedSourceHash: OLD_HASH })])[0].titulo, "Casa");
-  assert.equal(applyPropertyTranslationOverlay([property], [row("title", { status: "stale", protectedFromAutomation: true })])[0].titulo, "Casa");
+  assert.equal(applyPropertyTranslationOverlay([property], [row("title", { publishable: false })])[0].titulo, "Casa");
 
   const result = applyPropertyTranslationOverlay([property], [row("title")])[0];
   assert.deepEqual(result, { ...property, titulo: "House" });
@@ -51,7 +45,7 @@ test("public testimonial overlay publishes ready bodies and otherwise preserves 
   const testimonial = { id: "00000000-0000-4000-8000-000000000002", texto: "Excelente", nombre: "Ana" };
   const ready = { ...row("body"), ownerId: testimonial.id, translatedValue: "Excellent" };
   assert.equal(applyTestimonialTranslationOverlay([testimonial], [ready])[0].texto, "Excellent");
-  assert.equal(applyTestimonialTranslationOverlay([testimonial], [{ ...ready, status: "stale" }])[0].texto, "Excelente");
+  assert.equal(applyTestimonialTranslationOverlay([testimonial], [{ ...ready, publishable: false }])[0].texto, "Excelente");
   assert.equal(testimonial.texto, "Excelente");
 });
 
@@ -145,9 +139,27 @@ test("isolated migrated repository batch reads preserve ownership and publicatio
   await db.query(`INSERT INTO content_translations (testimonial_id,target_locale,field_key,translated_value,source_hash,translated_source_hash,status) VALUES ($1,'en-US','body','Excellent',$2,$2,'ready')`, [t1, HASH]);
   await db.query(`INSERT INTO content_translations (testimonial_id,target_locale,field_key,translated_value,source_hash,translated_source_hash,status) VALUES ($1,'en-US','body','Old testimonial',$2,$2,'stale')`, [t2, HASH]);
 
-  const properties = await overlayPropertyTranslations({ properties: [property, { id: p2, titulo: "Villa", descripcion: "Texto" }, { id: p3, titulo: "Casa stale", descripcion: "Stale" }, { id: p4, titulo: "Casa failed", descripcion: "Failed" }, { id: p5, titulo: "Casa missing", descripcion: "Missing" }], locale: "en-US", reader: repository });
+  const reader = {
+    async fetchPropertyTranslations(...args) {
+      return (await repository.fetchPropertyTranslations(...args)).map((translation) => ({
+        ownerId: translation.ownerId,
+        fieldKey: translation.fieldKey,
+        translatedValue: translation.translatedValue,
+        publishable: translation.status === "ready" && translation.translatedValue?.trim() && translation.sourceHash === translation.translatedSourceHash,
+      }));
+    },
+    async fetchTestimonialTranslations(...args) {
+      return (await repository.fetchTestimonialTranslations(...args)).map((translation) => ({
+        ownerId: translation.ownerId,
+        fieldKey: translation.fieldKey,
+        translatedValue: translation.translatedValue,
+        publishable: translation.status === "ready" && translation.translatedValue?.trim() && translation.sourceHash === translation.translatedSourceHash,
+      }));
+    },
+  };
+  const properties = await overlayPropertyTranslations({ properties: [property, { id: p2, titulo: "Villa", descripcion: "Texto" }, { id: p3, titulo: "Casa stale", descripcion: "Stale" }, { id: p4, titulo: "Casa failed", descripcion: "Failed" }, { id: p5, titulo: "Casa missing", descripcion: "Missing" }], locale: "en-US", reader });
   assert.deepEqual(properties.map(({ titulo, descripcion }) => [titulo, descripcion]), [["House", "Descripcion"], ["Villa EN", "Texto"], ["Casa stale", "Stale"], ["Casa failed", "Failed"], ["Casa missing", "Missing"]]);
-  const testimonials = await overlayTestimonialTranslations({ testimonials: [{ id: t1, texto: "Excelente" }, { id: t2, texto: "Antiguo" }, { id: t3, texto: "Sin fila" }], locale: "en-US", reader: repository });
+  const testimonials = await overlayTestimonialTranslations({ testimonials: [{ id: t1, texto: "Excelente" }, { id: t2, texto: "Antiguo" }, { id: t3, texto: "Sin fila" }], locale: "en-US", reader });
   assert.deepEqual(testimonials.map(({ texto }) => texto), ["Excellent", "Antiguo", "Sin fila"]);
 });
 

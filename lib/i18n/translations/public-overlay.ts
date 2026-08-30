@@ -1,16 +1,11 @@
 import { ENGLISH_LOCALE, type AppLocale } from "@/lib/i18n/locales";
-import { getTranslatedValueOrSpanishFallback, isPublishableTranslation } from "@/lib/i18n/translations/publishable";
-import type { ContentTranslation } from "@/lib/i18n/translations/repository";
 
-type PublicTranslationCandidate = Pick<
-  ContentTranslation,
-  | "ownerId"
-  | "fieldKey"
-  | "status"
-  | "translatedValue"
-  | "sourceHash"
-  | "translatedSourceHash"
->;
+type PublicTranslationCandidate = {
+  ownerId: string;
+  fieldKey: string;
+  translatedValue: string | null;
+  publishable: boolean;
+};
 
 export type PublicPropertySource = {
   id: string;
@@ -49,6 +44,15 @@ function byOwnerAndField(translations: readonly PublicTranslationCandidate[]) {
   );
 }
 
+function translatedValueOrFallback(
+  candidate: PublicTranslationCandidate | undefined,
+  fallback: string
+) {
+  return candidate?.publishable && candidate.translatedValue?.trim()
+    ? candidate.translatedValue
+    : fallback;
+}
+
 export function applyPropertyTranslationOverlay<T extends PublicPropertySource>(
   properties: readonly T[],
   translations: readonly PublicTranslationCandidate[]
@@ -58,7 +62,7 @@ export function applyPropertyTranslationOverlay<T extends PublicPropertySource>(
   return properties.map((property) => {
     const translated = {
       ...property,
-      titulo: getTranslatedValueOrSpanishFallback(
+      titulo: translatedValueOrFallback(
         candidates.get(`${property.id}:title`),
         property.titulo
       ),
@@ -68,7 +72,7 @@ export function applyPropertyTranslationOverlay<T extends PublicPropertySource>(
 
     return {
       ...translated,
-      descripcion: getTranslatedValueOrSpanishFallback(
+      descripcion: translatedValueOrFallback(
         candidates.get(`${property.id}:description`),
         property.descripcion ?? ""
       ),
@@ -86,7 +90,7 @@ export function applyTestimonialTranslationOverlay<
 
   return testimonials.map((testimonial) => ({
     ...testimonial,
-    texto: getTranslatedValueOrSpanishFallback(
+    texto: translatedValueOrFallback(
       candidates.get(`${testimonial.id}:body`),
       testimonial.texto
     ),
@@ -94,12 +98,65 @@ export function applyTestimonialTranslationOverlay<
 }
 
 async function defaultReader(): Promise<PublicTranslationReader> {
-  const [{ sql }, { createPostgresTranslationDatabase, createTranslationRepository }] =
-    await Promise.all([
-      import("@/lib/db"),
-      import("@/lib/i18n/translations/repository"),
-    ]);
-  return createTranslationRepository(createPostgresTranslationDatabase(sql));
+  const { sql } = await import("@/lib/db");
+  const toCandidate = (row: {
+    owner_id: string;
+    field_key: string;
+    translated_value: string | null;
+    publishable: boolean;
+  }): PublicTranslationCandidate => ({
+    ownerId: row.owner_id,
+    fieldKey: row.field_key,
+    translatedValue: row.translated_value,
+    publishable: row.publishable,
+  });
+  const selectColumns = `
+    field_key,
+    translated_value,
+    (
+      status = 'ready'
+      AND translated_value IS NOT NULL
+      AND btrim(translated_value) <> ''
+      AND source_hash = translated_source_hash
+    ) AS publishable
+  `;
+
+  return {
+    async fetchPropertyTranslations(propertyIds, targetLocale, fieldKeys) {
+      if (propertyIds.length === 0 || fieldKeys.length === 0) return [];
+      const rows = await sql<{
+        owner_id: string;
+        field_key: string;
+        translated_value: string | null;
+        publishable: boolean;
+      }[]>`
+        SELECT property_id::text AS owner_id, ${sql.unsafe(selectColumns)}
+        FROM public.content_translations
+        WHERE property_id IN ${sql([...propertyIds])}
+          AND target_locale = ${targetLocale}
+          AND field_key IN ${sql([...fieldKeys])}
+        ORDER BY property_id, field_key
+      `;
+      return rows.map(toCandidate);
+    },
+    async fetchTestimonialTranslations(testimonialIds, targetLocale, fieldKeys) {
+      if (testimonialIds.length === 0) return [];
+      const rows = await sql<{
+        owner_id: string;
+        field_key: string;
+        translated_value: string | null;
+        publishable: boolean;
+      }[]>`
+        SELECT testimonial_id::text AS owner_id, ${sql.unsafe(selectColumns)}
+        FROM public.content_translations
+        WHERE testimonial_id IN ${sql([...testimonialIds])}
+          AND target_locale = ${targetLocale}
+          AND field_key IN ${sql([...fieldKeys])}
+        ORDER BY testimonial_id, field_key
+      `;
+      return rows.map(toCandidate);
+    },
+  };
 }
 
 export async function overlayPropertyTranslations<
@@ -157,8 +214,8 @@ export async function getPropertyTranslationSeoState<T extends PublicPropertySou
   const description = candidates.get(`${input.property.id}:description`);
   return {
     property: applyPropertyTranslationOverlay([input.property], translations)[0],
-    titlePublishable: isPublishableTranslation(title),
-    descriptionPublishable: isPublishableTranslation(description),
+    titlePublishable: title?.publishable === true,
+    descriptionPublishable: description?.publishable === true,
   };
 }
 
