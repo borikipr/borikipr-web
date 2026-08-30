@@ -338,6 +338,14 @@ if (!process.env.DATABASE_URL) {
              WHERE conrelid='public.admin_access_events'::regclass
                AND pg_get_constraintdef(oid) LIKE '%public_profile_approved%'
           ) AS v0049
+          ,(
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='propiedades'
+                AND column_name='listing_responsible_user_id'
+            ) AND to_regclass('public.property_listing_responsibility_events') IS NOT NULL
+              AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='property_listing_responsibility_events_immutable_trigger' AND NOT tgisinternal)
+          ) AS v0050
       )
       SELECT * FROM facts
     `;

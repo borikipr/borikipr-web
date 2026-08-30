@@ -16,6 +16,7 @@ export type AdminPropiedadRow = {
   total_interactions: number;
   total_contacts: number;
   origen_listado: "propio" | "co_broke" | "externo";
+  listing_responsible_user_id?: string | null;
   cover_image_url: string | null;
 };
 
@@ -37,6 +38,7 @@ export type AdminPropiedadDetalle = {
   destacado: boolean;
   imagenes: string[];
   origen_listado: "propio" | "co_broke" | "externo";
+  listing_responsible_user_id?: string | null;
   corredor_colaborador_nombre?: string;
   corredor_colaborador_empresa?: string;
   corredor_colaborador_contacto?: string;
@@ -154,6 +156,7 @@ export async function getAdminPropiedadById(id: string) {
       p.estado,
       p.destacado,
       p.origen_listado,
+      p.listing_responsible_user_id::text,
       p.corredor_colaborador_nombre,
       p.corredor_colaborador_empresa,
       p.corredor_colaborador_contacto,

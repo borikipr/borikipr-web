@@ -7,8 +7,11 @@ import { updatePropiedadAction, type UpdatePropiedadState } from "../../actions"
 import ImagenesUploader from "../../ImagenesUploader";
 import PropertyMediaManager from "../../PropertyMediaManager";
 import { formatPropertyLocation, getSectoresForMunicipio } from "@/lib/puerto-rico-sectores";
+import type { ListingResponsibleCurrent, ListingResponsibleProfessional } from "@/lib/admin/listing-responsibility";
 
 type EditarPropiedadFormProps = {
+ eligibleProfessionals: ListingResponsibleProfessional[];
+ currentResponsible: ListingResponsibleCurrent | null;
  propiedad: {
   id: string;
   slug: string;
@@ -80,6 +83,8 @@ function buildDescriptionTemplate({
 
 export default function EditarPropiedadForm({
  propiedad,
+ eligibleProfessionals,
+ currentResponsible,
 }: EditarPropiedadFormProps) {
  const [state, formAction, pending] = useActionState(
   updatePropiedadAction,
@@ -474,6 +479,33 @@ export default function EditarPropiedadForm({
         Origen legado. Esta opción ya no está disponible para nuevos listados.
        </p>
       )}
+     </div>
+
+     {currentResponsible && !currentResponsible.eligible && (
+      <div className="space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900" role="alert">
+       <p className="font-medium">{currentResponsible.displayName} — {currentResponsible.roleLabel}{currentResponsible.licenseNumber ? ` · Lic. ${currentResponsible.licenseNumber}` : ""}</p>
+       <p className="font-semibold">Requiere reasignación</p>
+       <p>La persona asignada ya no cumple con los requisitos. Selecciona otro responsable.</p>
+      </div>
+     )}
+     <div className="space-y-2">
+      <label htmlFor="listing_responsible_user_id" className="text-sm font-medium text-[#000000]">
+       Responsable del listado {origenListado === "propio" && <span className="text-red-500">*</span>}
+      </label>
+      <select
+       id="listing_responsible_user_id"
+       name="listing_responsible_user_id"
+       className="input-premium"
+       required={origenListado === "propio"}
+       defaultValue={currentResponsible?.eligible ? currentResponsible.id : ""}
+       aria-describedby={state.listingResponsibleError ? "listing-responsible-error" : undefined}
+       aria-invalid={Boolean(state.listingResponsibleError)}
+      >
+       <option value="">{origenListado === "propio" ? "Selecciona un responsable" : "Sin responsable asignado"}</option>
+       {eligibleProfessionals.map((professional) => <option key={professional.id} value={professional.id}>{professional.displayName} — {professional.role === "real_estate_broker" ? "Corredora" : "Vendedor(a)"} · Lic. {professional.licenseNumber}</option>)}
+      </select>
+      {origenListado === "propio" && eligibleProfessionals.length === 0 && <p className="text-sm text-amber-800" role="alert">No hay corredores o vendedores licenciados disponibles para asignar.</p>}
+      {state.listingResponsibleError && <p id="listing-responsible-error" className="text-sm text-red-600" role="alert">{state.listingResponsibleError}</p>}
      </div>
 
      {(origenListado === "co_broke" || origenListado === "externo") && (

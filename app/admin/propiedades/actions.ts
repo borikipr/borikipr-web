@@ -16,6 +16,7 @@ import { updatePropertyStatusWithAvailabilityQueue } from "@/lib/postgres-proper
 import { generatePrivateShowingToken } from "@/lib/leads/private-showing-token";
 import { syncPropertyTranslationIntents } from "@/lib/i18n/translations/source-intents";
 import { invalidateEnglishPublicTranslationPaths } from "@/lib/i18n/translations/public-revalidation";
+import { listingResponsibilityErrorMessage, parseListingResponsibleUserId, validateListingResponsibleProfessionalForUpdate, writeListingResponsibilityEvent } from "@/lib/admin/listing-responsibility";
 
 async function revalidateEnglishProperty(propertyId: string, propertySlug: string) {
   try {
@@ -37,6 +38,7 @@ function revalidatePublicProperties() {
 
 export type CreatePropiedadState = {
   error: string;
+  listingResponsibleError?: string;
 };
 
 const municipiosValidos = new Set(municipiosPR);
@@ -123,14 +125,14 @@ function buildShowingDateTime(dateValue: string, timeValue: string) {
 }
 
 async function requireAdminSession() {
-  await requireModuleAccess("properties", "manage");
+  return requireModuleAccess("properties", "manage");
 }
 
 export async function createPropiedadAction(
   _prevState: CreatePropiedadState,
   formData: FormData
 ): Promise<CreatePropiedadState> {
-  await requireAdminSession();
+  const access = await requireAdminSession();
 
   const titulo = String(formData.get("titulo") || "").trim();
   const descripcion = String(formData.get("descripcion") || "").trim();
@@ -149,6 +151,7 @@ export async function createPropiedadAction(
   const destacado = formData.get("destacado") === "on";
   const imagenesRaw = String(formData.get("imagenes") || "").trim();
   const origenListado = String(formData.get("origen_listado") || "propio").trim();
+  const responsibilityInput = parseListingResponsibleUserId(formData.get("listing_responsible_user_id"));
   const corredorNombre = String(formData.get("corredor_colaborador_nombre") || "").trim();
   const corredorEmpresa = String(formData.get("corredor_colaborador_empresa") || "").trim();
   const corredorContacto = String(formData.get("corredor_colaborador_contacto") || "").trim();
@@ -170,6 +173,9 @@ export async function createPropiedadAction(
     formData.get("open_house_solar_question_enabled") === "on";
   const aceptaCdbg = false;
   const notasCompradores = String(formData.get("notas_compradores") || "").trim();
+
+  if (!responsibilityInput.ok) return { error: "", listingResponsibleError: listingResponsibilityErrorMessage(responsibilityInput.error) };
+  if (origenListado === "propio" && !responsibilityInput.value) return { error: "", listingResponsibleError: listingResponsibilityErrorMessage("listing_responsibility_required") };
 
   if (
     !titulo ||
@@ -254,6 +260,7 @@ export async function createPropiedadAction(
 
   try {
     insertadaId = await sql.begin(async (transaction) => {
+      if (responsibilityInput.value && !(await validateListingResponsibleProfessionalForUpdate(transaction, responsibilityInput.value))) throw new Error("listing_responsibility_unavailable");
       const insertadas = await transaction.unsafe<{ id: string }[]>(
         `INSERT INTO public.propiedades (
         slug,
@@ -271,6 +278,7 @@ export async function createPropiedadAction(
         estado,
         destacado,
         origen_listado,
+        listing_responsible_user_id,
         corredor_colaborador_nombre,
         corredor_colaborador_empresa,
         corredor_colaborador_contacto,
@@ -291,8 +299,8 @@ export async function createPropiedadAction(
         configuracion_formulario
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-        $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25,
-        $26, $27, $28, $29, $30, $31, $32, $33::jsonb
+        $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
+        $27, $28, $29, $30, $31, $32, $33, $34::jsonb
       )
       RETURNING id::text`,
         [
@@ -311,6 +319,7 @@ export async function createPropiedadAction(
           estado,
           destacado,
           origenListado,
+          responsibilityInput.value,
           corredorNombre || null,
           corredorEmpresa || null,
           corredorContacto || null,
@@ -334,6 +343,7 @@ export async function createPropiedadAction(
 
       const insertada = insertadas[0];
       if (!insertada) throw new Error("Property was not created.");
+      if (responsibilityInput.value) await writeListingResponsibilityEvent(transaction, { propertyId: insertada.id, previousResponsibleUserId: null, nextResponsibleUserId: responsibilityInput.value, actorAdminUserId: access.user.id });
 
       for (let i = 0; i < imagenes.length; i++) {
         await transaction.unsafe(
@@ -358,6 +368,7 @@ export async function createPropiedadAction(
     revalidatePath("/");
     await revalidateEnglishProperty(insertadaId, slug);
   } catch (error) {
+    if (error instanceof Error && error.message === "listing_responsibility_unavailable") return { error: "", listingResponsibleError: listingResponsibilityErrorMessage("listing_responsibility_unavailable") };
     console.error("CREATE PROPIEDAD ERROR:", error);
     return { error: "No se pudo crear la propiedad." };
   }
@@ -367,13 +378,14 @@ export async function createPropiedadAction(
 
 export type UpdatePropiedadState = {
   error: string;
+  listingResponsibleError?: string;
 };
 
 export async function updatePropiedadAction(
   _prevState: UpdatePropiedadState,
   formData: FormData
 ): Promise<UpdatePropiedadState> {
-  await requireAdminSession();
+  const access = await requireAdminSession();
 
   const id = String(formData.get("id") || "").trim();
   const slugRaw = String(formData.get("slug") || "");
@@ -394,6 +406,7 @@ export async function updatePropiedadAction(
   const destacado = formData.get("destacado") === "on";
   const imagenesRaw = String(formData.get("imagenes") || "").trim();
   const origenListado = String(formData.get("origen_listado") || "propio").trim();
+  const responsibilityInput = parseListingResponsibleUserId(formData.get("listing_responsible_user_id"));
   const corredorNombre = String(formData.get("corredor_colaborador_nombre") || "").trim();
   const corredorEmpresa = String(formData.get("corredor_colaborador_empresa") || "").trim();
   const corredorContacto = String(formData.get("corredor_colaborador_contacto") || "").trim();
@@ -411,6 +424,8 @@ export async function updatePropiedadAction(
   const openHouseSolarQuestionEnabled =
     formData.get("open_house_solar_question_enabled") === "on";
   const notasCompradores = String(formData.get("notas_compradores") || "").trim();
+
+  if (!responsibilityInput.ok) return { error: "", listingResponsibleError: listingResponsibilityErrorMessage(responsibilityInput.error) };
 
   if (!id) {
     return { error: "No se encontró la propiedad a editar." };
@@ -551,8 +566,9 @@ export async function updatePropiedadAction(
         estado: string;
         titulo: string;
         descripcion: string;
+        listing_responsible_user_id: string | null;
       }[]>(
-        `SELECT estado, titulo, descripcion
+        `SELECT estado, titulo, descripcion, listing_responsible_user_id::text
            FROM public.propiedades
           WHERE id = $1::uuid
           LIMIT 1
@@ -561,6 +577,9 @@ export async function updatePropiedadAction(
       );
       const locked = lockedRows[0];
       if (!locked) throw new Error("Property not found.");
+      const nextResponsibleUserId = responsibilityInput.value;
+      if (origenListado === "propio" && !nextResponsibleUserId) throw new Error("listing_responsibility_required");
+      if (nextResponsibleUserId && !(await validateListingResponsibleProfessionalForUpdate(transaction, nextResponsibleUserId))) throw new Error("listing_responsibility_unavailable");
 
       const actualizadas = await transaction.unsafe<{ id: string }[]>(
         `UPDATE public.propiedades
@@ -579,24 +598,25 @@ export async function updatePropiedadAction(
                 estado = $13,
                 destacado = $14,
                 origen_listado = $15,
-                corredor_colaborador_nombre = $16,
-                corredor_colaborador_empresa = $17,
-                corredor_colaborador_contacto = $18,
-                enlace_original = $19,
-                permiso_publicar_web = $20,
-                permiso_usar_fotos = $21,
-                notas_internas = $22,
-                formulario_showing_activo = $23,
-                fecha_showing = $24,
-                requiere_precalificacion = $25,
-                pregunta_personalizada = $26,
-                tiene_placas_solares = $27,
-                cantidad_placas = $28,
-                placas_en_lease = $29,
-                open_house_solar_question_enabled = $30,
-                acepta_cdbg = $31,
-                configuracion_formulario = $32::jsonb
-          WHERE id = $33::uuid
+                listing_responsible_user_id = $16::uuid,
+                corredor_colaborador_nombre = $17,
+                corredor_colaborador_empresa = $18,
+                corredor_colaborador_contacto = $19,
+                enlace_original = $20,
+                permiso_publicar_web = $21,
+                permiso_usar_fotos = $22,
+                notas_internas = $23,
+                formulario_showing_activo = $24,
+                fecha_showing = $25,
+                requiere_precalificacion = $26,
+                pregunta_personalizada = $27,
+                tiene_placas_solares = $28,
+                cantidad_placas = $29,
+                placas_en_lease = $30,
+                open_house_solar_question_enabled = $31,
+                acepta_cdbg = $32,
+                configuracion_formulario = $33::jsonb
+          WHERE id = $34::uuid
           RETURNING id::text`,
         [
           slug,
@@ -614,6 +634,7 @@ export async function updatePropiedadAction(
           estado,
           destacado,
           origenListado,
+          nextResponsibleUserId,
           corredorNombre || null,
           corredorEmpresa || null,
           corredorContacto || null,
@@ -638,6 +659,7 @@ export async function updatePropiedadAction(
         ]
       );
       if (!actualizadas[0]) throw new Error("Property not found.");
+      await writeListingResponsibilityEvent(transaction, { propertyId: id, previousResponsibleUserId: locked.listing_responsible_user_id, nextResponsibleUserId, actorAdminUserId: access.user.id });
 
       await transaction.unsafe(
         "DELETE FROM public.propiedad_imagenes WHERE propiedad_id = $1::uuid",
@@ -703,6 +725,7 @@ export async function updatePropiedadAction(
     revalidatePath("/");
     await revalidateEnglishProperty(id, slug);
   } catch (error) {
+    if (error instanceof Error && (error.message === "listing_responsibility_required" || error.message === "listing_responsibility_unavailable")) return { error: "", listingResponsibleError: listingResponsibilityErrorMessage(error.message) };
     console.error("UPDATE PROPIEDAD ERROR:", error);
     return { error: "No se pudo actualizar la propiedad." };
   }

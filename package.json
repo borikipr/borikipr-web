@@ -25,6 +25,7 @@
     "migration:validate": "node scripts/migrations/validate-leads-migration.mjs",
     "migration:apply:0048": "node scripts/migrations/apply-team-signing-brokers-0048.mjs --confirm=APPLY_TEAM_SIGNING_BROKERS_0048",
     "migration:apply:0049": "node scripts/migrations/apply-professional-profile-foundation-0049.mjs --confirm=APPLY_PROFESSIONAL_PROFILE_FOUNDATION_0049",
+    "migration:apply:0050": "node scripts/migrations/apply-property-listing-responsibility-0050.mjs --confirm=APPLY_PROPERTY_LISTING_RESPONSIBILITY_0050",
     "schema:audit": "node scripts/migrations/audit-schema-version.mjs",
     "priority-registration:backfill:dry-run": "tsx scripts/leads/backfill-priority-registration-leads.ts --dry-run",
     "property-buyer-profile:resend:dry-run": "tsx scripts/leads/resend-property-buyer-profile-emails.ts --dry-run",

@@ -9,6 +9,7 @@ import Link from "next/link";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
 import EditarPropiedadForm from "./EditarPropiedadForm";
+import { getListingResponsibleCurrent, listEligibleListingResponsibleProfessionals } from "@/lib/admin/listing-responsibility";
 
 export default async function EditarPropiedadPage({
   params,
@@ -27,9 +28,13 @@ export default async function EditarPropiedadPage({
   if (!propiedad) {
     redirect("/admin/propiedades");
   }
-  const translationFields = await createTranslationAdminService(
+  const [translationFields, eligibleProfessionals, currentResponsible] = await Promise.all([
+    createTranslationAdminService(
     createPostgresTranslationDatabase(sql)
-  ).getEntityTranslations({ entityType: "property", ownerId: id });
+    ).getEntityTranslations({ entityType: "property", ownerId: id }),
+    listEligibleListingResponsibleProfessionals(sql),
+    getListingResponsibleCurrent(sql, propiedad.listing_responsible_user_id || null),
+  ]);
 
   return (
     <AdminPageShell>
@@ -55,7 +60,7 @@ export default async function EditarPropiedadPage({
           </div>}
         />
 
-        <EditarPropiedadForm propiedad={propiedad} />
+        <EditarPropiedadForm propiedad={propiedad} eligibleProfessionals={eligibleProfessionals} currentResponsible={currentResponsible} />
         <TranslationAdminPanel fields={translationFields} showHistory={false} />
       </div>
     </AdminPageShell>
