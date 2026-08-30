@@ -111,7 +111,7 @@ export default function AdminNav({ displayName, showTeam = false, allowedModules
               <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#d4af37]">Borikí Admin</p><p className="mt-1 truncate text-sm text-white/75">{displayName}</p></div>
               <button ref={closeRef} aria-label="Cerrar menú de administración" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-[#d4af37]" onClick={() => setOpen(false)} type="button"><X aria-hidden size={22} /></button>
             </div>
-            <nav aria-label="Navegación admin móvil" className="grid min-h-0 flex-1 gap-2 overflow-y-auto overscroll-contain p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"><NavLinks pathname={pathname} showTeam={showTeam} allowedModules={allowedModules} mobile onNavigate={() => setOpen(false)} /></nav>
+            <nav aria-label="Navegación admin móvil" className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"><NavLinks pathname={pathname} showTeam={showTeam} allowedModules={allowedModules} mobile onNavigate={() => setOpen(false)} /></nav>
           </aside>
         </div>,
         document.body,
