@@ -2503,3 +2503,42 @@ try {
   await assert.rejects(unusedProfessionalProfileAuditDb.exec(`INSERT INTO public.admin_access_events(event_type,target_admin_user_id) VALUES ('professional_profile_updated_by_admin',(SELECT id FROM public.admin_users WHERE username='target'))`));
   console.log("Validated unused 0051 rollback restores the exact 0050 audit allowlist.");
 } finally { await unusedProfessionalProfileAuditDb.close(); }
+
+const professionalPhoneConstraintMigrationSql = await readMigration("0052_fix_professional_phone_e164_constraint.sql");
+const professionalPhoneConstraintRollbackSql = await readMigration("0052_fix_professional_phone_e164_constraint.rollback.sql");
+const professionalPhoneConstraintDb = new PGlite();
+try {
+  await professionalPhoneConstraintDb.exec(`
+    CREATE TABLE public.admin_users (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      professional_phone_e164 text NULL,
+      CONSTRAINT admin_users_professional_phone_e164_check CHECK (
+        professional_phone_e164 IS NULL OR professional_phone_e164 ~ '^\\\\+[1-9][0-9]{7,14}$'
+      )
+    );
+    INSERT INTO public.admin_users DEFAULT VALUES;
+  `);
+  await assert.rejects(professionalPhoneConstraintDb.exec(`UPDATE public.admin_users SET professional_phone_e164='+17875551234'`));
+  await professionalPhoneConstraintDb.exec(professionalPhoneConstraintMigrationSql);
+  await professionalPhoneConstraintDb.exec(`UPDATE public.admin_users SET professional_phone_e164='+17875551234'`);
+  await assert.rejects(professionalPhoneConstraintDb.exec(professionalPhoneConstraintRollbackSql), /0052 rollback blocked/);
+  console.log("Validated professional phone E.164 constraint fix migration 0052 and guarded rollback.");
+} finally { await professionalPhoneConstraintDb.close(); }
+
+const unusedProfessionalPhoneConstraintDb = new PGlite();
+try {
+  await unusedProfessionalPhoneConstraintDb.exec(`
+    CREATE TABLE public.admin_users (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      professional_phone_e164 text NULL,
+      CONSTRAINT admin_users_professional_phone_e164_check CHECK (
+        professional_phone_e164 IS NULL OR professional_phone_e164 ~ '^\\\\+[1-9][0-9]{7,14}$'
+      )
+    );
+    INSERT INTO public.admin_users DEFAULT VALUES;
+  `);
+  await unusedProfessionalPhoneConstraintDb.exec(professionalPhoneConstraintMigrationSql);
+  await unusedProfessionalPhoneConstraintDb.exec(professionalPhoneConstraintRollbackSql);
+  await assert.rejects(unusedProfessionalPhoneConstraintDb.exec(`UPDATE public.admin_users SET professional_phone_e164='+17875551234'`));
+  console.log("Validated unused 0052 rollback restores the exact 0051 phone constraint.");
+} finally { await unusedProfessionalPhoneConstraintDb.close(); }

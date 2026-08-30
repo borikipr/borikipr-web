@@ -351,6 +351,12 @@ if (!process.env.DATABASE_URL) {
              WHERE conrelid='public.admin_access_events'::regclass
                AND pg_get_constraintdef(oid) LIKE '%professional_profile_updated_by_admin%'
           ) AS v0051
+          ,EXISTS (
+            SELECT 1 FROM pg_constraint
+             WHERE conrelid='public.admin_users'::regclass
+               AND conname='admin_users_professional_phone_e164_check'
+               AND pg_get_constraintdef(oid) LIKE '%^[+]%'
+          ) AS v0052
       )
       SELECT * FROM facts
     `;

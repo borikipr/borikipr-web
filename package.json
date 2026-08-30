@@ -27,6 +27,7 @@
     "migration:apply:0049": "node scripts/migrations/apply-professional-profile-foundation-0049.mjs --confirm=APPLY_PROFESSIONAL_PROFILE_FOUNDATION_0049",
     "migration:apply:0050": "node scripts/migrations/apply-property-listing-responsibility-0050.mjs --confirm=APPLY_PROPERTY_LISTING_RESPONSIBILITY_0050",
     "migration:apply:0051": "node scripts/migrations/apply-professional-profile-update-audit-event-0051.mjs --confirm=APPLY_PROFESSIONAL_PROFILE_UPDATE_AUDIT_EVENT_0051",
+    "migration:apply:0052": "node scripts/migrations/apply-professional-phone-e164-constraint-0052.mjs --confirm=APPLY_PROFESSIONAL_PHONE_E164_CONSTRAINT_0052",
     "schema:audit": "node scripts/migrations/audit-schema-version.mjs",
     "priority-registration:backfill:dry-run": "tsx scripts/leads/backfill-priority-registration-leads.ts --dry-run",
     "property-buyer-profile:resend:dry-run": "tsx scripts/leads/resend-property-buyer-profile-emails.ts --dry-run",
