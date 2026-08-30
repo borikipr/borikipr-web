@@ -27,7 +27,7 @@ test("Signing actions use one canonical eligibility result in list and detail",a
 
 test("manual media URL controls are absent while upload-backed hidden compatibility remains",async()=>{
   const files=await Promise.all([
-    source("app/admin/propiedades/nueva/page.tsx"),source("app/admin/propiedades/[id]/editar/EditarPropiedadForm.tsx"),
+    source("app/admin/propiedades/nueva/NuevaPropiedadForm.tsx"),source("app/admin/propiedades/[id]/editar/EditarPropiedadForm.tsx"),
     source("app/admin/testimonios/nuevo/page.tsx"),source("app/admin/testimonios/[id]/editar/EditarTestimonioForm.tsx"),
   ]);
   for(const content of files){assert.doesNotMatch(content,/Añadir o editar URLs manualmente|Foto URL/);}

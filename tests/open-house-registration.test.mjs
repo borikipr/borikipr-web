@@ -690,7 +690,7 @@ test("Open House UI and admin configuration use the dedicated attendance workflo
       ),
       readFile(
         fileURLToPath(
-          new URL("../app/admin/propiedades/nueva/page.tsx", import.meta.url)
+            new URL("../app/admin/propiedades/nueva/NuevaPropiedadForm.tsx", import.meta.url)
         ),
         "utf8"
       ),

@@ -44,7 +44,7 @@ test("property actions use a portal menu and deliberate destructive dialog", asy
 
 test("property editor groups the existing schema without changing submit behavior", async () => {
   const [createPage, editForm, editPage] = await Promise.all([
-    source("app/admin/propiedades/nueva/page.tsx"),
+    source("app/admin/propiedades/nueva/NuevaPropiedadForm.tsx"),
     source("app/admin/propiedades/[id]/editar/EditarPropiedadForm.tsx"),
     source("app/admin/propiedades/[id]/editar/page.tsx"),
   ]);
