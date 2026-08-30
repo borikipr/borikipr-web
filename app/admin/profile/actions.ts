@@ -5,7 +5,12 @@ import { createAdminSession, getAdminSession } from "@/lib/admin/auth";
 import { validateNewPassword } from "@/lib/admin/auth-core";
 import { changeOwnAdminPassword, updateOwnAdminEmail, updateOwnProfessionalProfile } from "@/lib/admin/account";
 
-export type ProfileState = { error: string; success: string; field?: string };
+export type ProfileState = {
+  error: string;
+  success: string;
+  field?: string;
+  professionalPhoneWhatsappEnabled?: boolean;
+};
 
 function profileField(error: string) {
   if (/roles profesionales|otro rol/i.test(error)) return "professionalRoles";
@@ -39,7 +44,11 @@ export async function updateProfessionalProfile(
   if (!result.ok) return { error: result.error, success: "", field: profileField(result.error) };
   revalidatePath("/admin", "layout");
   revalidatePath("/admin/profile");
-  return { error: "", success: result.pendingReview ? "Tus datos profesionales cambiaron. El perfil requiere una nueva revisión." : result.cleanupWarning ? "Perfil actualizado. La limpieza de una foto anterior se completará de forma segura." : "Perfil actualizado correctamente." };
+  return {
+    error: "",
+    success: result.pendingReview ? "Tus datos profesionales cambiaron. El perfil requiere una nueva revisión." : result.cleanupWarning ? "Perfil actualizado. La limpieza de una foto anterior se completará de forma segura." : "Perfil actualizado correctamente.",
+    professionalPhoneWhatsappEnabled: result.professionalPhoneWhatsappEnabled,
+  };
 }
 
 export async function updateAccountEmail(

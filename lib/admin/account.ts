@@ -108,6 +108,9 @@ export async function updateOwnProfessionalProfile({
   if (!normalizedProfessionalPhone.ok) return normalizedProfessionalPhone;
   if (!normalizedProfessionalBio.ok) return normalizedProfessionalBio;
   if (professionalPhoneWhatsappEnabled && !normalizedProfessionalPhone.value) return { ok: false as const, error: "Añade un teléfono profesional antes de activar WhatsApp." };
+  const nextProfessionalPhoneWhatsappEnabled = Boolean(
+    professionalPhoneWhatsappEnabled && normalizedProfessionalPhone.value,
+  );
   const imageKey = cleanProfileImageUrl ? extractManagedPublicObjectKey(cleanProfileImageUrl) : null;
   if (cleanProfileImageUrl && (!imageKey || !imageKey.startsWith("perfiles/"))) {
     return { ok: false as const, error: "La foto de perfil no es válida." };
@@ -145,10 +148,15 @@ export async function updateOwnProfessionalProfile({
                 public_profile_approved_at = CASE WHEN $12 = 'approved' THEN public_profile_approved_at ELSE NULL END,
                 public_profile_approved_by_admin_id = CASE WHEN $12 = 'approved' THEN public_profile_approved_by_admin_id ELSE NULL END
           WHERE id = $1::uuid AND activo = true`,
-        [admin.id, cleanName, professionalProfile.displayTitle, professionalProfile.roles, professionalProfile.licenseNumber, cleanProfileImageUrl, normalizedProfessionalEmail.value, normalizedProfessionalPhone.value, Boolean(professionalPhoneWhatsappEnabled && normalizedProfessionalPhone.value), normalizedProfessionalBio.value, publicProfileEnabled, nextPublicState]
+        [admin.id, cleanName, professionalProfile.displayTitle, professionalProfile.roles, professionalProfile.licenseNumber, cleanProfileImageUrl, normalizedProfessionalEmail.value, normalizedProfessionalPhone.value, nextProfessionalPhoneWhatsappEnabled, normalizedProfessionalBio.value, publicProfileEnabled, nextPublicState]
       );
       if (invalidatesApproval) await writeAdminAccessEvent(transaction, { eventType: "public_profile_review_invalidated", actorAdminUserId: admin.id, targetAdminUserId: admin.id, metadata: { source: "self_profile", previousState: "approved", nextState: "pending_review" } });
-      return { ok: true as const, previousProfileImageUrl: rows[0].profile_image_url, pendingReview: nextPublicState === "pending_review" };
+      return {
+        ok: true as const,
+        previousProfileImageUrl: rows[0].profile_image_url,
+        pendingReview: nextPublicState === "pending_review",
+        professionalPhoneWhatsappEnabled: nextProfessionalPhoneWhatsappEnabled,
+      };
     });
     if (!result.ok) return result;
 
@@ -159,10 +167,20 @@ export async function updateOwnProfessionalProfile({
       try {
         await deleteEligiblePublicMediaObject(previousKey);
       } catch {
-        return { ok: true as const, cleanupWarning: true };
+        return {
+          ok: true as const,
+          cleanupWarning: true,
+          pendingReview: result.pendingReview,
+          professionalPhoneWhatsappEnabled: result.professionalPhoneWhatsappEnabled,
+        };
       }
     }
-    return { ok: true as const, cleanupWarning: false, pendingReview: result.pendingReview };
+    return {
+      ok: true as const,
+      cleanupWarning: false,
+      pendingReview: result.pendingReview,
+      professionalPhoneWhatsappEnabled: result.professionalPhoneWhatsappEnabled,
+    };
   } catch (error) {
     if ((error as { code?: string }).code === "23505") {
       return { ok: false as const, error: "Ese email ya está asociado a otra cuenta." };

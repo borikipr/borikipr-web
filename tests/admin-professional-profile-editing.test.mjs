@@ -158,3 +158,52 @@ test("existing admin self-save accepts canonical E.164 and commits without accou
   await assert.rejects(db.exec(rollback), /0052 rollback blocked/);
   await db.close();
 });
+
+test("self WhatsApp preference remains authoritative through write, read, and post-action form state", async () => {
+  const [actions, account, auth, page, form] = await Promise.all([
+    read("app/admin/profile/actions.ts"),
+    read("lib/admin/account.ts"),
+    read("lib/admin/auth.ts"),
+    read("app/admin/profile/page.tsx"),
+    read("app/admin/profile/ProfileForms.tsx"),
+  ]);
+
+  assert.match(actions, /professionalPhoneWhatsappEnabled:\s*result\.professionalPhoneWhatsappEnabled/);
+  assert.match(account, /professional_phone_whatsapp_enabled\s*=\s*\$9/);
+  assert.match(account, /professionalPhoneWhatsappEnabled:\s*nextProfessionalPhoneWhatsappEnabled/);
+  assert.match(auth, /professionalPhoneWhatsappEnabled:\s*row\.professional_phone_whatsapp_enabled/);
+  assert.match(page, /whatsappEnabled=\{admin\.professionalPhoneWhatsappEnabled\}/);
+  assert.match(form, /profileState\.professionalPhoneWhatsappEnabled\s*\?\?/);
+  assert.match(form, /checked=\{whatsappEnabledState\}/);
+
+  const db = new PGlite();
+  await db.exec(`
+    CREATE TABLE profile_fixture (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      professional_phone_e164 text NULL,
+      professional_phone_whatsapp_enabled boolean NOT NULL DEFAULT false,
+      CONSTRAINT whatsapp_requires_phone CHECK (
+        professional_phone_whatsapp_enabled = false OR professional_phone_e164 IS NOT NULL
+      )
+    );
+    INSERT INTO profile_fixture (professional_phone_e164, professional_phone_whatsapp_enabled)
+    VALUES ('+17875551234', false);
+  `);
+
+  await db.query(`UPDATE profile_fixture SET professional_phone_whatsapp_enabled = true`);
+  let row = (await db.query(`SELECT professional_phone_e164, professional_phone_whatsapp_enabled FROM profile_fixture`)).rows[0];
+  assert.deepEqual(row, { professional_phone_e164: "+17875551234", professional_phone_whatsapp_enabled: true });
+
+  await db.query(`UPDATE profile_fixture SET professional_phone_whatsapp_enabled = false`);
+  row = (await db.query(`SELECT professional_phone_e164, professional_phone_whatsapp_enabled FROM profile_fixture`)).rows[0];
+  assert.deepEqual(row, { professional_phone_e164: "+17875551234", professional_phone_whatsapp_enabled: false });
+
+  await db.query(`UPDATE profile_fixture SET professional_phone_e164 = NULL, professional_phone_whatsapp_enabled = false`);
+  row = (await db.query(`SELECT professional_phone_e164, professional_phone_whatsapp_enabled FROM profile_fixture`)).rows[0];
+  assert.deepEqual(row, { professional_phone_e164: null, professional_phone_whatsapp_enabled: false });
+  await assert.rejects(
+    db.query(`UPDATE profile_fixture SET professional_phone_whatsapp_enabled = true`),
+    /whatsapp_requires_phone/,
+  );
+  await db.close();
+});
