@@ -148,7 +148,8 @@ test("Admin prototype remains private and the later signer surface is independen
     readFile(path.join(root, "lib/signatures/storage.ts"), "utf8"),
     readFile(path.join(root, "lib/signatures/admin-repository.ts"), "utf8"),
   ]);
-  for (const source of [uploadRoute, sourceRoute, pageRoute, actions]) assert.match(source, /getAdminSession/);
+  for (const source of [uploadRoute, actions]) assert.match(source, /getAdminSession/);
+  for (const source of [sourceRoute, pageRoute]) assert.match(source, /requireModuleAccess\("signatures", "view"\)/);
   assert.match(uploadRoute, /sameOrigin/);
   assert.match(uploadRoute, /checkRateLimit/);
   assert.match(sourceRoute, /private, no-store/);

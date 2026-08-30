@@ -1,4 +1,4 @@
-import { getAdminSession } from "@/lib/admin/auth";
+import { requireModuleAccess } from "@/lib/admin/access-context";
 import { sql } from "@/lib/db";
 import { createSignatureAdminRepository } from "@/lib/signatures/admin-repository";
 import { createPostgresSignatureDatabase } from "@/lib/signatures/domain/database";
@@ -18,7 +18,8 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await getAdminSession())) return new Response(null, { status: 401, headers: SECURITY_HEADERS });
+  try { await requireModuleAccess("signatures", "view"); }
+  catch { return new Response(null, { status: 404, headers: SECURITY_HEADERS }); }
   const { id } = await params;
   const repository = createSignatureAdminRepository(createPostgresSignatureDatabase(sql));
   const descriptor = await repository.sourceDescriptor(id);

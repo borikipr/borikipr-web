@@ -13,6 +13,7 @@ import {
   MessageSquareQuote,
   Plus,
   Star,
+  UserRound,
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
@@ -81,6 +82,10 @@ export default async function AdminPage() {
     { label: "Leads", description: "Contactos y seguimiento", href: "/admin/leads", icon: UsersRound, module: "leads" },
     { label: "Testimonios", description: "Experiencias de clientes", href: "/admin/testimonios", icon: MessageSquareQuote, module: "testimonials" },
     { label: "Analytics", description: "Tráfico y comportamiento", href: "/admin/analytics", icon: BarChart3, module: "analytics" },
+    { label: "Mi perfil", description: "Identidad y datos profesionales", href: "/admin/profile", icon: UserRound },
+    ...(access.isSuperAdmin
+      ? [{ label: "Equipo", description: "Cuentas y acceso interno", href: "/admin/equipo", icon: UsersRound }]
+      : []),
     { label: "Sitio web", description: "Revisar experiencia pública", href: "/", icon: Globe2 },
   ];
 

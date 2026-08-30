@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Activity, BarChart3, ChartNoAxesCombined, MousePointer2, Users } from "lucide-react";
 import { AnalyticsRefreshControls } from "@/components/admin/analytics/AnalyticsRefreshControls";
 import { getAdminSessionUser } from "@/lib/admin/auth";
+import { getAdminAccessContext } from "@/lib/admin/access-context";
 import { formatPuertoRicoDateTimeShort } from "@/lib/puerto-rico-time";
 import {
  getAdminAnalyticsDashboard,
@@ -203,6 +204,8 @@ export default async function AdminAnalyticsPage({
  if (!user) {
   redirect("/admin/login");
  }
+ const access = await getAdminAccessContext();
+ const canAccessLeads = Boolean(access?.isAdminBaseline || access?.moduleAccess.has("leads"));
 
  const params = await searchParams;
  const currentRange = parseAnalyticsRange(params.range);
@@ -291,9 +294,9 @@ export default async function AdminAnalyticsPage({
        <Link href="/admin" className="btn-secondary">
         Volver al dashboard
        </Link>
-       <Link href="/admin/leads" className="btn-secondary">
+       {canAccessLeads ? <Link href="/admin/leads" className="btn-secondary">
         Ver leads internos
-       </Link>
+       </Link> : null}
       </div>
      </div>
     </div>

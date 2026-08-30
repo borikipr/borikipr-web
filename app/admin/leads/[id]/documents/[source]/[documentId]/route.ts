@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getAdminSessionUser } from "@/lib/admin/auth";
+import { requireModuleAccess } from "@/lib/admin/access-context";
 import {
   buildContentDisposition,
   resolveLeadDocument,
@@ -45,6 +46,8 @@ export async function GET(
 ) {
   const username = await getAdminSessionUser();
   if (!username) return errorResponse("No autorizado.", 401);
+  try { await requireModuleAccess("leads", "view"); }
+  catch { return errorResponse("Documento no encontrado.", 404); }
 
   const { id: leadId, source: rawSource, documentId } = await context.params;
   if (!UUID_PATTERN.test(leadId) || !UUID_PATTERN.test(documentId) || !SOURCES.has(rawSource as LeadDocumentSource)) {

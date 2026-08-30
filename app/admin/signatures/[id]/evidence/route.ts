@@ -1,4 +1,4 @@
-import { getAdminSessionUser } from "@/lib/admin/auth";
+import { requireModuleAccess } from "@/lib/admin/access-context";
 import { createSignatureAdminRepository } from "@/lib/signatures/admin-repository";
 import { createSignatureDomainRuntime } from "@/lib/signatures/runtime";
 
@@ -6,7 +6,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await getAdminSessionUser())) return new Response(null, { status: 404 });
+  try { await requireModuleAccess("signatures", "view"); }
+  catch { return new Response(null, { status: 404 }); }
   try {
     const { id } = await params; const runtime = createSignatureDomainRuntime();
     const descriptor = await createSignatureAdminRepository(runtime.database).completedDescriptor(id);
