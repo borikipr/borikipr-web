@@ -26,6 +26,24 @@ test("Team Server Action module exports only async functions", async () => {
   assert.match(actions, /function invalidatePublicProperties\(\)\s*\{\s*updateTag\(PUBLIC_PROPERTIES_CACHE_TAG\)/);
 });
 
+test("approval dialogs close only after authoritative successful action state", async () => {
+  const review = await read("app/admin/equipo/PublicProfileReview.tsx");
+
+  assert.match(review, /useActionState\(approvePublicProfessionalProfileAction, initialTeamActionState\)/);
+  assert.match(review, /useActionState\(withdrawPublicProfessionalProfileApprovalAction, initialTeamActionState\)/);
+  assert.match(review, /canApprove \? setApproveOpen\(true\) : setWithdrawOpen\(true\)/);
+  assert.match(review, /useEffect\(\(\) => \{\s*if \(approveState\.success\) setApproveOpen\(false\);\s*\}, \[approveState\.success\]\)/);
+  assert.match(review, /useEffect\(\(\) => \{\s*if \(withdrawState\.success\) setWithdrawOpen\(false\);\s*\}, \[withdrawState\.success\]\)/);
+  assert.doesNotMatch(review, /if \(approving\) setApproveOpen\(false\)/);
+  assert.doesNotMatch(review, /if \(withdrawing\) setWithdrawOpen\(false\)/);
+  assert.doesNotMatch(review, /if \(approveState\.error\) setApproveOpen\(false\)/);
+  assert.doesNotMatch(review, /if \(withdrawState\.error\) setWithdrawOpen\(false\)/);
+  assert.match(review, /approveState\.error \? <p role="alert"/);
+  assert.match(review, /withdrawState\.error \? <p role="alert"/);
+  assert.match(review, /type="submit" disabled=\{approving\}/);
+  assert.match(review, /type="submit" disabled=\{withdrawing\}/);
+});
+
 test("active opted-in pending profile approves atomically with immutable audit metadata", async () => {
   const db = new PGlite();
   await db.exec(`

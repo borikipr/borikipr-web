@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { AdminActionDialog } from "@/components/admin/AdminActionsMenu";
 import PublicProfileStatusBadge from "@/components/admin/PublicProfileStatusBadge";
 import type { PublicProfileApprovalState } from "@/lib/admin/professional-profile";
@@ -11,6 +11,15 @@ export default function PublicProfileReview({ targetId, displayName, status, isS
   const [approveOpen, setApproveOpen] = useState(false); const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [approveState, approveAction, approving] = useActionState(approvePublicProfessionalProfileAction, initialTeamActionState);
   const [withdrawState, withdrawAction, withdrawing] = useActionState(withdrawPublicProfessionalProfileApprovalAction, initialTeamActionState);
+
+  useEffect(() => {
+    if (approveState.success) setApproveOpen(false);
+  }, [approveState.success]);
+
+  useEffect(() => {
+    if (withdrawState.success) setWithdrawOpen(false);
+  }, [withdrawState.success]);
+
   const feedback = approveState.success || withdrawState.success;
   const canApprove = !isSelf && status === "pending_review";
   const canWithdraw = !isSelf && status === "approved";
