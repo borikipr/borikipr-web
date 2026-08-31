@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSuperAdmin } from "@/lib/admin/access-context";
 import {
@@ -17,6 +17,7 @@ import {
   approvePublicProfessionalProfile,
   withdrawPublicProfessionalProfileApproval,
 } from "@/lib/admin/team-access";
+import { PUBLIC_PROPERTIES_CACHE_TAG } from "@/lib/queries/propiedades";
 
 export type TeamActionState = Readonly<{ error: string; success: string; field?: string }>;
 export const initialTeamActionState: TeamActionState = { error: "", success: "" };
@@ -74,13 +75,13 @@ export async function setAssignedSigningBrokerAction(_previous: TeamActionState,
 
 export async function approvePublicProfessionalProfileAction(_previous: TeamActionState, formData: FormData): Promise<TeamActionState> {
   const targetId = String(formData.get("targetId") || "");
-  try { await approvePublicProfessionalProfile(await actorId(), targetId); invalidateTeamPaths(targetId); return { error: "", success: "Perfil aprobado." }; }
+  try { await approvePublicProfessionalProfile(await actorId(), targetId); invalidatePublicProperties(); invalidateTeamPaths(targetId); return { error: "", success: "Perfil aprobado." }; }
   catch (error) { return { error: messageFor(error), success: "" }; }
 }
 
 export async function withdrawPublicProfessionalProfileApprovalAction(_previous: TeamActionState, formData: FormData): Promise<TeamActionState> {
   const targetId = String(formData.get("targetId") || "");
-  try { await withdrawPublicProfessionalProfileApproval(await actorId(), targetId); invalidateTeamPaths(targetId); return { error: "", success: "Aprobación retirada." }; }
+  try { await withdrawPublicProfessionalProfileApproval(await actorId(), targetId); invalidatePublicProperties(); invalidateTeamPaths(targetId); return { error: "", success: "Aprobación retirada." }; }
   catch (error) { return { error: messageFor(error), success: "" }; }
 }
 
@@ -91,6 +92,10 @@ async function actorId() {
 function invalidateTeamPaths(userId?: string) {
   revalidatePath("/admin/equipo");
   if (userId) revalidatePath(`/admin/equipo/${userId}`);
+}
+
+function invalidatePublicProperties() {
+  updateTag(PUBLIC_PROPERTIES_CACHE_TAG);
 }
 
 export async function createMemberAction(_previous: TeamActionState, formData: FormData): Promise<TeamActionState> {
@@ -117,6 +122,7 @@ export async function updateMemberProfileAction(_previous: TeamActionState, form
       professionalCustomTitle: String(formData.get("professionalCustomTitle") || ""), professionalLicenseNumber: String(formData.get("professionalLicenseNumber") || ""),
     });
     if (!result.ok) return { error: result.error, success: "" };
+    invalidatePublicProperties();
     invalidateTeamPaths(targetId);
     redirect(`/admin/equipo/${targetId}?notice=updated`);
   } catch (error) {
@@ -139,6 +145,7 @@ export async function updateTeamProfessionalProfileAction(_previous: TeamActionS
       professionalBio: String(formData.get("professionalBio") || ""),
     });
     if (!result.ok) return { error: result.error, success: "", field: result.field };
+    invalidatePublicProperties();
     invalidateTeamPaths(targetId);
     redirect(`/admin/equipo/${targetId}?notice=${result.pendingReview ? "professional_review_pending" : "professional_updated"}`);
   } catch (error) {
@@ -169,6 +176,7 @@ export async function disableMemberAction(_previous: TeamActionState, formData: 
   const targetId = String(formData.get("targetId") || "");
   try {
     await disableAdminAccount(await actorId(), targetId);
+    invalidatePublicProperties();
     invalidateTeamPaths(targetId);
     return { error: "", success: "Cuenta desactivada." };
   } catch (error) { return { error: messageFor(error), success: "" }; }
@@ -178,6 +186,7 @@ export async function reactivateMemberAction(_previous: TeamActionState, formDat
   const targetId = String(formData.get("targetId") || "");
   try {
     const result = await reactivateAdminAccount(await actorId(), targetId);
+    invalidatePublicProperties();
     invalidateTeamPaths(targetId);
     return result.invitationSent
       ? { error: "", success: "Cuenta reactivada; se envió una nueva invitación." }

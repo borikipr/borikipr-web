@@ -25,7 +25,7 @@ test("public catalog reads are cached and invalidated by their Admin mutations",
     assert.match(query, /unstable_cache/);
     assert.match(query, /revalidate:\s*PUBLIC_CONTENT_REVALIDATE_SECONDS/);
   }
-  assert.match(propertyActions, /revalidateTag\(PUBLIC_PROPERTIES_CACHE_TAG,\s*"max"\)/);
+  assert.match(propertyActions, /updateTag\(PUBLIC_PROPERTIES_CACHE_TAG\)/);
   assert.match(testimonialActions, /revalidateTag\(PUBLIC_TESTIMONIALS_CACHE_TAG,\s*"max"\)/);
 });
 

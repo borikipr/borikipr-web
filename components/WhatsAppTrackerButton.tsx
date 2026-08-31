@@ -9,6 +9,7 @@ type Props = {
   slug: string;
   className?: string;
   ctaLocation?: string;
+  ariaLabel?: string;
   children: React.ReactNode;
 };
 
@@ -17,6 +18,7 @@ export default function WhatsAppTrackerButton({
   slug,
   className,
   ctaLocation = "property_detail",
+  ariaLabel,
   children,
 }: Props) {
   const pathname = usePathname();
@@ -49,6 +51,7 @@ export default function WhatsAppTrackerButton({
       href={url}
       target="_blank"
       rel="noopener noreferrer"
+      aria-label={ariaLabel}
       onClick={handleClick}
       className={className}
     >

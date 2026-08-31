@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { sql } from "@/lib/db";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { PUBLIC_PROPERTIES_CACHE_TAG } from "@/lib/queries/propiedades";
 import { municipiosPR } from "@/data/municipios";
 import { requireModuleAccess } from "@/lib/admin/access-context";
@@ -33,7 +33,7 @@ async function revalidateEnglishProperty(propertyId: string, propertySlug: strin
 }
 
 function revalidatePublicProperties() {
-  revalidateTag(PUBLIC_PROPERTIES_CACHE_TAG, "max");
+  updateTag(PUBLIC_PROPERTIES_CACHE_TAG);
 }
 
 export type CreatePropiedadState = {

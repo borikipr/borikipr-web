@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { createAdminSession, getAdminSession } from "@/lib/admin/auth";
 import { validateNewPassword } from "@/lib/admin/auth-core";
 import { changeOwnAdminPassword, updateOwnAdminEmail, updateOwnProfessionalProfile } from "@/lib/admin/account";
+import { PUBLIC_PROPERTIES_CACHE_TAG } from "@/lib/queries/propiedades";
 
 export type ProfileState = {
   error: string;
@@ -42,6 +43,7 @@ export async function updateProfessionalProfile(
     publicProfileEnabled: String(formData.get("publicProfileEnabled") || "") === "true",
   });
   if (!result.ok) return { error: result.error, success: "", field: profileField(result.error) };
+  updateTag(PUBLIC_PROPERTIES_CACHE_TAG);
   revalidatePath("/admin", "layout");
   revalidatePath("/admin/profile");
   return {

@@ -364,6 +364,8 @@ const enUS = {
     collaborationTitle: "Property offered in collaboration",
     collaborationDescription:
       "This property is presented in collaboration with another real estate professional. Ivonne Erickson can assist with guidance, information coordination, and representation, subject to availability and agreement between the parties.",
+    collaborationDescriptionWithProfessional:
+      "This property is presented in collaboration with another real estate professional. {name} can assist with guidance, information coordination, and representation, subject to availability and agreement between the parties.",
     externalTitle: "Referral property",
     externalDescription:
       "This property may come from an external source or professional collaboration. Its information is subject to availability confirmation.",
@@ -378,6 +380,16 @@ const enUS = {
     interestEyebrow: "Interested in this property?",
     interestDescription:
       "Request more information, coordinate a showing, or ask Ivonne your questions directly.",
+    interestDescriptionWithProfessional:
+      "Request more information, coordinate a showing, or ask {name} your questions directly.",
+    listingProfessionalSection: "Listing representative",
+    listingProfessionalBroker: "Real Estate Broker",
+    listingProfessionalSalesperson: "Real Estate Salesperson",
+    licenseLabel: "Lic.",
+    professionalPhotoAlt: "Professional photo of {name}",
+    contact: "Contact",
+    contactAccessible: "Contact us about {property}",
+    whatsappAccessible: "Message {name} on WhatsApp about {property}",
     quickResponse: "Quick response through WhatsApp.",
     priorityRegistration: "Join the priority registry",
     requestInformation: "Request information",

@@ -363,6 +363,8 @@ const esPR = {
     collaborationTitle: "Propiedad en colaboración",
     collaborationDescription:
       "Esta propiedad se presenta en colaboración con otro profesional de bienes raíces. Ivonne Erickson puede asistirle en la orientación, coordinación de información y proceso de representación, sujeto a disponibilidad y acuerdo entre las partes.",
+    collaborationDescriptionWithProfessional:
+      "Esta propiedad se presenta en colaboración con otro profesional de bienes raíces. {name} puede asistirle en la orientación, coordinación de información y proceso de representación, sujeto a disponibilidad y acuerdo entre las partes.",
     externalTitle: "Propiedad de referencia",
     externalDescription:
       "Esta propiedad puede provenir de una fuente externa o colaboración profesional. La información está sujeta a confirmación de disponibilidad.",
@@ -377,6 +379,16 @@ const esPR = {
     interestEyebrow: "¿Te interesa esta propiedad?",
     interestDescription:
       "Solicita más información, coordina una visita o aclara tus dudas directamente con Ivonne.",
+    interestDescriptionWithProfessional:
+      "Solicita más información, coordina una visita o aclara tus dudas con {name}.",
+    listingProfessionalSection: "Responsable del listado",
+    listingProfessionalBroker: "Corredor(a) de Bienes Raíces",
+    listingProfessionalSalesperson: "Vendedor(a) de Bienes Raíces",
+    licenseLabel: "Lic.",
+    professionalPhotoAlt: "Foto profesional de {name}",
+    contact: "Contactar",
+    contactAccessible: "Contactar sobre {property}",
+    whatsappAccessible: "Escribir por WhatsApp a {name} sobre {property}",
     quickResponse: "Respuesta rápida por WhatsApp.",
     priorityRegistration: "Unirme al registro prioritario",
     requestInformation: "Solicitar información",

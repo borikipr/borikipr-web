@@ -1,9 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { updateTag } from "next/cache";
 import { createAdminSession } from "@/lib/admin/auth";
 import { validateNewPassword } from "@/lib/admin/auth-core";
 import { resetAdminPassword } from "@/lib/admin/account";
+import { PUBLIC_PROPERTIES_CACHE_TAG } from "@/lib/queries/propiedades";
 
 export type ResetPasswordState = { error: string };
 
@@ -22,5 +24,6 @@ export async function submitPasswordReset(
   const result = await resetAdminPassword(token, password);
   if (!result.ok) return { error: "El enlace no es válido o ya venció." };
   await createAdminSession(result.user);
+  updateTag(PUBLIC_PROPERTIES_CACHE_TAG);
   redirect("/admin/profile?passwordReset=1");
 }

@@ -16,6 +16,14 @@ type EstadoPropiedad =
 export const PUBLIC_PROPERTIES_CACHE_TAG = "public-properties";
 const PUBLIC_CONTENT_REVALIDATE_SECONDS = 3600;
 
+export type PublicListingProfessional = {
+  displayName: string;
+  avatarUrl: string | null;
+  roleId: "real_estate_broker" | "real_estate_salesperson";
+  licenseNumber: string;
+  whatsappPhoneE164: string | null;
+};
+
 function publicOriginExpression() {
   return sql`
     CASE
@@ -61,6 +69,7 @@ export type PropiedadQueryRow = {
   placas_en_lease?: boolean | null;
   open_house_solar_question_enabled?: boolean;
   content_updated_at?: string | Date | null;
+  listing_professional?: PublicListingProfessional | null;
 };
 
 export type PublicPropertyIndexRow = Pick<
@@ -175,15 +184,45 @@ const getCachedPropiedadBySlug = unstable_cache(async (slug: string) => {
       p.formulario_showing_activo,
       p.placas_en_lease,
       p.open_house_solar_question_enabled,
+      listing_professional.profile AS listing_professional,
       COALESCE(
         json_agg(pi.url ORDER BY pi.orden) FILTER (WHERE pi.url IS NOT NULL),
         '[]'
       ) AS imagenes
     FROM propiedades p
+    LEFT JOIN LATERAL (
+      SELECT jsonb_build_object(
+        'displayName', BTRIM(a.display_name),
+        'avatarUrl', NULLIF(BTRIM(a.profile_image_url), ''),
+        'roleId', CASE
+          WHEN 'real_estate_broker' = ANY(a.professional_roles) THEN 'real_estate_broker'
+          ELSE 'real_estate_salesperson'
+        END,
+        'licenseNumber', BTRIM(a.professional_license_number),
+        'whatsappPhoneE164', CASE
+          WHEN a.professional_phone_whatsapp_enabled = true
+            THEN a.professional_phone_e164
+          ELSE NULL
+        END
+      ) AS profile
+      FROM admin_users a
+      WHERE a.id = p.listing_responsible_user_id
+        AND a.activo = true
+        AND a.account_state = 'active'
+        AND a.public_profile_enabled = true
+        AND a.public_profile_approval_state = 'approved'
+        AND NULLIF(BTRIM(a.display_name), '') IS NOT NULL
+        AND NULLIF(BTRIM(a.professional_license_number), '') IS NOT NULL
+        AND (
+          'real_estate_broker' = ANY(a.professional_roles)
+          OR 'real_estate_salesperson' = ANY(a.professional_roles)
+        )
+      LIMIT 1
+    ) listing_professional ON true
     LEFT JOIN propiedad_imagenes pi ON pi.propiedad_id = p.id
     WHERE p.slug = ${slug}
       AND ${publicVisibilityCondition()}
-    GROUP BY p.id
+    GROUP BY p.id, listing_professional.profile
     LIMIT 1
   `;
 

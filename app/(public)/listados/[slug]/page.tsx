@@ -14,6 +14,8 @@ import {
 import { TipoPropiedad } from "@/data/listados";
 import WhatsAppTrackerButton from "@/components/WhatsAppTrackerButton";
 import TrackLinkButton from "@/components/TrackLinkButton";
+import ListingProfessionalCard from "@/components/ListingProfessionalCard";
+import type { PublicListingProfessional } from "@/lib/queries/propiedades";
 import {
   SITE_NAME,
   breadcrumbJsonLd,
@@ -59,6 +61,7 @@ type PropiedadDB = {
   enlace_original?: string;
   formulario_showing_activo?: boolean;
   fecha_showing?: string | Date | null;
+  listing_professional?: PublicListingProfessional | null;
 };
 
 function formatoPrecio(
@@ -228,6 +231,7 @@ export async function renderPropertyDetailPage({
     enlaceOriginal: row.enlace_original,
     formularioShowingActivo: row.formulario_showing_activo,
     fechaShowing: row.fecha_showing,
+    listingProfessional: sourceRow.listing_professional ?? null,
   };
 
   const propiedadPath =
@@ -257,6 +261,13 @@ ${propiedadUrl}`
   );
 
   const whatsappUrl = `https://wa.me/17876774900?text=${whatsappMensaje}`;
+  const professionalWhatsappPhone = propiedad.listingProfessional?.whatsappPhoneE164;
+  const professionalWhatsappUrl = professionalWhatsappPhone && /^\+[1-9]\d{7,14}$/.test(professionalWhatsappPhone)
+    ? `https://wa.me/${professionalWhatsappPhone.slice(1)}?text=${whatsappMensaje}`
+    : null;
+  const professionalRoleLabel = propiedad.listingProfessional?.roleId === "real_estate_broker"
+    ? copy.listingProfessionalBroker
+    : copy.listingProfessionalSalesperson;
   const breadcrumbSchema = breadcrumbJsonLd([
     { name: locale === ENGLISH_LOCALE ? "Home" : "Inicio", url: getEquivalentRoute("/", locale) ?? "/" },
     { name: locale === ENGLISH_LOCALE ? "Listings" : "Listados", url: getEquivalentRoute("/listados", locale) ?? "/listados" },
@@ -388,7 +399,7 @@ ${propiedadUrl}`
 
                   <div className="mt-4">
                     <Link href={getEquivalentRoute("/contact", locale) ?? "/contact"} className="btn-primary px-5 py-2.5">
-                      {copy.talkToIvonne}
+                      {propiedad.listingProfessional ? copy.contact : copy.talkToIvonne}
                     </Link>
                   </div>
                 </div>
@@ -401,7 +412,9 @@ ${propiedadUrl}`
                   </p>
 
                   <p className="mt-2 leading-relaxed text-[#4d4d4d]">
-                    {copy.collaborationDescription}
+                    {propiedad.listingProfessional
+                      ? copy.collaborationDescriptionWithProfessional.replace("{name}", propiedad.listingProfessional.displayName)
+                      : copy.collaborationDescription}
                   </p>
                 </div>
               )}
@@ -456,17 +469,31 @@ ${propiedadUrl}`
 
               <div className="mt-8 xl:sticky xl:top-[108px]">
                 <div className="rounded-3xl border border-[#e8e8e8] bg-[#f8f8f8] p-6 shadow-sm">
-                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
+                  {propiedad.listingProfessional && (
+                    <ListingProfessionalCard
+                      professional={propiedad.listingProfessional}
+                      sectionLabel={copy.listingProfessionalSection}
+                      roleLabel={professionalRoleLabel}
+                      licenseLabel={copy.licenseLabel}
+                      photoAlt={copy.professionalPhotoAlt.replace("{name}", propiedad.listingProfessional.displayName)}
+                    />
+                  )}
+
+                  <p className={`${propiedad.listingProfessional ? "mt-5 " : ""}text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]`}>
                     {copy.interestEyebrow}
                   </p>
 
                   <p className="mt-3 text-[#4d4d4d]">
-                    {copy.interestDescription}
+                    {propiedad.listingProfessional
+                      ? copy.interestDescriptionWithProfessional.replace("{name}", propiedad.listingProfessional.displayName)
+                      : copy.interestDescription}
                   </p>
 
-                  <p className="mt-4 text-sm text-[#4d4d4d]">
-                    {copy.quickResponse}
-                  </p>
+                  {(!propiedad.listingProfessional || professionalWhatsappUrl) && (
+                    <p className="mt-4 text-sm text-[#4d4d4d]">
+                      {copy.quickResponse}
+                    </p>
+                  )}
 
                   <div className="mt-6 space-y-3">
                     {propiedad.estado === "coming_soon" && (
@@ -490,20 +517,31 @@ ${propiedadUrl}`
                       analyticsEventName="property_contact_click"
                       analyticsParams={{
                         property_slug: propiedad.slug,
-                        cta_location: "property_detail",
+                        cta_location: propiedad.listingProfessional ? "listing_professional_card" : "property_detail",
                       }}
+                      ariaLabel={propiedad.listingProfessional
+                        ? copy.contactAccessible.replace("{property}", propiedad.titulo)
+                        : undefined}
                       className="inline-flex w-full items-center justify-center rounded-full bg-[#11518b] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#0d406d]"
                     >
-                      {copy.requestInformation}
+                      {propiedad.listingProfessional ? copy.contact : copy.requestInformation}
                     </TrackLinkButton>
 
-                    <WhatsAppTrackerButton
-                      url={whatsappUrl}
-                      slug={propiedad.slug}
-                      className="inline-flex w-full items-center justify-center rounded-full border border-[#25D366] px-6 py-3 text-sm font-semibold text-[#25D366] transition hover:bg-[#25D366] hover:text-white"
-                    >
-                      {copy.whatsapp}
-                    </WhatsAppTrackerButton>
+                    {(professionalWhatsappUrl || !propiedad.listingProfessional) && (
+                      <WhatsAppTrackerButton
+                        url={professionalWhatsappUrl ?? whatsappUrl}
+                        slug={propiedad.slug}
+                        ctaLocation={propiedad.listingProfessional ? "listing_professional_card" : "property_detail"}
+                        ariaLabel={propiedad.listingProfessional
+                          ? copy.whatsappAccessible
+                              .replace("{name}", propiedad.listingProfessional.displayName)
+                              .replace("{property}", propiedad.titulo)
+                          : undefined}
+                        className="inline-flex w-full items-center justify-center rounded-full border border-[#25D366] px-6 py-3 text-sm font-semibold text-[#137a3b] transition hover:bg-[#25D366] hover:text-[#0d1b2a]"
+                      >
+                        {copy.whatsapp}
+                      </WhatsAppTrackerButton>
+                    )}
 
                     {propiedad.estado === "disponible" && (
                       <Link

@@ -12,6 +12,7 @@ type Props = {
   target?: string;
   analyticsEventName?: string;
   analyticsParams?: Record<string, string | number | boolean | null | undefined>;
+  ariaLabel?: string;
   children: React.ReactNode;
 };
 
@@ -23,6 +24,7 @@ export default function TrackLinkButton({
   target,
   analyticsEventName,
   analyticsParams,
+  ariaLabel,
   children,
 }: Props) {
   const pathname = usePathname();
@@ -54,6 +56,7 @@ export default function TrackLinkButton({
       href={href}
       target={target}
       rel={target === "_blank" ? "noopener noreferrer" : undefined}
+      aria-label={ariaLabel}
       onClick={handleClick}
       className={className}
     >
