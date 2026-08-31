@@ -183,7 +183,45 @@ export default function ProfileForms({ displayName, professionalTitle, professio
           <div className="space-y-1.5"><label htmlFor="professionalBio" className="text-sm font-semibold text-slate-800">Biografía profesional</label><textarea id="professionalBio" name="professionalBio" className="input-premium min-h-28" defaultValue={professionalBio} maxLength={2000} aria-describedby="professionalBioHelp" /><p id="professionalBioHelp" className="text-xs leading-5 text-slate-500">Breve descripción de tu experiencia y servicios.</p></div>
           <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-1.5"><label htmlFor="professionalEmail" className="text-sm font-semibold text-slate-800">Correo profesional</label><input id="professionalEmail" name="professionalEmail" type="email" className="input-premium" defaultValue={professionalEmail} maxLength={254} /><p className="text-xs leading-5 text-slate-500">Puede usarse como contacto profesional. No cambia tu correo de acceso.</p></div><div className="space-y-1.5"><label htmlFor="professionalPhone" className="text-sm font-semibold text-slate-800">Teléfono profesional</label><input id="professionalPhone" name="professionalPhone" type="tel" className="input-premium" defaultValue={professionalPhone} placeholder="(787) 555-1234" onChange={(event) => { const hasPhone = Boolean(event.target.value.trim()); setHasProfessionalPhone(hasPhone); if (!hasPhone) setWhatsappEnabledOverride(false); }} /></div></div>
           <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"><input type="checkbox" name="professionalPhoneWhatsappEnabled" value="true" checked={whatsappEnabledState} onChange={(event) => setWhatsappEnabledOverride(event.target.checked)} disabled={!hasProfessionalPhone} className="mt-0.5 h-4 w-4" /><span><strong className="block text-slate-900">Usar este número para WhatsApp</strong>{!hasProfessionalPhone && <span className="mt-1 block text-xs text-slate-500">Añade un teléfono profesional para habilitar WhatsApp.</span>}</span></label>
-          <div className="rounded-xl border border-slate-200 px-4 py-3"><div className="flex flex-wrap items-center justify-between gap-3"><label htmlFor="publicProfileEnabled" className="font-semibold text-slate-900">Habilitar perfil profesional para futuras áreas públicas</label><input id="publicProfileEnabled" name="publicProfileEnabled" type="checkbox" value="true" checked={publicEnabled} onChange={(event) => { if (!event.target.checked && publicProfileApprovalState === "approved") { setConfirmOptOut(true); return; } setPublicEnabled(event.target.checked); }} className="h-4 w-4" /></div><p className="mt-1 text-xs leading-5 text-slate-500">Requiere revisión antes de estar disponible.</p><div className="mt-2"><PublicProfileStatusBadge state={publicProfileApprovalState} /></div></div>
+          <div className="rounded-xl border border-slate-200 px-4 py-3">
+            <p className="text-sm font-semibold text-slate-900">Perfil profesional público</p>
+            <label htmlFor="publicProfileEnabled" className="mt-2 flex min-w-0 items-center gap-3">
+              <input
+                id="publicProfileEnabled"
+                name="publicProfileEnabled"
+                type="checkbox"
+                role="switch"
+                value="true"
+                checked={publicEnabled}
+                aria-checked={publicEnabled}
+                aria-label="Habilitar perfil profesional para áreas públicas"
+                aria-describedby="publicProfileEnabledHelp"
+                onChange={(event) => {
+                  if (!event.target.checked && publicProfileApprovalState === "approved") {
+                    setConfirmOptOut(true);
+                    return;
+                  }
+                  setPublicEnabled(event.target.checked);
+                }}
+                className="peer sr-only"
+              />
+              <span
+                aria-hidden="true"
+                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out peer-focus-visible:ring-2 peer-focus-visible:ring-[#11518b] peer-focus-visible:ring-offset-2 ${
+                  publicEnabled ? "bg-[#11518b]" : "bg-[#d9d9d9]"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    publicEnabled ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </span>
+              <span className="min-w-0 text-sm font-medium text-slate-800">Habilitar para áreas públicas</span>
+            </label>
+            <p id="publicProfileEnabledHelp" className="mt-1 text-xs leading-5 text-slate-500">Requiere revisión antes de estar disponible.</p>
+            <div className="mt-2"><PublicProfileStatusBadge state={publicProfileApprovalState} /></div>
+          </div>
           <AdminActionDialog open={confirmOptOut} onClose={() => setConfirmOptOut(false)} danger title="Deshabilitar perfil profesional" description="El perfil dejará de estar disponible para futuras áreas públicas hasta que lo habilites nuevamente."><div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" className="btn-secondary" onClick={() => setConfirmOptOut(false)}>Cancelar</button><button type="button" className="admin-danger-button" onClick={() => { setPublicEnabled(false); setConfirmOptOut(false); }}>Deshabilitar perfil</button></div></AdminActionDialog>
           <div className="profile-account-context"><span><Building2 aria-hidden="true" size={16}/>Organización</span><strong>Erickson Real Estate · Borikí</strong></div>
           <FieldError state={profileState} field="professionalRoles" /><FieldError state={profileState} field="professionalLicenseNumber" /><FieldError state={profileState} field="professionalEmail" /><FieldError state={profileState} field="professionalPhone" /><FieldError state={profileState} field="professionalBio" /><FieldError state={profileState} field="profileImageUrl" />

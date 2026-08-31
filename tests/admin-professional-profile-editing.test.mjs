@@ -21,6 +21,19 @@ test("self professional editing is separated from sensitive account email", asyn
   assert.doesNotMatch(account.match(/export async function updateOwnProfessionalProfile[\s\S]*?(?=export async function updateOwnAdminEmail)/)?.[0] ?? "", /currentPassword/);
 });
 
+test("self public-profile consent uses the Admin switch language without changing its form contract", async () => {
+  const form = await read("app/admin/profile/ProfileForms.tsx");
+  assert.match(form, /name="publicProfileEnabled"/);
+  assert.match(form, /type="checkbox"/);
+  assert.match(form, /role="switch"/);
+  assert.match(form, /checked=\{publicEnabled\}/);
+  assert.match(form, /aria-checked=\{publicEnabled\}/);
+  assert.match(form, /aria-label="Habilitar perfil profesional para áreas públicas"/);
+  assert.match(form, /peer-focus-visible:ring-2/);
+  assert.match(form, /Perfil profesional público/);
+  assert.match(form, /Habilitar para áreas públicas/);
+});
+
 test("Team professional editor is dedicated, narrow, and lifecycle aware", async () => {
   const [page, form, actions, service] = await Promise.all([
     read("app/admin/equipo/[userId]/perfil-profesional/page.tsx"), read("app/admin/equipo/TeamProfessionalProfileForm.tsx"),
