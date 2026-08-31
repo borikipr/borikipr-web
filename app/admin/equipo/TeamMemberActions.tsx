@@ -4,7 +4,8 @@ import { useActionState, useState } from "react";
 import { Mail, Shield, UserCheck, UserX } from "lucide-react";
 import { AdminActionDialog } from "@/components/admin/AdminActionsMenu";
 import type { AccountState, SystemRole } from "@/lib/admin/access-types";
-import { changeMemberRoleAction, disableMemberAction, initialTeamActionState, reactivateMemberAction, resendInvitationAction } from "./actions";
+import { changeMemberRoleAction, disableMemberAction, reactivateMemberAction, resendInvitationAction } from "./actions";
+import { initialTeamActionState } from "./action-state";
 
 function Feedback({ state }: { state: { error: string; success: string } }) {
   if (state.error) return <p role="alert" className="mt-3 text-sm text-red-700">{state.error}</p>;

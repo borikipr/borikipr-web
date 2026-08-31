@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { initialTeamActionState, setAssignedSigningBrokerAction } from "./actions";
+import { setAssignedSigningBrokerAction } from "./actions";
+import { initialTeamActionState } from "./action-state";
 
 type BrokerOption = Readonly<{ id: string; displayName: string; licenseNumber: string }>;
 

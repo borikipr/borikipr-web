@@ -7,7 +7,8 @@ import { ProfilePhotoControl, RolePicker } from "@/app/admin/profile/ProfileForm
 import PublicProfileStatusBadge from "@/components/admin/PublicProfileStatusBadge";
 import { professionalRoleTitle, rolesRequireLicense, type ProfessionalRoleId, type PublicProfileApprovalState } from "@/lib/admin/professional-profile";
 import type { AccountState } from "@/lib/admin/access-types";
-import { initialTeamActionState, type TeamActionState, updateTeamProfessionalProfileAction } from "./actions";
+import { updateTeamProfessionalProfileAction } from "./actions";
+import { initialTeamActionState, type TeamActionState } from "./action-state";
 
 type Props = {
   target: {

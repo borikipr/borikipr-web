@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { setSigningBrokerAuthorizationAction, initialTeamActionState } from "./actions";
+import { setSigningBrokerAuthorizationAction } from "./actions";
+import { initialTeamActionState } from "./action-state";
 
 export default function SigningBrokerAuthorization({ targetId, authorized, eligible }: { targetId: string; authorized: boolean; eligible: boolean }) {
   const [state, action, pending] = useActionState(setSigningBrokerAuthorizationAction, initialTeamActionState);

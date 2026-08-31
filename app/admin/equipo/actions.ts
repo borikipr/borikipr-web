@@ -18,9 +18,7 @@ import {
   withdrawPublicProfessionalProfileApproval,
 } from "@/lib/admin/team-access";
 import { PUBLIC_PROPERTIES_CACHE_TAG } from "@/lib/queries/propiedades";
-
-export type TeamActionState = Readonly<{ error: string; success: string; field?: string }>;
-export const initialTeamActionState: TeamActionState = { error: "", success: "" };
+import type { TeamActionState } from "./action-state";
 
 function messageFor(error: unknown) {
   const code = error instanceof Error ? error.message : "";

@@ -5,7 +5,8 @@ import { useActionState, useMemo, useState } from "react";
 import { Building2, ShieldCheck, UserRound } from "lucide-react";
 import { RolePicker } from "@/app/admin/profile/ProfileForms";
 import { rolesRequireLicense, type ProfessionalRoleId } from "@/lib/admin/professional-profile";
-import { createMemberAction, initialTeamActionState, updateMemberProfileAction } from "./actions";
+import { createMemberAction, updateMemberProfileAction } from "./actions";
+import { initialTeamActionState } from "./action-state";
 
 type MemberFormProps = {
   mode: "create" | "edit";

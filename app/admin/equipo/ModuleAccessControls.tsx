@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import type { AccessLevel, ModuleKey } from "@/lib/admin/access-types";
-import { initialTeamActionState, setMemberModuleAccessAction } from "./actions";
+import { setMemberModuleAccessAction } from "./actions";
+import { initialTeamActionState } from "./action-state";
 
 const MODULES: Array<{ key: ModuleKey; label: string }> = [
   { key: "properties", label: "Propiedades" }, { key: "leads", label: "Leads" }, { key: "signatures", label: "Firmas" }, { key: "testimonials", label: "Testimonios" }, { key: "analytics", label: "Analytics" },

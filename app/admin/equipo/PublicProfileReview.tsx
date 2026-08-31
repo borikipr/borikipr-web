@@ -4,7 +4,8 @@ import { useActionState, useState } from "react";
 import { AdminActionDialog } from "@/components/admin/AdminActionsMenu";
 import PublicProfileStatusBadge from "@/components/admin/PublicProfileStatusBadge";
 import type { PublicProfileApprovalState } from "@/lib/admin/professional-profile";
-import { approvePublicProfessionalProfileAction, initialTeamActionState, withdrawPublicProfessionalProfileApprovalAction } from "./actions";
+import { approvePublicProfessionalProfileAction, withdrawPublicProfessionalProfileApprovalAction } from "./actions";
+import { initialTeamActionState } from "./action-state";
 
 export default function PublicProfileReview({ targetId, displayName, status, isSelf }: { targetId: string; displayName: string; status: PublicProfileApprovalState; isSelf: boolean }) {
   const [approveOpen, setApproveOpen] = useState(false); const [withdrawOpen, setWithdrawOpen] = useState(false);
