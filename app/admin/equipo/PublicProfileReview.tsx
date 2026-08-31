@@ -1,25 +1,26 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useCallback, useState } from "react";
 import { AdminActionDialog } from "@/components/admin/AdminActionsMenu";
 import PublicProfileStatusBadge from "@/components/admin/PublicProfileStatusBadge";
 import type { PublicProfileApprovalState } from "@/lib/admin/professional-profile";
 import { approvePublicProfessionalProfileAction, withdrawPublicProfessionalProfileApprovalAction } from "./actions";
-import { initialTeamActionState } from "./action-state";
+import { initialTeamActionState, type TeamActionState } from "./action-state";
 
 export default function PublicProfileReview({ targetId, displayName, status, isSelf }: { targetId: string; displayName: string; status: PublicProfileApprovalState; isSelf: boolean }) {
   const [approveOpen, setApproveOpen] = useState(false); const [withdrawOpen, setWithdrawOpen] = useState(false);
-  const [approveState, approveAction, approving] = useActionState(approvePublicProfessionalProfileAction, initialTeamActionState);
-  const [withdrawState, withdrawAction, withdrawing] = useActionState(withdrawPublicProfessionalProfileApprovalAction, initialTeamActionState);
-
-  useEffect(() => {
-    if (approveState.success) setApproveOpen(false);
-  }, [approveState.success]);
-
-  useEffect(() => {
-    if (withdrawState.success) setWithdrawOpen(false);
-  }, [withdrawState.success]);
-
+  const approveAndCloseOnSuccess = useCallback(async (previousState: TeamActionState, formData: FormData) => {
+    const nextState = await approvePublicProfessionalProfileAction(previousState, formData);
+    if (nextState.success) setApproveOpen(false);
+    return nextState;
+  }, []);
+  const withdrawAndCloseOnSuccess = useCallback(async (previousState: TeamActionState, formData: FormData) => {
+    const nextState = await withdrawPublicProfessionalProfileApprovalAction(previousState, formData);
+    if (nextState.success) setWithdrawOpen(false);
+    return nextState;
+  }, []);
+  const [approveState, approveAction, approving] = useActionState(approveAndCloseOnSuccess, initialTeamActionState);
+  const [withdrawState, withdrawAction, withdrawing] = useActionState(withdrawAndCloseOnSuccess, initialTeamActionState);
   const feedback = approveState.success || withdrawState.success;
   const canApprove = !isSelf && status === "pending_review";
   const canWithdraw = !isSelf && status === "approved";

@@ -29,11 +29,11 @@ test("Team Server Action module exports only async functions", async () => {
 test("approval dialogs close only after authoritative successful action state", async () => {
   const review = await read("app/admin/equipo/PublicProfileReview.tsx");
 
-  assert.match(review, /useActionState\(approvePublicProfessionalProfileAction, initialTeamActionState\)/);
-  assert.match(review, /useActionState\(withdrawPublicProfessionalProfileApprovalAction, initialTeamActionState\)/);
+  assert.match(review, /useActionState\(approveAndCloseOnSuccess, initialTeamActionState\)/);
+  assert.match(review, /useActionState\(withdrawAndCloseOnSuccess, initialTeamActionState\)/);
   assert.match(review, /canApprove \? setApproveOpen\(true\) : setWithdrawOpen\(true\)/);
-  assert.match(review, /useEffect\(\(\) => \{\s*if \(approveState\.success\) setApproveOpen\(false\);\s*\}, \[approveState\.success\]\)/);
-  assert.match(review, /useEffect\(\(\) => \{\s*if \(withdrawState\.success\) setWithdrawOpen\(false\);\s*\}, \[withdrawState\.success\]\)/);
+  assert.match(review, /const nextState = await approvePublicProfessionalProfileAction\(previousState, formData\);\s*if \(nextState\.success\) setApproveOpen\(false\);\s*return nextState/);
+  assert.match(review, /const nextState = await withdrawPublicProfessionalProfileApprovalAction\(previousState, formData\);\s*if \(nextState\.success\) setWithdrawOpen\(false\);\s*return nextState/);
   assert.doesNotMatch(review, /if \(approving\) setApproveOpen\(false\)/);
   assert.doesNotMatch(review, /if \(withdrawing\) setWithdrawOpen\(false\)/);
   assert.doesNotMatch(review, /if \(approveState\.error\) setApproveOpen\(false\)/);
