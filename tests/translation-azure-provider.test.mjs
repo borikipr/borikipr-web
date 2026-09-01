@@ -114,6 +114,60 @@ test("Azure adapter deterministically preserves approved Borikí terminology", a
   assert.doesNotMatch(result.translatedText, /acre|split-level/iu);
 });
 
+test("Azure adapter protects property-under-contract wording in isolation and context", async () => {
+  const provider = new AzureTranslationProvider({
+    async translate(input) {
+      return {
+        translatedText: input.text,
+        requestId: "under-contract-terminology-request",
+        serviceVersion: "test",
+      };
+    },
+  });
+
+  const standalone = await provider.translate({
+    ...request,
+    sourceText: "Propiedad bajo contrato",
+  });
+  assert.equal(standalone.translatedText, "Property under contract");
+
+  const embedded = await provider.translate({
+    ...request,
+    sourceText:
+      "Prueba interna Azure. Propiedad bajo contrato con marquesina y terreno de 2 cuerdas.",
+  });
+  assert.equal(
+    embedded.translatedText,
+    "Prueba interna Azure. Property under contract con carport y terreno de 2 cuerdas."
+  );
+  assert.doesNotMatch(embedded.translatedText, /contract property|acre/iu);
+});
+
+test("Azure adapter protects generic bajo contrato wording and numeric cuerda measurements", async () => {
+  let providerText;
+  const provider = new AzureTranslationProvider({
+    async translate(input) {
+      providerText = input.text;
+      return {
+        translatedText: input.text,
+        requestId: "generic-terminology-request",
+        serviceVersion: "test",
+      };
+    },
+  });
+
+  const result = await provider.translate({
+    ...request,
+    sourceText: "Bajo contrato: finca de 2 cuerdas y lote de 1 cuerda.",
+  });
+  assert.doesNotMatch(providerText, /bajo contrato|\b2 cuerdas\b|\b1 cuerda\b/iu);
+  assert.equal(
+    result.translatedText,
+    "Under contract: finca de 2 cuerdas y lote de 1 cuerda."
+  );
+  assert.doesNotMatch(result.translatedText, /acre/iu);
+});
+
 test("Azure terminology protection fails closed when the provider changes a token", async () => {
   const provider = new AzureTranslationProvider({
     async translate() {
