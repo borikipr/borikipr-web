@@ -5,6 +5,7 @@ import {
   type TranslationProviderRequest,
   type TranslationProviderResult,
 } from "@/lib/i18n/translations/provider";
+import { protectBorikiTerminology } from "@/lib/i18n/translations/boriki-terminology";
 
 export type AzureTranslationTransportRequest = {
   sourceLanguageCode: "es";
@@ -69,15 +70,16 @@ export class AzureTranslationProvider implements TranslationProvider {
     }
 
     try {
+      const terminology = protectBorikiTerminology(request.sourceText);
       const response = await this.transport.translate({
         sourceLanguageCode: "es",
         targetLanguageCode: "en",
-        text: request.sourceText,
+        text: terminology.providerText,
         correlationId: request.correlationId,
         signal: request.signal,
       });
       const result = validateProviderResult({
-        translatedText: response.translatedText,
+        translatedText: terminology.restore(response.translatedText),
         providerId: this.id,
         providerModel: this.model,
         providerVersion: response.serviceVersion || this.implementationVersion,
@@ -99,6 +101,16 @@ export class AzureTranslationProvider implements TranslationProvider {
       return result;
     } catch (error) {
       if (error instanceof TranslationProviderError) throw error;
+      if (
+        error instanceof Error &&
+        error.message === "boriki_terminology_token_missing"
+      ) {
+        throw new TranslationProviderError(
+          "permanent",
+          "azure_terminology_protection_failed",
+          "Azure Translator did not preserve protected Borikí terminology."
+        );
+      }
       if (error instanceof DOMException && error.name === "AbortError") {
         throw new TranslationProviderError(
           "cancelled",

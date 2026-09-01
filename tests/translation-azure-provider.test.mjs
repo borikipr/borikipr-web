@@ -81,6 +81,57 @@ test("Azure adapter maps Borikí locales and normalizes provider metadata", asyn
   assert.match(result.translatedText, /\n/);
 });
 
+test("Azure adapter deterministically preserves approved Borikí terminology", async () => {
+  const sourceText = [
+    "Responsable del listado",
+    "Casa expandible de dos niveles con marquesina.",
+    "Finca de 5 cuerdas opcionada.",
+  ].join("\n");
+  let providerText;
+  const provider = new AzureTranslationProvider({
+    async translate(input) {
+      providerText = input.text;
+      return {
+        translatedText: input.text,
+        requestId: "terminology-request",
+        serviceVersion: "test",
+      };
+    },
+  });
+  const result = await provider.translate({ ...request, sourceText });
+  assert.doesNotMatch(
+    providerText,
+    /Responsable|expandible|niveles|marquesina|cuerdas|opcionada/iu
+  );
+  assert.equal(
+    result.translatedText,
+    [
+      "Listing representative",
+      "Expandable home de two levels con carport.",
+      "Finca de 5 cuerdas under option.",
+    ].join("\n")
+  );
+  assert.doesNotMatch(result.translatedText, /acre|split-level/iu);
+});
+
+test("Azure terminology protection fails closed when the provider changes a token", async () => {
+  const provider = new AzureTranslationProvider({
+    async translate() {
+      return {
+        translatedText: "Listing owner",
+        requestId: null,
+        serviceVersion: "test",
+      };
+    },
+  });
+  await assert.rejects(
+    provider.translate({ ...request, sourceText: "Responsable del listado" }),
+    (error) =>
+      error instanceof TranslationProviderError &&
+      error.safeCode === "azure_terminology_protection_failed"
+  );
+});
+
 test("Azure REST transport preserves formatting and sends server-only headers", async () => {
   let received;
   const transport = createAzureTranslationTransport({
