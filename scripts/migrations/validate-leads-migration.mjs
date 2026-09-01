@@ -2542,3 +2542,62 @@ try {
   await assert.rejects(unusedProfessionalPhoneConstraintDb.exec(`UPDATE public.admin_users SET professional_phone_e164='+17875551234'`));
   console.log("Validated unused 0052 rollback restores the exact 0051 phone constraint.");
 } finally { await unusedProfessionalPhoneConstraintDb.close(); }
+
+const azureTranslationProviderMigrationSql = await readMigration("0053_allow_azure_translation_provider.sql");
+const azureTranslationProviderRollbackSql = await readMigration("0053_allow_azure_translation_provider.rollback.sql");
+const azureTranslationProviderDb = new PGlite();
+try {
+  await azureTranslationProviderDb.exec(`
+    CREATE TABLE public.translation_provider_usage_buckets (
+      provider text NOT NULL,
+      period_kind text NOT NULL,
+      period_start date NOT NULL,
+      attempted_characters bigint NOT NULL DEFAULT 0,
+      provider_attempts integer NOT NULL DEFAULT 0,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (provider, period_kind, period_start),
+      CONSTRAINT translation_provider_usage_provider_check CHECK (
+        provider = 'google-cloud-translation'
+      )
+    );
+  `);
+  await azureTranslationProviderDb.exec(azureTranslationProviderMigrationSql);
+  await azureTranslationProviderDb.exec(`
+    INSERT INTO public.translation_provider_usage_buckets
+      (provider, period_kind, period_start, attempted_characters, provider_attempts)
+    VALUES ('azure-translator', 'day', DATE '2032-04-15', 10, 1)
+  `);
+  await assert.rejects(
+    azureTranslationProviderDb.exec(azureTranslationProviderRollbackSql),
+    /0053 rollback blocked/
+  );
+  console.log("Validated Azure translation provider allowlist migration 0053 and guarded rollback.");
+} finally { await azureTranslationProviderDb.close(); }
+
+const unusedAzureTranslationProviderDb = new PGlite();
+try {
+  await unusedAzureTranslationProviderDb.exec(`
+    CREATE TABLE public.translation_provider_usage_buckets (
+      provider text NOT NULL,
+      period_kind text NOT NULL,
+      period_start date NOT NULL,
+      attempted_characters bigint NOT NULL DEFAULT 0,
+      provider_attempts integer NOT NULL DEFAULT 0,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (provider, period_kind, period_start),
+      CONSTRAINT translation_provider_usage_provider_check CHECK (
+        provider = 'google-cloud-translation'
+      )
+    );
+  `);
+  await unusedAzureTranslationProviderDb.exec(azureTranslationProviderMigrationSql);
+  await unusedAzureTranslationProviderDb.exec(azureTranslationProviderRollbackSql);
+  await assert.rejects(
+    unusedAzureTranslationProviderDb.exec(`
+      INSERT INTO public.translation_provider_usage_buckets
+        (provider, period_kind, period_start)
+      VALUES ('azure-translator', 'day', DATE '2032-04-15')
+    `)
+  );
+  console.log("Validated unused 0053 rollback restores the exact Google-only provider allowlist.");
+} finally { await unusedAzureTranslationProviderDb.close(); }

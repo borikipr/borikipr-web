@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   classifyTranslationProviderError,
+  TranslationProviderError,
   validateProviderResult,
   type TranslationProvider,
 } from "@/lib/i18n/translations/provider";
@@ -120,6 +121,14 @@ export async function processTranslationJobs(input: {
   if (!input.config.enabled) {
     throw new Error("Translation worker is disabled.");
   }
+  if (!input.config.providerId) {
+    throw new TranslationProviderError(
+      "configuration",
+      "provider_not_configured",
+      "Translation provider is not configured."
+    );
+  }
+  const providerId = input.config.providerId;
   const startedAt = (input.now ?? (() => new Date()))();
   const repository = createTranslationWorkerRepository(input.database);
   const workerId = `${input.config.workerIdPrefix}-${randomUUID()}`;
@@ -195,7 +204,7 @@ export async function processTranslationJobs(input: {
 
     try {
       await reserveTranslationProviderUsage(input.database, {
-        provider: "google-cloud-translation",
+        provider: providerId,
         sourceText: context.sourceText,
         now: (input.now ?? (() => new Date()))(),
       });

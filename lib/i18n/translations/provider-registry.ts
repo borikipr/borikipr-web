@@ -1,5 +1,14 @@
-import type { TranslationProvider } from "@/lib/i18n/translations/provider";
-import { TranslationProviderError } from "@/lib/i18n/translations/provider";
+import {
+  isConfiguredTranslationProviderId,
+  TranslationProviderError,
+  type ConfiguredTranslationProviderId,
+  type TranslationProvider,
+} from "@/lib/i18n/translations/provider";
+import {
+  AzureTranslationProvider,
+  type AzureTranslationTransport,
+} from "@/lib/i18n/translations/azure-provider";
+import { createAzureTranslationTransport } from "@/lib/i18n/translations/azure-transport";
 import type { GoogleTranslationTransport } from "@/lib/i18n/translations/google-provider";
 import { GoogleCloudTranslationProvider } from "@/lib/i18n/translations/google-provider";
 import { createOfficialGoogleTranslationTransport } from "@/lib/i18n/translations/google-transport";
@@ -12,7 +21,7 @@ import { TRANSLATION_USAGE_LIMITS } from "@/lib/i18n/translations/usage-budget";
 
 export type TranslationWorkerConfig = {
   enabled: boolean;
-  providerId: "google-cloud-translation" | null;
+  providerId: ConfiguredTranslationProviderId | null;
   batchSize: number;
   concurrency: number;
   lockTimeoutMs: number;
@@ -24,6 +33,9 @@ export type TranslationWorkerConfig = {
   googleLocation: string;
   googleGlossaryId: string | null;
   googleAuthentication: GoogleAuthenticationConfig;
+  azureEndpoint: string | null;
+  azureRegion: string | null;
+  azureKey: string | null;
   vercelEnvironment: string | null;
 };
 
@@ -92,7 +104,7 @@ export function readTranslationWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): TranslationWorkerConfig {
   const provider = env.TRANSLATION_PROVIDER?.trim() || null;
-  if (provider !== null && provider !== "google-cloud-translation") {
+  if (provider !== null && !isConfiguredTranslationProviderId(provider)) {
     throw new TranslationProviderError(
       "configuration",
       "provider_selection_invalid",
@@ -144,6 +156,9 @@ export function readTranslationWorkerConfig(
       env.GOOGLE_CLOUD_TRANSLATION_LOCATION?.trim() || "global",
     googleGlossaryId: env.GOOGLE_CLOUD_TRANSLATION_GLOSSARY_ID?.trim() || null,
     googleAuthentication: readGoogleAuthenticationConfig(env),
+    azureEndpoint: env.AZURE_TRANSLATOR_ENDPOINT?.trim() || null,
+    azureRegion: env.AZURE_TRANSLATOR_REGION?.trim() || null,
+    azureKey: env.AZURE_TRANSLATOR_KEY?.trim() || null,
     vercelEnvironment: env.VERCEL_ENV?.trim() || null,
   };
 }
@@ -153,6 +168,7 @@ export function resolveTranslationProvider(input: {
   env?: NodeJS.ProcessEnv;
   injectedProvider?: TranslationProvider;
   googleTransport?: GoogleTranslationTransport;
+  azureTransport?: AzureTranslationTransport;
 }) {
   if (!input.config.enabled) {
     throw new TranslationProviderError(
@@ -162,6 +178,16 @@ export function resolveTranslationProvider(input: {
     );
   }
   if (input.injectedProvider) return input.injectedProvider;
+  if (input.config.providerId === "azure-translator") {
+    if (!input.azureTransport) {
+      throw new TranslationProviderError(
+        "configuration",
+        "azure_transport_disabled",
+        "Azure Translator transport is not installed or injected."
+      );
+    }
+    return new AzureTranslationProvider(input.azureTransport);
+  }
   if (input.config.providerId !== "google-cloud-translation") {
     throw new TranslationProviderError(
       "configuration",
@@ -187,6 +213,7 @@ export function resolveConfiguredTranslationProvider(input: {
   config: TranslationWorkerConfig;
   injectedProvider?: TranslationProvider;
   googleTransport?: GoogleTranslationTransport;
+  azureTransport?: AzureTranslationTransport;
 }) {
   if (!input.config.enabled) {
     throw new TranslationProviderError(
@@ -196,6 +223,39 @@ export function resolveConfiguredTranslationProvider(input: {
     );
   }
   if (input.injectedProvider) return input.injectedProvider;
+  if (input.config.providerId === "azure-translator") {
+    if (
+      !input.config.azureEndpoint ||
+      !input.config.azureRegion ||
+      !input.config.azureKey
+    ) {
+      throw new TranslationProviderError(
+        "configuration",
+        "azure_configuration_missing",
+        "Azure Translator configuration is incomplete."
+      );
+    }
+    try {
+      const transport =
+        input.azureTransport ??
+        createAzureTranslationTransport({
+          endpoint: input.config.azureEndpoint,
+          region: input.config.azureRegion,
+          key: input.config.azureKey,
+          requestTimeoutMs: input.config.requestTimeoutMs,
+        });
+      return new AzureTranslationProvider(transport);
+    } catch (error) {
+      if (error instanceof TranslationProviderError) throw error;
+      throw new TranslationProviderError(
+        "configuration",
+        "azure_configuration_invalid",
+        error instanceof Error
+          ? error.message
+          : "Azure Translator configuration is invalid."
+      );
+    }
+  }
   if (input.config.providerId !== "google-cloud-translation") {
     throw new TranslationProviderError(
       "configuration",

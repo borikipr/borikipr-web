@@ -7,6 +7,7 @@ import {
   resolveConfiguredTranslationProvider,
 } from "@/lib/i18n/translations/provider-registry";
 import type { GoogleTranslationTransport } from "@/lib/i18n/translations/google-provider";
+import type { AzureTranslationTransport } from "@/lib/i18n/translations/azure-provider";
 import type { TranslationDatabase } from "@/lib/i18n/translations/repository";
 import { createTranslationWorkerRepository } from "@/lib/i18n/translations/worker-repository";
 import { processTranslationJobs } from "@/lib/i18n/translations/worker";
@@ -29,6 +30,7 @@ export async function runConfiguredTranslationWorker(input: {
   env?: NodeJS.ProcessEnv;
   injectedProvider?: TranslationProvider;
   googleTransport?: GoogleTranslationTransport;
+  azureTransport?: AzureTranslationTransport;
   now?: () => Date;
   logger?: Parameters<typeof processTranslationJobs>[0]["logger"];
   onTranslationPublished?: Parameters<
@@ -44,6 +46,7 @@ export async function runConfiguredTranslationWorker(input: {
       config,
       injectedProvider: input.injectedProvider,
       googleTransport: input.googleTransport,
+      azureTransport: input.azureTransport,
     });
     const summary = await processTranslationJobs({
       database: input.database,

@@ -7,7 +7,8 @@ explicit provider is selected.
 ## Configuration
 
 - `TRANSLATION_WORKER_ENABLED`: must be exactly `true` to process jobs.
-- `TRANSLATION_PROVIDER`: currently reserves `google-cloud-translation`.
+- `TRANSLATION_PROVIDER`: explicit allowlist of `google-cloud-translation` or
+  `azure-translator`. There is no automatic provider fallback.
 - `GOOGLE_CLOUD_PROJECT_ID`: Google Cloud project for Translation Advanced.
 - `GOOGLE_CLOUD_AUTH_MODE`: `vercel-wif` for Vercel; `adc` is permitted only
   for explicit non-Vercel local development.
@@ -21,6 +22,9 @@ explicit provider is selected.
 - `GOOGLE_CLOUD_TRANSLATION_LOCATION`: defaults to `global`.
 - `GOOGLE_CLOUD_TRANSLATION_GLOSSARY_ID`: optional resource ID, disabled by
   default. Configure a real glossary separately after review.
+- `AZURE_TRANSLATOR_ENDPOINT`: dedicated Translator HTTPS endpoint.
+- `AZURE_TRANSLATOR_REGION`: resource region identifier such as `eastus`.
+- `AZURE_TRANSLATOR_KEY`: dedicated Translator resource key, server-only.
 - `TRANSLATION_WORKER_BATCH_SIZE`: fixed at `1` in production.
 - `TRANSLATION_WORKER_CONCURRENCY`: fixed at `1` in production.
 - `TRANSLATION_WORKER_LOCK_TIMEOUT_MS`: 1–60 minutes, default 10 minutes.
@@ -43,6 +47,13 @@ to `roles/iam.workloadIdentityUser` on the dedicated service account.
 Service-account impersonation requires the Service Account Credentials API;
 enable it only in the separately approved infrastructure step. Never record an
 OIDC token, service-account key, database URL, or unverified subject here.
+
+Azure uses the dedicated Translator resource key only when
+`TRANSLATION_PROVIDER=azure-translator`. The key never enters a public variable
+or client bundle. Rotate it with the resource's secondary key. Google WIF stays
+available only as an explicitly selected manual rollback during the initial
+Azure stabilization window; provider errors and quota exhaustion never trigger
+automatic fallback.
 
 Cloud Translation Advanced supports glossaries. The recommended production
 glossary should preserve `Borikí`, `BorikiPR`, `Erickson Real Estate`, and
@@ -108,9 +119,11 @@ select the fake provider.
 
 ## Hard usage budget
 
-Migration 0021 adds aggregate-only UTC day and UTC month usage buckets. Before
-each Google provider request, the worker atomically reserves the source's
-Unicode character count and one provider attempt in both buckets. The ledger
+Migration 0021 adds aggregate-only UTC day and UTC month usage buckets, and
+migration 0053 permits the explicit Azure provider identifier. Before each
+provider request, the worker atomically reserves the source's Unicode character
+count and one provider attempt in both buckets. Limits are summed across all
+provider rows, so switching providers cannot reset the safety caps. The ledger
 stores no source or translated text, entity or job identifier, credential, or
 customer data. Concurrent workers update the same rows transactionally, so
 they cannot oversubscribe a limit. Retries reserve usage again.

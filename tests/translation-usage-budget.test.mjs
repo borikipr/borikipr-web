@@ -18,6 +18,7 @@ const migrations = await Promise.all(
     "0019_create_translation_persistence.sql",
     "0020_add_translation_regeneration_authorization.sql",
     "0021_add_translation_usage_budget.sql",
+    "0053_allow_azure_translation_provider.sql",
   ].map((name) =>
     readFile(fileURLToPath(new URL(`../db/migrations/${name}`, import.meta.url)), "utf8")
   )
@@ -114,6 +115,53 @@ test("atomic reservation records aggregate counts without content or identifiers
   }
 });
 
+test("Azure uses the same ledger and provider switches do not reset global caps", async () => {
+  await db.query(`
+    INSERT INTO translation_provider_usage_buckets
+      (provider, period_kind, period_start, attempted_characters, provider_attempts)
+    VALUES
+      ('google-cloud-translation', 'day', DATE '2032-04-15', 9995, 1),
+      ('google-cloud-translation', 'month', DATE '2032-04-01', 9995, 1)
+  `);
+  await assert.rejects(
+    reserveTranslationProviderUsage(database, {
+      provider: "azure-translator",
+      sourceText: "123456",
+      now: NOW,
+    }),
+    (error) =>
+      error instanceof TranslationUsageBudgetError &&
+      error.reason === "daily_characters"
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int count FROM translation_provider_usage_buckets WHERE provider='azure-translator'"
+      )
+    ).rows[0].count,
+    0
+  );
+
+  await db.exec("DELETE FROM translation_provider_usage_buckets");
+  await reserveTranslationProviderUsage(database, {
+    provider: "azure-translator",
+    sourceText: "Texto",
+    now: NOW,
+  });
+  const rows = (
+    await db.query(`
+      SELECT provider, period_kind, attempted_characters, provider_attempts
+        FROM translation_provider_usage_buckets ORDER BY period_kind
+    `)
+  ).rows;
+  assert.ok(rows.every((row) => row.provider === "azure-translator"));
+  const status = await getTranslationUsageStatus(database, NOW);
+  assert.equal(status.charactersToday, 5);
+  assert.equal(status.charactersMonth, 5);
+  assert.equal(status.attemptsToday, 1);
+  assert.equal(status.attemptsMonth, 1);
+});
+
 for (const scenario of [
   { name: "daily character cap", kind: "day", chars: 9_999, attempts: 1, text: "ab", reason: "daily_characters" },
   { name: "monthly character cap", kind: "month", chars: 249_999, attempts: 1, text: "ab", reason: "monthly_characters" },
@@ -195,6 +243,7 @@ test("usage-ledger failure fails closed and makes zero provider calls", async ()
   assert.equal(provider.requests.length, 0);
   assert.equal((await db.query("SELECT status FROM translation_jobs")).rows[0].status, "queued");
   await db.exec(migrations[2]);
+  await db.exec(migrations[3]);
 });
 
 test("a retry reserves usage again and the two-attempt ceiling remains terminal", async () => {

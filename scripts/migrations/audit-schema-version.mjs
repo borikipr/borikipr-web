@@ -357,6 +357,12 @@ if (!process.env.DATABASE_URL) {
                AND conname='admin_users_professional_phone_e164_check'
                AND pg_get_constraintdef(oid) LIKE '%^[+]%'
           ) AS v0052
+          ,EXISTS (
+            SELECT 1 FROM pg_constraint
+             WHERE conrelid='public.translation_provider_usage_buckets'::regclass
+               AND conname='translation_provider_usage_provider_check'
+               AND pg_get_constraintdef(oid) LIKE '%azure-translator%'
+          ) AS v0053
       )
       SELECT * FROM facts
     `;

@@ -277,7 +277,7 @@ test("worker rejects ordinary unprotected manual, accepts authorized manual, and
     processTranslationJobs({
       repository: createTranslationWorkerRepository(database),
       provider,
-      config: { enabled: true, providerId: "fake", batchSize: 1, concurrency: 1, lockTimeoutMs: 600000, requestTimeoutMs: 5000, workerIdPrefix: "admin-test" },
+      config: { enabled: true, providerId: "google-cloud-translation", batchSize: 1, concurrency: 1, lockTimeoutMs: 600000, requestTimeoutMs: 5000, workerIdPrefix: "admin-test" },
       now: () => new Date("2032-08-01T12:00:00Z"),
       random: () => 0.5,
     }),
@@ -287,7 +287,7 @@ test("worker rejects ordinary unprotected manual, accepts authorized manual, and
   const result = await processTranslationJobs({
     database,
     provider,
-    config: { enabled: true, providerId: "fake", batchSize: 1, concurrency: 1, lockTimeoutMs: 600000, requestTimeoutMs: 5000, workerIdPrefix: "admin-test" },
+    config: { enabled: true, providerId: "google-cloud-translation", batchSize: 1, concurrency: 1, lockTimeoutMs: 600000, requestTimeoutMs: 5000, workerIdPrefix: "admin-test" },
     now: () => new Date("2032-08-01T12:00:00Z"),
     random: () => 0.5,
   });
@@ -333,7 +333,7 @@ test("worker rejects ordinary unprotected manual, accepts authorized manual, and
   const obsolete = await processTranslationJobs({
     database,
     provider: delayedProvider,
-    config: { enabled: true, providerId: "fake", batchSize: 1, concurrency: 1, lockTimeoutMs: 600000, requestTimeoutMs: 5000, workerIdPrefix: "admin-test" },
+    config: { enabled: true, providerId: "google-cloud-translation", batchSize: 1, concurrency: 1, lockTimeoutMs: 600000, requestTimeoutMs: 5000, workerIdPrefix: "admin-test" },
     now: () => new Date("2032-08-01T12:01:00Z"),
     random: () => 0.5,
   });
@@ -395,11 +395,11 @@ test("Admin action boundary derives actor from the authenticated session and UI 
   assert.doesNotMatch(panel, /(?:analytics|track)\([^\n]*sourceHash/i);
 });
 
-test("property editing hides translation history without changing the shared history capability", async () => {
+test("property and testimonial editing hide translation history without changing the shared capability", async () => {
   const propertyEditPage = await readFile(fileURLToPath(new URL("../app/admin/propiedades/[id]/editar/page.tsx", import.meta.url)), "utf8");
   const testimonialEditPage = await readFile(fileURLToPath(new URL("../app/admin/testimonios/[id]/editar/page.tsx", import.meta.url)), "utf8");
   assert.match(propertyEditPage, /<TranslationAdminPanel fields=\{translationFields\} showHistory=\{false\} \/>/);
-  assert.match(testimonialEditPage, /<TranslationAdminPanel fields=\{translationFields\} \/>/);
+  assert.match(testimonialEditPage, /<TranslationAdminPanel fields=\{translationFields\} showHistory=\{false\} \/>/);
 });
 
 test("Admin usage panel exposes aggregate limits and sanitized budget states only", async () => {

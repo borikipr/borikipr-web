@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import "./translation-azure-provider.test.mjs";
 import "./translation-property-intent.test.mjs";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";

@@ -2,6 +2,7 @@ import type {
   TranslationDatabase,
   TranslationQueryExecutor,
 } from "@/lib/i18n/translations/repository";
+import type { ConfiguredTranslationProviderId } from "@/lib/i18n/translations/provider";
 
 export const TRANSLATION_USAGE_LIMITS = Object.freeze({
   dailyCharacters: 10_000,
@@ -59,7 +60,7 @@ function nextUtcMonth(now: Date) {
 async function reserveBucket(
   transaction: TranslationQueryExecutor,
   input: {
-    provider: "google-cloud-translation";
+    provider: ConfiguredTranslationProviderId;
     periodKind: "day" | "month";
     periodStart: string;
     characters: number;
@@ -69,7 +70,32 @@ async function reserveBucket(
     retryAt: Date;
   }
 ) {
-  const rows = await transaction.unsafe<UsageRow>(
+  const current = await transaction.unsafe<UsageRow>(
+    `SELECT
+       COALESCE(SUM(attempted_characters), 0) AS attempted_characters,
+       COALESCE(SUM(provider_attempts), 0) AS provider_attempts
+       FROM public.translation_provider_usage_buckets
+      WHERE period_kind = $1 AND period_start = $2::date`,
+    [input.periodKind, input.periodStart]
+  );
+  const characters = Number(current[0]?.attempted_characters ?? 0);
+  const attempts = Number(current[0]?.provider_attempts ?? 0);
+  const period = input.periodKind === "day" ? "daily" : "monthly";
+  const reason: TranslationBudgetReason | null =
+    characters + input.characters > input.characterCap
+      ? `${period}_characters`
+      : attempts + 1 > input.attemptCap
+        ? `${period}_attempts`
+        : null;
+  if (reason) {
+    throw new TranslationUsageBudgetError(
+      reason,
+      input.retryAt,
+      "Translation usage limit reached."
+    );
+  }
+
+  await transaction.unsafe<UsageRow>(
     `INSERT INTO public.translation_provider_usage_buckets (
        provider, period_kind, period_start,
        attempted_characters, provider_attempts, updated_at
@@ -80,9 +106,6 @@ async function reserveBucket(
          + EXCLUDED.attempted_characters,
        provider_attempts = translation_provider_usage_buckets.provider_attempts + 1,
        updated_at = EXCLUDED.updated_at
-     WHERE translation_provider_usage_buckets.attempted_characters
-             + EXCLUDED.attempted_characters <= $6
-       AND translation_provider_usage_buckets.provider_attempts + 1 <= $7
      RETURNING attempted_characters, provider_attempts`,
     [
       input.provider,
@@ -90,31 +113,7 @@ async function reserveBucket(
       input.periodStart,
       input.characters,
       input.now.toISOString(),
-      input.characterCap,
-      input.attemptCap,
     ]
-  );
-  if (rows[0]) return;
-
-  const current = await transaction.unsafe<UsageRow>(
-    `SELECT attempted_characters, provider_attempts
-       FROM public.translation_provider_usage_buckets
-      WHERE provider = $1 AND period_kind = $2 AND period_start = $3::date`,
-    [input.provider, input.periodKind, input.periodStart]
-  );
-  const characters = Number(current[0]?.attempted_characters ?? 0);
-  const attempts = Number(current[0]?.provider_attempts ?? 0);
-  const period = input.periodKind === "day" ? "daily" : "monthly";
-  const reason: TranslationBudgetReason =
-    characters + input.characters > input.characterCap
-      ? `${period}_characters`
-      : attempts + 1 > input.attemptCap
-        ? `${period}_attempts`
-        : "usage_unavailable";
-  throw new TranslationUsageBudgetError(
-    reason,
-    input.retryAt,
-    "Translation usage limit reached."
   );
 }
 
@@ -125,7 +124,7 @@ export function countUnicodeCharacters(value: string) {
 export async function reserveTranslationProviderUsage(
   database: TranslationDatabase,
   input: {
-    provider: "google-cloud-translation";
+    provider: ConfiguredTranslationProviderId;
     sourceText: string;
     now: Date;
   }
@@ -148,6 +147,9 @@ export async function reserveTranslationProviderUsage(
 
   try {
     await database.begin(async (transaction) => {
+      await transaction.unsafe(
+        "SELECT pg_advisory_xact_lock(2401001)"
+      );
       await reserveBucket(transaction, {
         provider: input.provider,
         periodKind: "day",
@@ -208,21 +210,21 @@ export async function getTranslationUsageStatus(
   }>(
     `SELECT
        COALESCE((SELECT attempted_characters
-         FROM public.translation_provider_usage_buckets
-        WHERE provider = 'google-cloud-translation' AND period_kind = 'day'
-          AND period_start = $1::date), 0) AS characters_today,
+         FROM (SELECT SUM(attempted_characters) AS attempted_characters
+                 FROM public.translation_provider_usage_buckets
+                WHERE period_kind = 'day' AND period_start = $1::date) usage_day), 0) AS characters_today,
        COALESCE((SELECT attempted_characters
-         FROM public.translation_provider_usage_buckets
-        WHERE provider = 'google-cloud-translation' AND period_kind = 'month'
-          AND period_start = $2::date), 0) AS characters_month,
+         FROM (SELECT SUM(attempted_characters) AS attempted_characters
+                 FROM public.translation_provider_usage_buckets
+                WHERE period_kind = 'month' AND period_start = $2::date) usage_month), 0) AS characters_month,
        COALESCE((SELECT provider_attempts
-         FROM public.translation_provider_usage_buckets
-        WHERE provider = 'google-cloud-translation' AND period_kind = 'day'
-          AND period_start = $1::date), 0) AS attempts_today,
+         FROM (SELECT SUM(provider_attempts) AS provider_attempts
+                 FROM public.translation_provider_usage_buckets
+                WHERE period_kind = 'day' AND period_start = $1::date) attempts_day), 0) AS attempts_today,
        COALESCE((SELECT provider_attempts
-         FROM public.translation_provider_usage_buckets
-        WHERE provider = 'google-cloud-translation' AND period_kind = 'month'
-          AND period_start = $2::date), 0) AS attempts_month,
+         FROM (SELECT SUM(provider_attempts) AS provider_attempts
+                 FROM public.translation_provider_usage_buckets
+                WHERE period_kind = 'month' AND period_start = $2::date) attempts_month), 0) AS attempts_month,
        COUNT(*) FILTER (WHERE status = 'queued') AS queued_jobs,
        COUNT(*) FILTER (WHERE status = 'processing') AS processing_jobs,
        COUNT(*) FILTER (WHERE status = 'failed') AS failed_jobs,

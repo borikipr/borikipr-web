@@ -372,6 +372,41 @@ test("worker publishes entity context after commit and cache failure cannot roll
   assert.doesNotMatch(JSON.stringify(logs), /Servicio excelente|cache unavailable/);
 });
 
+test("switching configured providers does not retranslate current ready content", async () => {
+  await seedTestimonial();
+  const googleFixture = new FakeTranslationProvider();
+  const first = await processTranslationJobs({
+    database,
+    provider: googleFixture,
+    config,
+    now: () => NOW,
+  });
+  assert.equal(first.succeeded, 1);
+  const before = (
+    await db.query(`
+      SELECT translated_value, provider, source_hash, translated_source_hash
+        FROM content_translations
+    `)
+  ).rows[0];
+  const azureFixture = new FakeTranslationProvider();
+  const second = await processTranslationJobs({
+    database,
+    provider: azureFixture,
+    config: { ...config, providerId: "azure-translator" },
+    now: () => new Date(NOW.getTime() + 1_000),
+  });
+  const after = (
+    await db.query(`
+      SELECT translated_value, provider, source_hash, translated_source_hash
+        FROM content_translations
+    `)
+  ).rows[0];
+  assert.equal(second.claimed, 0);
+  assert.equal(azureFixture.requests.length, 0);
+  assert.deepEqual(after, before);
+  assert.equal(after.source_hash, after.translated_source_hash);
+});
+
 test("obsolete work cancels and protected work remains unclaimed without reaching provider", async () => {
   await seedAll();
   await db.query("UPDATE propiedades SET titulo = 'Título nuevo' WHERE id = $1", [
