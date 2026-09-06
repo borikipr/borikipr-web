@@ -29,18 +29,11 @@ test("Azure registry is explicit, validated, and never falls back to Google", as
     AZURE_TRANSLATOR_KEY: "fixture-key",
   });
   assert.equal(config.providerId, "azure-translator");
-  let googleCalls = 0;
   const provider = resolveConfiguredTranslationProvider({
     config,
     azureTransport: {
       async translate() {
         throw new AzureTranslationHttpError(429, null);
-      },
-    },
-    googleTransport: {
-      async translate() {
-        googleCalls += 1;
-        throw new Error("must not run");
       },
     },
   });
@@ -50,7 +43,13 @@ test("Azure registry is explicit, validated, and never falls back to Google", as
       error instanceof TranslationProviderError &&
       error.safeCode === "azure_rate_limited"
   );
-  assert.equal(googleCalls, 0);
+  assert.throws(
+    () => readTranslationWorkerConfig({
+      TRANSLATION_WORKER_ENABLED: "true",
+      TRANSLATION_PROVIDER: "google-cloud-translation",
+    }),
+    (error) => error.safeCode === "provider_selection_invalid"
+  );
   assert.throws(
     () => readTranslationWorkerConfig({ TRANSLATION_PROVIDER: "arbitrary" }),
     (error) => error.safeCode === "provider_selection_invalid"

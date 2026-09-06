@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import test, { after, before, beforeEach } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import { FakeTranslationProvider } from "../lib/i18n/translations/fake-provider.ts";
-import { GoogleCloudTranslationProvider } from "../lib/i18n/translations/google-provider.ts";
 import {
   classifyTranslationProviderError,
   TranslationProviderError,
@@ -39,6 +38,10 @@ const usageBudgetMigrationSql = await readFile(
   fileURLToPath(new URL("../db/migrations/0021_add_translation_usage_budget.sql", import.meta.url)),
   "utf8"
 );
+const azureProviderMigrationSql = await readFile(
+  fileURLToPath(new URL("../db/migrations/0053_allow_azure_translation_provider.sql", import.meta.url)),
+  "utf8"
+);
 function adapter(db) {
   const executor = (source) => ({
     async unsafe(query, parameters = []) {
@@ -57,7 +60,7 @@ const repository = createTranslationWorkerRepository(database);
 const NOW = new Date("2030-07-29T12:00:00.000Z");
 const config = {
   enabled: true,
-  providerId: "google-cloud-translation",
+  providerId: "azure-translator",
   batchSize: 10,
   concurrency: 2,
   lockTimeoutMs: 600_000,
@@ -85,6 +88,7 @@ before(async () => {
   await db.exec(migrationSql);
   await db.exec(regenerationMigrationSql);
   await db.exec(usageBudgetMigrationSql);
+  await db.exec(azureProviderMigrationSql);
 });
 beforeEach(async () => {
   await db.exec(`
@@ -146,85 +150,18 @@ test("registry defaults disabled and has no silent provider fallback", () => {
   );
   const enabled = readTranslationWorkerConfig({
     TRANSLATION_WORKER_ENABLED: "true",
-    TRANSLATION_PROVIDER: "google-cloud-translation",
+    TRANSLATION_PROVIDER: "azure-translator",
   });
   assert.throws(
     () => resolveTranslationProvider({ config: enabled, env: {} }),
     (error) =>
       error instanceof TranslationProviderError &&
-      error.safeCode === "google_transport_disabled"
+      error.safeCode === "azure_transport_disabled"
   );
   assert.throws(
     () => readTranslationWorkerConfig({ TRANSLATION_PROVIDER: "fake" }),
     /invalid/
   );
-});
-
-test("Google boundary maps BorikiPR locales through an injected transport only", async () => {
-  let received;
-  const provider = new GoogleCloudTranslationProvider({
-    projectId: "synthetic-project",
-    location: "us-central1",
-    transport: {
-      async translate(input) {
-        received = input;
-        return {
-          translations: [{ translatedText: "Borikí home" }],
-          requestId: "synthetic-request",
-          serviceVersion: "v3-test",
-        };
-      },
-    },
-  });
-  const result = await provider.translate({
-    sourceLocale: "es-PR",
-    targetLocale: "en-US",
-    entityType: "property",
-    fieldKey: "title",
-    sourceText: "Casa Borikí",
-    correlationId: "fixture",
-  });
-  assert.deepEqual(
-    [received.sourceLanguageCode, received.targetLanguageCode, received.contents],
-    ["es", "en", ["Casa Borikí"]]
-  );
-  assert.equal(result.translatedText, "Borikí home");
-});
-
-test("Google boundary classifies transport failures without leaking payloads", async () => {
-  const request = {
-    sourceLocale: "es-PR",
-    targetLocale: "en-US",
-    entityType: "property",
-    fieldKey: "description",
-    sourceText: "Sensitive source that must not appear in errors",
-    correlationId: "fixture",
-  };
-  for (const [status, kind, code] of [
-    [429, "retryable", "google_rate_limited"],
-    [500, "retryable", "google_unavailable"],
-    [400, "permanent", "google_request_rejected"],
-    [401, "configuration", "google_authentication_failed"],
-  ]) {
-    const provider = new GoogleCloudTranslationProvider({
-      projectId: "synthetic-project",
-      location: "global",
-      transport: {
-        async translate() {
-          throw { status, payload: request.sourceText, credential: "secret" };
-        },
-      },
-    });
-    await assert.rejects(
-      provider.translate(request),
-      (error) =>
-        error instanceof TranslationProviderError &&
-        error.kind === kind &&
-        error.safeCode === code &&
-        !error.message.includes("Sensitive") &&
-        !error.message.includes("secret")
-    );
-  }
 });
 
 test("fake provider is deterministic and unknown errors are redacted", async () => {

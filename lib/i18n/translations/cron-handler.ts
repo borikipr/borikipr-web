@@ -1,4 +1,4 @@
-import type { GoogleTranslationTransport } from "@/lib/i18n/translations/google-provider";
+import type { AzureTranslationTransport } from "@/lib/i18n/translations/azure-provider";
 import type { TranslationDatabase } from "@/lib/i18n/translations/repository";
 import { runConfiguredTranslationWorker } from "@/lib/i18n/translations/worker-entry";
 
@@ -8,7 +8,7 @@ export async function handleTranslationWorkerCron(input: {
   request: Request;
   database: TranslationDatabase;
   env?: NodeJS.ProcessEnv;
-  googleTransport?: GoogleTranslationTransport;
+  azureTransport?: AzureTranslationTransport;
   onTranslationPublished?: Parameters<
     typeof runConfiguredTranslationWorker
   >[0]["onTranslationPublished"];
@@ -29,7 +29,7 @@ export async function handleTranslationWorkerCron(input: {
     const result = await runConfiguredTranslationWorker({
       database: input.database,
       env,
-      googleTransport: input.googleTransport,
+      azureTransport: input.azureTransport,
       onTranslationPublished: input.onTranslationPublished,
     });
     return Response.json(result, {

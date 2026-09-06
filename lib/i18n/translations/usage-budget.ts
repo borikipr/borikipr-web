@@ -2,7 +2,7 @@ import type {
   TranslationDatabase,
   TranslationQueryExecutor,
 } from "@/lib/i18n/translations/repository";
-import type { ConfiguredTranslationProviderId } from "@/lib/i18n/translations/provider";
+import type { TranslationUsageProviderId } from "@/lib/i18n/translations/provider";
 
 export const TRANSLATION_USAGE_LIMITS = Object.freeze({
   dailyCharacters: 10_000,
@@ -60,7 +60,7 @@ function nextUtcMonth(now: Date) {
 async function reserveBucket(
   transaction: TranslationQueryExecutor,
   input: {
-    provider: ConfiguredTranslationProviderId;
+    provider: TranslationUsageProviderId;
     periodKind: "day" | "month";
     periodStart: string;
     characters: number;
@@ -124,7 +124,7 @@ export function countUnicodeCharacters(value: string) {
 export async function reserveTranslationProviderUsage(
   database: TranslationDatabase,
   input: {
-    provider: ConfiguredTranslationProviderId;
+    provider: TranslationUsageProviderId;
     sourceText: string;
     now: Date;
   }

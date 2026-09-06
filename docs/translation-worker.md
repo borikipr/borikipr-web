@@ -7,21 +7,9 @@ explicit provider is selected.
 ## Configuration
 
 - `TRANSLATION_WORKER_ENABLED`: must be exactly `true` to process jobs.
-- `TRANSLATION_PROVIDER`: explicit allowlist of `google-cloud-translation` or
-  `azure-translator`. There is no automatic provider fallback.
-- `GOOGLE_CLOUD_PROJECT_ID`: Google Cloud project for Translation Advanced.
-- `GOOGLE_CLOUD_AUTH_MODE`: `vercel-wif` for Vercel; `adc` is permitted only
-  for explicit non-Vercel local development.
-- `GOOGLE_CLOUD_PROJECT_NUMBER`: numeric project number used in the WIF
-  provider audience.
-- `GOOGLE_CLOUD_SERVICE_ACCOUNT_EMAIL`: dedicated translation-worker identity.
-- `GOOGLE_CLOUD_WORKLOAD_IDENTITY_POOL_ID`: reviewed WIF pool identifier.
-- `GOOGLE_CLOUD_WORKLOAD_IDENTITY_PROVIDER_ID`: reviewed OIDC provider ID.
-- `GOOGLE_CLOUD_WORKLOAD_IDENTITY_AUDIENCE`: optional fully qualified provider
-  audience; when supplied, it must exactly match the configured provider.
-- `GOOGLE_CLOUD_TRANSLATION_LOCATION`: defaults to `global`.
-- `GOOGLE_CLOUD_TRANSLATION_GLOSSARY_ID`: optional resource ID, disabled by
-  default. Configure a real glossary separately after review.
+- `TRANSLATION_PROVIDER`: the explicit production allowlist contains only
+  `azure-translator`. Unknown and retired IDs fail closed. There is no
+  automatic provider fallback.
 - `AZURE_TRANSLATOR_ENDPOINT`: dedicated Translator HTTPS endpoint.
 - `AZURE_TRANSLATOR_REGION`: resource region identifier such as `eastus`.
 - `AZURE_TRANSLATOR_KEY`: dedicated Translator resource key, server-only.
@@ -31,35 +19,12 @@ explicit provider is selected.
 - `TRANSLATION_PROVIDER_TIMEOUT_MS`: 1–120 seconds, default 30 seconds.
 - `TRANSLATION_WORKER_ID`: non-secret worker-name prefix.
 
-The official `@google-cloud/translate` v3 client receives an official
-`google-auth-library` external-account client in Vercel. The client obtains a
-short-lived token through `@vercel/oidc`, exchanges it through Google's Security
-Token Service, and impersonates the dedicated translation-worker service
-account. No key file is created or stored. Local development may use explicit
-ADC with an untracked `GOOGLE_APPLICATION_CREDENTIALS` path; Vercel cannot fall
-back to ADC. Auth and Translation clients are constructed lazily on the first
-explicitly enabled provider call, never during imports, builds, public/Admin
-rendering, dry-runs, or disabled cron requests.
-
-The Google-side WIF provider must use the reviewed team issuer, audience, and
-exact production subject from Vercel. Infrastructure binds only that principal
-to `roles/iam.workloadIdentityUser` on the dedicated service account.
-Service-account impersonation requires the Service Account Credentials API;
-enable it only in the separately approved infrastructure step. Never record an
-OIDC token, service-account key, database URL, or unverified subject here.
-
 Azure uses the dedicated Translator resource key only when
 `TRANSLATION_PROVIDER=azure-translator`. The key never enters a public variable
-or client bundle. Rotate it with the resource's secondary key. Google WIF stays
-available only as an explicitly selected manual rollback during the initial
-Azure stabilization window; provider errors and quota exhaustion never trigger
-automatic fallback.
-
-Cloud Translation Advanced supports glossaries. The recommended production
-glossary should preserve `Borikí`, `BorikiPR`, `Erickson Real Estate`, and
-`Ivonne Erickson`. Until a reviewed glossary exists, a conservative validation
-rejects output that changes a protected name present in the source; it does not
-rewrite provider output.
+or client bundle. Rotate it with the resource's secondary key. Provider errors
+and quota exhaustion never trigger a fallback. Historical Google provider
+metadata and usage buckets remain valid evidence, but Google is not an
+operational provider.
 
 ## Commands
 
@@ -82,7 +47,7 @@ rewrite provider output.
   explicitly to `false`. The command
   can create at most one translation row, one queued job, and the existing
   `created` and `job_queued` revision events; it never invokes the worker,
-  resolves a provider, retrieves OIDC credentials, or sends text to Google.
+  resolves a provider or sends text to Azure.
 - `npm run translations:testimonial-retry -- --testimonial-id <uuid> --allow-production-read-only-dry-run`
   inspects one existing failed testimonial-body job inside a read-only
   transaction. It reports aggregate cardinality only and resolves no provider.
@@ -92,7 +57,7 @@ rewrite provider output.
   multilingual flags to be explicitly false, requeues only an existing
   terminal `provider_empty_result` job, and appends the approved `job_queued`
   audit event. It creates neither a translation row nor a replacement job and
-  never invokes Google. The original failure event remains unchanged.
+  never invokes Azure. The original failure event remains unchanged.
 
 General production worker `--run` and backfill `--apply` remain categorically
 prohibited, even when the read-only confirmation flag is present. The narrowly
@@ -142,27 +107,6 @@ The Admin dashboard exposes only aggregate usage and job counts. It warns at
 to production is a separate, restore-protected operator step and is required
 before the worker can be enabled; until then accounting fails closed.
 
-### Google quota and billing alert hardening
-
-After separately authorizing API activation, lower the Cloud Translation
-Advanced quotas before enabling the worker: general-model characters per
-project per day to 10,000; general-model characters per project per minute and
-per user per minute to 5,000; and v3 requests per project per minute to 1. The
-Google daily boundary resets at midnight Pacific time, while the application
-ledger uses UTC, so both controls remain independently conservative. Google
-does not expose a matching monthly character quota; the transactional 250,000
-UTC-month application ceiling remains authoritative. A quota rejection must
-not be treated as permission to bypass the application ledger.
-
-Create an alerts-only monthly budget in Google Cloud Billing by selecting
-**Budgets & alerts**, **Create budget**, limiting scope to the Boriki
-Translation project and Cloud Translation service, choosing a small specified
-amount, and retaining actual-spend thresholds at 50%, 90%, and 100%. Confirm
-the billing recipients and finish the budget. Alerts-only budgets notify; they
-do not stop requests or spending. Cloud Translation is not currently listed
-among the services eligible for Google's preview spend-cap budgets, so the
-application ledger and service quotas are the hard controls.
-
 ## Production migration readiness
 
 1. Create a current Neon backup or restore point.
@@ -182,20 +126,6 @@ property or testimonial content.
 Suggested initial alerts: any stale processing lock; failed-job growth across
 two audits; or an oldest eligible queued job older than 30 minutes. External
 alert delivery and an Admin dashboard remain intentionally deferred.
-
-## Production identity boundary and revocation
-
-The production boundary is a dedicated Google Cloud project named **Boriki
-Translation** and a dedicated `borikipr-translation-worker` service identity.
-Its application permission is only `roles/cloudtranslate.user`. Runtime project,
-service-account, pool, and provider identifiers remain server-only environment
-configuration rather than source constants.
-
-To revoke access without changing Spanish content: disable the worker, remove
-the exact Vercel principal's `roles/iam.workloadIdentityUser` binding, disable
-the WIF provider or pool, remove the dormant Vercel WIF variables, and disable
-the Translation API if it is no longer needed. Identity revocation never
-requires a database rollback or deletion of translation history.
 
 ## Retry and locking
 

@@ -11,12 +11,15 @@ export type TranslationProviderErrorKind =
   | "cancelled";
 
 export const CONFIGURED_TRANSLATION_PROVIDER_IDS = [
-  "google-cloud-translation",
   "azure-translator",
 ] as const;
 
 export type ConfiguredTranslationProviderId =
   (typeof CONFIGURED_TRANSLATION_PROVIDER_IDS)[number];
+
+export type TranslationUsageProviderId =
+  | "google-cloud-translation"
+  | ConfiguredTranslationProviderId;
 
 export function isConfiguredTranslationProviderId(
   value: string

@@ -18,6 +18,7 @@ import { FakeTranslationProvider } from "../lib/i18n/translations/fake-provider.
 const migration0019 = await readFile(fileURLToPath(new URL("../db/migrations/0019_create_translation_persistence.sql", import.meta.url)), "utf8");
 const migration0020 = await readFile(fileURLToPath(new URL("../db/migrations/0020_add_translation_regeneration_authorization.sql", import.meta.url)), "utf8");
 const migration0021 = await readFile(fileURLToPath(new URL("../db/migrations/0021_add_translation_usage_budget.sql", import.meta.url)), "utf8");
+const migration0053 = await readFile(fileURLToPath(new URL("../db/migrations/0053_allow_azure_translation_provider.sql", import.meta.url)), "utf8");
 
 function adapter(db) {
   const executor = (source) => ({
@@ -57,6 +58,7 @@ before(async () => {
   await db.exec(migration0019);
   await db.exec(migration0020);
   await db.exec(migration0021);
+  await db.exec(migration0053);
 });
 
 beforeEach(async () => {
@@ -277,7 +279,7 @@ test("worker rejects ordinary unprotected manual, accepts authorized manual, and
     processTranslationJobs({
       repository: createTranslationWorkerRepository(database),
       provider,
-      config: { enabled: true, providerId: "google-cloud-translation", batchSize: 1, concurrency: 1, lockTimeoutMs: 600000, requestTimeoutMs: 5000, workerIdPrefix: "admin-test" },
+      config: { enabled: true, providerId: "azure-translator", batchSize: 1, concurrency: 1, lockTimeoutMs: 600000, requestTimeoutMs: 5000, workerIdPrefix: "admin-test" },
       now: () => new Date("2032-08-01T12:00:00Z"),
       random: () => 0.5,
     }),
@@ -287,7 +289,7 @@ test("worker rejects ordinary unprotected manual, accepts authorized manual, and
   const result = await processTranslationJobs({
     database,
     provider,
-    config: { enabled: true, providerId: "google-cloud-translation", batchSize: 1, concurrency: 1, lockTimeoutMs: 600000, requestTimeoutMs: 5000, workerIdPrefix: "admin-test" },
+    config: { enabled: true, providerId: "azure-translator", batchSize: 1, concurrency: 1, lockTimeoutMs: 600000, requestTimeoutMs: 5000, workerIdPrefix: "admin-test" },
     now: () => new Date("2032-08-01T12:00:00Z"),
     random: () => 0.5,
   });
@@ -333,7 +335,7 @@ test("worker rejects ordinary unprotected manual, accepts authorized manual, and
   const obsolete = await processTranslationJobs({
     database,
     provider: delayedProvider,
-    config: { enabled: true, providerId: "google-cloud-translation", batchSize: 1, concurrency: 1, lockTimeoutMs: 600000, requestTimeoutMs: 5000, workerIdPrefix: "admin-test" },
+    config: { enabled: true, providerId: "azure-translator", batchSize: 1, concurrency: 1, lockTimeoutMs: 600000, requestTimeoutMs: 5000, workerIdPrefix: "admin-test" },
     now: () => new Date("2032-08-01T12:01:00Z"),
     random: () => 0.5,
   });
