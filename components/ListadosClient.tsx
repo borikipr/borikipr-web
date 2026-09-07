@@ -975,13 +975,21 @@ export default function ListadosClient({
           </div>
         ) : (
           <>
-            <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+            <div
+              className={`grid gap-6 ${
+                propiedadesFiltradas.length === 1
+                  ? "md:grid-cols-[minmax(0,32rem)] md:justify-center"
+                  : propiedadesFiltradas.length === 2
+                    ? "md:grid-cols-2 xl:mx-auto xl:max-w-5xl"
+                    : "md:grid-cols-2 xl:grid-cols-3"
+              }`}
+            >
               {propiedadesFiltradas.map((propiedad) => (
                 <article
                   key={propiedad.id}
-                  className="group overflow-hidden rounded-3xl border border-[#e8e8e8] bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+                  className="group flex h-full flex-col overflow-hidden rounded-3xl border border-[#e8e8e8] bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
                 >
-                  <div className="relative h-72 w-full bg-[#f5f5f5]">
+                  <div className="relative aspect-[4/3] w-full shrink-0 bg-[#f5f5f5] sm:aspect-video">
                     {(() => {
                       const src = propiedad.imagenes[0] || "/og-image.jpg";
                       const esVideo = /\.(mp4|webm|mov)(\?|$)/i.test(src) || src.includes("/videos/");
@@ -1035,8 +1043,8 @@ export default function ListadosClient({
                     </button>
                   </div>
 
-                  <div className="p-6">
-                    <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex flex-1 flex-col p-5 sm:px-6">
+                    <div className="mb-2 flex items-center justify-between gap-2">
                       <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
                         {propiedad.tipoNegocio === "venta" ? copy.sale : copy.rent}
                       </span>
@@ -1052,57 +1060,59 @@ export default function ListadosClient({
                       )}
                     </div>
 
-                    <h3 className="mb-2 text-lg font-bold text-[#000000] line-clamp-2">
+                    <h3 className="mb-1.5 line-clamp-2 text-lg font-bold leading-snug text-[#000000]">
                       {propiedad.titulo}
                     </h3>
 
-                    <p className="mb-3 text-sm text-[#4d4d4d]">
+                    <p className="mb-2 text-sm leading-5 text-[#4d4d4d]">
                       {formatPropertyLocation(
                         propiedad.municipio,
                         propiedad.sectorComunidad
                       )}
                     </p>
 
-                    <p className="mb-4 text-sm text-[#4d4d4d] line-clamp-2">
+                    <p className="mb-3 line-clamp-2 text-sm leading-5 text-[#4d4d4d]">
                       {propiedad.descripcion}
                     </p>
 
-                    <div className="mb-4 flex items-center justify-between">
-                      <span className="text-2xl font-bold text-[#11518b]">
-                        {formatoPrecio(propiedad.precio, propiedad.tipoNegocio)}
-                      </span>
-                    </div>
+                    <div className="mt-auto">
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="text-2xl font-bold text-[#11518b]">
+                          {formatoPrecio(propiedad.precio, propiedad.tipoNegocio)}
+                        </span>
+                      </div>
 
-                    <div className="mb-4 grid grid-cols-3 gap-2 border-t border-[#e8e8e8] pt-4">
-                      <div className="text-center">
-                        <p className="text-xs text-[#4d4d4d]">{copy.bedroomsCard}</p>
-                        <p className="text-lg font-bold text-[#000000]">
-                          {propiedad.habitaciones}
-                        </p>
+                      <div className="mb-3 grid grid-cols-3 gap-2 border-t border-[#e8e8e8] pt-3">
+                        <div className="text-center">
+                          <p className="text-xs text-[#4d4d4d]">{copy.bedroomsCard}</p>
+                          <p className="text-base font-bold leading-6 text-[#000000]">
+                            {propiedad.habitaciones}
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-[#4d4d4d]">{copy.bathroomsCard}</p>
+                          <p className="text-base font-bold leading-6 text-[#000000]">
+                            {propiedad.banos}
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-[#4d4d4d]">m²</p>
+                          <p className="text-base font-bold leading-6 text-[#000000]">
+                            {propiedad.metrosCuadrados}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-center">
-                        <p className="text-xs text-[#4d4d4d]">{copy.bathroomsCard}</p>
-                        <p className="text-lg font-bold text-[#000000]">
-                          {propiedad.banos}
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xs text-[#4d4d4d]">m²</p>
-                        <p className="text-lg font-bold text-[#000000]">
-                          {propiedad.metrosCuadrados}
-                        </p>
-                      </div>
-                    </div>
 
-                    <Link
-                      href={
-                        getEquivalentRoute(`/listados/${propiedad.slug}`, locale) ||
-                        `/listados/${propiedad.slug}`
-                      }
-                      className="btn-primary w-full text-center py-2.5"
-                    >
-                      {dictionary.common.viewProperty}
-                    </Link>
+                      <Link
+                        href={
+                          getEquivalentRoute(`/listados/${propiedad.slug}`, locale) ||
+                          `/listados/${propiedad.slug}`
+                        }
+                        className="btn-primary min-h-11 w-full py-2.5 text-center"
+                      >
+                        {dictionary.common.viewProperty}
+                      </Link>
+                    </div>
                   </div>
                 </article>
               ))}
