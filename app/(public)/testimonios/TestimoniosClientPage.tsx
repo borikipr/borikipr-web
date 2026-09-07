@@ -52,7 +52,7 @@ function TestimonioCard({
 
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-[2rem] border border-[#e8e8e8] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md">
-      <div className="relative h-80 w-full bg-[#f5f5f5]">
+      <div className="relative h-48 w-full bg-[#f5f5f5] sm:h-52">
         <Image
           src={item.imagen}
           alt={`${displayTitle} - ${copy.imageAltSuffix}`}
@@ -62,7 +62,7 @@ function TestimonioCard({
           loading="lazy"
         />
 
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent p-6">
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent p-4 sm:p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white [text-shadow:0_2px_8px_rgba(0,0,0,.45)]">
             {displayTag}
           </p>
@@ -70,18 +70,18 @@ function TestimonioCard({
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col p-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
+      <div className="flex flex-1 flex-col px-5 py-4 sm:p-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
           {item.tipo === "comprador" ? copy.buyer : copy.seller}
         </p>
 
-        <h3 className="mt-3 text-2xl font-semibold text-[#11518b]">
+        <h3 className="mt-2 text-xl font-semibold text-[#11518b]">
           {displayTitle}
         </h3>
 
         <p
           id={`testimonio-texto-${item.id}`}
-          className={`mt-5 text-lg leading-relaxed text-[#4d4d4d] ${
+          className={`mt-3 text-base leading-7 text-[#4d4d4d] ${
             expanded ? "" : initialClampClass
           }`}
         >
@@ -94,17 +94,19 @@ function TestimonioCard({
             onClick={() => setExpanded((current) => !current)}
             aria-expanded={expanded}
             aria-controls={`testimonio-texto-${item.id}`}
-            className="mt-4 self-start text-sm font-semibold text-[#11518b] transition hover:text-[#0d406d]"
+            className="mt-3 self-start text-sm font-semibold text-[#11518b] transition hover:text-[#0d406d]"
           >
             {expanded ? copy.readLess : copy.readMore}
           </button>
         )}
 
-        <div className="mt-auto border-t border-[#efefef] pt-5">
-          <p className="font-semibold text-[#000000]">{item.nombre}</p>
-          <p className="mt-1 text-sm text-[#4d4d4d]">
-            {item.tipo === "comprador" ? copy.buyer : copy.seller} · {item.lugar}
-          </p>
+        <div className="mt-auto pt-5">
+          <div className="border-t border-[#efefef] pt-4">
+            <p className="font-semibold text-[#000000]">{item.nombre}</p>
+            <p className="mt-1 text-sm text-[#4d4d4d]">
+              {item.tipo === "comprador" ? copy.buyer : copy.seller} · {item.lugar}
+            </p>
+          </div>
         </div>
       </div>
     </article>
@@ -240,7 +242,7 @@ export default function TestimoniosClientPage({
               </div>
             ) : (
               <>
-                <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-2">
+                <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
                   {testimoniosFiltrados.map((item) => (
                     <TestimonioCard key={item.id} item={item} copy={copy} />
                   ))}
