@@ -45,14 +45,14 @@ function TestimonioCard({
   copy: TestimonialsCopy;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const initialClampClass = item.destacado ? "line-clamp-6" : "line-clamp-3";
+  const initialClampClass = item.destacado ? "line-clamp-5" : "line-clamp-3";
   const canExpand = item.texto.length > (item.destacado ? 260 : 150);
   const displayTag = item.destacado ? copy.featuredTag : copy.defaultTag;
   const displayTitle = item.tipo === "comprador" ? copy.buyerTitle : copy.sellerTitle;
 
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-[2rem] border border-[#e8e8e8] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md">
-      <div className="relative h-48 w-full bg-[#f5f5f5] sm:h-52">
+      <div className="relative h-[168px] w-full bg-[#f5f5f5] sm:h-[184px]">
         <Image
           src={item.imagen}
           alt={`${displayTitle} - ${copy.imageAltSuffix}`}
@@ -75,13 +75,13 @@ function TestimonioCard({
           {item.tipo === "comprador" ? copy.buyer : copy.seller}
         </p>
 
-        <h3 className="mt-2 text-xl font-semibold text-[#11518b]">
+        <h3 className="mt-1.5 text-xl font-semibold text-[#11518b]">
           {displayTitle}
         </h3>
 
         <p
           id={`testimonio-texto-${item.id}`}
-          className={`mt-3 text-base leading-7 text-[#4d4d4d] ${
+          className={`mt-2.5 text-base leading-7 text-[#4d4d4d] ${
             expanded ? "" : initialClampClass
           }`}
         >
@@ -94,16 +94,16 @@ function TestimonioCard({
             onClick={() => setExpanded((current) => !current)}
             aria-expanded={expanded}
             aria-controls={`testimonio-texto-${item.id}`}
-            className="mt-3 self-start text-sm font-semibold text-[#11518b] transition hover:text-[#0d406d]"
+            className="mt-2 self-start text-sm font-semibold text-[#11518b] transition hover:text-[#0d406d]"
           >
             {expanded ? copy.readLess : copy.readMore}
           </button>
         )}
 
-        <div className="mt-auto pt-5">
-          <div className="border-t border-[#efefef] pt-4">
+        <div className="mt-auto pt-4">
+          <div className="border-t border-[#efefef] pt-3">
             <p className="font-semibold text-[#000000]">{item.nombre}</p>
-            <p className="mt-1 text-sm text-[#4d4d4d]">
+            <p className="mt-0.5 text-sm text-[#4d4d4d]">
               {item.tipo === "comprador" ? copy.buyer : copy.seller} · {item.lugar}
             </p>
           </div>
