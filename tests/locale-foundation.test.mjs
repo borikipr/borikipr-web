@@ -457,7 +457,7 @@ test("Phase 2.5 pages consume shared dictionaries without duplicating page JSX",
   assert.match(englishPrivacy, /renderPrivacyPage\(ENGLISH_LOCALE\)/);
 
   assert.match(listingsClient, /\{propiedad\.titulo\}/);
-  assert.match(listingsClient, /\{propiedad\.descripcion\}/);
+  assert.doesNotMatch(listingsClient, /\{propiedad\.descripcion\}/);
   assert.match(testimonialsClient, /\{item\.texto\}/);
   assert.match(testimonialsClient, /\{displayTitle\}/);
   assert.doesNotMatch(englishAbout, /<main|<Header/);
