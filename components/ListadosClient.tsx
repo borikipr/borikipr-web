@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -1071,10 +1072,6 @@ export default function ListadosClient({
                       )}
                     </p>
 
-                    <p className="mb-3 line-clamp-2 text-sm leading-5 text-[#4d4d4d]">
-                      {propiedad.descripcion}
-                    </p>
-
                     <div className="mt-auto">
                       <div className="mb-3 flex items-center justify-between">
                         <span className="text-2xl font-bold text-[#11518b]">
@@ -1108,9 +1105,10 @@ export default function ListadosClient({
                           getEquivalentRoute(`/listados/${propiedad.slug}`, locale) ||
                           `/listados/${propiedad.slug}`
                         }
-                        className="btn-primary min-h-11 w-full py-2.5 text-center"
+                        className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-full border border-[#11518b]/25 px-4 py-2.5 text-sm font-semibold text-[#11518b] transition hover:border-[#11518b] hover:bg-[#eef6fc] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#11518b]"
                       >
                         {dictionary.common.viewProperty}
+                        <ArrowRight aria-hidden="true" className="h-4 w-4" />
                       </Link>
                     </div>
                   </div>

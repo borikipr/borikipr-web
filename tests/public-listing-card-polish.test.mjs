@@ -6,6 +6,10 @@ const source = await readFile(
   new URL("../components/ListadosClient.tsx", import.meta.url),
   "utf8"
 );
+const homepageSource = await readFile(
+  new URL("../app/(public)/page.tsx", import.meta.url),
+  "utf8"
+);
 
 test("public listing cards use the result count to keep one- and two-card states balanced", () => {
   assert.match(source, /propiedadesFiltradas\.length === 1/);
@@ -21,10 +25,22 @@ test("public listing cards keep strong imagery while reducing vertical dominance
   assert.match(source, /object-cover transition-transform/);
 });
 
-test("public listing content remains readable, aligned, and accessible", () => {
+test("public listing cards use a concise property-first hierarchy", () => {
   assert.match(source, /line-clamp-2 text-lg font-bold leading-snug/);
-  assert.match(source, /line-clamp-2 text-sm leading-5/);
+  assert.doesNotMatch(source, /\{propiedad\.descripcion\}/);
   assert.match(source, /className="mt-auto"/);
   assert.match(source, /grid grid-cols-3 gap-2[^\n]*pt-3/);
-  assert.match(source, /btn-primary min-h-11 w-full/);
+  assert.match(source, /inline-flex min-h-11[^\n]*border border-\[#11518b\]\/25/);
+  assert.match(source, /<ArrowRight aria-hidden="true"/);
+});
+
+test("listing detail remains a separate accessible link beside the favorite control", () => {
+  assert.match(source, /<button[\s\S]*?onClick=\{\(\) => toggleFavorite\(propiedad\.id\)\}/);
+  assert.match(source, /<Link[\s\S]*?getEquivalentRoute\(`\/listados\/\$\{propiedad\.slug\}`/);
+  assert.doesNotMatch(source, /<article[^>]*onClick=/);
+});
+
+test("homepage listing cards remain a separate implementation", () => {
+  assert.doesNotMatch(homepageSource, /ListadosClient/);
+  assert.match(homepageSource, /dictionary\.common\.viewProperty/);
 });
