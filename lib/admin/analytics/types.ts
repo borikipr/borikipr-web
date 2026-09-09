@@ -8,7 +8,6 @@ export type ProviderConnectionStatus =
   | "missing_credentials"
   | "invalid_property_id"
   | "permission_denied"
-  | "invalid_private_key"
   | "invalid_property"
   | "api_not_enabled"
   | "api_error"

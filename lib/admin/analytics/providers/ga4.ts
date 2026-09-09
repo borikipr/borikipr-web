@@ -1,5 +1,8 @@
+import "server-only";
+
 import { BetaAnalyticsDataClient } from "@google-analytics/data";
 import { AnalyticsProviderError } from "../errors";
+import { createGa4WifAuthClient, getGa4WifConfig } from "./ga4-auth";
 import type {
   AnalyticsDevice,
   AnalyticsEventSummary,
@@ -15,6 +18,8 @@ import type {
 const propertyId = process.env.GA4_PROPERTY_ID?.trim();
 const clientEmail = process.env.GA4_CLIENT_EMAIL?.trim();
 const privateKey = process.env.GA4_PRIVATE_KEY?.replace(/\\n/g, "\n");
+const authMode = process.env.GA4_AUTH_MODE?.trim() || "private-key";
+let ga4Client: BetaAnalyticsDataClient | null | undefined;
 const excludeAdminPagePathFilter = {
   notExpression: {
     filter: {
@@ -83,7 +88,15 @@ export type Ga4PropertyDigitalInterest = {
 };
 
 function isGa4Configured() {
-  return Boolean(propertyId && clientEmail && privateKey);
+  if (authMode === "private-key") {
+    return Boolean(propertyId && clientEmail && privateKey);
+  }
+
+  if (authMode === "wif") {
+    return Boolean(propertyId && getGa4WifConfig());
+  }
+
+  return false;
 }
 
 function getPropertyName() {
@@ -91,14 +104,34 @@ function getPropertyName() {
 }
 
 function getClient() {
-  if (!isGa4Configured()) return null;
+  if (ga4Client !== undefined) return ga4Client;
 
-  return new BetaAnalyticsDataClient({
-    credentials: {
-      client_email: clientEmail,
-      private_key: privateKey,
-    },
-  });
+  if (!propertyId || !isGa4Configured()) {
+    ga4Client = null;
+    return ga4Client;
+  }
+
+  if (authMode === "private-key") {
+    ga4Client = new BetaAnalyticsDataClient({
+      credentials: {
+        client_email: clientEmail,
+        private_key: privateKey,
+      },
+    });
+  } else {
+    const wifConfig = getGa4WifConfig();
+    if (!wifConfig) {
+      ga4Client = null;
+      return ga4Client;
+    }
+
+    ga4Client = new BetaAnalyticsDataClient({
+      authClient: createGa4WifAuthClient(wifConfig),
+      projectId: wifConfig.projectId,
+    });
+  }
+
+  return ga4Client;
 }
 
 function getStartDate(range: "today" | "7d" | "30d" | "90d") {
@@ -197,14 +230,14 @@ function classifyGa4Error(error: unknown): {
   }
 
   if (
-    normalized.includes("private key") ||
-    normalized.includes("pem") ||
-    normalized.includes("decoder routines") ||
-    normalized.includes("bad decrypt")
+    normalized.includes("oidc") ||
+    normalized.includes("subject token") ||
+    normalized.includes("workload identity") ||
+    normalized.includes("invalid_grant")
   ) {
     return {
-      status: "invalid_private_key",
-      message: "Invalid private key",
+      status: "not_configured",
+      message: "GA4 Workload Identity Federation authentication failed.",
     };
   }
 

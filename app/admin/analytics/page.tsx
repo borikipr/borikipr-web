@@ -65,8 +65,6 @@ function statusLabel(status: AnalyticsProviderStatus["status"]) {
    return "Permiso denegado";
   case "invalid_property_id":
    return "ID de propiedad GA4 inválido";
-  case "invalid_private_key":
-   return "Private key inválida";
   case "invalid_property":
    return "Propiedad GA4 inválida";
   case "api_not_enabled":
