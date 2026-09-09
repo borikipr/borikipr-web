@@ -28,7 +28,7 @@ test("GA4 WIF configuration fails closed and accepts no arbitrary provider resou
   assert.match(auth, /if \(!authClient\)/);
 });
 
-test("GA4 migration uses explicit auth modes and never automatically falls back", async () => {
+test("GA4 production authentication is WIF-only and has no private-key fallback", async () => {
   const [auth, provider, env, types, overview] = await Promise.all([
     read("lib/admin/analytics/providers/ga4-auth.ts"),
     read("lib/admin/analytics/providers/ga4.ts"),
@@ -38,12 +38,11 @@ test("GA4 migration uses explicit auth modes and never automatically falls back"
   ]);
   const runtime = `${auth}\n${provider}\n${types}\n${overview}`;
 
-  assert.match(runtime, /GA4_AUTH_MODE/);
-  assert.match(runtime, /authMode === "private-key"/);
-  assert.match(runtime, /authMode === "wif"/);
-  assert.doesNotMatch(runtime, /catch[\s\S]{0,300}private-key/);
-  assert.match(env, /GA4_PRIVATE_KEY=/);
-  assert.match(env, /GA4_AUTH_MODE=private-key/);
+  assert.doesNotMatch(runtime, /GA4_AUTH_MODE/);
+  assert.doesNotMatch(runtime, /GA4_PRIVATE_KEY/);
+  assert.doesNotMatch(runtime, /private_key/);
+  assert.doesNotMatch(env, /GA4_PRIVATE_KEY=/);
+  assert.doesNotMatch(env, /GA4_AUTH_MODE=/);
   assert.match(env, /GA4_WORKLOAD_IDENTITY_PROVIDER_RESOURCE=/);
   assert.match(env, /GA4_GCP_PROJECT_ID=/);
 });
