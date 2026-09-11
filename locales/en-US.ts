@@ -45,6 +45,8 @@ const enUS = {
     previous: "Previous",
     next: "Next",
     imageAlt: "image",
+    thumbnails: "Gallery thumbnails",
+    dialog: "Property gallery",
   },
   footer: {
     brandDescription:
@@ -139,6 +141,8 @@ const enUS = {
       rent: "For rent",
       bedroomsShort: "bd",
       bathroomsShort: "ba",
+      bedrooms: "Bedrooms",
+      bathrooms: "Bathrooms",
       priceSoon: "Price coming soon",
       statuses: {
         available: "Available",
@@ -170,6 +174,8 @@ const enUS = {
       viewAll: "View all testimonials",
       buyer: "Purchase",
       seller: "Sale",
+      readMore: "Read more",
+      readLess: "Read less",
     },
     cta: {
       eyebrow: "Let's get started",
@@ -350,6 +356,8 @@ const enUS = {
     sale: "For sale",
     rent: "For rent",
     featured: "Featured",
+    shareFacebook: "Share on Facebook",
+    shareFacebookAccessible: "Share {property} on Facebook",
     statuses: {
       disponible: "Available",
       coming_soon: "Coming soon",

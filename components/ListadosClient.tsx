@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -580,7 +579,7 @@ export default function ListadosClient({
             <div className="flex-1 p-5 lg:border-r lg:border-[#e0e0e0]">
 
               {/* Row 1: For Sale | For Rent + Search by Location + Search btn */}
-              <div className="flex items-stretch gap-0 mb-4">
+              <div className="mb-4 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-stretch gap-0 sm:grid-cols-[auto_auto_minmax(0,1fr)_auto]">
                 {/* Venta tab */}
                 <button
                   type="button"
@@ -598,7 +597,7 @@ export default function ListadosClient({
                 <button
                   type="button"
                   onClick={() => handleTipoNegocio("renta")}
-                  className={`px-5 py-2.5 text-sm font-semibold border-t border-b transition whitespace-nowrap ${
+                  className={`rounded-r border border-l-0 px-5 py-2.5 text-sm font-semibold transition whitespace-nowrap sm:rounded-none sm:border-x-0 ${
                     tipoNegocio === "renta"
                       ? "bg-[#11518b] text-white border-[#11518b]"
                       : "bg-white text-[#333] border-[#d9d9d9] hover:bg-[#f5f5f5]"
@@ -608,8 +607,9 @@ export default function ListadosClient({
                 </button>
 
                 {/* Search by Location input */}
-                <div className="relative flex-1">
+                <div className="relative col-span-2 mt-2 min-w-0 sm:col-span-1 sm:mt-0">
                   <input
+                    aria-label={copy.searchByLocation}
                     type="text"
                     placeholder={copy.searchByLocation}
                     value={qTemp}
@@ -633,7 +633,7 @@ export default function ListadosClient({
                     }}
                     onFocus={() => qTemp.trim() && setMostrarSugerencias(true)}
                     onBlur={() => setTimeout(() => setMostrarSugerencias(false), 200)}
-                    className="h-full w-full border border-[#d9d9d9] border-l-0 px-4 py-2.5 text-sm text-[#333] outline-none focus:border-[#11518b] transition placeholder:text-[#aaa]"
+                    className="h-full w-full rounded-l border border-[#d9d9d9] px-4 py-2.5 text-sm text-[#333] outline-none transition placeholder:text-[#aaa] focus:border-[#11518b] sm:rounded-none sm:border-l-0"
                   />
 
                   {/* Autocomplete dropdown */}
@@ -724,7 +724,7 @@ export default function ListadosClient({
                 <button
                   type="button"
                   onClick={aplicarBusqueda}
-                  className="flex items-center justify-center bg-[#11518b] hover:bg-[#0d406d] text-white px-4 rounded-r transition"
+                  className="mt-2 flex min-h-11 items-center justify-center rounded-r bg-[#11518b] px-4 text-white transition hover:bg-[#0d406d] sm:mt-0"
                   title={dictionary.common.search}
                   aria-label={dictionary.common.search}
                 >
@@ -751,8 +751,9 @@ export default function ListadosClient({
 
                 {/* Min $ */}
                 <div className="flex items-center gap-2 rounded border border-[#d9d9d9] bg-white px-3 py-2.5 hover:border-[#11518b] transition">
-                  <span className="text-sm font-medium text-[#555] whitespace-nowrap">{copy.minimumPrice}</span>
+                  <label htmlFor="listados-precio-min" className="text-sm font-medium text-[#555] whitespace-nowrap">{copy.minimumPrice}</label>
                   <input
+                    id="listados-precio-min"
                     type="number"
                     min="0"
                     placeholder="0"
@@ -775,8 +776,9 @@ export default function ListadosClient({
 
                 {/* Max $ */}
                 <div className="flex items-center gap-2 rounded border border-[#d9d9d9] bg-white px-3 py-2.5 hover:border-[#11518b] transition">
-                  <span className="text-sm font-medium text-[#555] whitespace-nowrap">{copy.maximumPrice}</span>
+                  <label htmlFor="listados-precio-max" className="text-sm font-medium text-[#555] whitespace-nowrap">{copy.maximumPrice}</label>
                   <input
+                    id="listados-precio-max"
                     type="number"
                     min="0"
                     placeholder="0"
@@ -811,6 +813,7 @@ export default function ListadosClient({
                     <path d="M22 10.5V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v4.5A2.5 2.5 0 0 0 0 13v5h1.5v2h1v-2h19v2h1v-2H24v-5a2.5 2.5 0 0 0-2-2.5zM4 6h16v4h-5V9a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v1H4V6zm5 4V9h6v1H9zm-7 8v-5a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v5H2z" />
                   </svg>
                   <input
+                    aria-label={copy.bedrooms}
                     type="number"
                     placeholder={copy.bedrooms}
                     min="0"
@@ -838,6 +841,7 @@ export default function ListadosClient({
                     <path d="M21 10H7V5a1 1 0 0 1 1-1 1 1 0 0 1 1 1 3 3 0 0 0 3 3h1a1 1 0 0 0 0-2h-1a1 1 0 0 1-1-1 3 3 0 0 0-3-3 3 3 0 0 0-3 3v5H3a1 1 0 0 0-1 1v2a5 5 0 0 0 4 4.9V20H4a1 1 0 0 0 0 2h16a1 1 0 0 0 0-2h-2v-2.1A5 5 0 0 0 22 13v-2a1 1 0 0 0-1-1zm-1 3a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-1h16v1zm-5 5v2H9v-2h6z" />
                   </svg>
                   <input
+                    aria-label={copy.bathrooms}
                     type="number"
                     placeholder={copy.bathrooms}
                     min="0"
@@ -979,18 +983,18 @@ export default function ListadosClient({
             <div
               className={`grid gap-6 ${
                 propiedadesFiltradas.length === 1
-                  ? "md:grid-cols-[minmax(0,32rem)] md:justify-center"
+                  ? "md:grid-cols-[minmax(0,28rem)] md:justify-center"
                   : propiedadesFiltradas.length === 2
-                    ? "md:grid-cols-2 xl:mx-auto xl:max-w-5xl"
+                    ? "md:grid-cols-2 xl:mx-auto xl:max-w-[56rem]"
                     : "md:grid-cols-2 xl:grid-cols-3"
               }`}
             >
               {propiedadesFiltradas.map((propiedad) => (
                 <article
                   key={propiedad.id}
-                  className="group flex h-full flex-col overflow-hidden rounded-3xl border border-[#e8e8e8] bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+                  className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-[#e8e8e8] bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
                 >
-                  <div className="relative aspect-[4/3] w-full shrink-0 bg-[#f5f5f5] sm:aspect-video">
+                  <div className="relative aspect-[3/2] w-full shrink-0 bg-[#f5f5f5] sm:aspect-[37/20]">
                     {(() => {
                       const src = propiedad.imagenes[0] || "/og-image.jpg";
                       const esVideo = /\.(mp4|webm|mov)(\?|$)/i.test(src) || src.includes("/videos/");
@@ -1017,9 +1021,9 @@ export default function ListadosClient({
                       );
                     })()}
 
-                    <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+                    <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
                       <span
-                        className={`rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] ${estadoClasses(
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${estadoClasses(
                           propiedad.estado
                         )}`}
                       >
@@ -1027,7 +1031,7 @@ export default function ListadosClient({
                       </span>
 
                       {propiedad.destacado && (
-                        <span className="rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#11518b]">
+                        <span className="rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#11518b]">
                           {copy.featured}
                         </span>
                       )}
@@ -1036,7 +1040,7 @@ export default function ListadosClient({
                     <button
                       type="button"
                       onClick={() => toggleFavorite(propiedad.id)}
-                      className="absolute right-4 top-4 rounded-full bg-white/90 p-2 text-xl transition hover:bg-white"
+                      className="absolute right-3 top-3 z-20 grid h-10 w-10 place-items-center rounded-full bg-white/90 text-lg transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#11518b]"
                       title={favorites.has(propiedad.id) ? copy.removeFavorite : copy.addFavorite}
                       aria-label={favorites.has(propiedad.id) ? copy.removeFavorite : copy.addFavorite}
                     >
@@ -1044,8 +1048,8 @@ export default function ListadosClient({
                     </button>
                   </div>
 
-                  <div className="flex flex-1 flex-col p-5 sm:px-6">
-                    <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="flex flex-1 flex-col p-4 sm:px-5">
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
                       <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4af37]">
                         {propiedad.tipoNegocio === "venta" ? copy.sale : copy.rent}
                       </span>
@@ -1061,11 +1065,19 @@ export default function ListadosClient({
                       )}
                     </div>
 
-                    <h3 className="mb-1.5 line-clamp-2 text-lg font-bold leading-snug text-[#000000]">
-                      {propiedad.titulo}
+                    <h3 className="mb-1 line-clamp-2 text-lg font-bold leading-snug text-[#000000]">
+                      <Link
+                        href={
+                          getEquivalentRoute(`/listados/${propiedad.slug}`, locale) ||
+                          `/listados/${propiedad.slug}`
+                        }
+                        className="focus-visible:outline-none after:absolute after:inset-0 after:z-10 after:rounded-3xl focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[#11518b]"
+                      >
+                        {propiedad.titulo}
+                      </Link>
                     </h3>
 
-                    <p className="mb-2 text-sm leading-5 text-[#4d4d4d]">
+                    <p className="mb-1.5 text-sm leading-5 text-[#4d4d4d]">
                       {formatPropertyLocation(
                         propiedad.municipio,
                         propiedad.sectorComunidad
@@ -1073,13 +1085,13 @@ export default function ListadosClient({
                     </p>
 
                     <div className="mt-auto">
-                      <div className="mb-3 flex items-center justify-between">
+                      <div className="mb-2 flex items-center justify-between">
                         <span className="text-2xl font-bold text-[#11518b]">
                           {formatoPrecio(propiedad.precio, propiedad.tipoNegocio)}
                         </span>
                       </div>
 
-                      <div className="mb-3 grid grid-cols-3 gap-2 border-t border-[#e8e8e8] pt-3">
+                      <div className="grid grid-cols-3 gap-2 border-t border-[#e8e8e8] pt-2.5">
                         <div className="text-center">
                           <p className="text-xs text-[#4d4d4d]">{copy.bedroomsCard}</p>
                           <p className="text-base font-bold leading-6 text-[#000000]">
@@ -1100,16 +1112,6 @@ export default function ListadosClient({
                         </div>
                       </div>
 
-                      <Link
-                        href={
-                          getEquivalentRoute(`/listados/${propiedad.slug}`, locale) ||
-                          `/listados/${propiedad.slug}`
-                        }
-                        className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-full border border-[#11518b]/25 px-4 py-2.5 text-sm font-semibold text-[#11518b] transition hover:border-[#11518b] hover:bg-[#eef6fc] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#11518b]"
-                      >
-                        {dictionary.common.viewProperty}
-                        <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                      </Link>
                     </div>
                   </div>
                 </article>

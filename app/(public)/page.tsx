@@ -4,7 +4,10 @@ import Header from "@/components/Header";
 import Image from "next/image";
 import Link from "next/link";
 import HomeHeroClient from "@/components/HomeHeroClient";
+import HomeTestimonialQuote from "@/components/HomeTestimonialQuote";
 import {
+  Bath,
+  BedDouble,
   Building2,
   Camera,
   HeartHandshake,
@@ -287,7 +290,15 @@ export async function renderHomePage(locale: AppLocale) {
                   </div>
                 </div>
               ) : (
-                <div className="grid gap-8 md:grid-cols-2 2xl:grid-cols-3">
+                <div
+                  className={`grid gap-8 ${
+                    destacadas.length === 1
+                      ? "mx-auto max-w-[30rem]"
+                      : destacadas.length === 2
+                        ? "mx-auto md:max-w-5xl md:grid-cols-2"
+                        : "md:grid-cols-2 2xl:grid-cols-3"
+                  }`}
+                >
                   {destacadas.map((item) => {
                     const imagenPrincipal =
                       Array.isArray(item.imagenes) && item.imagenes.length > 0
@@ -353,15 +364,23 @@ export async function renderHomePage(locale: AppLocale) {
                             )}
                           </p>
 
-                          <div className="mt-4 flex flex-wrap gap-3 text-sm text-[#4d4d4d]">
-                            {item.habitaciones && (
-                              <span>
-                                {item.habitaciones} {copy.listings.bedroomsShort}
+                          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-[#4d4d4d]">
+                            {item.habitaciones !== null && item.habitaciones !== undefined && (
+                              <span
+                                className="inline-flex items-center gap-1.5"
+                                aria-label={`${copy.listings.bedrooms}: ${item.habitaciones}`}
+                              >
+                                <BedDouble className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+                                <span aria-hidden="true">{item.habitaciones}</span>
                               </span>
                             )}
-                            {item.banos && (
-                              <span>
-                                {item.banos} {copy.listings.bathroomsShort}
+                            {item.banos !== null && item.banos !== undefined && (
+                              <span
+                                className="inline-flex items-center gap-1.5"
+                                aria-label={`${copy.listings.bathrooms}: ${item.banos}`}
+                              >
+                                <Bath className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+                                <span aria-hidden="true">{item.banos}</span>
                               </span>
                             )}
                             <span>{item.tipo_propiedad}</span>
@@ -453,7 +472,15 @@ export async function renderHomePage(locale: AppLocale) {
                 </div>
               </div>
 
-              <div className="mt-14 grid gap-8 md:grid-cols-3">
+              <div
+                className={`mt-14 grid gap-8 ${
+                  testimoniosHome.length === 1
+                    ? "mx-auto max-w-[32rem]"
+                    : testimoniosHome.length === 2
+                      ? "mx-auto md:max-w-4xl md:grid-cols-2"
+                      : "md:grid-cols-3"
+                }`}
+              >
                 {testimoniosHome.map((testimonio) => (
                   <article
                     key={testimonio.id}
@@ -493,9 +520,11 @@ export async function renderHomePage(locale: AppLocale) {
                         : copy.testimonials.seller}
                     </p>
 
-                    <p className="text-[#4d4d4d] leading-relaxed line-clamp-4">
-                      &ldquo;{testimonio.texto}&rdquo;
-                    </p>
+                    <HomeTestimonialQuote
+                      text={testimonio.texto}
+                      readMoreLabel={copy.testimonials.readMore}
+                      readLessLabel={copy.testimonials.readLess}
+                    />
                   </article>
                 ))}
               </div>

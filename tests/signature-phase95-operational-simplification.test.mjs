@@ -6,18 +6,21 @@ import test from "node:test";
 const source = (file) => readFile(path.join(process.cwd(), file), "utf8");
 
 test("healthy signing infrastructure is quiet on daily Firmas surfaces", async () => {
-  const [layout, templates, settings] = await Promise.all([
+  const [layout, alert, templates, settings] = await Promise.all([
     source("app/admin/signatures/layout.tsx"),
+    source("components/admin/signatures/SignatureOperationalAlert.tsx"),
     source("app/admin/signatures/plantillas/page.tsx"),
     source("app/admin/signatures/configuracion/page.tsx"),
   ]);
 
   assert.match(layout, /inspectProductionPublicLaunchGate/);
   assert.match(layout, /!publicLaunchAllowed/);
-  assert.match(layout, /Firmas requiere atención/);
-  assert.match(layout, /role="alert"/);
-  assert.doesNotMatch(layout, /Canary interno:/);
-  assert.doesNotMatch(layout, /Firma pública:/);
+  assert.match(alert, /Firmas requiere atención/);
+  assert.match(alert, /role="alert"/);
+  assert.match(alert, /pathname === STATUS_PATH/);
+  assert.match(alert, /Ver estado/);
+  assert.doesNotMatch(alert, /Canary interno:/);
+  assert.doesNotMatch(alert, /Firma pública:/);
   assert.doesNotMatch(templates, /Firma pública|Canary interno|Readiness|recovery/i);
   assert.doesNotMatch(settings, /Canary interno|Firma pública|READY no equivale a ENABLED/);
 });
@@ -71,5 +74,5 @@ test("Governance remains a direct support route and its security logic is unchan
   assert.match(governance, /Recuperación/);
   assert.match(governance, /inspectProductionPublicLaunchGate/);
   assert.match(settings, /redirect\("\/admin\/signatures"\)/);
-  assert.match(layout, /href="\/admin\/signatures\/gobernanza"/);
+  assert.match(layout, /SignatureOperationalAlert/);
 });

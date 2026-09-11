@@ -17,12 +17,12 @@ const BLOCKER_LABELS: Record<string, string> = {
   approved_privacy_es_pr_missing: "La información de privacidad requiere atención.",
   approved_privacy_en_us_missing: "La información de privacidad en inglés requiere atención.",
   retention_policy_missing: "La política de conservación requiere atención.",
-  event_keys_unavailable: "La integridad del servicio requiere revisión.",
+  event_keys_unavailable: "La integridad y validación del servicio requieren revisión.",
   neon_restore_unproven: "La recuperación de Neon requiere atención.",
   r2_independent_recovery_unproven: "La recuperación de R2 requiere atención.",
-  public_launch_authorization_missing: "La activación pública requiere revisión.",
-  public_readiness_hash_missing: "La validación del servicio requiere revisión.",
-  public_signing_disabled: "La firma pública no está disponible.",
+  public_launch_authorization_missing: "La activación de la firma pública requiere revisión.",
+  public_readiness_hash_missing: "La integridad y validación del servicio requieren revisión.",
+  public_signing_disabled: "La activación de la firma pública requiere revisión.",
 };
 
 function uniqueMessages(messages: readonly string[]) {
@@ -63,7 +63,7 @@ export default async function SignatureGovernancePage() {
       <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 id="estado-firmas" className="text-lg font-semibold text-slate-950">{healthy ? "Firmas operando normalmente" : "Firmas requiere atención"}</h2>
-          <p className="mt-1 text-sm text-slate-600">{healthy ? "La firma pública está disponible y los idiomas de firma están listos." : "Revise los elementos pendientes antes de continuar con documentos nuevos."}</p>
+          <p className="mt-1 text-sm text-slate-600">{healthy ? "La firma pública está disponible y los idiomas de firma están listos." : "La firma pública permanece pausada hasta resolver los pendientes detallados abajo."}</p>
         </div>
         <StatusBadge variant={healthy ? "green" : "red"}>{healthy ? "Operativo" : "Revisión necesaria"}</StatusBadge>
       </div>

@@ -43,6 +43,8 @@ const esPR = {
     previous: "Anterior",
     next: "Siguiente",
     imageAlt: "imagen",
+    thumbnails: "Miniaturas de la galería",
+    dialog: "Galería de la propiedad",
   },
   footer: {
     brandDescription:
@@ -137,6 +139,8 @@ const esPR = {
       rent: "Alquiler",
       bedroomsShort: "hab",
       bathroomsShort: "baños",
+      bedrooms: "Habitaciones",
+      bathrooms: "Baños",
       priceSoon: "Precio próximamente",
       statuses: {
         available: "Disponible",
@@ -168,6 +172,8 @@ const esPR = {
       viewAll: "Ver todos los testimonios",
       buyer: "Compra",
       seller: "Venta",
+      readMore: "Ver más",
+      readLess: "Ver menos",
     },
     cta: {
       eyebrow: "Comencemos",
@@ -349,6 +355,8 @@ const esPR = {
     sale: "Venta",
     rent: "Alquiler",
     featured: "Destacado",
+    shareFacebook: "Compartir en Facebook",
+    shareFacebookAccessible: "Compartir {property} en Facebook",
     statuses: {
       disponible: "Disponible",
       coming_soon: "Próximamente",

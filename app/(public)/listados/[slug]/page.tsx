@@ -29,6 +29,7 @@ import { overlayPropertyTranslations } from "@/lib/i18n/translations/public-over
 import { getPropertyTranslationSeoState } from "@/lib/i18n/translations/public-overlay";
 import { buildPropertySeoMetadata, isCompleteEnglishPropertyTranslation, normalizeMetadataDescription } from "@/lib/i18n/seo";
 import { ENGLISH_LOCALE } from "@/lib/i18n/locales";
+import { IconBrandFacebook } from "@tabler/icons-react";
 
 type TipoNegocio = "venta" | "renta";
 type EstadoPropiedad =
@@ -238,6 +239,7 @@ export async function renderPropertyDetailPage({
     getEquivalentRoute(`/listados/${propiedad.slug}`, locale) ??
     `/listados/${propiedad.slug}`;
   const propiedadUrl = `https://borikipr.com${propiedadPath}`;
+  const facebookShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(propiedadUrl)}`;
   const propiedadLocation = formatPropertyLocation(
     propiedad.municipio,
     propiedad.sectorComunidad
@@ -336,7 +338,7 @@ ${propiedadUrl}`
       <Header />
 
       <main className="bg-white pt-[96px] lg:pt-[128px]">
-        <section className="section-shell py-16">
+        <section className="section-shell pb-24 pt-16">
           <div className="mb-8">
             <Link
               href={getEquivalentRoute("/listados", locale) ?? "/listados"}
@@ -346,31 +348,45 @@ ${propiedadUrl}`
             </Link>
           </div>
 
-          <div className="grid gap-12 xl:grid-cols-[1.35fr_1fr] xl:items-start">
-            <div className="relative">
-              <GaleriaPropiedad
-                imagenes={propiedad.imagenes}
-                titulo={propiedad.titulo}
-              />
+          <div className="flex flex-col gap-12 xl:grid xl:grid-cols-[1.35fr_1fr] xl:items-start">
+            <div className="contents xl:block xl:min-w-0">
+              <div className="relative order-1 min-w-0">
+                <GaleriaPropiedad
+                  imagenes={propiedad.imagenes}
+                  titulo={propiedad.titulo}
+                />
 
-              <div className="pointer-events-none absolute left-6 top-6 flex flex-wrap gap-3">
-                <span
-                  className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] ${estadoClasses(
-                    propiedad.estado
-                  )}`}
-                >
-                  {estadoLabel(propiedad.estado, copy)}
-                </span>
-
-                {propiedad.destacado && (
-                  <span className="rounded-full bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#11518b]">
-                    {copy.featured}
+                <div className="pointer-events-none absolute left-6 top-6 flex flex-wrap gap-3">
+                  <span
+                    className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] ${estadoClasses(
+                      propiedad.estado
+                    )}`}
+                  >
+                    {estadoLabel(propiedad.estado, copy)}
                   </span>
-                )}
+
+                  {propiedad.destacado && (
+                    <span className="rounded-full bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#11518b]">
+                      {copy.featured}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="order-3 max-w-4xl xl:mt-12">
+                <p className="eyebrow">{copy.descriptionEyebrow}</p>
+
+                <h2 className="mt-4 text-3xl font-bold text-[#11518B]">
+                  {copy.descriptionTitle}
+                </h2>
+
+                <p className="mt-6 whitespace-pre-line text-lg leading-relaxed text-[#4d4d4d]">
+                  {propiedad.descripcion}
+                </p>
               </div>
             </div>
 
-            <div>
+            <div className="order-2 min-w-0 xl:order-none">
               <p className="eyebrow">
                 {propiedad.tipoNegocio === "venta" ? copy.sale : copy.rent}
               </p>
@@ -386,6 +402,19 @@ ${propiedadUrl}`
               <p className="mt-6 text-3xl font-bold tracking-tight text-[#11518b]">
                 {formatoPrecio(propiedad.precio, propiedad.tipoNegocio, copy)}
               </p>
+
+              <div className="mt-4">
+                <a
+                  href={facebookShareUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={copy.shareFacebookAccessible.replace("{property}", propiedad.titulo)}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#11518b]/20 bg-white px-4 py-2 text-sm font-semibold text-[#11518b] transition hover:border-[#11518b]/45 hover:bg-[#f5f9fc] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#11518b]"
+                >
+                  <IconBrandFacebook aria-hidden="true" className="h-4 w-4" />
+                  {copy.shareFacebook}
+                </a>
+              </div>
 
               {propiedad.estado === "bajo_contrato" && (
                 <div className="mt-6 rounded-2xl border border-[#d4af37] bg-[#fff9e6] p-6">
@@ -573,22 +602,6 @@ ${propiedadUrl}`
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="pb-24">
-          <div className="section-shell">
-            <div className="max-w-4xl">
-              <p className="eyebrow">{copy.descriptionEyebrow}</p>
-
-              <h2 className="mt-4 text-3xl font-bold text-[#11518B]">
-                {copy.descriptionTitle}
-              </h2>
-
-              <p className="mt-6 whitespace-pre-line text-lg leading-relaxed text-[#4d4d4d]">
-                {propiedad.descripcion}
-              </p>
             </div>
           </div>
         </section>
