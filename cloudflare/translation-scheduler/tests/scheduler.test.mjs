@@ -10,7 +10,7 @@ import {
 const EXPECTED_URL =
   "https://borikipr.com/api/cron/process-translation-jobs";
 
-test("configuration schedules one UTC invocation every five minutes", async () => {
+test("configuration schedules one UTC invocation every hour", async () => {
   const config = JSON.parse(
     await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8")
   );
@@ -19,7 +19,7 @@ test("configuration schedules one UTC invocation every five minutes", async () =
   assert.deepEqual(config.compatibility_flags, [
     "global_fetch_strictly_public",
   ]);
-  assert.deepEqual(config.triggers.crons, ["*/5 * * * *"]);
+  assert.deepEqual(config.triggers.crons, ["0 * * * *"]);
   assert.equal(JSON.stringify(config).includes("TRANSLATION_CRON_SECRET"), false);
 });
 

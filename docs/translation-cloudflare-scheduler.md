@@ -1,7 +1,7 @@
 # Cloudflare translation scheduler
 
 `borikipr-translation-scheduler` is a schedule-only Cloudflare Worker. Every
-five minutes it makes one authenticated `POST` request to the existing BorikiPR
+hour it makes one authenticated `POST` request to the existing BorikiPR
 translation worker endpoint:
 
 `https://borikipr.com/api/cron/process-translation-jobs`
@@ -13,7 +13,7 @@ not retry within a scheduled execution.
 ## Configuration
 
 - Worker name: `borikipr-translation-scheduler`
-- Cron: `*/5 * * * *` (UTC)
+- Cron: `0 * * * *` (UTC)
 - Required Cloudflare secret: `TRANSLATION_CRON_SECRET`
 - Matching Vercel Production secret: `TRANSLATION_CRON_SECRET`
 - Source/config: `cloudflare/translation-scheduler`
