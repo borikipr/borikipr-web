@@ -17,6 +17,7 @@ import { generatePrivateShowingToken } from "@/lib/leads/private-showing-token";
 import { syncPropertyTranslationIntents } from "@/lib/i18n/translations/source-intents";
 import { invalidateEnglishPublicTranslationPaths } from "@/lib/i18n/translations/public-revalidation";
 import { listingResponsibilityErrorMessage, parseListingResponsibleUserId, validateListingResponsibleProfessionalForUpdate, writeListingResponsibilityEvent } from "@/lib/admin/listing-responsibility";
+import { haveSameOrderedPropertyImages } from "@/lib/admin/property-edit";
 
 async function revalidateEnglishProperty(propertyId: string, propertySlug: string) {
   try {
@@ -473,15 +474,13 @@ export async function updatePropiedadAction(
     acepta_cdbg: boolean | null;
     tiene_placas_solares: boolean | null;
     cantidad_placas: number | null;
-    configuracion_formulario: Record<string, unknown> | null;
   }[]>`
     SELECT
       origen_listado,
       pregunta_personalizada,
       acepta_cdbg,
       tiene_placas_solares,
-      cantidad_placas,
-      configuracion_formulario
+      cantidad_placas
     FROM propiedades
     WHERE id = ${id}
     LIMIT 1
@@ -615,7 +614,13 @@ export async function updatePropiedadAction(
                 placas_en_lease = $30,
                 open_house_solar_question_enabled = $31,
                 acepta_cdbg = $32,
-                configuracion_formulario = $33::jsonb
+                configuracion_formulario = CASE
+                  WHEN configuracion_formulario IS NULL THEN
+                    jsonb_build_object('notas_compradores', $33::text)
+                  WHEN jsonb_typeof(configuracion_formulario) = 'object' THEN
+                    configuracion_formulario || jsonb_build_object('notas_compradores', $33::text)
+                  ELSE configuracion_formulario
+                END
           WHERE id = $34::uuid
           RETURNING id::text`,
         [
@@ -651,26 +656,33 @@ export async function updatePropiedadAction(
           placasEnLease,
           openHouseSolarQuestionEnabled,
           aceptaCdbg,
-          JSON.stringify({
-            ...(propiedadActual.configuracion_formulario || {}),
-            notas_compradores: notasCompradores,
-          }),
+          notasCompradores,
           id,
         ]
       );
       if (!actualizadas[0]) throw new Error("Property not found.");
       await writeListingResponsibilityEvent(transaction, { propertyId: id, previousResponsibleUserId: locked.listing_responsible_user_id, nextResponsibleUserId, actorAdminUserId: access.user.id });
 
-      await transaction.unsafe(
-        "DELETE FROM public.propiedad_imagenes WHERE propiedad_id = $1::uuid",
+      const existingImageRows = await transaction.unsafe<{ url: string }[]>(
+        `SELECT url
+           FROM public.propiedad_imagenes
+          WHERE propiedad_id = $1::uuid
+          ORDER BY orden`,
         [id]
       );
-      for (let i = 0; i < imagenes.length; i++) {
+      const existingImages = existingImageRows.map((row) => row.url);
+      if (!haveSameOrderedPropertyImages(existingImages, imagenes)) {
         await transaction.unsafe(
-          `INSERT INTO public.propiedad_imagenes (propiedad_id, url, orden)
-           VALUES ($1::uuid, $2, $3)`,
-          [id, imagenes[i], i + 1]
+          "DELETE FROM public.propiedad_imagenes WHERE propiedad_id = $1::uuid",
+          [id]
         );
+        for (let i = 0; i < imagenes.length; i++) {
+          await transaction.unsafe(
+            `INSERT INTO public.propiedad_imagenes (propiedad_id, url, orden)
+             VALUES ($1::uuid, $2, $3)`,
+            [id, imagenes[i], i + 1]
+          );
+        }
       }
 
       await syncPropertyTranslationIntents(transaction, {

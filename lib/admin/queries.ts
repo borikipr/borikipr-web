@@ -164,7 +164,11 @@ export async function getAdminPropiedadById(id: string) {
       p.permiso_publicar_web,
       p.permiso_usar_fotos,
       p.notas_internas,
-      p.configuracion_formulario,
+      CASE
+        WHEN jsonb_typeof(p.configuracion_formulario) = 'object'
+          THEN p.configuracion_formulario
+        ELSE NULL
+      END AS configuracion_formulario,
       p.tiene_placas_solares,
       p.cantidad_placas,
       p.placas_en_lease,
