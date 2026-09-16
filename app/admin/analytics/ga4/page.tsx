@@ -5,6 +5,7 @@ import { AnalyticsChartCard } from "@/components/admin/analytics/AnalyticsChartC
 import { AnalyticsDonutChart } from "@/components/admin/analytics/AnalyticsDonutChart";
 import { AnalyticsHorizontalBarChart } from "@/components/admin/analytics/AnalyticsHorizontalBarChart";
 import { AnalyticsRefreshControls } from "@/components/admin/analytics/AnalyticsRefreshControls";
+import { PropertyPerformanceSection } from "@/components/admin/analytics/PropertyPerformanceSection";
 import type { AnalyticsChartDatum } from "@/components/admin/analytics/chart-utils";
 import { AdminBreadcrumbs } from "@/components/admin/AdminPageShell";
 import { getAdminSessionUser } from "@/lib/admin/auth";
@@ -13,6 +14,13 @@ import {
  getAdminAnalyticsProviderDashboard,
  parseAnalyticsRange,
 } from "@/lib/admin/analytics/dashboard";
+import { getPropertyPerformanceMetadata } from "@/lib/admin/analytics/property-metadata";
+import {
+ PROPERTY_PERFORMANCE_FIXTURE_METADATA,
+ PROPERTY_PERFORMANCE_FIXTURE_RESULT,
+} from "@/lib/admin/analytics/property-performance-fixture";
+import { buildPropertyPerformanceDisplayRows } from "@/lib/admin/analytics/property-performance";
+import { getGa4PropertyDigitalInterest } from "@/lib/admin/analytics/providers/ga4";
 import type {
  AnalyticsDevice,
  AnalyticsEventSummary,
@@ -46,6 +54,45 @@ function rangeLabel(range: AnalyticsRange) {
   default:
    return "Últimos 30 días";
  }
+}
+
+const rangeOptions: Array<{ value: AnalyticsRange; label: string }> = [
+ { value: "today", label: "Hoy" },
+ { value: "7d", label: "7 días" },
+ { value: "30d", label: "30 días" },
+ { value: "90d", label: "90 días" },
+];
+
+function AnalyticsRangeSelector({
+ currentRange,
+ fixture,
+}: {
+ currentRange: AnalyticsRange;
+ fixture: boolean;
+}) {
+ return (
+  <nav aria-label="Rango de Analytics" className="flex flex-wrap gap-2">
+   {rangeOptions.map((option) => {
+    const params = new URLSearchParams({ range: option.value });
+    if (fixture) params.set("propertyPerformanceFixture", "1");
+    const active = currentRange === option.value;
+    return (
+     <Link
+      key={option.value}
+      href={`/admin/analytics/ga4?${params.toString()}`}
+      aria-current={active ? "page" : undefined}
+      className={
+       active
+        ? "inline-flex min-h-11 items-center rounded-full bg-[#11518b] px-4 py-2 text-sm font-semibold text-white"
+        : "inline-flex min-h-11 items-center rounded-full border border-[#11518b]/25 bg-white px-4 py-2 text-sm font-semibold text-[#11518b] hover:bg-[#f5f9fc]"
+      }
+     >
+      {option.label}
+     </Link>
+    );
+   })}
+  </nav>
+ );
 }
 
 function formatUpdatedAt(date: Date) {
@@ -265,7 +312,7 @@ function realtimeEventRows(
 export default async function AdminGa4AnalyticsPage({
  searchParams,
 }: {
- searchParams: Promise<{ range?: string }>;
+ searchParams: Promise<{ range?: string; propertyPerformanceFixture?: string }>;
 }) {
  const user = await getAdminSessionUser();
 
@@ -275,8 +322,23 @@ export default async function AdminGa4AnalyticsPage({
 
  const params = await searchParams;
  const currentRange = parseAnalyticsRange(params.range);
+ const useFixture =
+  process.env.NODE_ENV === "development" &&
+  params.propertyPerformanceFixture === "1";
  const lastUpdated = formatUpdatedAt(new Date());
- const ga4Data = await getAdminAnalyticsProviderDashboard("ga4", currentRange);
+ const [ga4Data, propertyPerformance, propertyMetadata] = await Promise.all([
+  getAdminAnalyticsProviderDashboard("ga4", currentRange),
+  useFixture
+   ? Promise.resolve({ ...PROPERTY_PERFORMANCE_FIXTURE_RESULT, range: currentRange })
+   : getGa4PropertyDigitalInterest(currentRange),
+  useFixture
+   ? Promise.resolve(PROPERTY_PERFORMANCE_FIXTURE_METADATA)
+   : getPropertyPerformanceMetadata(),
+ ]);
+ const propertyRows = buildPropertyPerformanceDisplayRows(
+  propertyPerformance.rows,
+  propertyMetadata
+ );
  const conversions = ga4Data?.overview?.conversions ?? 0;
 
  const overviewMetrics: MetricCard[] = [
@@ -346,6 +408,9 @@ export default async function AdminGa4AnalyticsPage({
        </Link>
       </div>
      </div>
+     <div className="mt-5 border-t border-[#e5e7eb] pt-5">
+      <AnalyticsRangeSelector currentRange={currentRange} fixture={useFixture} />
+     </div>
     </div>
 
     <AnalyticsRefreshControls
@@ -361,6 +426,11 @@ export default async function AdminGa4AnalyticsPage({
     </section>
 
     <FunnelSection funnel={ga4Data?.funnel} />
+
+    <PropertyPerformanceSection
+     result={propertyPerformance}
+     rows={propertyRows}
+    />
 
     <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
      <AnalyticsChartCard

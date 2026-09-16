@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Building2, CalendarClock, ExternalLink, Mail, Phone, UsersRound } from "lucide-react";
 import { AdminActionsMenu } from "@/components/admin/AdminActionsMenu";
 import { LeadsPagination } from "@/components/admin/LeadsPagination";
+import { LeadsExportControl } from "@/components/admin/LeadsExportControl";
 import { AdminPageHeader, AdminPageShell } from "@/components/admin/AdminPageShell";
 import { getAdminSessionUser } from "@/lib/admin/auth";
 import {
@@ -145,7 +146,7 @@ export default async function AdminLeadsPage({ searchParams }: { searchParams: P
   return (
     <AdminPageShell>
       <AdminPageHeader
-        actions={<Link className="btn-primary" href="/admin/leads/seguimientos">Centro de seguimientos</Link>}
+        actions={<><LeadsExportControl query={directoryHref({ ...filters, showIndividuals: false }, 1).split("?")[1] ?? ""} operational={!filters.showIndividuals} /><Link className="btn-primary" href="/admin/leads/seguimientos">Centro de seguimientos</Link></>}
         breadcrumbs={[{ href: "/admin", label: "Admin" }, { label: "Leads" }]}
         description="Personas y casos compartidos en un solo directorio operacional. Las identidades canónicas permanecen separadas."
         eyebrow="Relaciones con clientes" title="Leads"

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { ExternalLink, FilePenLine, KeyRound, Link2, Star, StarOff, Trash2 } from "lucide-react";
+import { ExternalLink, FileDown, FilePenLine, KeyRound, Link2, Star, StarOff, Trash2 } from "lucide-react";
 import { AdminActionDialog, AdminActionsMenu, AdminMenuItem } from "@/components/admin/AdminActionsMenu";
 import { deletePropiedadAction, toggleDestacadoAction, updatePropiedadEstadoAction } from "./actions";
 
@@ -98,6 +98,9 @@ export default function PropiedadRowActions({ id, slug, titulo, estadoActual, de
         <AdminActionsMenu label={`Acciones de ${titulo}`} compact>
           <AdminMenuItem icon={<ExternalLink size={17} />} onSelect={() => window.open(`/listados/${slug}`, "_blank", "noopener,noreferrer")}>
             Ver en sitio
+          </AdminMenuItem>
+          <AdminMenuItem icon={<FileDown size={17} />} onSelect={() => window.open(`/api/admin/propiedades/${id}/brochure`, "_blank", "noopener,noreferrer")}>
+            Generar brochure
           </AdminMenuItem>
           <AdminMenuItem icon={<Link2 size={17} />} onSelect={() => void loadPrivateLink()}>
             Enlace privado de visita

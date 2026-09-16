@@ -6,6 +6,7 @@ export type ProviderConnectionStatus =
   | "not_configured"
   | "connected"
   | "missing_credentials"
+  | "missing_custom_dimension"
   | "invalid_property_id"
   | "permission_denied"
   | "invalid_property"

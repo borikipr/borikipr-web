@@ -1,7 +1,16 @@
 import "server-only";
 
 import { BetaAnalyticsDataClient } from "@google-analytics/data";
+import { unstable_cache } from "next/cache";
+import { getAnalyticsRevalidateSeconds } from "../cache";
 import { AnalyticsProviderError } from "../errors";
+import {
+  aggregatePropertyCoreRows,
+  mergePropertyArrivalRows,
+  mergePropertyShareRows,
+  PROPERTY_PERFORMANCE_EVENTS,
+  type PropertyPerformanceResult,
+} from "../property-performance";
 import { createGa4WifAuthClient, getGa4WifConfig } from "./ga4-auth";
 import type {
   AnalyticsDevice,
@@ -12,6 +21,7 @@ import type {
   AnalyticsRealtime,
   AnalyticsTopPage,
   AnalyticsTrafficSource,
+  AnalyticsRange,
   ProviderConnectionStatus,
 } from "../types";
 
@@ -50,16 +60,6 @@ const leadSubmissionEvents = [
 ];
 const duplicateEvents = ["priority_registration_duplicate"];
 const errorEvents = ["priority_registration_submit_error"];
-const propertyDigitalInterestEvents = [
-  "property_view",
-  "priority_registration_view",
-  "priority_registration_cta_click",
-  "property_contact_click",
-  "property_whatsapp_click",
-  "showing_profile_cta_click",
-  "priority_registration_submit_success",
-  "property_showing_profile_submit_success",
-];
 const funnelEvents = [
   ...awarenessEvents,
   ...propertyViewEvents,
@@ -68,21 +68,6 @@ const funnelEvents = [
   ...duplicateEvents,
   ...errorEvents,
 ];
-
-export type Ga4PropertyDigitalInterestRange = "today" | "7d" | "30d" | "all";
-
-export type Ga4PropertyDigitalInterest = {
-  propertySlug: string;
-  views: number;
-  priorityPageViews: number;
-  registrationCtaClicks: number;
-  whatsappClicks: number;
-  contactClicks: number;
-  showingCtaClicks: number;
-  priorityRegistrationsSubmitted: number;
-  showingProfilesSubmitted: number;
-  total: number;
-};
 
 function isGa4Configured() {
   return Boolean(propertyId && getGa4WifConfig());
@@ -128,22 +113,6 @@ function getStartDate(range: "today" | "7d" | "30d" | "90d") {
   }
 }
 
-function getPropertyDigitalInterestStartDate(
-  range: Ga4PropertyDigitalInterestRange
-) {
-  switch (range) {
-    case "today":
-      return "today";
-    case "7d":
-      return "7daysAgo";
-    case "30d":
-      return "30daysAgo";
-    case "all":
-    default:
-      return "2020-01-01";
-  }
-}
-
 function metricValue(value: string | null | undefined) {
   return Number(value ?? 0);
 }
@@ -183,6 +152,20 @@ function classifyGa4Error(error: unknown): {
       status: "invalid_property_id",
       message:
         "Configured GA4_PROPERTY_ID appears to be a Web Data Stream ID. The Analytics Data API requires the numeric GA4 Property ID.",
+    };
+  }
+
+  if (
+    normalized.includes("custom dimension") ||
+    normalized.includes("custom dimensions") ||
+    (normalized.includes("dimension") &&
+      (normalized.includes("not a valid") ||
+        normalized.includes("did you mean") ||
+        normalized.includes("not registered")))
+  ) {
+    return {
+      status: "missing_custom_dimension",
+      message: "A required GA4 custom dimension is not available yet.",
     };
   }
 
@@ -281,35 +264,96 @@ async function runGa4Request<T>(request: () => Promise<T>) {
   }
 }
 
-export async function getGa4PropertyDigitalInterest(
-  range: Ga4PropertyDigitalInterestRange
-): Promise<Ga4PropertyDigitalInterest[]> {
+async function fetchGa4PropertyDigitalInterest(
+  range: AnalyticsRange
+): Promise<PropertyPerformanceResult> {
   const client = getClient();
-  if (!client) return [];
+  if (!client) {
+    return {
+      status: "unavailable",
+      range,
+      rows: [],
+      requestCount: 0,
+      unavailableSections: ["core"],
+      reason: "GA4 server authentication is not configured in this environment.",
+      providerStatus: "not_configured",
+    };
+  }
 
-  try {
-    const [response] = await runGa4Request(() =>
+  const dateRanges = [{ startDate: getStartDate(range), endDate: "today" }];
+  const [coreResult, shareResult, arrivalResult] = await Promise.allSettled([
+    runGa4Request(() =>
       client.runReport({
         property: getPropertyName(),
-        dateRanges: [
-          {
-            startDate: getPropertyDigitalInterestStartDate(range),
-            endDate: "today",
-          },
-        ],
+        dateRanges,
         dimensions: [
           { name: "customEvent:property_slug" },
           { name: "eventName" },
         ],
         dimensionFilter: {
+          filter: {
+            fieldName: "eventName",
+            inListFilter: {
+              values: [...PROPERTY_PERFORMANCE_EVENTS],
+              caseSensitive: true,
+            },
+          },
+        },
+        metrics: [{ name: "eventCount" }],
+        limit: 1000,
+      })
+    ),
+    runGa4Request(() =>
+      client.runReport({
+        property: getPropertyName(),
+        dateRanges,
+        dimensions: [
+          { name: "customEvent:property_slug" },
+          { name: "customEvent:share_channel" },
+        ],
+        dimensionFilter: {
+          filter: {
+            fieldName: "eventName",
+            stringFilter: {
+              matchType: "EXACT",
+              value: "property_share",
+              caseSensitive: true,
+            },
+          },
+        },
+        metrics: [{ name: "eventCount" }],
+        limit: 1000,
+      })
+    ),
+    runGa4Request(() =>
+      client.runReport({
+        property: getPropertyName(),
+        dateRanges,
+        dimensions: [
+          { name: "sessionManualSource" },
+          { name: "sessionManualMedium" },
+          { name: "sessionManualCampaignName" },
+          { name: "sessionManualAdContent" },
+        ],
+        dimensionFilter: {
           andGroup: {
             expressions: [
-              excludeAdminPagePathFilter,
               {
                 filter: {
-                  fieldName: "eventName",
-                  inListFilter: {
-                    values: propertyDigitalInterestEvents,
+                  fieldName: "sessionManualMedium",
+                  stringFilter: {
+                    matchType: "EXACT",
+                    value: "share",
+                    caseSensitive: true,
+                  },
+                },
+              },
+              {
+                filter: {
+                  fieldName: "sessionManualCampaignName",
+                  stringFilter: {
+                    matchType: "EXACT",
+                    value: "property_share",
                     caseSensitive: true,
                   },
                 },
@@ -317,78 +361,100 @@ export async function getGa4PropertyDigitalInterest(
             ],
           },
         },
-        metrics: [{ name: "eventCount" }],
+        metrics: [{ name: "sessions" }],
         limit: 1000,
       })
-    );
+    ),
+  ]);
 
-    const grouped = new Map<string, Ga4PropertyDigitalInterest>();
-
-    for (const row of response.rows ?? []) {
-      const propertySlug = row.dimensionValues?.[0]?.value?.trim();
-      const eventName = row.dimensionValues?.[1]?.value?.trim();
-      const count = metricValue(row.metricValues?.[0]?.value);
-
-      if (!propertySlug || propertySlug === "(not set)" || !eventName) {
-        continue;
-      }
-
-      const current =
-        grouped.get(propertySlug) ??
-        ({
-          propertySlug,
-          views: 0,
-          priorityPageViews: 0,
-          registrationCtaClicks: 0,
-          whatsappClicks: 0,
-          contactClicks: 0,
-          showingCtaClicks: 0,
-          priorityRegistrationsSubmitted: 0,
-          showingProfilesSubmitted: 0,
-          total: 0,
-        } satisfies Ga4PropertyDigitalInterest);
-
-      switch (eventName) {
-        case "property_view":
-          current.views += count;
-          break;
-        case "priority_registration_view":
-          current.priorityPageViews += count;
-          break;
-        case "priority_registration_cta_click":
-          current.registrationCtaClicks += count;
-          break;
-        case "property_whatsapp_click":
-          current.whatsappClicks += count;
-          break;
-        case "property_contact_click":
-          current.contactClicks += count;
-          break;
-        case "showing_profile_cta_click":
-          current.showingCtaClicks += count;
-          break;
-        case "priority_registration_submit_success":
-          current.priorityRegistrationsSubmitted += count;
-          break;
-        case "property_showing_profile_submit_success":
-          current.showingProfilesSubmitted += count;
-          break;
-      }
-
-      current.total += count;
-      grouped.set(propertySlug, current);
-    }
-
-    return [...grouped.values()].sort((a, b) => b.total - a.total);
-  } catch (error) {
-    console.error("[admin leads] GA4 property digital interest unavailable", {
-      message: error instanceof Error ? error.message : "Unknown error",
+  if (coreResult.status === "rejected") {
+    const error = coreResult.reason;
+    console.error("[admin analytics] GA4 property core report unavailable", {
       status:
         error instanceof AnalyticsProviderError ? error.status : "unknown_error",
     });
-
-    return [];
+    return {
+      status: "unavailable",
+      range,
+      rows: [],
+      requestCount: 3,
+      unavailableSections: ["core"],
+      reason:
+        error instanceof AnalyticsProviderError
+          ? error.message
+          : "Property performance is temporarily unavailable.",
+      providerStatus:
+        error instanceof AnalyticsProviderError
+          ? error.status
+          : "unknown_error",
+    };
   }
+
+  const [coreResponse] = coreResult.value;
+  const grouped = aggregatePropertyCoreRows(coreResponse.rows ?? []);
+  const unavailableSections: Array<"share_breakdown" | "shared_link_arrivals"> = [];
+
+  if (shareResult.status === "fulfilled") {
+    const [shareResponse] = shareResult.value;
+    mergePropertyShareRows(grouped, shareResponse.rows ?? []);
+  } else {
+    unavailableSections.push("share_breakdown");
+    console.error("[admin analytics] GA4 share breakdown unavailable", {
+      status:
+        shareResult.reason instanceof AnalyticsProviderError
+          ? shareResult.reason.status
+          : "unknown_error",
+    });
+  }
+
+  if (arrivalResult.status === "fulfilled") {
+    const [arrivalResponse] = arrivalResult.value;
+    mergePropertyArrivalRows(grouped, arrivalResponse.rows ?? []);
+  } else {
+    unavailableSections.push("shared_link_arrivals");
+    console.error("[admin analytics] GA4 shared-link arrivals unavailable", {
+      status:
+        arrivalResult.reason instanceof AnalyticsProviderError
+          ? arrivalResult.reason.status
+          : "unknown_error",
+    });
+  }
+
+  const rows = [...grouped.values()].sort(
+    (a, b) => b.views - a.views || a.propertySlug.localeCompare(b.propertySlug)
+  );
+
+  if (unavailableSections.length > 0) {
+    return {
+      status: "partial",
+      range,
+      rows,
+      requestCount: 3,
+      unavailableSections,
+      reason:
+        "Some property-performance breakdowns are still unavailable while GA4 configuration propagates.",
+    };
+  }
+
+  return {
+    status: "available",
+    range,
+    rows,
+    requestCount: 3,
+    unavailableSections: [],
+  };
+}
+
+export async function getGa4PropertyDigitalInterest(
+  range: AnalyticsRange
+): Promise<PropertyPerformanceResult> {
+  const getCachedReport = unstable_cache(
+    () => fetchGa4PropertyDigitalInterest(range),
+    ["ga4-property-performance", range],
+    { revalidate: getAnalyticsRevalidateSeconds(range) }
+  );
+
+  return getCachedReport();
 }
 
 export const ga4Provider: AnalyticsProvider = {

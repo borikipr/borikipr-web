@@ -29,7 +29,7 @@ import { overlayPropertyTranslations } from "@/lib/i18n/translations/public-over
 import { getPropertyTranslationSeoState } from "@/lib/i18n/translations/public-overlay";
 import { buildPropertySeoMetadata, isCompleteEnglishPropertyTranslation, normalizeMetadataDescription } from "@/lib/i18n/seo";
 import { ENGLISH_LOCALE } from "@/lib/i18n/locales";
-import { IconBrandFacebook } from "@tabler/icons-react";
+import PropertyShareKit from "@/components/PropertyShareKit";
 
 type TipoNegocio = "venta" | "renta";
 type EstadoPropiedad =
@@ -239,7 +239,6 @@ export async function renderPropertyDetailPage({
     getEquivalentRoute(`/listados/${propiedad.slug}`, locale) ??
     `/listados/${propiedad.slug}`;
   const propiedadUrl = `https://borikipr.com${propiedadPath}`;
-  const facebookShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(propiedadUrl)}`;
   const propiedadLocation = formatPropertyLocation(
     propiedad.municipio,
     propiedad.sectorComunidad
@@ -403,18 +402,13 @@ ${propiedadUrl}`
                 {formatoPrecio(propiedad.precio, propiedad.tipoNegocio, copy)}
               </p>
 
-              <div className="mt-4">
-                <a
-                  href={facebookShareUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={copy.shareFacebookAccessible.replace("{property}", propiedad.titulo)}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#11518b]/20 bg-white px-4 py-2 text-sm font-semibold text-[#11518b] transition hover:border-[#11518b]/45 hover:bg-[#f5f9fc] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#11518b]"
-                >
-                  <IconBrandFacebook aria-hidden="true" className="h-4 w-4" />
-                  {copy.shareFacebook}
-                </a>
-              </div>
+              <PropertyShareKit
+                canonicalUrl={propiedadUrl}
+                propertySlug={propiedad.slug}
+                propertyTitle={propiedad.titulo}
+                locale={locale}
+                copy={copy.shareKit}
+              />
 
               {propiedad.estado === "bajo_contrato" && (
                 <div className="mt-6 rounded-2xl border border-[#d4af37] bg-[#fff9e6] p-6">

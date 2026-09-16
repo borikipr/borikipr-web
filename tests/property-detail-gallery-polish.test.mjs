@@ -11,13 +11,12 @@ const detail = await readFile(
   "utf8"
 );
 
-test("property detail shares the canonical localized property URL through Facebook", () => {
+test("property detail delegates localized canonical sharing to the compact share kit", () => {
   assert.match(detail, /const propiedadUrl = `https:\/\/borikipr\.com\$\{propiedadPath\}`/);
-  assert.match(detail, /facebook\.com\/sharer\/sharer\.php\?u=\$\{encodeURIComponent\(propiedadUrl\)\}/);
-  assert.match(detail, /target="_blank"/);
-  assert.match(detail, /rel="noopener noreferrer"/);
-  assert.match(detail, /shareFacebookAccessible\.replace\("\{property\}", propiedad\.titulo\)/);
-  assert.doesNotMatch(detail, /facebook\.com\/sdk|connect\.facebook\.net/);
+  assert.match(detail, /<PropertyShareKit/);
+  assert.match(detail, /canonicalUrl=\{propiedadUrl\}/);
+  assert.match(detail, /propertySlug=\{propiedad\.slug\}/);
+  assert.match(detail, /locale=\{locale\}/);
 });
 
 test("main gallery exposes direct previous and next navigation with current position", () => {
