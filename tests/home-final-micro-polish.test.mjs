@@ -15,7 +15,23 @@ test("Home featured property metrics keep zero values and add accessible bed and
   assert.match(home, /<Bath[\s\S]*aria-hidden="true"/);
   assert.match(home, /aria-label={`\$\{copy\.listings\.bedrooms\}: \$\{item\.habitaciones\}`}/);
   assert.match(home, /aria-label={`\$\{copy\.listings\.bathrooms\}: \$\{item\.banos\}`}/);
-  assert.match(home, /<span>{item\.tipo_propiedad}<\/span>/);
+  assert.match(home, /dictionary\.listingsPage\.propertyTypes\[/);
+  assert.match(home, /\?\? item\.tipo_propiedad/);
+});
+
+test("Home property types use the existing Spanish and English listing labels", () => {
+  const labels = {
+    Casa: ["Casa", "House"],
+    Apartamento: ["Apartamento", "Apartment"],
+    Condominio: ["Condominio", "Condominium"],
+    Terreno: ["Terreno", "Land"],
+    Comercial: ["Comercial", "Commercial"],
+  };
+
+  for (const [type, [spanish, english]] of Object.entries(labels)) {
+    assert.match(es, new RegExp(`${type}: "${spanish}"`));
+    assert.match(en, new RegExp(`${type}: "${english}"`));
+  }
 });
 
 test("Home uses quantity-aware centered layouts without changing multi-card columns", () => {

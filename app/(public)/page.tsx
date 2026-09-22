@@ -383,7 +383,11 @@ export async function renderHomePage(locale: AppLocale) {
                                 <span aria-hidden="true">{item.banos}</span>
                               </span>
                             )}
-                            <span>{item.tipo_propiedad}</span>
+                            <span>
+                              {dictionary.listingsPage.propertyTypes[
+                                item.tipo_propiedad as keyof typeof dictionary.listingsPage.propertyTypes
+                              ] ?? item.tipo_propiedad}
+                            </span>
                           </div>
 
                           <div className="mt-6">
