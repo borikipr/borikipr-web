@@ -288,6 +288,9 @@ test("client prevents duplicate pending submits and clears hidden conditional va
   assert.match(form, /data-clarity-mask="true"/);
   assert.match(form, /method="post"/);
   assert.match(form, /action="\/api\/hacienda-monte-carmelo-showing"/);
+  assert.match(form, /¿Asistirás al Showing este domingo, 25 de octubre, a las 10:00 a\. m\.\?/);
+  assert.match(form, /coordinar la asistencia al Showing/);
+  assert.doesNotMatch(form, /open house/i);
   assert.doesNotMatch(form, /localStorage/);
 });
 

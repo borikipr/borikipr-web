@@ -24,6 +24,11 @@ test("registration page renders the complete artwork and approved form", async (
   await expect(page.getByLabel("Nombre completo")).toBeVisible();
   await expect(page.locator("#phone")).toBeVisible();
   await expect(page.getByLabel("Correo electrónico")).toBeVisible();
+  await expect(page.locator('fieldset:has(input[name="attendance"]) legend')).toContainText(
+    "¿Asistirás al Showing este domingo, 25 de octubre, a las 10:00 a. m.?"
+  );
+  await expect(page.getByText(/coordinar la asistencia al Showing/)).toBeVisible();
+  await expect(page.getByText(/open house/i)).toHaveCount(0);
   await expect(page.getByText("política de privacidad")).toHaveAttribute("href", "/privacidad");
   await expect(page.getByRole("button", { name: "Confirmar y enviar información" })).toBeVisible();
   await expect(page.locator('input[name="purchaseMethod"]')).toHaveCount(3);

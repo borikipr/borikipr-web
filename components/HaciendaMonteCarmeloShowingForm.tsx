@@ -150,7 +150,7 @@ export default function HaciendaMonteCarmeloShowingForm({ initiallyClosed }: Pro
       </FormSection>
 
       <FormSection number="B" title="Asistencia">
-        <RadioGroup legend="¿Asistirás al Open House este domingo, 25 de octubre, a las 10:00 a. m.?" name="attendance" options={ATTENDANCE_OPTIONS} required />
+        <RadioGroup legend="¿Asistirás al Showing este domingo, 25 de octubre, a las 10:00 a. m.?" name="attendance" options={ATTENDANCE_OPTIONS} required />
       </FormSection>
 
       <FormSection number="C" title="Intención de compra">
@@ -204,7 +204,7 @@ export default function HaciendaMonteCarmeloShowingForm({ initiallyClosed }: Pro
       </FormSection>
 
       <div className="rounded-2xl border border-[#d8e4ee] bg-[#f4f8fb] p-5 text-sm leading-6 text-[#34485a]">
-        <p>La información será recibida por Erickson Real Estate PR para coordinar la asistencia al Open House, responder consultas sobre la propiedad y dar seguimiento relacionado con Hacienda Monte Carmelo.</p>
+        <p>La información será recibida por Erickson Real Estate PR para coordinar la asistencia al Showing, responder consultas sobre la propiedad y dar seguimiento relacionado con Hacienda Monte Carmelo.</p>
         <p className="mt-2">Consulta nuestra <Link href="/privacidad" className="font-semibold text-[#11518b] underline underline-offset-2">política de privacidad</Link>.</p>
         <label className="mt-4 flex min-h-11 cursor-pointer items-start gap-3 font-semibold text-[#0d1b2a]">
           <input type="checkbox" name="privacyAcknowledged" required className="mt-1 h-5 w-5 shrink-0 accent-[#11518b]" />
