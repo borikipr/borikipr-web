@@ -10,6 +10,7 @@
     "lint": "eslint",
     "type-check": "tsc --noEmit",
     "test:e2e": "playwright test",
+    "test:hacienda-showing": "tsx --test --test-concurrency=1 tests/hacienda-monte-carmelo-showing.test.mjs",
     "test:i18n:seo": "tsx --test --test-concurrency=1 tests/multilingual-seo.test.mjs",
     "test:translations:operational": "tsx --test --test-concurrency=1 tests/translation-worker-operational.test.mjs",
     "test:translations:readiness": "tsx --test --test-concurrency=1 tests/translation-operational-readiness.test.mjs",

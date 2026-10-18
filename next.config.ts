@@ -82,6 +82,14 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/listados/hacienda-monte-carmelo-cascadas-cafe-guayanilla/registro-showing",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+        ],
+      },
+      {
         source: "/firmar/:path*",
         headers: [
           { key: "Cache-Control", value: "private, no-store, max-age=0" },

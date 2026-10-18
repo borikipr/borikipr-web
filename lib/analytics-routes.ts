@@ -19,6 +19,8 @@ export function isPrivateTokenizedPath(pathname: string | undefined | null) {
       ? new URL(pathname).pathname
       : pathname;
     return (
+      parsedPath ===
+        "/listados/hacienda-monte-carmelo-cascadas-cafe-guayanilla/registro-showing" ||
       /^\/listados\/[^/]+\/visita\/[^/]+\/?$/.test(parsedPath) ||
       parsedPath === "/firmar" ||
       parsedPath.startsWith("/firmar/")
