@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -13,6 +14,7 @@ import {
   isHaciendaShowingClosed,
   PROPERTY_INTEREST_OPTIONS,
   PURCHASE_METHOD_OPTIONS,
+  REALTOR_OPTIONS,
   validateHaciendaShowingPayload,
 } from "../lib/hacienda-monte-carmelo-showing.ts";
 import { createHaciendaShowingPostHandler } from "../lib/hacienda-monte-carmelo-showing-handler.ts";
@@ -26,7 +28,7 @@ const validPayload = (overrides = {}) => ({
   financingStatus: "",
   interests: [PROPERTY_INTEREST_OPTIONS[0], PROPERTY_INTEREST_OPTIONS[2]],
   otherInterest: "",
-  worksWithRealtor: "No.",
+  worksWithRealtor: "No",
   realtorName: "",
   realtorPhone: "",
   comments: "Primera línea.\r\nSegunda línea.",
@@ -57,10 +59,13 @@ function expectValidation(payload, reason) {
 }
 
 test("dedicated route renders exact content, complete image, noindex, and dynamic closed state", async () => {
-  const page = await readFile(
-    fileURLToPath(new URL("../app/(public)/listados/hacienda-monte-carmelo-cascadas-cafe-guayanilla/registro-showing/page.tsx", import.meta.url)),
-    "utf8"
-  );
+  const [page, image] = await Promise.all([
+    readFile(
+      fileURLToPath(new URL("../app/(public)/listados/hacienda-monte-carmelo-cascadas-cafe-guayanilla/registro-showing/page.tsx", import.meta.url)),
+      "utf8"
+    ),
+    readFile(fileURLToPath(new URL("../public/images/hacienda-monte-carmelo-showing.jpeg", import.meta.url))),
+  ]);
   assert.equal(HACIENDA_SHOWING_ROUTE, "/listados/hacienda-monte-carmelo-cascadas-cafe-guayanilla/registro-showing");
   assert.match(page, /21 CUERDAS DE TERRENO \| HACIENDA MONTE CARMELO/);
   assert.match(page, /Gracias por tu interés en Hacienda Monte Carmelo/);
@@ -72,6 +77,32 @@ test("dedicated route renders exact content, complete image, noindex, and dynami
   assert.match(page, /index: false/);
   assert.match(page, /dynamic = "force-dynamic"/);
   assert.match(page, /await connection\(\)/);
+  assert.equal(
+    createHash("sha256").update(image).digest("hex").toUpperCase(),
+    "AF43DD895F1660810AE9F2A9EB040942CCE161ADB62E862BB520127D4FFA59F6"
+  );
+});
+
+test("all selectable options use the final approved labels without terminal periods", () => {
+  assert.deepEqual(PURCHASE_METHOD_OPTIONS, [
+    "Compra en efectivo (cash)",
+    "Mediante financiamiento",
+    "Dependerá de la negociación y las condiciones de compra",
+  ]);
+  assert.deepEqual(FINANCING_STATUS_OPTIONS, [
+    "Tengo carta de precualificación",
+    "Estoy en proceso con una institución financiera",
+    "Todavía no he comenzado el proceso",
+  ]);
+  for (const option of [
+    ...ATTENDANCE_OPTIONS,
+    ...PURCHASE_METHOD_OPTIONS,
+    ...FINANCING_STATUS_OPTIONS,
+    ...PROPERTY_INTEREST_OPTIONS,
+    ...REALTOR_OPTIONS,
+  ]) {
+    assert.equal(option.endsWith("."), false, option);
+  }
 });
 
 test("required contact fields and email are validated and normalized", () => {
@@ -88,7 +119,7 @@ test("all attendance and purchase options are accepted", () => {
     assert.equal(validateHaciendaShowingPayload(validPayload({ attendance })).attendance, attendance);
   }
   for (const purchaseMethod of PURCHASE_METHOD_OPTIONS) {
-    const financingStatus = purchaseMethod === "Mediante financiamiento."
+    const financingStatus = purchaseMethod === "Mediante financiamiento"
       ? FINANCING_STATUS_OPTIONS[0]
       : "";
     assert.equal(validateHaciendaShowingPayload(validPayload({ purchaseMethod, financingStatus })).purchaseMethod, purchaseMethod);
@@ -97,7 +128,7 @@ test("all attendance and purchase options are accepted", () => {
 
 test("financing status is conditionally required and independently enforced", () => {
   expectValidation(
-    validPayload({ purchaseMethod: "Mediante financiamiento.", financingStatus: "" }),
+    validPayload({ purchaseMethod: "Mediante financiamiento", financingStatus: "" }),
     "invalid_financing_status"
   );
   expectValidation(
@@ -105,9 +136,33 @@ test("financing status is conditionally required and independently enforced", ()
     "unexpected_financing_status"
   );
   assert.equal(
-    validateHaciendaShowingPayload(validPayload({ purchaseMethod: "Mediante financiamiento.", financingStatus: FINANCING_STATUS_OPTIONS[1] })).financingStatus,
+    validateHaciendaShowingPayload(validPayload({ purchaseMethod: "Mediante financiamiento", financingStatus: FINANCING_STATUS_OPTIONS[1] })).financingStatus,
     FINANCING_STATUS_OPTIONS[1]
   );
+});
+
+test("removed purchase and financing values are rejected server-side", () => {
+  expectValidation(
+    validPayload({ purchaseMethod: "Estoy evaluando mis opciones." }),
+    "invalid_purchase_method"
+  );
+  expectValidation(
+    validPayload({
+      purchaseMethod: "Mediante financiamiento",
+      financingStatus: "Tengo carta de precualificación o preaprobación.",
+    }),
+    "invalid_financing_status"
+  );
+  expectValidation(
+    validPayload({ purchaseMethod: "Mediante financiamiento", financingStatus: "No aplica." }),
+    "invalid_financing_status"
+  );
+  expectValidation(validPayload({ attendance: "Sí, asistiré." }), "invalid_attendance");
+  expectValidation(
+    validPayload({ interests: ["Proyecto agrícola o cultivo de café."] }),
+    "invalid_interests"
+  );
+  expectValidation(validPayload({ worksWithRealtor: "No." }), "invalid_realtor_answer");
 });
 
 test("multiple interests and optional other-interest details are supported", () => {
@@ -121,10 +176,10 @@ test("multiple interests and optional other-interest details are supported", () 
 });
 
 test("Realtor fields are conditional, required, normalized, and stale values are rejected", () => {
-  expectValidation(validPayload({ worksWithRealtor: "Sí." }), "invalid_realtor_name");
-  expectValidation(validPayload({ worksWithRealtor: "No.", realtorName: "Corredor Ejemplo" }), "unexpected_realtor_fields");
+  expectValidation(validPayload({ worksWithRealtor: "Sí" }), "invalid_realtor_name");
+  expectValidation(validPayload({ worksWithRealtor: "No", realtorName: "Corredor Ejemplo" }), "unexpected_realtor_fields");
   const parsed = validateHaciendaShowingPayload(validPayload({
-    worksWithRealtor: "Sí.",
+    worksWithRealtor: "Sí",
     realtorName: "Ana López",
     realtorPhone: "+1 939 555 1212",
   }));
@@ -148,6 +203,8 @@ test("email renderer includes requested Spanish labels and escapes all user cont
   assert.match(email.html, /Nombre completo/);
   assert.match(email.html, /Asistencia/);
   assert.match(email.html, /Intereses/);
+  assert.match(email.html, /Compra en efectivo \(cash\)/);
+  assert.doesNotMatch(email.html, /Compra en efectivo \(cash\)\./);
   assert.match(email.html, /María &lt;Rivera&gt;/);
   assert.match(email.html, /Pregunta &lt;script&gt;<br \/>Otra línea/);
   assert.doesNotMatch(email.html, /Pregunta <script>/);

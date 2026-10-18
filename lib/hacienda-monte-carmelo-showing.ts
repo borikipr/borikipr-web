@@ -6,34 +6,32 @@ export const HACIENDA_SHOWING_CUTOFF_ISO = "2026-10-25T14:00:00.000Z";
 export const HACIENDA_SHOWING_MAX_BODY_BYTES = 24_000;
 
 export const ATTENDANCE_OPTIONS = [
-  "Sí, asistiré.",
-  "No podré asistir, pero me interesa la propiedad.",
-  "Todavía no estoy seguro/a.",
+  "Sí, asistiré",
+  "No podré asistir, pero me interesa la propiedad",
+  "Todavía no estoy seguro/a",
 ] as const;
 
 export const PURCHASE_METHOD_OPTIONS = [
-  "Compra en efectivo (cash).",
-  "Mediante financiamiento.",
-  "Dependerá de la negociación y las condiciones de compra.",
-  "Estoy evaluando mis opciones.",
+  "Compra en efectivo (cash)",
+  "Mediante financiamiento",
+  "Dependerá de la negociación y las condiciones de compra",
 ] as const;
 
 export const FINANCING_STATUS_OPTIONS = [
-  "Tengo carta de precualificación o preaprobación.",
-  "Estoy en proceso con una institución financiera.",
-  "Todavía no he comenzado el proceso.",
-  "No aplica.",
+  "Tengo carta de precualificación",
+  "Estoy en proceso con una institución financiera",
+  "Todavía no he comenzado el proceso",
 ] as const;
 
 export const PROPERTY_INTEREST_OPTIONS = [
-  "Proyecto agrícola o cultivo de café.",
-  "Proyecto ecoturístico o recreativo.",
-  "Inversión.",
-  "Uso personal o familiar.",
-  "Otro interés.",
+  "Proyecto agrícola o cultivo de café",
+  "Proyecto ecoturístico o recreativo",
+  "Inversión",
+  "Uso personal o familiar",
+  "Otro interés",
 ] as const;
 
-export const REALTOR_OPTIONS = ["Sí.", "No."] as const;
+export const REALTOR_OPTIONS = ["Sí", "No"] as const;
 
 type Attendance = (typeof ATTENDANCE_OPTIONS)[number];
 type PurchaseMethod = (typeof PURCHASE_METHOD_OPTIONS)[number];
@@ -111,7 +109,7 @@ export function validateHaciendaShowingPayload(
 
   const rawFinancingStatus = cleanText(body.financingStatus, 120);
   let financingStatus: FinancingStatus | null = null;
-  if (purchaseMethod === "Mediante financiamiento.") {
+  if (purchaseMethod === "Mediante financiamiento") {
     if (!includes(FINANCING_STATUS_OPTIONS, rawFinancingStatus)) {
       invalid("Selecciona tu situación de financiamiento.", "invalid_financing_status");
     }
@@ -132,7 +130,7 @@ export function validateHaciendaShowingPayload(
   }
 
   const rawOtherInterest = cleanText(body.otherInterest, 160);
-  const selectedOther = interests.includes("Otro interés.");
+  const selectedOther = interests.includes("Otro interés");
   if (!selectedOther && rawOtherInterest) {
     invalid("La explicación de otro interés no aplica.", "unexpected_other_interest");
   }
@@ -147,7 +145,7 @@ export function validateHaciendaShowingPayload(
   const rawRealtorPhone = cleanText(body.realtorPhone, 40);
   let realtorName: string | null = null;
   let realtorPhone: string | null = null;
-  if (worksWithRealtor === "Sí.") {
+  if (worksWithRealtor === "Sí") {
     if (!rawRealtorName || !hasMeaningfulName(rawRealtorName)) {
       invalid("Ingresa el nombre completo del corredor o Realtor®.", "invalid_realtor_name");
     }

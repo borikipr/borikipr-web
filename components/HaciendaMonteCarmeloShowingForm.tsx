@@ -50,18 +50,18 @@ export default function HaciendaMonteCarmeloShowingForm({ initiallyClosed }: Pro
     );
   }
 
-  const financingRequired = purchaseMethod === "Mediante financiamiento.";
-  const otherSelected = interests.includes("Otro interés.");
-  const realtorRequired = worksWithRealtor === "Sí.";
+  const financingRequired = purchaseMethod === "Mediante financiamiento";
+  const otherSelected = interests.includes("Otro interés");
+  const realtorRequired = worksWithRealtor === "Sí";
 
   function changePurchaseMethod(value: string) {
     setPurchaseMethod(value);
-    if (value !== "Mediante financiamiento.") setFinancingStatus("");
+    if (value !== "Mediante financiamiento") setFinancingStatus("");
   }
 
   function changeRealtor(value: string) {
     setWorksWithRealtor(value);
-    if (value !== "Sí.") {
+    if (value !== "Sí") {
       setRealtorName("");
       setRealtorPhone("");
     }
@@ -71,7 +71,7 @@ export default function HaciendaMonteCarmeloShowingForm({ initiallyClosed }: Pro
     setInterests((current) =>
       checked ? [...current, value] : current.filter((item) => item !== value)
     );
-    if (value === "Otro interés." && !checked) setOtherInterest("");
+    if (value === "Otro interés" && !checked) setOtherInterest("");
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
